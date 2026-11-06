@@ -5,13 +5,13 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 
 > This file is the initial plan only. Once implementation starts, details move to
 > `docs/architecture/` (`backend.md`, `frontend.md`, `sync.md`, `deployment.md`).
-> Key decisions and their reasoning live in [`docs/decisions/`](decisions/).
+> Key decisions and their reasoning live in [`docs/adr/`](adr/).
 
 ## 1. Product
 
 - **Users:** husband and wife. **Children** are profiles (no login); the model allows giving them accounts later.
 - **UI language:** Russian only, not switchable. All UI strings in i18n resource files from day one; backend returns codes, not texts → adding a language = adding a file.
-- **Deployment model:** one installation per family ([ADR-0004](decisions/0004-single-family-deployment.md)). Public repo, MIT license.
+- **Deployment model:** one installation per family ([ADR-0004](adr/0004-single-family-deployment.md)). Public repo, MIT license.
 
 ### Release 1 — MVP
 
@@ -28,7 +28,7 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
    - Own todo list and wish list (always shared between parents).
    - Profile card with **user-defined fields** (clothes size, shoe size, allergies, teacher's phone, …).
 4. **Wish lists** for adults too — plain shared lists, no special "reserved/hidden" logic.
-5. **Settings (admin) screen**, available to any adult: family members, children, store types, categories and their order, child profile fields. Fresh install is seeded with sensible defaults ([ADR-0005](decisions/0005-configuration-vs-code.md)).
+5. **Settings (admin) screen**, available to any adult: family members, children, store types, categories and their order, child profile fields. Fresh install is seeded with sensible defaults ([ADR-0005](adr/0005-configuration-vs-code.md)).
 6. **Notifications**
    - Global on/off per user; mute per list.
    - Never notify about own changes.
@@ -68,10 +68,10 @@ Chores/rewards, shared expenses, "reserved by" on wish lists, in-app calendar.
  PostgreSQL (Flyway migrations)  ──nightly pg_dump──▶  Hetzner Storage Box
 ```
 
-- **Client:** PWA first, native later if needed ([ADR-0001](decisions/0001-pwa-first-client.md)). Share-to-app on iOS via a Shortcut that POSTs to the API.
+- **Client:** PWA first, native later if needed ([ADR-0001](adr/0001-pwa-first-client.md)). Share-to-app on iOS via a Shortcut that POSTs to the API.
 - **Backend:** Spring Boot 3, Java 21, Spring Security (session auth), one deployable split into feature packages (`family`, `lists`, `notifications`, later `links`, `recipes`, `trips`).
-- **Database:** PostgreSQL ([ADR-0002](decisions/0002-postgresql.md)).
-- **Sync:** offline-first with outbox + per-record versions, last-write-wins per field ([ADR-0003](decisions/0003-sync-model.md)).
+- **Database:** PostgreSQL ([ADR-0002](adr/0002-postgresql.md)).
+- **Sync:** offline-first with outbox + per-record versions, last-write-wins per field ([ADR-0003](adr/0003-sync-model.md)).
 - **Hosting:** one Hetzner VPS (~€5–10/month) with Docker Compose: `app`, `postgres`, `caddy` (+ `media-worker` from R2). Own domain (~€10/year), required for HTTPS / Web Push.
 - **CI/CD:** GitHub Actions → tests → one Docker image (web bundle inside) → GHCR. Deploy: `docker compose pull && docker compose up -d`.
 
@@ -100,7 +100,7 @@ Later modules (links, recipes, trips) get their own tables and **reuse** `List`/
 /backend   Spring Boot app (Gradle)
 /web       React PWA
 /deploy    docker-compose.yml, Caddyfile, backup scripts, .env.example
-/docs      PLAN.md, decisions/, architecture/ (created during implementation)
+/docs      PLAN.md, adr/, architecture/ (created during implementation)
 ```
 
 Secrets only in the server's `.env`, never in git.
