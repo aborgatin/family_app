@@ -1,6 +1,6 @@
 # 0005 — What is configurable vs hardcoded
 
-- **Status:** Accepted
+- **Status:** Accepted; store types partially superseded by [ADR-0006](0006-shopping-lists-replace-store-types.md)
 - **Date:** 2026-11-06
 
 ## Context
