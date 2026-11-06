@@ -1,6 +1,7 @@
 # Family App — Initial Plan
 
-A private app for our family: two adults (users) and two daughters (profiles, no login).
+A private app for our family: two adults (members) and two daughters (children: profiles, no login).
+Vocabulary: see [`GLOSSARY.md`](../GLOSSARY.md).
 Goal: **working and supportable** first, easy to extend, cheap to host, reusable by other families.
 
 > This file is the initial plan only. Once implementation starts, details move to
@@ -9,31 +10,31 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 
 ## 1. Product
 
-- **Users:** husband and wife. **Children** are profiles (no login); the model allows giving them accounts later.
+- **Members:** husband and wife (the adults who log in). **Children** are profiles (no login); the model allows giving them accounts later.
 - **UI language:** Russian only, not switchable. All UI strings in i18n resource files from day one; backend returns codes, not texts → adding a language = adding a file.
 - **Deployment model:** one installation per family ([ADR-0004](adr/0004-single-family-deployment.md)). Public repo, MIT license.
 
 ### Release 1 — MVP
 
 1. **Shopping lists**
-   - Grouped by **store type** (supermarket, pharmacy, household, online, …) with optional **ordered categories** per store type (e.g. supermarket: vegetables → dairy → bread …).
-   - Item: name, free-text quantity ("2 кг"), note, store type + category, who added it.
-   - Autocomplete from history; category is remembered per item name and applied automatically.
-   - Bought items move to a "bought" section that can be cleared.
+   - Several shopping lists, named after where you buy (Супермаркет, Аптека, Хозтовары, Онлайн, …) ([ADR-0006](adr/0006-shopping-lists-replace-store-types.md)), each with optional **ordered categories** (e.g. Супермаркет: vegetables → dairy → bread …).
+   - Item: name, free-text quantity ("2 кг"), note, category, creator (who added it).
+   - Autocomplete from item history per list; category is remembered per item name and applied automatically.
+   - Done items move to the "bought" section (Куплено) that can be cleared.
 2. **Todos**
    - Lists are **private** (owner only) or **shared** (both adults).
-   - Item: title, note, optional due date with push reminder, optional assignee (on shared lists), simple repeat (daily / weekly / monthly / yearly).
+   - Item: title, note, optional due date with reminder, optional assignee (a member, on shared lists), simple repeat (daily / weekly / monthly / yearly).
    - No subtasks, no location reminders.
 3. **Children pages** (one per daughter)
-   - Own todo list and wish list (always shared between parents).
-   - Profile card with **user-defined fields** (clothes size, shoe size, allergies, teacher's phone, …).
+   - Own todo list and wish list (always shared between members).
+   - Child profile with **user-defined child fields** (clothes size, shoe size, allergies, teacher's phone, …).
 4. **Wish lists** for adults too — plain shared lists, no special "reserved/hidden" logic.
-5. **Settings (admin) screen**, available to any adult: family members, children, store types, categories and their order, child profile fields. Fresh install is seeded with sensible defaults ([ADR-0005](adr/0005-configuration-vs-code.md)).
+5. **Settings (admin) screen**, available to any adult: members, children, child fields. Categories and their order are edited on each shopping list. Fresh install is seeded with sensible defaults ([ADR-0005](adr/0005-configuration-vs-code.md)).
 6. **Notifications**
-   - Global on/off per user; mute per list.
+   - Global on/off per member; mute per list (mutes notifications, not reminders).
    - Never notify about own changes.
    - Batching: "Даша добавила 7 товаров в Супермаркет" instead of 7 pushes.
-   - Todo due reminders always fire unless notifications are globally off.
+   - Reminders (todo due dates) always fire unless notifications are globally off.
 7. **Auth:** email + password, long-lived session per device, invite link to add the second adult. Passkeys later.
 
 ### Later releases (outline only — to be brainstormed when we get there)
@@ -83,11 +84,10 @@ Chores/rewards, shared expenses, "reserved by" on wish lists, in-app calendar.
 | `Member` | id, family, email, password hash, display name, notifications_enabled |
 | `Child` | id, family, name, color, birthday |
 | `ChildField` / `ChildFieldValue` | user-defined profile fields and their values per child |
-| `StoreType` | id, name, sort order |
-| `Category` | id, store_type, name, sort order |
-| `List` | id, type (`SHOPPING`/`TODO`/`WISH`), visibility (`PRIVATE`/`FAMILY`), owner, child?, name |
-| `Item` | id, list, text, quantity, note, category?, done, due_at?, repeat?, assignee?, created_by, completed_by |
-| `ItemHistory` | name → last category / store type (autocomplete + auto-categorisation) |
+| `Category` | id, list (shopping only), name, sort order |
+| `List` | id, kind (`SHOPPING`/`TODO`/`WISH`), visibility (`PRIVATE`/`SHARED`), owner, child?, name |
+| `Item` | id, list, text, quantity, note, category?, done, due_at?, repeat?, assignee? (member), created_by, done_by |
+| `ItemHistory` | list + name → last category (autocomplete + auto-categorisation) |
 | `ListMute` | member, list |
 | `PushSubscription` | member, endpoint, keys |
 
@@ -116,7 +116,7 @@ Secrets only in the server's `.env`, never in git.
 
 **M1 — Family & auth**
 - [ ] Member registration of first adult (bootstrap), login, long-lived session, invite link.
-- [ ] Settings screen: members, children, store types, categories (order), child profile fields.
+- [ ] Settings screen: members, children, child fields.
 - [ ] Default seed data on first start.
 
 **M2 — Lists core + sync**
@@ -125,12 +125,12 @@ Secrets only in the server's `.env`, never in git.
 - [ ] Client local store (Dexie), outbox, offline handling, SSE live refresh.
 
 **M3 — Shopping**
-- [ ] Store-type grouping, ordered categories, bought section + clear.
+- [ ] Multiple shopping lists, ordered categories per list, bought section + clear.
 - [ ] Autocomplete & auto-categorisation from `ItemHistory`.
 
 **M4 — Todos & children**
 - [ ] Private/shared todo lists, due dates, assignee, repeat rules.
-- [ ] Children pages: todo, wish list, profile card. Adult wish lists.
+- [ ] Child pages: todo list, wish list, child profile. Member wish lists.
 
 **M5 — Notifications**
 - [ ] Web Push subscription (iOS 16.4+ installed PWA), global toggle, per-list mute.
