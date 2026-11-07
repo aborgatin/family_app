@@ -32,8 +32,16 @@ final class Browser {
   }
 
   ResultActions postJson(String path, String json) throws Exception {
-    MockHttpServletRequestBuilder request =
-        MockMvcRequestBuilders.post(path).contentType(MediaType.APPLICATION_JSON).content(json);
+    return write(
+        MockMvcRequestBuilders.post(path).contentType(MediaType.APPLICATION_JSON).content(json));
+  }
+
+  /** A {@code POST} without a body. */
+  ResultActions post(String path) throws Exception {
+    return write(MockMvcRequestBuilders.post(path));
+  }
+
+  private ResultActions write(MockHttpServletRequestBuilder request) throws Exception {
     Cookie xsrf = cookies.get("XSRF-TOKEN");
     if (xsrf != null) {
       request.header("X-XSRF-TOKEN", xsrf.getValue());
