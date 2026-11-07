@@ -89,13 +89,14 @@ describe('Own profile', () => {
     server.use(membersHandler([anna, boris]));
   });
 
-  it('starts with the own display name and «Добавил» / «Добавила» choice', async () => {
+  it('starts with the own display name and «Пол» choice', async () => {
     renderApp('/settings');
     const form = await profileForm();
 
     expect(within(form).getByLabelText('Имя')).toHaveValue('Анна');
-    expect(within(form).getByRole('radio', { name: 'Добавила' })).toBeChecked();
-    expect(within(form).getByRole('radio', { name: 'Добавил' })).not.toBeChecked();
+    const choice = within(form).getByRole('group', { name: 'Пол' });
+    expect(within(choice).getByRole('radio', { name: 'Женский' })).toBeChecked();
+    expect(within(choice).getByRole('radio', { name: 'Мужской' })).not.toBeChecked();
   });
 
   it('renames the Member, sending only the name, and shows the new name in the list', async () => {
@@ -114,7 +115,7 @@ describe('Own profile', () => {
     expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('Аня (вы)');
   });
 
-  it('changes only the «Добавил» / «Добавила» choice', async () => {
+  it('changes only the «Пол» choice', async () => {
     const received = profileAnswers(() =>
       HttpResponse.json({ ...anna, grammaticalGender: 'MASCULINE' }),
     );
@@ -122,7 +123,7 @@ describe('Own profile', () => {
 
     renderApp('/settings');
     const form = await profileForm();
-    await user.click(within(form).getByRole('radio', { name: 'Добавил' }));
+    await user.click(within(form).getByRole('radio', { name: 'Мужской' }));
     await user.click(within(form).getByRole('button', { name: 'Сохранить' }));
 
     expect(await within(form).findByRole('status')).toHaveTextContent('Сохранено');

@@ -13,7 +13,7 @@ interface GrammaticalGenderChoiceProps {
 }
 
 /**
- * The required «Добавил» / «Добавила» choice, used at registration and in the Member's profile. It
+ * The required «Пол» choice («Мужской» / «Женский»), used at registration and in the Member's profile. It
  * starts with nothing selected, so the Member always makes the choice themselves.
  */
 export function GrammaticalGenderChoice({ value, onChange, error }: GrammaticalGenderChoiceProps) {
@@ -31,7 +31,7 @@ export function GrammaticalGenderChoice({ value, onChange, error }: GrammaticalG
       aria-invalid={error !== undefined}
       aria-describedby={error === undefined ? undefined : errorId}
     >
-      <legend>{t('grammaticalGender.question')}</legend>
+      <legend>{t('grammaticalGender.label')}</legend>
       {options.map((option) => (
         <label key={option.value}>
           <input

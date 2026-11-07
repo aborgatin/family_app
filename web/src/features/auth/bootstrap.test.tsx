@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -20,7 +20,7 @@ async function fillForm(
   await user.type(screen.getByLabelText('Пароль'), 'secret123');
   await user.type(screen.getByLabelText('Имя'), 'Анна');
   if (choose) {
-    await user.click(screen.getByRole('radio', { name: 'Добавила' }));
+    await user.click(screen.getByRole('radio', { name: 'Женский' }));
   }
 }
 
@@ -56,18 +56,19 @@ describe('First Member registration', () => {
     expect(session.calls.count).toBe(1);
   });
 
-  it('offers «Добавил» / «Добавила» with nothing pre-selected', async () => {
+  it('asks «Пол» with «Мужской» / «Женский» and nothing pre-selected', async () => {
     freshInstallation();
 
     renderApp('/setup');
 
-    const masculine = await screen.findByRole('radio', { name: 'Добавил' });
-    const feminine = screen.getByRole('radio', { name: 'Добавила' });
+    const choice = await screen.findByRole('group', { name: 'Пол' });
+    const masculine = within(choice).getByRole('radio', { name: 'Мужской' });
+    const feminine = within(choice).getByRole('radio', { name: 'Женский' });
     expect(masculine).not.toBeChecked();
     expect(feminine).not.toBeChecked();
   });
 
-  it('requires the «Добавил» / «Добавила» choice before sending', async () => {
+  it('requires the «Пол» choice before sending', async () => {
     freshInstallation();
     let sent = false;
     server.use(

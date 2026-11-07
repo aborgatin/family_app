@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -33,7 +33,7 @@ async function fillIn(user: ReturnType<typeof userEvent.setup>) {
   await user.type(await screen.findByLabelText('Электронная почта'), 'boris@example.com');
   await user.type(screen.getByLabelText('Пароль'), 'boris-pass');
   await user.type(screen.getByLabelText('Имя'), 'Борис');
-  await user.click(screen.getByRole('radio', { name: 'Добавил' }));
+  await user.click(screen.getByRole('radio', { name: 'Мужской' }));
 }
 
 function join(user: ReturnType<typeof userEvent.setup>) {
@@ -92,7 +92,7 @@ describe('Invite link', () => {
     expect(app.location()).toBe(LINK);
   });
 
-  it('requires the «Добавил» / «Добавила» choice, with nothing pre-selected', async () => {
+  it('requires the «Пол» choice («Мужской» / «Женский»), with nothing pre-selected', async () => {
     loggedOut();
     workingLink();
     let sent = false;
@@ -106,8 +106,9 @@ describe('Invite link', () => {
     await user.type(await screen.findByLabelText('Электронная почта'), 'boris@example.com');
     await user.type(screen.getByLabelText('Пароль'), 'boris-pass');
     await user.type(screen.getByLabelText('Имя'), 'Борис');
-    expect(screen.getByRole('radio', { name: 'Добавил' })).not.toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Добавила' })).not.toBeChecked();
+    const choice = screen.getByRole('group', { name: 'Пол' });
+    expect(within(choice).getByRole('radio', { name: 'Мужской' })).not.toBeChecked();
+    expect(within(choice).getByRole('radio', { name: 'Женский' })).not.toBeChecked();
     await join(user);
 
     expect(await screen.findByText('Выберите вариант')).toBeInTheDocument();

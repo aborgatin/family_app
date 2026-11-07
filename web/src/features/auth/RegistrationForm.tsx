@@ -34,7 +34,7 @@ interface RegistrationFormProps {
 
 /**
  * The registration form shared by the first Member (`/setup`) and an invited adult
- * (`/invite/:token`): email, password, display name and the required «Добавил» / «Добавила»
+ * (`/invite/:token`): email, password, display name and the required «Пол» («Мужской» / «Женский»)
  * choice. Server field errors show next to their fields; `member.email_taken` next to the email.
  */
 export function RegistrationForm({

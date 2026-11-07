@@ -18,7 +18,7 @@ interface ProfileFormProps {
   onSaved: (member: Member) => void;
 }
 
-/** The logged-in Member's own display name and «Добавил» / «Добавила» choice. Online-only. */
+/** The logged-in Member's own display name and «Пол» choice. Online-only. */
 export function ProfileForm({ member, onSaved }: ProfileFormProps) {
   const { t } = useTranslation();
   const headingId = useId();

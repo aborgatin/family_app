@@ -151,9 +151,9 @@
     "pink": "Розовый"
   },
   "grammaticalGender": {
-    "question": "Как писать о ваших действиях",
-    "masculine": "Добавил",
-    "feminine": "Добавила"
+    "label": "Пол",
+    "masculine": "Мужской",
+    "feminine": "Женский"
   },
   "errors": {
     "generic": "Что-то пошло не так. Попробуйте ещё раз.",

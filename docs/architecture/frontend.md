@@ -163,7 +163,8 @@ against the same file (see [`backend.md`](backend.md#stack)). Each code's Russia
   Member's `grammaticalGender` lower-cased (`masculine` / `feminine`), i.e. keys `<key>_masculine`
   and `<key>_feminine`, plus the plain `<key>` as the neutral fallback when the value is missing.
   No such key exists yet; the first one arrives with M2/M3 messages. The choice itself is
-  `GrammaticalGenderChoice` in `@/shared/ui` («Добавил» / «Добавила», nothing pre-selected), used
+  `GrammaticalGenderChoice` in `@/shared/ui`, asked as «Пол» with «Мужской» / «Женский» (keys
+  `grammaticalGender.label`, `.masculine`, `.feminine`; nothing pre-selected), used
   at registration and in the profile form.
 - The app name «Семья» is `app.name`; `vite.config.ts` puts it into the manifest and replaces
   `%APP_NAME%` in `index.html`.
