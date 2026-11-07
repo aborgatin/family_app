@@ -159,6 +159,35 @@ check_login_limits_see_the_client_ip() {
   echo "ok   login limits see the real client IP behind Caddy"
 }
 
+# The operator's password reset command, run the documented way next to the live app: it prints a
+# link on DOMAIN that works through Caddy, and fails clearly for an unknown email.
+check_password_reset_command() {
+  local jar token output link status
+  jar="$(mktemp "$work/cookies.XXXXXX")"
+  curl -ksS -c "$jar" -o /dev/null "$base/api/auth/session" || fail "GET /api/auth/session failed"
+  token="$(awk '$6 == "XSRF-TOKEN" { print $7 }' "$jar")"
+  status="$(curl -ksS -b "$jar" -o /dev/null -w '%{http_code}' -X POST "$base/api/auth/bootstrap" \
+    -H "X-XSRF-TOKEN: $token" -H 'Content-Type: application/json' \
+    --data '{"email":"anna@example.com","password":"secret123","displayName":"Anna","grammaticalGender":"FEMININE"}')"
+  [ "$status" = 201 ] || fail "bootstrap answered $status, expected 201"
+
+  output="$(compose run --rm -T app reset-password anna@example.com 2>&1)" ||
+    fail "reset-password failed: $output"
+  link="$(printf '%s\n' "$output" | grep -o 'https://localhost/reset-password/[A-Za-z0-9_-]*' || true)"
+  [ -n "$link" ] || fail "reset-password printed no link: $output"
+  status="$(curl -ksS -o /dev/null -w '%{http_code}' "$base/api/password-resets/by-token/${link##*/}")"
+  [ "$status" = 200 ] || fail "the printed reset link answered $status, expected 200"
+
+  if output="$(compose run --rm -T app reset-password nobody@example.com 2>&1)"; then
+    fail "reset-password succeeded for an unknown email: $output"
+  fi
+  case "$output" in
+    *"No Member has the email nobody@example.com"*) ;;
+    *) fail "reset-password gave no clear message for an unknown email: $output" ;;
+  esac
+  echo "ok   reset-password command prints a working link and refuses unknown emails"
+}
+
 echo "starting stack ($project, image tag $tag)"
 start_stack
 check_https_health
@@ -167,6 +196,7 @@ check_hsts
 check_compression
 check_only_caddy_publishes_ports
 check_login_limits_see_the_client_ip
+check_password_reset_command
 
 psql_value "CREATE TABLE stack_test_marker (note text); INSERT INTO stack_test_marker VALUES ('kept');" >/dev/null ||
   fail "could not write a marker row"

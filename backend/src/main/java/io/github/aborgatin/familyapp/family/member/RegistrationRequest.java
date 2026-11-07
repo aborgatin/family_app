@@ -44,14 +44,7 @@ public record RegistrationRequest(
       errors.add("email", FieldErrors.EMAIL_INVALID);
     }
 
-    String rawPassword = password == null ? "" : password;
-    if (rawPassword.isEmpty()) {
-      errors.add("password", FieldErrors.REQUIRED);
-    } else if (rawPassword.codePointCount(0, rawPassword.length()) < MIN_PASSWORD_LENGTH) {
-      errors.add("password", FieldErrors.PASSWORD_TOO_SHORT);
-    } else if (rawPassword.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
-      errors.add("password", FieldErrors.TOO_LONG);
-    }
+    String rawPassword = checkPassword("password", password, errors);
 
     String name = displayName == null ? "" : displayName.trim();
     if (name.isEmpty()) {
@@ -76,6 +69,23 @@ public record RegistrationRequest(
 
     errors.throwIfAny();
     return new Registration(normalizedEmail, rawPassword, name, gender);
+  }
+
+  /**
+   * Checks a new password against the password rules (at least 8 characters, at most 72 bytes),
+   * adding any failure to {@code errors} under {@code field}. Returns the password, {@code ""} when
+   * missing.
+   */
+  public static String checkPassword(String field, @Nullable String password, FieldErrors errors) {
+    String rawPassword = password == null ? "" : password;
+    if (rawPassword.isEmpty()) {
+      errors.add(field, FieldErrors.REQUIRED);
+    } else if (rawPassword.codePointCount(0, rawPassword.length()) < MIN_PASSWORD_LENGTH) {
+      errors.add(field, FieldErrors.PASSWORD_TOO_SHORT);
+    } else if (rawPassword.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
+      errors.add(field, FieldErrors.TOO_LONG);
+    }
+    return rawPassword;
   }
 
   /** A registration that passed validation. */

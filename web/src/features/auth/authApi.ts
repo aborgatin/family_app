@@ -48,3 +48,17 @@ export function login(credentials: Credentials): Promise<Member> {
 export function logout(): Promise<void> {
   return api.post<undefined>('/api/auth/logout');
 }
+
+/** Whether a password reset link still works; fails with a `password_reset.*` code when not. */
+export function fetchPasswordReset(token: string): Promise<{ expiresAt: string }> {
+  return api.get<{ expiresAt: string }>(
+    `/api/password-resets/by-token/${encodeURIComponent(token)}`,
+  );
+}
+
+/** Sets the new password; the server logs the Member out everywhere else and in on this device. */
+export function completePasswordReset(token: string, newPassword: string): Promise<Member> {
+  return api.post<Member>(`/api/password-resets/by-token/${encodeURIComponent(token)}/complete`, {
+    newPassword,
+  });
+}

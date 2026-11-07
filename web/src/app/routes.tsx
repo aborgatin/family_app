@@ -1,5 +1,11 @@
 import type { RouteObject } from 'react-router';
-import { AuthGuard, LoginPage, SetupPage } from '@/features/auth';
+import {
+  AuthGuard,
+  LoginPage,
+  RESET_PASSWORD_PATH,
+  ResetPasswordPage,
+  SetupPage,
+} from '@/features/auth';
 import { HomePage } from '@/features/home';
 
 export const routes: RouteObject[] = [
@@ -11,6 +17,7 @@ export const routes: RouteObject[] = [
       { path: '/', element: <HomePage /> },
       { path: '/setup', element: <SetupPage /> },
       { path: '/login', element: <LoginPage /> },
+      { path: RESET_PASSWORD_PATH, element: <ResetPasswordPage /> },
     ],
   },
 ];
