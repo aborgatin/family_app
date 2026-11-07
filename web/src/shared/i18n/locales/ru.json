@@ -66,6 +66,31 @@
       "wrongCurrent": "Неверный текущий пароль"
     }
   },
+  "childFields": {
+    "empty": "Полей пока нет",
+    "name": "Название поля",
+    "valueType": {
+      "label": "Тип",
+      "text": "Текст",
+      "date": "Дата"
+    },
+    "rename": "Переименовать",
+    "renameField": "Переименовать «{{name}}»",
+    "moveUp": "Выше",
+    "moveUpField": "Переместить «{{name}}» выше",
+    "moveDown": "Ниже",
+    "moveDownField": "Переместить «{{name}}» ниже",
+    "remove": "Удалить",
+    "removeField": "Удалить «{{name}}»",
+    "confirmRemove": "Удалить поле «{{name}}»?",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "add": {
+      "title": "Новое поле",
+      "submit": "Добавить поле",
+      "saving": "Добавляем…"
+    }
+  },
   "grammaticalGender": {
     "question": "Как писать о ваших действиях",
     "masculine": "Добавил",
@@ -86,6 +111,8 @@
     "passwordResetNotFound": "Ссылка не найдена. Проверьте, что она скопирована целиком, или попросите новую.",
     "passwordResetExpired": "Срок действия ссылки истёк. Попросите новую ссылку для сброса пароля.",
     "passwordResetUsed": "Эта ссылка уже использована. Если нужно сменить пароль ещё раз, попросите новую ссылку.",
+    "childFieldDeleted": "Это поле уже удалено.",
+    "childFieldValueTypeImmutable": "Тип поля нельзя изменить. Удалите поле и создайте новое.",
     "validationFailed": "Проверьте поля формы.",
     "field": {
       "required": "Заполните это поле",

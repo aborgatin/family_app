@@ -25,6 +25,31 @@ export function membersHandler(members: (typeof anna)[]) {
   return http.get('/api/members', () => HttpResponse.json(members));
 }
 
+/** A Child field as the API returns it: the Default «Вес». */
+export const weight = {
+  id: '7a2d3d2f-0000-4000-8000-000000000001',
+  name: 'Вес',
+  valueType: 'TEXT',
+  position: 1,
+  version: 3,
+  updatedAt: '2026-11-07T09:00:00Z',
+};
+
+/** The Default «Рост». */
+export const height: typeof weight = {
+  id: '7a2d3d2f-0000-4000-8000-000000000002',
+  name: 'Рост',
+  valueType: 'TEXT',
+  position: 2,
+  version: 4,
+  updatedAt: '2026-11-07T09:00:00Z',
+};
+
+/** `GET /api/child-fields` answering with the given Child fields. */
+export function childFieldsHandler(fields: (typeof weight)[]) {
+  return http.get('/api/child-fields', () => HttpResponse.json(fields));
+}
+
 /** `GET /api/auth/session` answering with the given state; counts how often it was asked. */
 export function sessionHandler(body: { bootstrapRequired: boolean; member: typeof anna | null }) {
   const calls = { count: 0 };
