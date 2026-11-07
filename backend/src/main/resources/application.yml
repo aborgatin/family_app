@@ -18,9 +18,9 @@ spring:
       # The tables come from Flyway (V1).
       initialize-schema: never
 
-# Sessions live in PostgreSQL (Spring Session JDBC), so they survive redeploys. The lifetime slides:
-# every request with the session renews it on the server and re-sends the cookie.
 server:
+  # Sessions live in PostgreSQL (Spring Session JDBC), so they survive redeploys. The lifetime
+  # slides: every request with the session renews it on the server and re-sends the cookie.
   servlet:
     session:
       timeout: ${SESSION_TIMEOUT:180d}
@@ -29,8 +29,6 @@ server:
         secure: true
         same-site: lax
         max-age: ${SESSION_TIMEOUT:180d}
-
-server:
   # Behind Caddy: X-Forwarded-For/-Proto give the real client IP and scheme, but only on
   # requests from the proxy. TRUSTED_PROXIES is a regex for Caddy's address (set by
   # deploy/docker-compose.yml); unset means no forwarded header is trusted.

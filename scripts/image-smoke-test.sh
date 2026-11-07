@@ -66,4 +66,16 @@ check_serves_index_html() {
 check_serves_index_html /
 check_serves_index_html /settings
 
+# A fresh database: the API is answering and asks for the first Member.
+check_fresh_session() {
+  local body
+  body="$(curl -fsS "$base/api/auth/session")" || fail "GET /api/auth/session did not return 2xx"
+  case "$body" in
+    *'"bootstrapRequired":true'*) echo "ok   GET /api/auth/session says bootstrapRequired" ;;
+    *) fail "GET /api/auth/session did not say bootstrapRequired: true (got: $body)" ;;
+  esac
+}
+
+check_fresh_session
+
 echo "image smoke test passed"
