@@ -62,7 +62,7 @@ Members are the principals. Sub-packages:
   `LoginService`, `MemberService`, `InviteService`; `RegistrationRequest` (registration body and the
   shared static checks `checkPassword`, `checkDisplayName`, `checkGrammaticalGender`);
   `OneTimeTokens`; `FamilyLock`; `PasswordEncoderConfig`.
-- `family.child`: `Child`, `ChildService`, `ChildValidator`, `ChildColorPalette`,
+- `family.child`: `Child`, `ChildService`, `ChildRequest`, `ChildColorPalette`,
   `ChildrenController` (`/api/children`).
 - `family.childfield`: `ChildField`, `ChildFieldService`, `ChildFieldRequest`, `ValueType`
   (`TEXT`, `DATE`), `ChildFieldsController` (`/api/child-fields`).
@@ -84,7 +84,9 @@ Shared patterns inside `family`:
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.
 - **Validation** collects every bad field in a `FieldErrors` and throws once. Body records read
   every field as a nullable `String`, so a missing or unknown enum value becomes a field code, not a
-  parse error.
+  parse error. Each body record validates itself: `RegistrationRequest.validate()`,
+  `ChildFieldRequest.validate()` and `ChildRequest.validate(palette)` (a bean the check needs is
+  passed in) return the normalized values or throw. Services call it before taking `FamilyLock`.
 
 ### `command`
 
