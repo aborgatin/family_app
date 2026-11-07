@@ -1,0 +1,25 @@
+# Configuration comes only from environment variables (CODING_STANDARDS A2, spec #5).
+# Nothing here is a secret; values without a default must be provided by the environment.
+spring:
+  application:
+    name: family-app
+  datasource:
+    url: ${DATASOURCE_URL}
+    username: ${DATASOURCE_USERNAME}
+    password: ${DATASOURCE_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: false
