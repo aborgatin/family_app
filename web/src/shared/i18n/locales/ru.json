@@ -66,6 +66,20 @@
       "wrongCurrent": "Неверный текущий пароль"
     }
   },
+  "children": {
+    "empty": "Детей пока нет",
+    "unknownColor": "Другой цвет"
+  },
+  "childColors": {
+    "coral": "Коралловый",
+    "orange": "Оранжевый",
+    "yellow": "Жёлтый",
+    "green": "Зелёный",
+    "teal": "Бирюзовый",
+    "blue": "Синий",
+    "purple": "Фиолетовый",
+    "pink": "Розовый"
+  },
   "grammaticalGender": {
     "question": "Как писать о ваших действиях",
     "masculine": "Добавил",
