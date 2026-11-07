@@ -3,7 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Семья</title>
+    <!-- The app name placeholder is filled from the ru i18n file (vite.config.ts). Icon links, the
+         manifest link and theme-color are injected by vite-plugin-pwa at build time. -->
+    <title>%APP_NAME%</title>
+    <!-- iOS Home Screen: open full-screen, with the app's own name under the icon. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="%APP_NAME%" />
   </head>
   <body>
     <div id="root"></div>
