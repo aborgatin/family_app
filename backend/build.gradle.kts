@@ -1,4 +1,3 @@
-import net.ltgt.gradle.errorprone.CheckSeverity
 import net.ltgt.gradle.errorprone.errorprone
 
 plugins {
@@ -16,6 +15,9 @@ version = "0.0.1-SNAPSHOT"
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 
 repositories { mavenCentral() }
+
+// Spring Boot 3.5 manages a Flyway that predates PostgreSQL 18 support; production runs 18.
+extra["flyway.version"] = "11.20.3"
 
 dependencyManagement {
   imports { mavenBom("org.springframework.modulith:spring-modulith-bom:1.4.14") }
@@ -43,16 +45,11 @@ dependencies {
 }
 
 tasks.withType<JavaCompile>().configureEach {
-  // -parameters keeps Spring's parameter-name binding working; -Werror makes every javac and
-  // Error Prone warning fail the build.
+  // -parameters keeps Spring's parameter-name binding working. -Werror turns every javac lint and
+  // Error Prone warning into a build failure (CODING_STANDARDS "Enforced by tooling"); silencing
+  // one needs a @SuppressWarnings with a reason.
   options.compilerArgs.addAll(listOf("-parameters", "-Xlint:all", "-Werror"))
-  options.errorprone {
-    disableWarningsInGeneratedCode = true
-    // Warnings that matter are errors (spec #5, Tooling); -Werror above covers the rest.
-    check("MissingOverride", CheckSeverity.ERROR)
-    check("UnusedVariable", CheckSeverity.ERROR)
-    check("UnusedMethod", CheckSeverity.ERROR)
-  }
+  options.errorprone.disableWarningsInGeneratedCode = true
 }
 
 tasks.withType<Test>().configureEach { useJUnitPlatform() }
