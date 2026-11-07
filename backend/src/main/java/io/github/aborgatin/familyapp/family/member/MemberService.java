@@ -55,7 +55,7 @@ public class MemberService {
     if (currentPassword == null || currentPassword.isEmpty()) {
       errors.add("currentPassword", FieldErrors.REQUIRED);
     }
-    String validNewPassword = MemberFields.newPassword("newPassword", newPassword, errors);
+    String validNewPassword = RegistrationRequest.checkPassword("newPassword", newPassword, errors);
     errors.throwIfAny();
 
     Member member = find(memberId);

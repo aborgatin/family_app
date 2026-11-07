@@ -21,6 +21,9 @@ services:
       TRUSTED_PROXIES: 172\.28\.14\.10
       SESSION_TIMEOUT: ${SESSION_TIMEOUT:-180d}
       INVITE_TTL: ${INVITE_TTL:-7d}
+      PASSWORD_RESET_TTL: ${PASSWORD_RESET_TTL:-1h}
+      # Links the app prints (password reset) point at https://<DOMAIN>/...
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
       LOGIN_LIMIT_PER_EMAIL: ${LOGIN_LIMIT_PER_EMAIL:-10}
       LOGIN_LIMIT_PER_IP: ${LOGIN_LIMIT_PER_IP:-20}
       LOGIN_LIMIT_WINDOW: ${LOGIN_LIMIT_WINDOW:-15m}

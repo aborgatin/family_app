@@ -14,6 +14,9 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   'auth.bootstrap_closed': 'errors.authBootstrapClosed',
   'auth.invalid_credentials': 'errors.authInvalidCredentials',
   'auth.too_many_attempts': 'errors.authTooManyAttempts',
+  'password_reset.not_found': 'errors.passwordResetNotFound',
+  'password_reset.expired': 'errors.passwordResetExpired',
+  'password_reset.used': 'errors.passwordResetUsed',
   'validation.failed': 'errors.validationFailed',
 };
 

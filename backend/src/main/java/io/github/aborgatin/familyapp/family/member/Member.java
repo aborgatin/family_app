@@ -77,10 +77,6 @@ public class Member {
     this.grammaticalGender = grammaticalGender;
   }
 
-  void changePasswordHash(String passwordHash) {
-    this.passwordHash = passwordHash;
-  }
-
   public UUID id() {
     return id;
   }
@@ -99,6 +95,11 @@ public class Member {
 
   public GrammaticalGender grammaticalGender() {
     return grammaticalGender;
+  }
+
+  /** Replaces the password; the caller has validated and hashed it. */
+  public void changePasswordHash(String passwordHash) {
+    this.passwordHash = passwordHash;
   }
 
   public long version() {

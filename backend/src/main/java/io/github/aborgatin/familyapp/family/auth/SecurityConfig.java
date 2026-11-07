@@ -1,13 +1,12 @@
 package io.github.aborgatin.familyapp.family.auth;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -24,6 +23,7 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
  * the {@code X-XSRF-TOKEN} header on every non-GET request. The token is sent back raw (no
  * per-request masking), which is what the web client does.
  */
+@ConditionalOnWebApplication
 @Configuration(proxyBeanMethods = false)
 class SecurityConfig {
 
@@ -42,6 +42,10 @@ class SecurityConfig {
                     .requestMatchers(HttpMethod.GET, "/api/auth/session")
                     .permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/auth/bootstrap", "/api/auth/login")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/password-resets/by-token/*")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/password-resets/by-token/*/complete")
                     .permitAll()
                     .requestMatchers("/api/**", "/actuator/**")
                     .authenticated()
@@ -77,10 +81,5 @@ class SecurityConfig {
   @Bean
   SecurityContextRepository securityContextRepository() {
     return new HttpSessionSecurityContextRepository();
-  }
-
-  @Bean
-  PasswordEncoder passwordEncoder() {
-    return PasswordEncoderFactories.createDelegatingPasswordEncoder();
   }
 }

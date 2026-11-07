@@ -1,8 +1,9 @@
 package io.github.aborgatin.familyapp.family.member;
 
 import io.github.aborgatin.familyapp.error.FieldErrors;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.regex.Pattern;
 import org.springframework.lang.Nullable;
 
@@ -17,9 +18,13 @@ public record RegistrationRequest(
     @Nullable String displayName,
     @Nullable String grammaticalGender) {
 
-  public static final int MIN_PASSWORD_LENGTH = MemberFields.MIN_PASSWORD_LENGTH;
+  public static final int MIN_PASSWORD_LENGTH = 8;
+
+  /** bcrypt only looks at the first 72 bytes; longer passwords are refused, not truncated. */
+  static final int MAX_PASSWORD_BYTES = 72;
 
   static final int MAX_EMAIL_LENGTH = 254;
+  static final int MAX_DISPLAY_NAME_LENGTH = 100;
 
   private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
@@ -38,17 +43,69 @@ public record RegistrationRequest(
     } else if (!EMAIL.matcher(normalizedEmail).matches()) {
       errors.add("email", FieldErrors.EMAIL_INVALID);
     }
-    String validPassword = MemberFields.newPassword("password", password, errors);
-    String name = MemberFields.displayName("displayName", displayName, errors);
+
+    String rawPassword = checkPassword("password", password, errors);
+
+    String name = checkDisplayName("displayName", displayName, errors);
     GrammaticalGender gender =
-        MemberFields.grammaticalGender("grammaticalGender", grammaticalGender, errors);
+        checkGrammaticalGender("grammaticalGender", grammaticalGender, errors);
 
     errors.throwIfAny();
-    return new Registration(
-        normalizedEmail,
-        Objects.requireNonNull(validPassword),
-        Objects.requireNonNull(name),
-        Objects.requireNonNull(gender));
+    return new Registration(normalizedEmail, rawPassword, name, gender);
+  }
+
+  /**
+   * Checks a new password against the password rules (at least 8 characters, at most 72 bytes),
+   * adding any failure to {@code errors} under {@code field}. Returns the password, {@code ""} when
+   * missing.
+   */
+  public static String checkPassword(String field, @Nullable String password, FieldErrors errors) {
+    String rawPassword = password == null ? "" : password;
+    if (rawPassword.isEmpty()) {
+      errors.add(field, FieldErrors.REQUIRED);
+    } else if (rawPassword.codePointCount(0, rawPassword.length()) < MIN_PASSWORD_LENGTH) {
+      errors.add(field, FieldErrors.PASSWORD_TOO_SHORT);
+    } else if (rawPassword.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
+      errors.add(field, FieldErrors.TOO_LONG);
+    }
+    return rawPassword;
+  }
+
+  /**
+   * Checks a display name (1–100 characters after trimming), adding any failure to {@code errors}
+   * under {@code field}. Returns the trimmed name, {@code ""} when missing.
+   */
+  public static String checkDisplayName(
+      String field, @Nullable String displayName, FieldErrors errors) {
+    String name = displayName == null ? "" : displayName.trim();
+    if (name.isEmpty()) {
+      errors.add(field, FieldErrors.REQUIRED);
+    } else if (name.codePointCount(0, name.length()) > MAX_DISPLAY_NAME_LENGTH) {
+      errors.add(field, FieldErrors.TOO_LONG);
+    }
+    return name;
+  }
+
+  /**
+   * Checks a {@code MASCULINE} / {@code FEMININE} choice (required), adding any failure to {@code
+   * errors} under {@code field}. Returns the value, {@code null} when missing or unknown.
+   */
+  @Nullable
+  public static GrammaticalGender checkGrammaticalGender(
+      String field, @Nullable String grammaticalGender, FieldErrors errors) {
+    if (grammaticalGender == null || grammaticalGender.isBlank()) {
+      errors.add(field, FieldErrors.REQUIRED);
+      return null;
+    }
+    GrammaticalGender gender =
+        Arrays.stream(GrammaticalGender.values())
+            .filter(value -> value.name().equals(grammaticalGender))
+            .findFirst()
+            .orElse(null);
+    if (gender == null) {
+      errors.add(field, FieldErrors.VALUE_INVALID);
+    }
+    return gender;
   }
 
   /** A registration that passed validation. */

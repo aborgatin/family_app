@@ -27,6 +27,10 @@ _Avoid_: Kid, daughter, dependent, child user
 A link a Member sends to another adult so they can register and become a Member.
 _Avoid_: Invitation code, referral, share link
 
+**Password reset** — «Сброс пароля»:
+A one-time link, created by the operator's server command, with which a Member who forgot their password sets a new one; using it logs the Member out on every other device.
+_Avoid_: Password recovery, forgot-password token, reset code
+
 ## Lists & items
 
 **List** — «Список»:

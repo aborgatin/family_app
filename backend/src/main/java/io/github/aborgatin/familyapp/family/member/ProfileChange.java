@@ -24,11 +24,13 @@ public record ProfileChange(
     String displayName = null;
     GrammaticalGender gender = null;
     if (body.containsKey(DISPLAY_NAME) && isText(DISPLAY_NAME, body, errors)) {
-      displayName = MemberFields.displayName(DISPLAY_NAME, (String) body.get(DISPLAY_NAME), errors);
+      displayName =
+          RegistrationRequest.checkDisplayName(
+              DISPLAY_NAME, (String) body.get(DISPLAY_NAME), errors);
     }
     if (body.containsKey(GRAMMATICAL_GENDER) && isText(GRAMMATICAL_GENDER, body, errors)) {
       gender =
-          MemberFields.grammaticalGender(
+          RegistrationRequest.checkGrammaticalGender(
               GRAMMATICAL_GENDER, (String) body.get(GRAMMATICAL_GENDER), errors);
     }
     errors.throwIfAny();

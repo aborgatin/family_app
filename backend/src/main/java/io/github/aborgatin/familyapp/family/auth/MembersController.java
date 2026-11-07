@@ -5,6 +5,7 @@ import io.github.aborgatin.familyapp.family.member.MemberService;
 import io.github.aborgatin.familyapp.family.member.ProfileChange;
 import java.util.List;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
  * client calls these directly because it needs the answer immediately.
  */
 @RestController
+@ConditionalOnWebApplication
 @RequestMapping("/api/members")
 class MembersController {
 
