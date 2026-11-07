@@ -15,6 +15,10 @@ _Avoid_: Tenant, household, account
 An adult of the Family who has a login and uses the app.
 _Avoid_: User, parent, adult, account, family member (in Russian «член семьи» also suggests children)
 
+**Grammatical gender** — — (asked as the choice «Добавил» / «Добавила»):
+A Member's choice of masculine or feminine verb forms, used to write sentences about their actions in correct Russian («Даша добавила…»).
+_Avoid_: Gender, sex
+
 **Child** — «Ребёнок» (plural «Дети»):
 A child of the Family, represented as a profile without a login.
 _Avoid_: Kid, daughter, dependent, child user
