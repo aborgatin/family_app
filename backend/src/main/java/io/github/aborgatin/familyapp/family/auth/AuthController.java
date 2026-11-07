@@ -10,6 +10,10 @@ import io.github.aborgatin.familyapp.family.member.RegistrationRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import java.time.Duration;
+import java.util.Map;
+import java.util.Optional;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
@@ -30,16 +34,19 @@ class AuthController {
   private final BootstrapService bootstrapService;
   private final SessionLogin sessionLogin;
   private final LoginService loginService;
+  private final LoginLimits loginLimits;
 
   AuthController(
       MemberRepository members,
       BootstrapService bootstrapService,
       SessionLogin sessionLogin,
-      LoginService loginService) {
+      LoginService loginService,
+      LoginLimits loginLimits) {
     this.members = members;
     this.bootstrapService = bootstrapService;
     this.sessionLogin = sessionLogin;
     this.loginService = loginService;
+    this.loginLimits = loginLimits;
   }
 
   /**
@@ -75,15 +82,29 @@ class AuthController {
   @PostMapping("/login")
   MemberResponse login(
       @RequestBody LoginRequest body, HttpServletRequest request, HttpServletResponse response) {
-    String email = body.email() == null ? "" : body.email();
+    String email = LoginService.normalizeEmail(body.email() == null ? "" : body.email());
     String password = body.password() == null ? "" : body.password();
-    Member member =
-        loginService
-            .authenticate(email, password)
-            .orElseThrow(
-                () -> new ApiException(HttpStatus.UNAUTHORIZED, "auth.invalid_credentials"));
-    sessionLogin.logIn(member.id(), request, response);
-    return MemberResponse.of(member);
+    // Behind Caddy this is the real client IP (forwarded headers are trusted from Caddy only).
+    String ip = request.getRemoteAddr();
+
+    Optional<Duration> retryAfter = loginLimits.retryAfter(email, ip);
+    if (retryAfter.isPresent()) {
+      long seconds = Math.max(1, (retryAfter.get().toMillis() + 999) / 1000);
+      response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(seconds));
+      throw new ApiException(
+          HttpStatus.TOO_MANY_REQUESTS,
+          "auth.too_many_attempts",
+          Map.of("retryAfterSeconds", seconds));
+    }
+
+    Optional<Member> member = loginService.authenticate(email, password);
+    if (member.isEmpty()) {
+      loginLimits.failed(email, ip);
+      throw new ApiException(HttpStatus.UNAUTHORIZED, "auth.invalid_credentials");
+    }
+    loginLimits.succeeded(email);
+    sessionLogin.logIn(member.get().id(), request, response);
+    return MemberResponse.of(member.get());
   }
 
   /** Ends this device's session only; the Member's other devices stay logged in. */
