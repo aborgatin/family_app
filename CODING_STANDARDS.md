@@ -31,6 +31,9 @@ diff disables, weakens or bypasses one of them (config change, suppression comme
 | typescript-eslint `strict-type-checked` | `/web` | unsafe `any`, floating promises, unnecessary conditions |
 | eslint-plugin-react-hooks | `/web` | Rules of Hooks, exhaustive effect deps |
 | Prettier | `/web` | TS/TSX/CSS/JSON/Markdown formatting |
+| eslint-plugin-i18next `no-literal-string` | `/web` | literal text in JSX and user-visible attributes (I2) |
+| i18next typed resources | `/web` | unknown i18n keys are type errors (I2) |
+| ESLint `no-restricted-imports` (per-folder rules) | `/web` | imports into another feature only via its `index.ts`; `shared → features → app` direction (M3) |
 
 ## Modules and boundaries
 
@@ -72,8 +75,11 @@ finding.
 ## Sync and data (ADR-0003, ADR-0004, ADR-0005)
 
 **S1 — Every syncable table has `id UUID`, `version`, `updated_at`, `deleted`.** "Syncable" means
-any table whose rows reach the client: lists, items, categories, children, child fields, and every
-future module's equivalent. A new Flyway migration creating such a table without all four columns is
+any table whose rows the client stores locally and keeps up to date through sync: lists, items,
+categories, members, children, child fields, and every future module's equivalent. The authoritative
+list lives in `docs/architecture/sync.md`; a new syncable table is added there in the same PR.
+Server-only tables are not syncable even if the client sees their rows through a REST call: invites,
+sessions, push subscriptions. A new Flyway migration creating such a table without all four columns is
 a finding.
 
 **S2 — Every write bumps `version`; deletes are soft.** Any code path that changes a syncable row
@@ -88,6 +94,10 @@ or that would double-apply on retry (e.g. increments, appends), is a finding.
 **S4 — Client mutations go through the outbox.** UI code writes to the local Dexie store and enqueues
 an outbox operation; it never calls a mutating REST endpoint directly. Reads render from the local
 store, refreshed by the sync pull (triggered by SSE).
+_Exception_: auth, Invites and Member account changes (bootstrap, login, logout, creating/revoking/accepting
+an Invite, display name, password) call their REST endpoints directly and are online-only by design,
+because they need the server's answer immediately. Before M2 ships the outbox, Children and Child fields
+also call REST directly (Spec #1); M2 moves them onto the outbox.
 
 **S5 — Migrations are append-only.** A change to an already-merged Flyway migration file is a finding;
 the fix is a new migration.

@@ -46,6 +46,7 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 ### Backlog (ideas, not committed)
 
 - Meal planner (needs recipes in structured form first).
+- Child field history: a per-field «Хранить историю» switch showing past values (e.g. a growth chart for «Рост»/«Вес»), built on the M4 value timeline ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)).
 - Google Calendar integration — purpose TBD.
 - Documents vault — first evaluate ready solutions (Paperless-ngx for scanned documents, Vaultwarden for secrets); drop from backlog if one fits.
 - Migrate the net-worth tracker from Google Sheets into the app.
@@ -83,7 +84,7 @@ Chores/rewards, shared expenses, "reserved by" on wish lists, in-app calendar.
 | `Family` | id, name (exactly one row per installation) |
 | `Member` | id, family, email, password hash, display name, notifications_enabled |
 | `Child` | id, family, name, color, birthday |
-| `ChildField` / `ChildFieldValue` | user-defined profile fields and their values per child |
+| `ChildField` / `ChildFieldValue` | user-defined profile fields with a value type (`TEXT`/`DATE`), and a timeline of values per child ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)) |
 | `Category` | id, list (shopping only), name, sort order |
 | `List` | id, kind (`SHOPPING`/`TODO`/`WISH`), visibility (`PRIVATE`/`SHARED`), owner, child?, name |
 | `Item` | id, list, text, quantity, note, category?, done, due_at?, repeat?, assignee? (member), created_by, done_by |
@@ -131,6 +132,7 @@ Secrets only in the server's `.env`, never in git.
 **M4 — Todos & children**
 - [ ] Private/shared todo lists, due dates, assignee, repeat rules.
 - [ ] Child pages: todo list, wish list, child profile. Member wish lists.
+- [ ] Child field values stored as a timeline of entries; the Child profile shows the latest entry and the birthday ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)).
 
 **M5 — Notifications**
 - [ ] Web Push subscription (iOS 16.4+ installed PWA), global toggle, per-list mute.
