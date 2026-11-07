@@ -88,6 +88,10 @@ or that would double-apply on retry (e.g. increments, appends), is a finding.
 **S4 — Client mutations go through the outbox.** UI code writes to the local Dexie store and enqueues
 an outbox operation; it never calls a mutating REST endpoint directly. Reads render from the local
 store, refreshed by the sync pull (triggered by SSE).
+_Exception_: auth, Invites and Member account changes (bootstrap, login, logout, creating/revoking/accepting
+an Invite, display name, password) call their REST endpoints directly and are online-only by design,
+because they need the server's answer immediately. Before M2 ships the outbox, Children and Child fields
+also call REST directly (Spec #1); M2 moves them onto the outbox.
 
 **S5 — Migrations are append-only.** A change to an already-merged Flyway migration file is a finding;
 the fix is a new migration.
