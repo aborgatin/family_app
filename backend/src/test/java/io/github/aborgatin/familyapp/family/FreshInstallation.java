@@ -24,6 +24,15 @@ final class FreshInstallation {
   }
 
   /**
+   * Removes every Child field, the Defaults included, so a test can set up exactly the fields it
+   * needs. (The Defaults themselves are checked on a really fresh database by {@code
+   * ChildFieldDefaultsTest}.)
+   */
+  static void removeChildFields(JdbcTemplate jdbc) {
+    jdbc.execute("TRUNCATE child_field");
+  }
+
+  /**
    * Adds a Member who can log in with {@code password}, for tests that need a second Member before
    * Invites exist.
    */
