@@ -8,7 +8,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 /**
@@ -51,6 +53,44 @@ class WebBundleServingTest {
       assertThat(response.getStatusCode().is2xxSuccessful()).as(path).isFalse();
       assertThat(String.valueOf(response.getBody())).as(path).doesNotContain(SHELL);
     }
+  }
+
+  @Test
+  void hashedAssetsAreCachedForeverAsImmutable() {
+    ResponseEntity<String> response = http.getForEntity("/assets/app-abc123.js", String.class);
+
+    assertThat(response.getHeaders().getCacheControl())
+        .contains("max-age=31536000")
+        .contains("public")
+        .contains("immutable");
+  }
+
+  @Test
+  void indexHtmlServiceWorkerAndManifestAreRevalidatedOnEveryLoad() {
+    for (String path :
+        new String[] {"/", "/index.html", "/settings", "/sw.js", "/manifest.webmanifest"}) {
+      ResponseEntity<String> response = http.getForEntity(path, String.class);
+
+      assertThat(response.getStatusCode()).as(path).isEqualTo(HttpStatus.OK);
+      assertThat(response.getHeaders().getCacheControl()).as(path).isEqualTo("no-cache");
+    }
+  }
+
+  @Test
+  void manifestIsServedAsAWebAppManifest() {
+    ResponseEntity<String> response = http.getForEntity("/manifest.webmanifest", String.class);
+
+    assertThat(response.getHeaders().getContentType())
+        .isEqualTo(MediaType.parseMediaType("application/manifest+json"));
+  }
+
+  @Test
+  void missingHashedAssetIsNotAnsweredWithIndexHtml() {
+    ResponseEntity<String> response = http.getForEntity("/assets/app-gone.js", String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(String.valueOf(response.getHeaders().getFirst(HttpHeaders.CACHE_CONTROL)))
+        .doesNotContain("immutable");
   }
 
   private static void assertServesShell(ResponseEntity<String> response) {
