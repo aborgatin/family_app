@@ -162,3 +162,118 @@ describe('Own profile', () => {
     expect(within(form).getByLabelText('Имя')).toHaveValue('Анна!');
   });
 });
+
+describe('Own password', () => {
+  async function passwordForm() {
+    return screen.findByRole('form', { name: 'Пароль' });
+  }
+
+  function passwordAnswers(response: () => Response) {
+    const received: unknown[] = [];
+    server.use(
+      http.post('/api/members/me/password', async ({ request }) => {
+        received.push(await request.json());
+        return response();
+      }),
+    );
+    return received;
+  }
+
+  async function changePassword(
+    user: ReturnType<typeof userEvent.setup>,
+    current: string,
+    next: string,
+  ) {
+    const form = await passwordForm();
+    if (current !== '') await user.type(within(form).getByLabelText('Текущий пароль'), current);
+    if (next !== '') await user.type(within(form).getByLabelText('Новый пароль'), next);
+    await user.click(within(form).getByRole('button', { name: 'Сменить пароль' }));
+    return form;
+  }
+
+  beforeEach(() => {
+    server.use(membersHandler([anna, boris]));
+  });
+
+  it('changes the password and clears the form', async () => {
+    const received = passwordAnswers(() => new HttpResponse(null, { status: 204 }));
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await changePassword(user, 'secret123', 'brand-new-pass');
+
+    expect(await within(form).findByRole('status')).toHaveTextContent('Пароль изменён');
+    expect(received).toEqual([{ currentPassword: 'secret123', newPassword: 'brand-new-pass' }]);
+    expect(within(form).getByLabelText('Текущий пароль')).toHaveValue('');
+    expect(within(form).getByLabelText('Новый пароль')).toHaveValue('');
+  });
+
+  it('says when the current password is wrong', async () => {
+    passwordAnswers(() =>
+      HttpResponse.json({ code: 'auth.invalid_credentials', params: {} }, { status: 400 }),
+    );
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await changePassword(user, 'not-my-password', 'brand-new-pass');
+
+    expect(await within(form).findByText('Неверный текущий пароль')).toBeInTheDocument();
+    expect(within(form).getByLabelText('Текущий пароль')).toHaveValue('');
+    expect(within(form).getByLabelText('Новый пароль')).toHaveValue('brand-new-pass');
+  });
+
+  it('asks for both passwords without calling the server', async () => {
+    const received = passwordAnswers(() => new HttpResponse(null, { status: 204 }));
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await changePassword(user, '', '');
+
+    expect(await within(form).findAllByText('Заполните это поле')).toHaveLength(2);
+    expect(received).toEqual([]);
+  });
+
+  it('shows the server’s rule for a too short new password', async () => {
+    passwordAnswers(() =>
+      HttpResponse.json(
+        {
+          code: 'validation.failed',
+          params: { errors: [{ field: 'newPassword', code: 'password.too_short' }] },
+        },
+        { status: 400 },
+      ),
+    );
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await changePassword(user, 'secret123', 'short');
+
+    expect(
+      await within(form).findByText('Пароль должен быть не короче 8 символов'),
+    ).toBeInTheDocument();
+  });
+
+  it('says the password was not changed when the server cannot be reached', async () => {
+    passwordAnswers(() => HttpResponse.error());
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await changePassword(user, 'secret123', 'brand-new-pass');
+
+    expect(await within(form).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
+  });
+
+  it('shows a generic Russian message for an unknown error code', async () => {
+    passwordAnswers(() =>
+      HttpResponse.json({ code: 'something.new', params: {} }, { status: 500 }),
+    );
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await changePassword(user, 'secret123', 'brand-new-pass');
+
+    const alert = await within(form).findByRole('alert');
+    expect(alert).toHaveTextContent('Что-то пошло не так. Попробуйте ещё раз.');
+    expect(alert).not.toHaveTextContent('something.new');
+  });
+});

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useSession, type Member } from '@/features/auth';
 import { errorMessage } from '@/shared/api';
+import { PasswordForm } from './PasswordForm';
 import { ProfileForm } from './ProfileForm';
 import { useMembers, type MembersLoad } from './useMembers';
 
@@ -22,6 +23,7 @@ export function MembersSettings() {
     <>
       <MembersList load={load} retry={retry} myId={me?.id} />
       {me !== null && <ProfileForm member={me} onSaved={saved} />}
+      <PasswordForm />
     </>
   );
 }
