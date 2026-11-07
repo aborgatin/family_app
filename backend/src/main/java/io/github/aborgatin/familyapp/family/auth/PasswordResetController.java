@@ -1,8 +1,9 @@
 package io.github.aborgatin.familyapp.family.auth;
 
+import io.github.aborgatin.familyapp.family.MemberSummary;
 import io.github.aborgatin.familyapp.family.PasswordResets;
-import io.github.aborgatin.familyapp.family.member.Member;
 import io.github.aborgatin.familyapp.family.member.MemberResponse;
+import io.github.aborgatin.familyapp.family.member.MemberService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -10,8 +11,6 @@ import java.time.Instant;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.session.FindByIndexNameSessionRepository;
-import org.springframework.session.Session;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,16 +28,19 @@ import org.springframework.web.bind.annotation.RestController;
 class PasswordResetController {
 
   private final PasswordResets passwordResets;
-  private final FindByIndexNameSessionRepository<? extends Session> sessions;
+  private final PasswordResetCompletion completion;
   private final SessionLogin sessionLogin;
+  private final MemberService memberService;
 
   PasswordResetController(
       PasswordResets passwordResets,
-      FindByIndexNameSessionRepository<? extends Session> sessions,
-      SessionLogin sessionLogin) {
+      PasswordResetCompletion completion,
+      SessionLogin sessionLogin,
+      MemberService memberService) {
     this.passwordResets = passwordResets;
-    this.sessions = sessions;
+    this.completion = completion;
     this.sessionLogin = sessionLogin;
+    this.memberService = memberService;
   }
 
   /** Whether the link still works, so the screen can explain an expired or used one up front. */
@@ -48,8 +50,8 @@ class PasswordResetController {
   }
 
   /**
-   * Sets the new password, logs the Member out everywhere, whoever knew the old password included
-   * (story 23), then logs them in on this device with a new session.
+   * Sets the new password and logs the Member out everywhere, whoever knew the old password
+   * included (story 23), in one transaction; then logs them in on this device with a new session.
    */
   @PostMapping("/complete")
   MemberResponse complete(
@@ -57,20 +59,15 @@ class PasswordResetController {
       @RequestBody CompleteRequest body,
       HttpServletRequest request,
       HttpServletResponse response) {
-    Member member = passwordResets.complete(token, body.newPassword());
+    MemberSummary member = completion.complete(token, body.newPassword());
 
     HttpSession current = request.getSession(false);
     if (current != null) {
       current.invalidate();
     }
     SecurityContextHolder.clearContext();
-    // AuthenticatedMember's name is the Member id, which Spring Session indexes as the principal.
-    for (String sessionId : sessions.findByPrincipalName(member.id().toString()).keySet()) {
-      sessions.deleteById(sessionId);
-    }
-
     sessionLogin.logIn(member.id(), request, response);
-    return MemberResponse.of(member);
+    return MemberResponse.of(memberService.get(member.id()));
   }
 
   record CompleteRequest(@Nullable String newPassword) {}

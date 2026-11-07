@@ -28,6 +28,12 @@ public class MemberService {
     return members.findByDeletedFalseOrderByDisplayNameAscEmailAsc();
   }
 
+  /** The Member with this id; {@code 401 auth.required} when it has been removed. */
+  @Transactional(readOnly = true)
+  public Member get(UUID memberId) {
+    return find(memberId);
+  }
+
   /**
    * Applies the fields the change carries to the Member's own profile; the rest stay as they are.
    */

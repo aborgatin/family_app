@@ -149,6 +149,19 @@ class ChildrenTest {
   }
 
   @Test
+  void namesAreOrderedTheRussianWayWithYoNextToYe() throws Exception {
+    for (String name : List.of("Жора", "Ёлка", "Ежевика", "Арина", "Ёжик", "Елена", "Ева")) {
+      put(UUID.randomUUID(), name, "teal", null);
+    }
+
+    // The same order the web app's Intl.Collator('ru') gives (spec #5, Ordering).
+    anna.get("/api/children")
+        .andExpect(
+            jsonPath(
+                "$[*].name", contains("Арина", "Ева", "Ежевика", "Ёжик", "Елена", "Ёлка", "Жора")));
+  }
+
+  @Test
   void deletedChildDisappearsAndRepeatedDeleteStillSucceeds() throws Exception {
     UUID masha = UUID.randomUUID();
     UUID petya = UUID.randomUUID();

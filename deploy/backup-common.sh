@@ -47,7 +47,7 @@ parse_target() {
 target_sftp() {
   local known_hosts
   known_hosts="$(setting BACKUP_SSH_KNOWN_HOSTS "$HOME/.ssh/known_hosts")"
-  sftp -q -b - -P "$(setting BACKUP_SSH_PORT 22)" \
+  sftp -q -b - -P "$(setting BACKUP_SSH_PORT 23)" \
     -i "$(setting BACKUP_SSH_KEY "$HOME/.ssh/family_backup")" \
     -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
     -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" \

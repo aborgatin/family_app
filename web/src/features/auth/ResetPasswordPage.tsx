@@ -1,12 +1,13 @@
-import { useEffect, useState, type SubmitEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { ParseKeys } from 'i18next';
-import { ApiError, errorMessageKey, fieldErrorMessageKey } from '@/shared/api';
+import { asApiError, errorMessageKey, fieldErrorMessageKey } from '@/shared/api';
 import { TextField } from '@/shared/ui';
 import { completePasswordReset, fetchPasswordReset } from './authApi';
 import { LOGIN_PATH } from './AuthGuard';
 import { useSession } from './session';
+import { useLinkCheck } from './useLinkCheck';
 
 /** The codes that mean the link itself doesn't work; the form makes no sense then. */
 const LINK_ERRORS: ReadonlySet<string> = new Set([
@@ -14,16 +15,6 @@ const LINK_ERRORS: ReadonlySet<string> = new Set([
   'password_reset.expired',
   'password_reset.used',
 ]);
-
-type LinkState =
-  | { status: 'checking' }
-  | { status: 'working' }
-  | { status: 'broken'; message: ParseKeys }
-  | { status: 'unreachable'; message: ParseKeys };
-
-function asApiError(error: unknown): ApiError {
-  return error instanceof ApiError ? error : new ApiError(0, 'unknown');
-}
 
 /**
  * Setting a new password from a one-time reset link (`/reset-password/:token`) that the operator
@@ -36,32 +27,11 @@ export function ResetPasswordPage() {
   const { token = '' } = useParams();
   const { loggedIn } = useSession();
 
-  const [link, setLink] = useState<LinkState>({ status: 'checking' });
-  const [attempt, setAttempt] = useState(0);
+  const { link, retry, broke } = useLinkCheck(() => fetchPasswordReset(token), token, LINK_ERRORS);
   const [password, setPassword] = useState('');
   const [fieldError, setFieldError] = useState<ParseKeys>();
   const [formError, setFormError] = useState<ParseKeys>();
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    let current = true;
-    fetchPasswordReset(token).then(
-      () => {
-        if (current) setLink({ status: 'working' });
-      },
-      (error: unknown) => {
-        if (!current) return;
-        const { code } = asApiError(error);
-        setLink({
-          status: LINK_ERRORS.has(code) ? 'broken' : 'unreachable',
-          message: errorMessageKey(code),
-        });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [token, attempt]);
 
   async function save() {
     setFormError(undefined);
@@ -78,10 +48,7 @@ export function ResetPasswordPage() {
     } catch (error: unknown) {
       setSubmitting(false);
       const apiError = asApiError(error);
-      if (LINK_ERRORS.has(apiError.code)) {
-        setLink({ status: 'broken', message: errorMessageKey(apiError.code) });
-        return;
-      }
+      if (broke(apiError.code)) return;
       const passwordError = apiError.fieldErrors.find(({ field }) => field === 'newPassword');
       if (passwordError === undefined) {
         setFormError(errorMessageKey(apiError.code));
@@ -114,13 +81,7 @@ export function ResetPasswordPage() {
       {link.status === 'unreachable' && (
         <>
           <p role="alert">{t(link.message)}</p>
-          <button
-            type="button"
-            onClick={() => {
-              setLink({ status: 'checking' });
-              setAttempt((n) => n + 1);
-            }}
-          >
+          <button type="button" onClick={retry}>
             {t('common.retry')}
           </button>
         </>

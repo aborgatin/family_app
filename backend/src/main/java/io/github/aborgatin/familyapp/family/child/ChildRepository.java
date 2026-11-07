@@ -15,11 +15,18 @@ interface ChildRepository extends Repository<Child, UUID> {
 
   Optional<Child> findById(UUID id);
 
-  /** Oldest first, Children without a birthday last, then by name (spec #5, Ordering). */
+  /**
+   * Oldest first, Children without a birthday last, then by name, then by id (spec #5, Ordering).
+   * Names compare by ICU's Russian collation, named explicitly rather than taken from the database
+   * default, so the order is the same on every installation and the same as the web app's {@code
+   * Intl.Collator('ru')} («ё» sorts with «е»).
+   */
   @Query(
-      """
-      SELECT c FROM Child c WHERE c.deleted = false
-      ORDER BY c.birthday ASC NULLS LAST, c.name ASC, c.id ASC
-      """)
+      nativeQuery = true,
+      value =
+          """
+          SELECT * FROM child WHERE deleted = false
+          ORDER BY birthday ASC NULLS LAST, name COLLATE "ru-x-icu" ASC, id ASC
+          """)
   List<Child> findAllInOrder();
 }

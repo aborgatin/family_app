@@ -5,8 +5,8 @@
 # deletes dumps there older than BACKUP_RETENTION_DAYS (default 90).
 #
 # Settings (in deploy/.env): BACKUP_TARGET, BACKUP_RETENTION_DAYS, BACKUP_SSH_KEY (default
-# ~/.ssh/family_backup), BACKUP_SSH_PORT (default 22), BACKUP_SSH_KNOWN_HOSTS (default
-# ~/.ssh/known_hosts; the target's host key must already be in it).
+# ~/.ssh/family_backup), BACKUP_SSH_PORT (default 23, the Storage Box's SSH port),
+# BACKUP_SSH_KNOWN_HOSTS (default ~/.ssh/known_hosts; the target's host key must already be in it).
 #
 # Exits non-zero and logs a "backup failed" line on stderr when any step fails.
 #

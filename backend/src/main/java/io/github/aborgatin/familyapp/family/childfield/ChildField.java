@@ -61,7 +61,8 @@ class ChildField {
     this.position = position;
   }
 
-  void delete() {
+  /** Soft delete (S2): the row stays, hidden from lists, and its Version advances. */
+  void markDeleted() {
     this.deleted = true;
   }
 

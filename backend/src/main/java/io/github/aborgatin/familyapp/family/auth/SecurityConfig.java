@@ -11,7 +11,6 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 /**
@@ -67,14 +66,11 @@ class SecurityConfig {
                     .authenticationEntryPoint(
                         (request, response, ex) ->
                             errors.write(response, HttpStatus.UNAUTHORIZED, "auth.required"))
+                    // No rule checks roles, so the only access denial is a CSRF failure; an
+                    // anonymous request to a protected endpoint goes to the entry point above.
                     .accessDeniedHandler(
                         (request, response, ex) ->
-                            errors.write(
-                                response,
-                                HttpStatus.FORBIDDEN,
-                                ex instanceof CsrfException
-                                    ? "auth.csrf_invalid"
-                                    : "auth.forbidden")))
+                            errors.write(response, HttpStatus.FORBIDDEN, "auth.csrf_invalid")))
         .requestCache(cache -> cache.disable())
         .httpBasic(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)

@@ -55,7 +55,7 @@ function MembersList({ load, retry, myId }: MembersListProps) {
   }
   return (
     <ul aria-label={t('settings.members')}>
-      {load.members.map((member) => (
+      {load.value.map((member) => (
         <li key={member.id}>
           <span>
             {member.id === myId

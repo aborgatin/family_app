@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The Family's Child fields (spec #5, Child fields in Settings). Writes are idempotent upserts by
- * the client's id (S3), so M2's sync push can reuse {@link #put} unchanged.
+ * the client's id (S3), so M2's sync push can reuse {@link #put} and {@link #delete} unchanged.
  */
 @Service
 class ChildFieldService {
@@ -56,12 +56,13 @@ class ChildFieldService {
   /** Soft-deletes the Child field; nothing happens when it is already deleted or unknown. */
   @Transactional
   void delete(UUID id) {
+    familyLock.lock();
     childFields
         .findById(id)
         .filter(field -> !field.deleted())
         .ifPresent(
             field -> {
-              field.delete();
+              field.markDeleted();
               childFields.saveAndFlush(field);
             });
   }

@@ -102,7 +102,7 @@ the backup scripts (`ENV_FILE` overrides the path; process environment wins over
 | `BACKUP_RETENTION_DAYS`                                             | `90`                                       | `backup.sh`                                                            |
 | `BACKUP_TIME`                                                       | `03:30`                                    | `backup.sh --cron-entry`                                               |
 | `BACKUP_SSH_KEY`                                                    | `~/.ssh/family_backup`                     | backup scripts                                                         |
-| `BACKUP_SSH_PORT`                                                   | script default `22`; Storage Box uses `23` | backup scripts                                                         |
+| `BACKUP_SSH_PORT`                                                   | `23` (the Storage Box's SSH port)          | backup scripts                                                         |
 | `BACKUP_SSH_KNOWN_HOSTS`                                            | `~/.ssh/known_hosts`                       | backup scripts (strict host key checking)                              |
 
 A new app setting needs a line in `.env.example` and in the `app` service's `environment:`.

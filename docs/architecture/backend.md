@@ -41,7 +41,7 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 | Module    | Public API (root package)                            | Internal                                                            |
 | --------- | ---------------------------------------------------- | ------------------------------------------------------------------- |
-| `family`  | `PasswordResets` (+ record `NewPasswordReset`)       | `family.auth`, `family.member`, `family.child`, `family.childfield` |
+| `family`  | `Members`, `MemberSummary`, `PasswordResets`         | `family.auth`, `family.member`, `family.child`, `family.childfield` |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`            | `error.internal.ApiExceptionHandler`                                |
 | `command` | `Commands` (called from `FamilyAppApplication.main`) | `PasswordResetCommand` (package-private)                            |
 | `webapp`  | none                                                 | `WebBundleConfig`                                                   |
@@ -49,42 +49,66 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 Dependencies: `family → error`, `command → family`. Nothing in Java owns the Version sequence or
 trigger: they are database objects from `V1` (see [`sync.md`](sync.md)).
 
+Spec #5 asks for one module, `family`. `error`, `command` and `webapp` go beyond that scope on
+purpose, because none of them belongs to the Family domain and each is shared or stands apart:
+
+- `error`: the `{code, params}` error shape (I1) and its single MVC mapping. Every module throws
+  `ApiException` and `FieldErrors`; keeping them in `family` would make each later module depend on
+  `family` just to report an error.
+- `command`: operator commands start the application without a web server and call other modules
+  through their public API only, as an outside caller would. A separate module lets Modulith check
+  that it never reaches into `family`'s internals.
+- `webapp`: serving the web bundle (SPA fallback, caching headers, its own public filter chain) is
+  infrastructure with no domain code and no dependency on any other module.
+
 ### `family`
 
 Owns Family, Member, Invite, Password reset, Child and Child field, plus authentication, because
 Members are the principals. Sub-packages:
 
 - `family.auth`: everything web and security: `SecurityConfig`, `SessionLogin`,
-  `SlidingSessionCookieFilter`, `LoginLimits`, `ApiErrorWriter`, `AuthenticatedMember` and the
+  `SlidingSessionCookieFilter`, `SessionTransactionConfig`, `PasswordResetCompletion`,
+  `LoginLimits`, `ApiErrorWriter`, `AuthenticatedMember` and the
   controllers `AuthController` (`/api/auth`), `InvitesController` (`/api/invites`),
   `MembersController` (`/api/members`), `PasswordResetController` (`/api/password-resets`).
 - `family.member`: `Member`, `Invite`, `PasswordReset` entities and repositories; `BootstrapService`,
   `LoginService`, `MemberService`, `InviteService`; `RegistrationRequest` (registration body and the
   shared static checks `checkPassword`, `checkDisplayName`, `checkGrammaticalGender`);
   `OneTimeTokens`; `FamilyLock`; `PasswordEncoderConfig`.
-- `family.child`: `Child`, `ChildService`, `ChildValidator`, `ChildColorPalette`,
+- `family.child`: `Child`, `ChildService`, `ChildRequest`, `ChildColorPalette`,
   `ChildrenController` (`/api/children`).
 - `family.childfield`: `ChildField`, `ChildFieldService`, `ChildFieldRequest`, `ValueType`
   (`TEXT`, `DATE`), `ChildFieldsController` (`/api/child-fields`).
 
-`PasswordResets` is public so the `command` module can create resets, and so a later
-«Сбросить пароль» action in Settings can reuse it: `createForEmail(email)`, `expiresAt(token)`,
-`complete(token, newPassword)`. It does not end sessions; `PasswordResetController` does.
+The public API (root package) is what spec #5 asks for, plus password resets:
 
-There is no public "current Member" or "Member by id" API yet. Controllers get the Member id from
-`@AuthenticationPrincipal AuthenticatedMember`, which is internal to `family.auth`. The first module
-outside `family` that needs a Member adds that API to the `family` root package.
+- `Members`: `current()` is the Member the request is logged in as (`401 auth.required` when it is
+  not, or when that Member has been removed meanwhile); `byId(id)` is an `Optional`, empty for an
+  unknown or removed Member. Both return the record `MemberSummary(id, displayName)`, never the
+  internal `family.member.Member` entity. `current()` reads Spring Security's context, whose
+  principal is named by the Member id; `MembersApiTest` checks it from a stand-in controller of
+  another module.
+- `PasswordResets` is public so the `command` module can create resets, and so a later
+  «Сбросить пароль» action in Settings can reuse it: `createForEmail(email)` (returns the record
+  `NewPasswordReset(url, expiresAt)`), `expiresAt(token)`, `complete(token, newPassword)` (returns
+  the `MemberSummary`). It does not end sessions; `family.auth.PasswordResetCompletion` calls it
+  and ends them in the same transaction.
+
+Controllers inside `family` still take the Member id from
+`@AuthenticationPrincipal AuthenticatedMember`, which is internal to `family.auth`.
 
 Shared patterns inside `family`:
 
 - **`FamilyLock.lock()`** runs `SELECT id FROM family FOR UPDATE` and returns the Family id. It
   needs a surrounding transaction. Bootstrap, Invite acceptance, `ChildService.put/delete` and
-  `ChildFieldService.put` take it first, so check-then-insert races run one after another.
+  `ChildFieldService.put/delete` take it first, so check-then-insert races run one after another.
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.
 - **Validation** collects every bad field in a `FieldErrors` and throws once. Body records read
   every field as a nullable `String`, so a missing or unknown enum value becomes a field code, not a
-  parse error.
+  parse error. Each body record validates itself: `RegistrationRequest.validate()`,
+  `ChildFieldRequest.validate()` and `ChildRequest.validate(palette)` (a bean the check needs is
+  passed in) return the normalized values or throw. Services call it before taking `FamilyLock`.
 
 ### `command`
 
@@ -136,11 +160,17 @@ there):
 | `POST /api/invites/by-token/{token}/accept` (public)           | `201 Member`, logs in                                                              |
 | `GET /api/members`, `PATCH /api/members/me`                    | list (by display name, then email) / change own `displayName`, `grammaticalGender` |
 | `POST /api/members/me/password`                                | `204`; other sessions stay                                                         |
-| `GET /api/children`, `PUT/DELETE /api/children/{id}`           | ordered by birthday (oldest first, none last), name, id                            |
+| `GET /api/children`, `PUT/DELETE /api/children/{id}`           | by birthday (oldest first, none last), name (`ru-x-icu`), id; see below            |
 | `GET /api/child-fields`, `PUT/DELETE /api/child-fields/{id}`   | ordered by `position`, then id                                                     |
 | `GET /api/password-resets/by-token/{token}` (public)           | `{expiresAt}` or the reset's state error                                           |
-| `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions, then logs in                         |
+| `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions (same transaction), then logs in      |
 | `GET /actuator/health` (public)                                | container healthcheck                                                              |
+
+Children's name order is ICU's Russian collation, named in `ChildRepository`'s query
+(`COLLATE "ru-x-icu"`) instead of the database default, so it does not depend on the locale the
+database was created with. The web app sorts the same way with `Intl.Collator('ru')` when it places
+a saved Child (`useChildren`); both put «ё» together with «е». `ChildrenTest` and `children.test.tsx`
+check the same names.
 
 ## Errors
 
@@ -155,23 +185,23 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
   `method.not_allowed`, `request.invalid` or `internal.error` by status; anything else is logged and
   becomes `500 internal.error`.
 - Security failures never reach a controller; `family.auth.ApiErrorWriter` writes the same shape
-  from `SecurityConfig`'s entry point and access-denied handler.
+  from `SecurityConfig`'s entry point (`401 auth.required`) and access-denied handler
+  (`403 auth.csrf_invalid`).
 
 ### Catalogue
 
 | Status | Code                                              | When                                                                          |
 | ------ | ------------------------------------------------- | ----------------------------------------------------------------------------- |
 | 400    | `validation.failed`                               | field errors in `params.errors`                                               |
-| 400    | `request.invalid`                                 | unreadable body, wrong path value type, other 4xx from Spring                 |
+| 400    | `request.invalid`                                 | added: unreadable body, wrong path value type, other 4xx from Spring          |
 | 400    | `auth.invalid_credentials`                        | wrong current password in `POST /api/members/me/password`                     |
 | 401    | `auth.required`                                   | no session (also a session whose Member no longer exists, in `MemberService`) |
 | 401    | `auth.invalid_credentials`                        | login: unknown email or wrong password (same answer)                          |
 | 403    | `auth.csrf_invalid`                               | missing or wrong `X-XSRF-TOKEN`                                               |
-| 403    | `auth.forbidden`                                  | any other access denial (no current endpoint produces it)                     |
-| 404    | `not_found`                                       | no handler for the path                                                       |
+| 404    | `not_found`                                       | added: no handler for the path                                                |
 | 404    | `invite.not_found`                                | unknown Invite id or token                                                    |
 | 404    | `password_reset.not_found`                        | unknown reset token                                                           |
-| 405    | `method.not_allowed`                              | wrong HTTP method                                                             |
+| 405    | `method.not_allowed`                              | added: wrong HTTP method                                                      |
 | 409    | `auth.bootstrap_closed`                           | bootstrap after the first Member exists                                       |
 | 409    | `member.email_taken`                              | Invite acceptance with an email any Member row has (removed ones included)    |
 | 409    | `child.deleted`, `child_field.deleted`            | `PUT` to a soft-deleted id                                                    |
@@ -179,7 +209,13 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 | 410    | `invite.used`, `invite.revoked`, `invite.expired` | Invite link no longer works (checked in that order)                           |
 | 410    | `password_reset.used`, `password_reset.expired`   | reset link no longer works                                                    |
 | 429    | `auth.too_many_attempts`                          | login limits; `params.retryAfterSeconds`, also `Retry-After` header           |
-| 500    | `internal.error`                                  | unexpected exception (logged)                                                 |
+| 500    | `internal.error`                                  | added: unexpected exception (logged)                                          |
+
+Rows marked "added" are not in spec #5's error catalogue. They cover failures Spring raises before
+or outside an endpoint's own checks (a body that isn't JSON, an unknown path, a wrong method, an
+unexpected exception), so that every error still has the `{code, params}` shape. A 403 is always
+`auth.csrf_invalid`: no rule checks roles, so `SecurityConfig`'s access-denied handler has no other
+case.
 
 Field codes inside `validation.failed` (constants on `FieldErrors`): `required`, `email.invalid`,
 `password.too_short`, `too_long`, `value.invalid` (enum value or date not allowed), `color.invalid`.
@@ -219,8 +255,12 @@ A new code the user may see needs an entry in the web's `ERROR_KEYS` (see
   acceptance, password reset). It changes the session id if a session exists (fixation protection)
   and stores an `AuthenticatedMember` whose `getName()` is the Member id. Spring Session indexes
   that as `principal_name`, so `FindByIndexNameSessionRepository.findByPrincipalName(memberId)`
-  finds all of a Member's sessions; `PasswordResetController` deletes them all before logging in
-  on the current device.
+  finds all of a Member's sessions. `PasswordResetCompletion` sets the new password, uses up the
+  link and deletes them all in one transaction, so a failure changes nothing; then
+  `PasswordResetController` logs in on the current device. For that, Spring Session's JDBC writes
+  join a surrounding transaction (`SessionTransactionConfig` defines
+  `springSessionTransactionOperations` with `PROPAGATION_REQUIRED`; Spring Session's default is
+  `REQUIRES_NEW`). Writes made outside a transaction, as in the session filter, still get their own.
 - Logout invalidates this device's session only. Changing the password in Settings leaves sessions
   alone.
 
@@ -231,6 +271,15 @@ a dummy hash so both failure cases take the same time. Emails are matched after
 
 **Bootstrap** (`BootstrapService`) is allowed only while `member` has no rows, checked under
 `FamilyLock`, so concurrent requests yield exactly one Member.
+
+**Invite acceptance** (`InviteService.accept`) creates the Member and marks the Invite accepted in
+one transaction under `FamilyLock`. `InvitesController` then logs the new Member in with
+`SessionLogin`, so the session is saved after that transaction has committed, the way login and
+bootstrap do it. This is a known deviation from all-or-nothing: if saving the session fails, the
+Member and the used Invite stay, and the new Member logs in with their email and password instead
+of being logged in automatically. It is left as is because nothing is lost: the account exists and
+works, unlike a password reset, where a half-done change would leave old sessions alive (see
+`PasswordResetCompletion` above).
 
 **Login limits** (`LoginLimits`): in-memory sliding windows of failed logins per normalized email
 and per client IP. Over either limit, login returns `429 auth.too_many_attempts` with
@@ -283,13 +332,13 @@ Follow `child` (`V3__child.sql`, `family.child`) or `child_field`:
 
 2. Entity: map `version` and `updatedAt` with `@Generated(event = {EventType.INSERT, EventType.UPDATE})`
    and `@Column(insertable = false, updatable = false)`, so Java never writes them and Hibernate
-   reads them back. Give it a `markDeleted()`/`delete()` that sets `deleted = true`.
+   reads them back. Give it a `markDeleted()` that sets `deleted = true`.
 3. Repository: extend `Repository<E, UUID>` (not `JpaRepository`) and declare only what you need:
    `saveAndFlush`, `findById` (including deleted rows, so a `PUT` can tell "deleted" from "new") and
    an ordered list query filtering `deleted = false`. No delete methods (S2).
 4. Service: `put(id, request)` validates, takes `FamilyLock.lock()`, then creates or fully replaces;
-   a deleted id throws `409 <entity>.deleted`. `delete(id)` marks deleted if present and not yet
-   deleted. Both `@Transactional`, both reusable by M2's sync push.
+   a deleted id throws `409 <entity>.deleted`. `delete(id)` takes the lock too, then marks deleted if
+   present and not yet deleted. Both `@Transactional`, both reusable by M2's sync push.
 5. Controller: `@ConditionalOnWebApplication`, `PUT /api/<things>/{id}` with `@PathVariable UUID id`,
    `DELETE` returning `204`, `GET` returning the ordered non-deleted list. Responses carry `id`,
    `version`, `updatedAt`.

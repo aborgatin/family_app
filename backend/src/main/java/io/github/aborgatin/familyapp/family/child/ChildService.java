@@ -16,12 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 class ChildService {
 
   private final ChildRepository children;
-  private final ChildValidator validator;
+  private final ChildColorPalette palette;
   private final FamilyLock familyLock;
 
-  ChildService(ChildRepository children, ChildValidator validator, FamilyLock familyLock) {
+  ChildService(ChildRepository children, ChildColorPalette palette, FamilyLock familyLock) {
     this.children = children;
-    this.validator = validator;
+    this.palette = palette;
     this.familyLock = familyLock;
   }
 
@@ -36,7 +36,7 @@ class ChildService {
    */
   @Transactional
   Child put(UUID id, ChildRequest request) {
-    ChildDetails details = validator.validate(request);
+    ChildDetails details = request.validate(palette);
     // Serializes writes, so two first PUTs of the same id can't both try to insert it.
     UUID familyId = familyLock.lock();
     Child child =

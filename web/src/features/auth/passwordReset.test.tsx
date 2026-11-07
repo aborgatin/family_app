@@ -158,6 +158,28 @@ describe('Password reset', () => {
     ).toBeInTheDocument();
   });
 
+  it('says so when the link cannot be checked, and checks it again on retry', async () => {
+    loggedOut();
+    let calls = 0;
+    linkAnswers(() => {
+      calls += 1;
+      return calls === 1
+        ? HttpResponse.error()
+        : HttpResponse.json({ expiresAt: '2026-11-07T11:00:00Z' });
+    });
+    const user = userEvent.setup();
+
+    renderApp(LINK);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
+    );
+    expect(screen.queryByLabelText('Новый пароль')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Повторить' }));
+
+    expect(await screen.findByLabelText('Новый пароль')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('shows the network message when the server cannot be reached', async () => {
     loggedOut();
     workingLink();

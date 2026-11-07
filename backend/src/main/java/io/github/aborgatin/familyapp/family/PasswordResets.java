@@ -28,7 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>A token is 32 random bytes, base64url-encoded, and appears only in the link; only its SHA-256
  * hash is stored. A link works once, for {@code PASSWORD_RESET_TTL} (default 1 hour), and creating
  * a new reset for a Member makes their older unused ones expire. Ending the Member's sessions is
- * the caller's part, since only the web app has sessions.
+ * the caller's part, since only the web app has sessions; calling {@link #complete} inside the
+ * caller's transaction lets both commit together.
  */
 @Service
 public class PasswordResets {
@@ -89,10 +90,10 @@ public class PasswordResets {
   /**
    * Sets the Member's new password and uses up the link, failing like {@link #expiresAt} for a link
    * that doesn't work, or with {@code 400 validation.failed} for a password that breaks the
-   * password rules (field {@code newPassword}). Returns the Member.
+   * password rules (field {@code newPassword}). Returns the Member whose password it was.
    */
   @Transactional
-  public Member complete(String token, @Nullable String newPassword) {
+  public MemberSummary complete(String token, @Nullable String newPassword) {
     PasswordReset reset =
         resets.findForUpdateByTokenHash(hash(token)).orElseThrow(PasswordResets::notFound);
     Instant now = clock.instant();
@@ -106,7 +107,7 @@ public class PasswordResets {
         members.findByIdAndDeletedFalse(reset.memberId()).orElseThrow(PasswordResets::notFound);
     member.changePasswordHash(passwordEncoder.encode(password));
     reset.markUsed(now);
-    return members.saveAndFlush(member);
+    return Members.summary(members.saveAndFlush(member));
   }
 
   private static void checkUsable(PasswordReset reset, Instant now) {
