@@ -1,0 +1,18 @@
+package io.github.aborgatin.familyapp.family.childfield;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.data.repository.Repository;
+
+/** Child fields. No delete methods: Child fields are syncable and deletes are soft (S2). */
+interface ChildFieldRepository extends Repository<ChildField, UUID> {
+
+  ChildField saveAndFlush(ChildField childField);
+
+  /** Including soft-deleted ones, so a {@code PUT} can tell "deleted" from "new". */
+  Optional<ChildField> findById(UUID id);
+
+  /** In display order: by position, ties broken by id. */
+  List<ChildField> findByDeletedFalseOrderByPositionAscIdAsc();
+}
