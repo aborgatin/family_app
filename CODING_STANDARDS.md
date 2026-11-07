@@ -31,6 +31,9 @@ diff disables, weakens or bypasses one of them (config change, suppression comme
 | typescript-eslint `strict-type-checked` | `/web` | unsafe `any`, floating promises, unnecessary conditions |
 | eslint-plugin-react-hooks | `/web` | Rules of Hooks, exhaustive effect deps |
 | Prettier | `/web` | TS/TSX/CSS/JSON/Markdown formatting |
+| eslint-plugin-i18next `no-literal-string` | `/web` | literal text in JSX and user-visible attributes (I2) |
+| i18next typed resources | `/web` | unknown i18n keys are type errors (I2) |
+| ESLint `no-restricted-imports` (per-folder rules) | `/web` | imports into another feature only via its `index.ts`; `shared → features → app` direction (M3) |
 
 ## Modules and boundaries
 
