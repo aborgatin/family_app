@@ -28,7 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>A token is 32 random bytes, base64url-encoded, and appears only in the link; only its SHA-256
  * hash is stored. A link works once, for {@code PASSWORD_RESET_TTL} (default 1 hour), and creating
  * a new reset for a Member makes their older unused ones expire. Ending the Member's sessions is
- * the caller's part, since only the web app has sessions.
+ * the caller's part, since only the web app has sessions; calling {@link #complete} inside the
+ * caller's transaction lets both commit together.
  */
 @Service
 public class PasswordResets {

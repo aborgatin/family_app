@@ -55,7 +55,8 @@ Owns Family, Member, Invite, Password reset, Child and Child field, plus authent
 Members are the principals. Sub-packages:
 
 - `family.auth`: everything web and security: `SecurityConfig`, `SessionLogin`,
-  `SlidingSessionCookieFilter`, `LoginLimits`, `ApiErrorWriter`, `AuthenticatedMember` and the
+  `SlidingSessionCookieFilter`, `SessionTransactionConfig`, `PasswordResetCompletion`,
+  `LoginLimits`, `ApiErrorWriter`, `AuthenticatedMember` and the
   controllers `AuthController` (`/api/auth`), `InvitesController` (`/api/invites`),
   `MembersController` (`/api/members`), `PasswordResetController` (`/api/password-resets`).
 - `family.member`: `Member`, `Invite`, `PasswordReset` entities and repositories; `BootstrapService`,
@@ -78,7 +79,8 @@ The public API (root package) is what spec #5 asks for, plus password resets:
 - `PasswordResets` is public so the `command` module can create resets, and so a later
   «Сбросить пароль» action in Settings can reuse it: `createForEmail(email)` (returns the record
   `NewPasswordReset(url, expiresAt)`), `expiresAt(token)`, `complete(token, newPassword)` (returns
-  the `MemberSummary`). It does not end sessions; `PasswordResetController` does.
+  the `MemberSummary`). It does not end sessions; `family.auth.PasswordResetCompletion` calls it
+  and ends them in the same transaction.
 
 Controllers inside `family` still take the Member id from
 `@AuthenticationPrincipal AuthenticatedMember`, which is internal to `family.auth`.
@@ -149,7 +151,7 @@ there):
 | `GET /api/children`, `PUT/DELETE /api/children/{id}`           | by birthday (oldest first, none last), name (`ru-x-icu`), id; see below            |
 | `GET /api/child-fields`, `PUT/DELETE /api/child-fields/{id}`   | ordered by `position`, then id                                                     |
 | `GET /api/password-resets/by-token/{token}` (public)           | `{expiresAt}` or the reset's state error                                           |
-| `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions, then logs in                         |
+| `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions (same transaction), then logs in      |
 | `GET /actuator/health` (public)                                | container healthcheck                                                              |
 
 Children's name order is ICU's Russian collation, named in `ChildRepository`'s query
@@ -235,8 +237,12 @@ A new code the user may see needs an entry in the web's `ERROR_KEYS` (see
   acceptance, password reset). It changes the session id if a session exists (fixation protection)
   and stores an `AuthenticatedMember` whose `getName()` is the Member id. Spring Session indexes
   that as `principal_name`, so `FindByIndexNameSessionRepository.findByPrincipalName(memberId)`
-  finds all of a Member's sessions; `PasswordResetController` deletes them all before logging in
-  on the current device.
+  finds all of a Member's sessions. `PasswordResetCompletion` sets the new password, uses up the
+  link and deletes them all in one transaction, so a failure changes nothing; then
+  `PasswordResetController` logs in on the current device. For that, Spring Session's JDBC writes
+  join a surrounding transaction (`SessionTransactionConfig` defines
+  `springSessionTransactionOperations` with `PROPAGATION_REQUIRED`; Spring Session's default is
+  `REQUIRES_NEW`). Writes made outside a transaction, as in the session filter, still get their own.
 - Logout invalidates this device's session only. Changing the password in Settings leaves sessions
   alone.
 

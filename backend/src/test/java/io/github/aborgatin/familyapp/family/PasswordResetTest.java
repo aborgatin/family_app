@@ -90,6 +90,62 @@ class PasswordResetTest {
   }
 
   @Test
+  void ifEndingTheOldSessionsFailsNothingChanges() throws Exception {
+    Browser phone = loggedInAsAnna();
+    String token = newResetForAnna();
+    failing(
+        "CREATE TRIGGER test_fail BEFORE DELETE ON spring_session"
+            + " FOR EACH ROW EXECUTE FUNCTION test_fail()",
+        () -> completeFailsAndNothingChanged(phone, token));
+  }
+
+  @Test
+  void ifSavingTheNewPasswordFailsAfterTheSessionsWereEndedNothingChanges() throws Exception {
+    Browser phone = loggedInAsAnna();
+    String token = newResetForAnna();
+    // Raised at commit, so after the old sessions have been deleted.
+    failing(
+        "CREATE CONSTRAINT TRIGGER test_fail AFTER UPDATE ON member"
+            + " DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION test_fail()",
+        () -> completeFailsAndNothingChanged(phone, token));
+  }
+
+  private void completeFailsAndNothingChanged(Browser phone, String token) throws Exception {
+    Browser borrowed = new Browser(mvc);
+    borrowed.openApp();
+    borrowed
+        .postJson(complete(token), newPassword("brand-new-secret"))
+        .andExpect(status().isInternalServerError());
+
+    phone.openApp().andExpect(jsonPath("$.member.email").value("anna@example.com"));
+    borrowed.get("/api/password-resets/by-token/" + token).andExpect(status().isOk());
+    Browser next = new Browser(mvc);
+    next.openApp();
+    next.postJson("/api/auth/login", LoginTest.login("anna@example.com", ANNA_PASSWORD))
+        .andExpect(status().isOk());
+  }
+
+  /** Runs {@code check} while the database refuses the write that {@code trigger} guards. */
+  private void failing(String trigger, ThrowingRunnable check) throws Exception {
+    jdbc.execute(
+        """
+        CREATE FUNCTION test_fail() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'failing on purpose'; END $$
+        """);
+    try {
+      jdbc.execute(trigger);
+      check.run();
+    } finally {
+      jdbc.execute("DROP FUNCTION test_fail() CASCADE");
+    }
+  }
+
+  @FunctionalInterface
+  private interface ThrowingRunnable {
+    void run() throws Exception;
+  }
+
+  @Test
   void openingAWorkingLinkTellsWhenItExpires() throws Exception {
     Browser phone = new Browser(mvc);
 
