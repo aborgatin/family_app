@@ -107,6 +107,10 @@ _Avoid_: Recurrence, recurring, schedule, cycle
 
 ## Children
 
+**Child color** — «Цвет»:
+The color a Child is shown in, picked from the fixed Child color palette. The palette is code (one list shared by the API and the web app), not Family data.
+_Avoid_: Theme, tag color, label
+
 **Child page** — «Страница ребёнка»:
 The page for one Child, holding their Child profile, Todo list and Wish list.
 _Avoid_: Child dashboard, kid page
