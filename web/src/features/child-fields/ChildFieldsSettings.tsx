@@ -56,7 +56,7 @@ export function ChildFieldsSettings() {
     );
   }
 
-  const { fields } = load;
+  const fields = load.value;
   return (
     <>
       {fields.length === 0 ? (

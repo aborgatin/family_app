@@ -33,6 +33,7 @@ web/src/
   shared/
     api/                API client, error-code mapping, form error helpers
     i18n/               i18next set-up, typed keys, locales/ru.json
+    load/               useLoad(): load / failed / retry for anything fetched once
     palette/            Child color palette (childColors.json)
     ui/                 TextField, GrammaticalGenderChoice
   test/                 renderApp, MSW server, fixtures, setup
@@ -88,7 +89,9 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 - `api.get/post/put/patch/delete<T>(path, body?)`: `fetch` with `credentials: 'same-origin'`, JSON
   in and out, `204` → `undefined`. Every non-GET sends the `XSRF-TOKEN` cookie's value as
   `X-XSRF-TOKEN`.
-- Every failure rejects with `ApiError` (`status`, `code`, `params`, `fieldErrors`). A fetch that
+- Every failure rejects with `ApiError` (`status`, `code`, `params`, `fieldErrors`).
+  `asApiError(error)` turns whatever a `catch` got into an `ApiError` (`unknown`, status 0, when it
+  isn't one already); use it instead of writing the check again. A fetch that
   throws (offline, server unreachable) becomes `ApiError(0, 'network.unavailable')`
   (`NETWORK_UNAVAILABLE`). A non-JSON error body becomes code `unknown`.
 - `errorMessageKey(code)` maps an API code to an i18n key through `ERROR_KEYS` in
@@ -114,8 +117,17 @@ Each data feature has one hook that is its only data access. Components never ca
   moved field the midpoint between its new neighbours, or one past either end; a new field goes
   one past the last. Ordering is `position`, then id, as on the server.
 - `useMembers()` → `{load, retry, replaced}`.
-- `load` is `{status: 'loading' | 'failed' | 'ready', …}`. Lists load from the server each time
-  Settings opens. Writes reject with `ApiError` and leave the list unchanged.
+- `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`. Lists
+  load from the server each time Settings opens. Writes reject with `ApiError` and leave the list
+  unchanged.
+
+The load / failed / retry part is shared: `useLoad(fetch, key?)` from `@/shared/load` returns
+`{load, retry, update}`. It fetches on mount and when `key` changes, drops answers that arrive
+after unmounting, and `update(change)` edits the loaded value after a write. `useMembers`,
+`useChildren`, `useChildFields`, `InvitesSettings` and `AuthGuard` use it, and
+`features/auth/useLinkCheck` builds the Invite and password reset link check on it. Components of
+Children and Child fields still go only through `useChildren()` / `useChildFields()`; `useLoad` is
+an implementation detail of those hooks, so M2 can replace it there.
 
 Children and Child fields are online-only REST in M1, a planned exception to S4. M2 swaps
 `useChildren()` / `useChildFields()` onto the local store + Outbox without touching components

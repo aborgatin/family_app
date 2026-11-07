@@ -46,11 +46,11 @@ export function ChildrenSettings() {
 
   return (
     <>
-      {load.children.length === 0 ? (
+      {load.value.length === 0 ? (
         <p>{t('children.empty')}</p>
       ) : (
         <ul aria-label={t('settings.children')}>
-          {load.children.map((child) =>
+          {load.value.map((child) =>
             child.id === editingId ? (
               <li key={child.id}>
                 <ChildForm

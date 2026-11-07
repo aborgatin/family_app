@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router';
-import type { ParseKeys } from 'i18next';
-import { ApiError, asApiError, errorMessageKey } from '@/shared/api';
+import type { ApiError } from '@/shared/api';
 import { acceptInvite, fetchInvite, type Registration } from './authApi';
 import { LOGIN_PATH } from './AuthGuard';
 import { RegistrationForm } from './RegistrationForm';
 import { useSession } from './session';
+import { useLinkCheck } from './useLinkCheck';
 
 /** The codes that mean the link itself doesn't work; the form makes no sense then. */
 const LINK_ERRORS: ReadonlySet<string> = new Set([
@@ -15,12 +14,6 @@ const LINK_ERRORS: ReadonlySet<string> = new Set([
   'invite.used',
   'invite.revoked',
 ]);
-
-type LinkState =
-  | { status: 'checking' }
-  | { status: 'working' }
-  | { status: 'broken'; message: ParseKeys }
-  | { status: 'unreachable'; message: ParseKeys };
 
 /**
  * Registering through an Invite link (`/invite/:token`). Says the person is invited to the Family,
@@ -33,28 +26,7 @@ export function InvitePage() {
   const { token = '' } = useParams();
   const { loggedIn } = useSession();
 
-  const [link, setLink] = useState<LinkState>({ status: 'checking' });
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let current = true;
-    fetchInvite(token).then(
-      () => {
-        if (current) setLink({ status: 'working' });
-      },
-      (error: unknown) => {
-        if (!current) return;
-        const { code } = asApiError(error);
-        setLink({
-          status: LINK_ERRORS.has(code) ? 'broken' : 'unreachable',
-          message: errorMessageKey(code),
-        });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [token, attempt]);
+  const { link, retry, broke } = useLinkCheck(() => fetchInvite(token), token, LINK_ERRORS);
 
   async function register(registration: Registration) {
     loggedIn(await acceptInvite(token, registration));
@@ -62,9 +34,7 @@ export function InvitePage() {
   }
 
   function linkBroke(error: ApiError): boolean {
-    if (!LINK_ERRORS.has(error.code)) return false;
-    setLink({ status: 'broken', message: errorMessageKey(error.code) });
-    return true;
+    return broke(error.code);
   }
 
   if (link.status === 'checking') {
@@ -85,13 +55,7 @@ export function InvitePage() {
       {link.status === 'unreachable' && (
         <>
           <p role="alert">{t(link.message)}</p>
-          <button
-            type="button"
-            onClick={() => {
-              setLink({ status: 'checking' });
-              setAttempt((n) => n + 1);
-            }}
-          >
+          <button type="button" onClick={retry}>
             {t('common.retry')}
           </button>
         </>

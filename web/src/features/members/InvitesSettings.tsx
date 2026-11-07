@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError, asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import { useLoad } from '@/shared/load';
 import { TextField } from '@/shared/ui';
 import {
   createInvite,
@@ -9,11 +10,6 @@ import {
   type Invite,
   type NewInvite,
 } from './invitesApi';
-
-type InvitesLoad =
-  | { status: 'loading' }
-  | { status: 'failed'; error: ApiError }
-  | { status: 'ready'; invites: Invite[] };
 
 const EXPIRY_FORMAT = new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'long' });
 
@@ -24,26 +20,10 @@ const EXPIRY_FORMAT = new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'lo
 export function InvitesSettings() {
   const { t } = useTranslation();
   const headingId = useId();
-  const [load, setLoad] = useState<InvitesLoad>({ status: 'loading' });
-  const [attempt, setAttempt] = useState(0);
+  const { load, retry, update } = useLoad(fetchInvites);
   const [newInvite, setNewInvite] = useState<NewInvite>();
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<ErrorMessage>();
-
-  useEffect(() => {
-    let current = true;
-    fetchInvites().then(
-      (invites) => {
-        if (current) setLoad({ status: 'ready', invites });
-      },
-      (error: unknown) => {
-        if (current) setLoad({ status: 'failed', error: asApiError(error) });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [attempt]);
 
   async function create() {
     setCreating(true);
@@ -51,11 +31,7 @@ export function InvitesSettings() {
     try {
       const invite = await createInvite();
       setNewInvite(invite);
-      setLoad((previous) =>
-        previous.status === 'ready'
-          ? { status: 'ready', invites: [invite, ...previous.invites] }
-          : previous,
-      );
+      update((invites) => [invite, ...invites]);
     } catch (error: unknown) {
       setCreateError(errorMessage(asApiError(error)));
     } finally {
@@ -63,14 +39,13 @@ export function InvitesSettings() {
     }
   }
 
-  const revoked = useCallback((id: string) => {
-    setLoad((previous) =>
-      previous.status === 'ready'
-        ? { status: 'ready', invites: previous.invites.filter((invite) => invite.id !== id) }
-        : previous,
-    );
-    setNewInvite((previous) => (previous?.id === id ? undefined : previous));
-  }, []);
+  const revoked = useCallback(
+    (id: string) => {
+      update((invites) => invites.filter((invite) => invite.id !== id));
+      setNewInvite((previous) => (previous?.id === id ? undefined : previous));
+    },
+    [update],
+  );
 
   return (
     <section aria-labelledby={headingId}>
@@ -91,21 +66,15 @@ export function InvitesSettings() {
       {load.status === 'failed' && (
         <>
           <p role="alert">{t(errorMessage(load.error).key, errorMessage(load.error).values)}</p>
-          <button
-            type="button"
-            onClick={() => {
-              setLoad({ status: 'loading' });
-              setAttempt((n) => n + 1);
-            }}
-          >
+          <button type="button" onClick={retry}>
             {t('common.retry')}
           </button>
         </>
       )}
-      {load.status === 'ready' && load.invites.length === 0 && <p>{t('members.invites.none')}</p>}
-      {load.status === 'ready' && load.invites.length > 0 && (
+      {load.status === 'ready' && load.value.length === 0 && <p>{t('members.invites.none')}</p>}
+      {load.status === 'ready' && load.value.length > 0 && (
         <ul aria-label={t('members.invites.active')}>
-          {load.invites.map((invite) => (
+          {load.value.map((invite) => (
             <InviteItem key={invite.id} invite={invite} onRevoked={revoked} />
           ))}
         </ul>

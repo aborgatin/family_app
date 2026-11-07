@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
-import { ApiError, asApiError, errorMessageKey } from '@/shared/api';
+import { errorMessageKey } from '@/shared/api';
+import { useLoad } from '@/shared/load';
 import { fetchSession, type Member, type Session } from './authApi';
 import { SessionContext, type SessionState } from './session';
 
@@ -31,11 +32,6 @@ function intendedPath(state: unknown): string {
     : '/';
 }
 
-type Load =
-  | { status: 'loading' }
-  | { status: 'failed'; error: ApiError }
-  | { status: 'ready'; session: Session };
-
 /**
  * Route guard for the whole app. Asks `GET /api/auth/session` once at start, then sends the user
  * where the answer says: to `/setup` while the installation has no Member yet, away from it after;
@@ -47,41 +43,25 @@ export function AuthGuard() {
   const { t } = useTranslation();
   const location = useLocation();
   const { pathname } = location;
-  const [load, setLoad] = useState<Load>({ status: 'loading' });
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let current = true;
-    fetchSession().then(
-      (session) => {
-        if (current) setLoad({ status: 'ready', session });
-      },
-      (error: unknown) => {
-        if (current) setLoad({ status: 'failed', error: asApiError(error) });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [attempt]);
+  const { load, retry, update } = useLoad(fetchSession);
 
   const state = useMemo<SessionState | null>(
     () =>
       load.status === 'ready'
         ? {
-            session: load.session,
+            session: load.value,
             loggedIn: (member: Member) => {
-              setLoad({ status: 'ready', session: { bootstrapRequired: false, member } });
+              update((): Session => ({ bootstrapRequired: false, member }));
             },
             memberChanged: (member: Member) => {
-              setLoad({ status: 'ready', session: { ...load.session, member } });
+              update((session) => ({ ...session, member }));
             },
             loggedOut: () => {
-              setLoad({ status: 'ready', session: { bootstrapRequired: false, member: null } });
+              update((): Session => ({ bootstrapRequired: false, member: null }));
             },
           }
         : null,
-    [load],
+    [load, update],
   );
 
   if (load.status === 'loading') {
@@ -92,13 +72,7 @@ export function AuthGuard() {
     return (
       <main>
         <p role="alert">{t(errorMessageKey(code))}</p>
-        <button
-          type="button"
-          onClick={() => {
-            setLoad({ status: 'loading' });
-            setAttempt((n) => n + 1);
-          }}
-        >
+        <button type="button" onClick={retry}>
           {t('common.retry')}
         </button>
       </main>

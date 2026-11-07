@@ -1,11 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ApiError, asApiError } from '@/shared/api';
+import { useCallback } from 'react';
+import { useLoad, type Load } from '@/shared/load';
 import { deleteChild, fetchChildren, putChild, type Child, type ChildDetails } from './childrenApi';
 
-export type ChildrenLoad =
-  | { status: 'loading' }
-  | { status: 'failed'; error: ApiError }
-  | { status: 'ready'; children: Child[] };
+export type ChildrenLoad = Load<Child[]>;
 
 /**
  * The Family's Children and the ways to change them: the only data access of this feature.
@@ -13,51 +10,25 @@ export type ChildrenLoad =
  * exception); M2 swaps this hook onto the local store + Outbox without touching the components.
  */
 export function useChildren() {
-  const [load, setLoad] = useState<ChildrenLoad>({ status: 'loading' });
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let current = true;
-    fetchChildren().then(
-      (children) => {
-        if (current) setLoad({ status: 'ready', children });
-      },
-      (error: unknown) => {
-        if (current) setLoad({ status: 'failed', error: asApiError(error) });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [attempt]);
-
-  const retry = useCallback(() => {
-    setLoad({ status: 'loading' });
-    setAttempt((n) => n + 1);
-  }, []);
+  const { load, retry, update } = useLoad(fetchChildren);
 
   /** Adds a new Child (`id` from `newChildId()`) or replaces an existing one. */
-  const save = useCallback(async (id: string, details: ChildDetails) => {
-    const saved = await putChild(id, details);
-    setLoad((previous) =>
-      previous.status === 'ready'
-        ? {
-            status: 'ready',
-            children: inOrder([...previous.children.filter((c) => c.id !== id), saved]),
-          }
-        : previous,
-    );
-    return saved;
-  }, []);
+  const save = useCallback(
+    async (id: string, details: ChildDetails) => {
+      const saved = await putChild(id, details);
+      update((children) => inOrder([...children.filter((c) => c.id !== id), saved]));
+      return saved;
+    },
+    [update],
+  );
 
-  const remove = useCallback(async (id: string) => {
-    await deleteChild(id);
-    setLoad((previous) =>
-      previous.status === 'ready'
-        ? { status: 'ready', children: previous.children.filter((c) => c.id !== id) }
-        : previous,
-    );
-  }, []);
+  const remove = useCallback(
+    async (id: string) => {
+      await deleteChild(id);
+      update((children) => children.filter((c) => c.id !== id));
+    },
+    [update],
+  );
 
   return { load, retry, save, remove };
 }

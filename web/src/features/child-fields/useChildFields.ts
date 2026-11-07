@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ApiError, asApiError } from '@/shared/api';
+import { useCallback } from 'react';
+import { asApiError } from '@/shared/api';
+import { useLoad, type Load } from '@/shared/load';
 import {
   deleteChildField,
   fetchChildFields,
@@ -8,10 +9,7 @@ import {
   type ValueType,
 } from './childFieldsApi';
 
-export type ChildFieldsLoad =
-  | { status: 'loading' }
-  | { status: 'failed'; error: ApiError }
-  | { status: 'ready'; fields: ChildField[] };
+export type ChildFieldsLoad = Load<ChildField[]>;
 
 export type Direction = 'up' | 'down';
 
@@ -52,41 +50,16 @@ export function positionAfterMove(
  * it was.
  */
 export function useChildFields() {
-  const [load, setLoad] = useState<ChildFieldsLoad>({ status: 'loading' });
-  const [attempt, setAttempt] = useState(0);
+  const { load, retry, update } = useLoad(() => fetchChildFields().then(inOrder));
 
-  useEffect(() => {
-    let current = true;
-    fetchChildFields().then(
-      (fields) => {
-        if (current) setLoad({ status: 'ready', fields: inOrder(fields) });
-      },
-      (error: unknown) => {
-        if (current) setLoad({ status: 'failed', error: asApiError(error) });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [attempt]);
+  const fields = load.status === 'ready' ? load.value : [];
 
-  const retry = useCallback(() => {
-    setLoad({ status: 'loading' });
-    setAttempt((n) => n + 1);
-  }, []);
-
-  const fields = load.status === 'ready' ? load.fields : [];
-
-  const saved = useCallback((field: ChildField) => {
-    setLoad((previous) =>
-      previous.status === 'ready'
-        ? {
-            status: 'ready',
-            fields: inOrder([...previous.fields.filter((f) => f.id !== field.id), field]),
-          }
-        : previous,
-    );
-  }, []);
+  const saved = useCallback(
+    (field: ChildField) => {
+      update((previous) => inOrder([...previous.filter((f) => f.id !== field.id), field]));
+    },
+    [update],
+  );
 
   async function write(id: string, change: Parameters<typeof putChildField>[1]) {
     try {
@@ -122,11 +95,7 @@ export function useChildFields() {
     } catch (error: unknown) {
       throw asApiError(error);
     }
-    setLoad((previous) =>
-      previous.status === 'ready'
-        ? { status: 'ready', fields: previous.fields.filter((f) => f.id !== field.id) }
-        : previous,
-    );
+    update((previous) => previous.filter((f) => f.id !== field.id));
   }
 
   return { load, retry, add, rename, move, remove };
