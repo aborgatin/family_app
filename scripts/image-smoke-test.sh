@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Image smoke test (spec #5, Testing, seam 3): starts the built image next to a throwaway
+# PostgreSQL 18 and checks it over real HTTP. Used by the CI "image" job; runs locally too:
+#
+#   docker build -t family-app:local . && scripts/image-smoke-test.sh family-app:local
+#
+# Add new checks as `check_*` calls at the bottom.
+set -euo pipefail
+
+image="${1:?usage: $0 <image>}"
+run_id="family-app-smoke-$$"
+network="$run_id"
+db="$run_id-db"
+app="$run_id-app"
+
+cleanup() {
+  docker rm -f "$app" "$db" >/dev/null 2>&1 || true
+  docker network rm "$network" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+fail() {
+  echo "FAIL: $*" >&2
+  echo "--- app logs ---" >&2
+  docker logs "$app" >&2 || true
+  exit 1
+}
+
+docker network create "$network" >/dev/null
+docker run -d --name "$db" --network "$network" \
+  -e POSTGRES_DB=family -e POSTGRES_USER=family -e POSTGRES_PASSWORD=smoke \
+  postgres:18 >/dev/null
+docker run -d --name "$app" --network "$network" -p 127.0.0.1::8080 \
+  -e DATASOURCE_URL="jdbc:postgresql://$db:5432/family" \
+  -e DATASOURCE_USERNAME=family -e DATASOURCE_PASSWORD=smoke \
+  "$image" >/dev/null
+
+base="http://$(docker port "$app" 8080/tcp | head -n1)"
+echo "app at $base"
+
+# The app may exit while Postgres is still starting; give it time, but fail fast if it dies.
+health=""
+for _ in $(seq 1 90); do
+  if [ "$(docker inspect -f '{{.State.Running}}' "$app")" != "true" ]; then
+    fail "app container exited"
+  fi
+  health="$(curl -fsS "$base/actuator/health" 2>/dev/null || true)"
+  case "$health" in *'"status":"UP"'*) break ;; esac
+  sleep 2
+done
+case "$health" in
+  *'"status":"UP"'*) echo "ok   /actuator/health is UP" ;;
+  *) fail "/actuator/health never reported UP (last: ${health:-no response})" ;;
+esac
+
+# The built web/index.html mounts the app on <div id="root">.
+check_serves_index_html() {
+  local path="$1" body
+  body="$(curl -fsS "$base$path")" || fail "GET $path did not return 2xx"
+  case "$body" in
+    *'<div id="root">'*) echo "ok   GET $path returns index.html" ;;
+    *) fail "GET $path did not return index.html" ;;
+  esac
+}
+
+check_serves_index_html /
+check_serves_index_html /settings
+
+echo "image smoke test passed"

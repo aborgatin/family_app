@@ -1,0 +1,9 @@
+# The image builds from source; keep local build output and tooling out of the context.
+.git
+.github
+.claude
+**/node_modules
+web/dist
+backend/build
+backend/.gradle
+docs
