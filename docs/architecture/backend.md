@@ -49,6 +49,18 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 Dependencies: `family → error`, `command → family`. Nothing in Java owns the Version sequence or
 trigger: they are database objects from `V1` (see [`sync.md`](sync.md)).
 
+Spec #5 asks for one module, `family`. `error`, `command` and `webapp` go beyond that scope on
+purpose, because none of them belongs to the Family domain and each is shared or stands apart:
+
+- `error`: the `{code, params}` error shape (I1) and its single MVC mapping. Every module throws
+  `ApiException` and `FieldErrors`; keeping them in `family` would make each later module depend on
+  `family` just to report an error.
+- `command`: operator commands start the application without a web server and call other modules
+  through their public API only, as an outside caller would. A separate module lets Modulith check
+  that it never reaches into `family`'s internals.
+- `webapp`: serving the web bundle (SPA fallback, caching headers, its own public filter chain) is
+  infrastructure with no domain code and no dependency on any other module.
+
 ### `family`
 
 Owns Family, Member, Invite, Password reset, Child and Child field, plus authentication, because
@@ -259,6 +271,15 @@ a dummy hash so both failure cases take the same time. Emails are matched after
 
 **Bootstrap** (`BootstrapService`) is allowed only while `member` has no rows, checked under
 `FamilyLock`, so concurrent requests yield exactly one Member.
+
+**Invite acceptance** (`InviteService.accept`) creates the Member and marks the Invite accepted in
+one transaction under `FamilyLock`. `InvitesController` then logs the new Member in with
+`SessionLogin`, so the session is saved after that transaction has committed, the way login and
+bootstrap do it. This is a known deviation from all-or-nothing: if saving the session fails, the
+Member and the used Invite stay, and the new Member logs in with their email and password instead
+of being logged in automatically. It is left as is because nothing is lost: the account exists and
+works, unlike a password reset, where a half-done change would leave old sessions alive (see
+`PasswordResetCompletion` above).
 
 **Login limits** (`LoginLimits`): in-memory sliding windows of failed logins per normalized email
 and per client IP. Over either limit, login returns `429 auth.too_many_attempts` with
