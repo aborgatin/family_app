@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import { ApiError, asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
 import { TextField } from '@/shared/ui';
 import {
   createInvite,
@@ -14,10 +14,6 @@ type InvitesLoad =
   | { status: 'loading' }
   | { status: 'failed'; error: ApiError }
   | { status: 'ready'; invites: Invite[] };
-
-function asApiError(error: unknown): ApiError {
-  return error instanceof ApiError ? error : new ApiError(0, 'unknown');
-}
 
 const EXPIRY_FORMAT = new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'long' });
 

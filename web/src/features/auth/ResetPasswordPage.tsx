@@ -2,7 +2,7 @@ import { useEffect, useState, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { ParseKeys } from 'i18next';
-import { ApiError, errorMessageKey, fieldErrorMessageKey } from '@/shared/api';
+import { asApiError, errorMessageKey, fieldErrorMessageKey } from '@/shared/api';
 import { TextField } from '@/shared/ui';
 import { completePasswordReset, fetchPasswordReset } from './authApi';
 import { LOGIN_PATH } from './AuthGuard';
@@ -20,10 +20,6 @@ type LinkState =
   | { status: 'working' }
   | { status: 'broken'; message: ParseKeys }
   | { status: 'unreachable'; message: ParseKeys };
-
-function asApiError(error: unknown): ApiError {
-  return error instanceof ApiError ? error : new ApiError(0, 'unknown');
-}
 
 /**
  * Setting a new password from a one-time reset link (`/reset-password/:token`) that the operator

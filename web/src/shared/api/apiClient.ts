@@ -28,6 +28,14 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Whatever a failed call threw, as an `ApiError`: the error itself when it is one, otherwise an
+ * `unknown` error (status 0), which shows the generic message.
+ */
+export function asApiError(error: unknown): ApiError {
+  return error instanceof ApiError ? error : new ApiError(0, 'unknown');
+}
+
 function isFieldError(value: unknown): value is FieldError {
   return (
     typeof value === 'object' &&

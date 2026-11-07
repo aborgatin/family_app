@@ -1,4 +1,4 @@
-export { api, ApiError, NETWORK_UNAVAILABLE, type FieldError } from './apiClient';
+export { api, ApiError, asApiError, NETWORK_UNAVAILABLE, type FieldError } from './apiClient';
 export {
   errorMessage,
   errorMessageKey,

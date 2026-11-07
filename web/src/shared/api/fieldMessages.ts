@@ -1,5 +1,5 @@
 import type { ParseKeys } from 'i18next';
-import { ApiError } from './apiClient';
+import { asApiError } from './apiClient';
 import { errorMessage, fieldErrorMessageKey, type ErrorMessage } from './errorMessages';
 
 /** Field → i18n key of its error message. */
@@ -21,7 +21,7 @@ export function failureMessages<F extends string>(
   fields: readonly F[],
   choiceFields: readonly F[] = [],
 ): { fieldMessages: FieldMessages<F>; formMessage: ErrorMessage | undefined } {
-  const apiError = error instanceof ApiError ? error : new ApiError(0, 'unknown');
+  const apiError = asApiError(error);
   const fieldMessages: FieldMessages<F> = {};
   for (const { field, code } of apiError.fieldErrors) {
     const known = fields.find((f) => f === field);

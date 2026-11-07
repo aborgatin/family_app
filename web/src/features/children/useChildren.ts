@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError } from '@/shared/api';
+import { ApiError, asApiError } from '@/shared/api';
 import { deleteChild, fetchChildren, putChild, type Child, type ChildDetails } from './childrenApi';
 
 export type ChildrenLoad =
@@ -83,8 +83,4 @@ function inOrder(children: Child[]): Child[] {
     }
     return byName.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   });
-}
-
-function asApiError(error: unknown): ApiError {
-  return error instanceof ApiError ? error : new ApiError(0, 'unknown');
 }

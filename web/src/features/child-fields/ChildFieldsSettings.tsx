@@ -1,7 +1,7 @@
 import { useId, useState, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ParseKeys } from 'i18next';
-import { ApiError, errorMessage, fieldErrorMessageKey, type ErrorMessage } from '@/shared/api';
+import { asApiError, errorMessage, fieldErrorMessageKey, type ErrorMessage } from '@/shared/api';
 import { TextField } from '@/shared/ui';
 import type { ChildField, ValueType } from './childFieldsApi';
 import { useChildFields, type Direction } from './useChildFields';
@@ -13,7 +13,7 @@ const VALUE_TYPE_KEYS = {
 
 /** A failed save: the message for the name field if the server blamed it, else for the form. */
 function failure(error: unknown): { name?: ParseKeys; form?: ErrorMessage } {
-  const apiError = error instanceof ApiError ? error : new ApiError(0, 'unknown');
+  const apiError = asApiError(error);
   const nameError = apiError.fieldErrors.find((e) => e.field === 'name');
   return nameError === undefined
     ? { form: errorMessage(apiError) }

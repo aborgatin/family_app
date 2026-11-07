@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
 import { ChildForm } from './ChildForm';
 import type { Child, ChildDetails } from './childrenApi';
 import { ColorSwatch, useChildColorName } from './ColorSwatch';
@@ -118,7 +118,7 @@ function ChildRow({ child, onEdit, onRemove }: ChildRowProps) {
     try {
       await onRemove();
     } catch (failure: unknown) {
-      setError(errorMessage(failure instanceof ApiError ? failure : new ApiError(0, 'unknown')));
+      setError(errorMessage(asApiError(failure)));
       setRemoving(false);
     }
   }

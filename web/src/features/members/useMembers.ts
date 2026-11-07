@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Member } from '@/features/auth';
-import { ApiError } from '@/shared/api';
+import { ApiError, asApiError } from '@/shared/api';
 import { fetchMembers } from './membersApi';
 
 export type MembersLoad =
@@ -26,7 +26,7 @@ export function useMembers() {
         if (current) {
           setLoad({
             status: 'failed',
-            error: error instanceof ApiError ? error : new ApiError(0, 'unknown'),
+            error: asApiError(error),
           });
         }
       },

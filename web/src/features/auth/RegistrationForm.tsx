@@ -1,7 +1,7 @@
 import { useState, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ParseKeys } from 'i18next';
-import { ApiError, errorMessageKey, fieldErrorMessageKey } from '@/shared/api';
+import { ApiError, asApiError, errorMessageKey, fieldErrorMessageKey } from '@/shared/api';
 import { GrammaticalGenderChoice, TextField, type GrammaticalGender } from '@/shared/ui';
 import type { Registration } from './authApi';
 
@@ -72,7 +72,7 @@ export function RegistrationForm({
       await register({ email, password, displayName, grammaticalGender });
     } catch (error: unknown) {
       setSubmitting(false);
-      const apiError = error instanceof ApiError ? error : new ApiError(0, 'unknown');
+      const apiError = asApiError(error);
       if (handled?.(apiError) === true) {
         return;
       }

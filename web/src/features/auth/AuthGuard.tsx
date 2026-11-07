@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
-import { ApiError, errorMessageKey } from '@/shared/api';
+import { ApiError, asApiError, errorMessageKey } from '@/shared/api';
 import { fetchSession, type Member, type Session } from './authApi';
 import { SessionContext, type SessionState } from './session';
 
@@ -35,10 +35,6 @@ type Load =
   | { status: 'loading' }
   | { status: 'failed'; error: ApiError }
   | { status: 'ready'; session: Session };
-
-function asApiError(error: unknown): ApiError {
-  return error instanceof ApiError ? error : new ApiError(0, 'unknown');
-}
 
 /**
  * Route guard for the whole app. Asks `GET /api/auth/session` once at start, then sends the user

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError } from '@/shared/api';
+import { ApiError, asApiError } from '@/shared/api';
 import {
   deleteChildField,
   fetchChildFields,
@@ -43,10 +43,6 @@ export function positionAfterMove(
   if (before === undefined) return (after as ChildField).position - 1;
   if (after === undefined) return before.position + 1;
   return (before.position + after.position) / 2;
-}
-
-function asApiError(error: unknown): ApiError {
-  return error instanceof ApiError ? error : new ApiError(0, 'unknown');
 }
 
 /**

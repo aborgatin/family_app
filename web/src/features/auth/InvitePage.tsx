@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { ParseKeys } from 'i18next';
-import { ApiError, errorMessageKey } from '@/shared/api';
+import { ApiError, asApiError, errorMessageKey } from '@/shared/api';
 import { acceptInvite, fetchInvite, type Registration } from './authApi';
 import { LOGIN_PATH } from './AuthGuard';
 import { RegistrationForm } from './RegistrationForm';
@@ -21,10 +21,6 @@ type LinkState =
   | { status: 'working' }
   | { status: 'broken'; message: ParseKeys }
   | { status: 'unreachable'; message: ParseKeys };
-
-function asApiError(error: unknown): ApiError {
-  return error instanceof ApiError ? error : new ApiError(0, 'unknown');
-}
 
 /**
  * Registering through an Invite link (`/invite/:token`). Says the person is invited to the Family,

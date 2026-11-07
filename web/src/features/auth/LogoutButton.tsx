@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
 import { logout } from './authApi';
 import { useSession } from './session';
 
@@ -21,7 +21,7 @@ export function LogoutButton() {
       await logout();
       loggedOut();
     } catch (failure: unknown) {
-      const apiError = failure instanceof ApiError ? failure : new ApiError(0, 'unknown');
+      const apiError = asApiError(failure);
       if (apiError.code === 'auth.required') {
         // The session had already ended (e.g. expired): this device is logged out either way.
         loggedOut();

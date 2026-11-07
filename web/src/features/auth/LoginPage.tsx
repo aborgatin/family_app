@@ -1,6 +1,6 @@
 import { useState, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError, errorMessage, fieldErrorMessageKey, type ErrorMessage } from '@/shared/api';
+import { asApiError, errorMessage, type ErrorMessage, fieldErrorMessageKey } from '@/shared/api';
 import { TextField } from '@/shared/ui';
 import { login } from './authApi';
 import { useSession } from './session';
@@ -35,7 +35,7 @@ export function LoginPage() {
       loggedIn(await login({ email, password }));
     } catch (error: unknown) {
       setSubmitting(false);
-      const apiError = error instanceof ApiError ? error : new ApiError(0, 'unknown');
+      const apiError = asApiError(error);
       if (apiError.code === 'auth.invalid_credentials') {
         setPassword('');
       }
