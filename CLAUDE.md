@@ -1,5 +1,9 @@
 # Family App
 
+Architecture and conventions live in `docs/architecture/` (`backend.md`, `frontend.md`, `sync.md`, `deployment.md`): read the file for the area you're changing first.
+
+Run all checks with `scripts/check.sh` (add `--image` to build and smoke-test the Docker image); query the local dev database with `scripts/db.sh "<sql>"`.
+
 ## Agent skills
 
 ### Issue tracker

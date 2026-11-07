@@ -304,7 +304,10 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V3__child.sql`                 | `child`                                                                                            |
 | `V4__child_field.sql`           | `child_field` + Default Child fields «Вес», «Рост» (`TEXT`, positions 1.0, 2.0)                    |
 
-- **Append-only** (S5): never edit a merged migration; add a new one with the next version.
+- **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
+  than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
+  `scripts/check.sh`) fails on a changed, deleted or renamed merged migration and on a new version
+  that is not higher; its self-test is `scripts/check-migrations-test.sh`.
 - **Defaults** are inserted by the same migration that creates their table, so they are written
   exactly once per installation and never come back after a Member edits or removes them. Russian
   strings are allowed there (I1, "seed data"). Default rows get Versions from the trigger like any
@@ -368,3 +371,7 @@ Follow `child` (`V3__child.sql`, `family.child`) or `child_field`:
   entry point against Testcontainers), `HealthEndpointTest`, `ApiErrorsTest`.
 - Run with `./gradlew test` (Docker must be running). CI runs `spotlessCheck`,
   `compileJava compileTestJava` and `test`.
+- `scripts/check.sh` runs everything from any directory: the migration guard,
+  `./gradlew spotlessApply build`, and all web checks (`--image` adds the image build and smoke test).
+- Inspect the local dev database (`deploy/docker-compose.dev.yml`) with `scripts/db.sh "<sql>"`;
+  `-c <container>` targets another PostgreSQL container, e.g. a Testcontainers one from `docker ps`.
