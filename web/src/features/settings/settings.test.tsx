@@ -1,14 +1,14 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { anna, boris, membersHandler, sessionHandler } from '@/test/fixtures';
+import { anna, boris, invitesHandler, membersHandler, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
 describe('Settings', () => {
   beforeEach(() => {
     server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
-    server.use(membersHandler([anna, boris]));
+    server.use(membersHandler([anna, boris]), invitesHandler([]));
   });
 
   it('opens from the home screen', async () => {

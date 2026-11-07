@@ -1,13 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import { useSession, type Member } from '@/features/auth';
 import { errorMessage } from '@/shared/api';
+import { InvitesSettings } from './InvitesSettings';
 import { PasswordForm } from './PasswordForm';
 import { ProfileForm } from './ProfileForm';
 import { useMembers, type MembersLoad } from './useMembers';
 
 /**
- * The Members section of Settings: the list of Members, then the logged-in Member's own profile
- * and password. All of it is online-only by design (S4 exception).
+ * The Members section of Settings: the list of Members, the Invites, then the logged-in Member's
+ * own profile and password. All of it is online-only by design (S4 exception).
  */
 export function MembersSettings() {
   const { session, memberChanged } = useSession();
@@ -22,6 +23,7 @@ export function MembersSettings() {
   return (
     <>
       <MembersList load={load} retry={retry} myId={me?.id} />
+      <InvitesSettings />
       {me !== null && <ProfileForm member={me} onSaved={saved} />}
       <PasswordForm />
     </>

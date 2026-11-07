@@ -25,6 +25,19 @@ export function membersHandler(members: (typeof anna)[]) {
   return http.get('/api/members', () => HttpResponse.json(members));
 }
 
+/** An active Invite as `GET /api/invites` returns it (no `url`). */
+export interface InviteFixture {
+  id: string;
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** `GET /api/invites` answering with the given active Invites. */
+export function invitesHandler(invites: InviteFixture[]) {
+  return http.get('/api/invites', () => HttpResponse.json(invites));
+}
+
 /** `GET /api/auth/session` answering with the given state; counts how often it was asked. */
 export function sessionHandler(body: { bootstrapRequired: boolean; member: typeof anna | null }) {
   const calls = { count: 0 };
