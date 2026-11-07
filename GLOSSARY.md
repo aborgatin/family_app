@@ -119,6 +119,10 @@ _Avoid_: Profile card, child card, child info
 A field the Family defines once in Settings (shoe size, allergies, teacher's phone, …) that every Child profile has; each Child has their own value for it.
 _Avoid_: Custom field, attribute, property, profile field
 
+**Value type** — «Тип» («Текст» / «Дата»):
+What kind of value a Child field holds; chosen when the field is created and never changed. Fixed in code, not configurable.
+_Avoid_: Field type, data type, format
+
 ## Settings
 
 **Settings** — «Настройки»:
