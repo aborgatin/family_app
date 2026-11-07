@@ -99,7 +99,8 @@ restore() {
 }
 
 start_stack() {
-  compose up -d --wait --wait-timeout 180 app || fail "app and postgres did not become healthy"
+  compose up -d --wait --wait-timeout 180 app >"$work/up.log" 2>&1 ||
+    { tail -5 "$work/up.log" >&2; fail "app and postgres did not become healthy"; }
 }
 
 echo "starting SFTP target and stack ($project, image tag $tag)"
@@ -126,4 +127,44 @@ echo "$dumps" | grep -qx "$recent" || fail "recent dump was pruned"
 echo "$dumps" | grep -qx notes.txt || fail "unrelated file was pruned"
 echo "ok   backup prunes dumps older than BACKUP_RETENTION_DAYS, keeps the rest"
 
-echo "deploy backup/restore test passed"
+# Failure: an unreachable target makes the backup exit non-zero with a log line.
+if BACKUP_SSH_PORT=1 backup >"$work/fail.log" 2>&1; then
+  fail "backup.sh exited 0 with an unreachable target"
+fi
+grep -q 'backup failed' "$work/fail.log" || { cat "$work/fail.log" >&2; fail "no 'backup failed' log line"; }
+echo "ok   backup exits non-zero and logs 'backup failed' when the upload fails"
+
+[ "$(backup --cron-entry)" = "30 3 * * * $deploy_dir/backup.sh >>$deploy_dir/backup.log 2>&1" ] ||
+  fail "unexpected cron entry: $(backup --cron-entry)"
+echo "ok   cron entry runs at BACKUP_TIME"
+
+restore --list | grep -qx "$new_dump" || fail "restore --list does not show $new_dump"
+echo "ok   restore --list shows the dumps on BACKUP_TARGET"
+
+# Restore into a scratch database leaves the live one alone.
+restore --scratch family_restore_check "$new_dump" >"$work/scratch.log" 2>&1 ||
+  { cat "$work/scratch.log" >&2; fail "restore into a scratch database failed"; }
+[ "$(psql_value 'SELECT note FROM backup_test_marker' family_restore_check)" = "kept" ] ||
+  fail "scratch database lacks the backed-up data"
+echo "ok   restore into a scratch database"
+
+# Wipe: lose the database volume entirely, as if the server were rebuilt.
+compose down --volumes >/dev/null 2>&1 || fail "compose down failed"
+start_stack
+[ -z "$(psql_value "SELECT to_regclass('backup_test_marker')")" ] || fail "database was not wiped"
+
+# Overwriting the live database asks first; anything but the database name aborts.
+if echo no | restore "$new_dump" >"$work/abort.log" 2>&1; then
+  fail "restore went ahead without confirmation"
+fi
+grep -q 'not confirmed' "$work/abort.log" || { cat "$work/abort.log" >&2; fail "restore did not abort for lack of confirmation"; }
+[ -z "$(psql_value "SELECT to_regclass('backup_test_marker')")" ] || fail "aborted restore changed the database"
+echo "ok   restore asks for confirmation before overwriting the live database"
+
+echo family | restore "$new_dump" >"$work/restore.log" 2>&1 ||
+  { cat "$work/restore.log" >&2; fail "restore into the live database failed"; }
+[ "$(psql_value 'SELECT note FROM backup_test_marker')" = "kept" ] || fail "data is not back after restore"
+compose up -d --wait --wait-timeout 180 app >/dev/null 2>&1 || fail "app is not healthy after restore"
+echo "ok   wipe, restore: data is back and the app is healthy"
+
+echo "backup/restore test passed"

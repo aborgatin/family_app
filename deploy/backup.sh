@@ -49,6 +49,7 @@ backup() {
   name="family-$(date -u +%Y%m%dT%H%M%SZ).dump"
   dump="$work/$name"
   log "dumping database to $name"
+  # shellcheck disable=SC2016 # expanded by the container's shell
   compose exec -T postgres sh -c 'exec pg_dump --format=custom -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >"$dump"
   [ -s "$dump" ] || { log "pg_dump produced an empty file"; return 1; }
 
