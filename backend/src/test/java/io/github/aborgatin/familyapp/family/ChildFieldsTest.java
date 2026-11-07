@@ -1,6 +1,7 @@
 package io.github.aborgatin.familyapp.family;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -9,6 +10,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
+import java.sql.Connection;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +43,7 @@ class ChildFieldsTest {
 
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
+  @Autowired DataSource dataSource;
 
   Browser anna;
 
@@ -140,6 +149,28 @@ class ChildFieldsTest {
   @Test
   void removingAnUnknownFieldIsFine() throws Exception {
     anna.delete("/api/child-fields/" + TEACHER).andExpect(status().isNoContent());
+  }
+
+  @Test
+  void removingAFieldWaitsForOtherWritesToTheFamily() throws Exception {
+    put(SHOE_SIZE, "Размер обуви", "TEXT", 1);
+    ExecutorService pool = Executors.newSingleThreadExecutor();
+    try (Connection otherWrite = dataSource.getConnection()) {
+      otherWrite.setAutoCommit(false);
+      // Another write holding the Family lock, the way every PUT and DELETE takes it.
+      otherWrite.createStatement().execute("SELECT id FROM family FOR UPDATE");
+
+      Future<ResultActions> removal =
+          pool.submit(() -> anna.delete("/api/child-fields/" + SHOE_SIZE));
+
+      assertThatThrownBy(() -> removal.get(500, TimeUnit.MILLISECONDS))
+          .isInstanceOf(TimeoutException.class);
+      otherWrite.rollback();
+      removal.get(10, TimeUnit.SECONDS).andExpect(status().isNoContent());
+    } finally {
+      pool.shutdownNow();
+    }
+    anna.get("/api/child-fields").andExpect(jsonPath("$", hasSize(0)));
   }
 
   @Test

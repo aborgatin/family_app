@@ -79,7 +79,7 @@ Shared patterns inside `family`:
 
 - **`FamilyLock.lock()`** runs `SELECT id FROM family FOR UPDATE` and returns the Family id. It
   needs a surrounding transaction. Bootstrap, Invite acceptance, `ChildService.put/delete` and
-  `ChildFieldService.put` take it first, so check-then-insert races run one after another.
+  `ChildFieldService.put/delete` take it first, so check-then-insert races run one after another.
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.
 - **Validation** collects every bad field in a `FieldErrors` and throws once. Body records read
@@ -283,13 +283,13 @@ Follow `child` (`V3__child.sql`, `family.child`) or `child_field`:
 
 2. Entity: map `version` and `updatedAt` with `@Generated(event = {EventType.INSERT, EventType.UPDATE})`
    and `@Column(insertable = false, updatable = false)`, so Java never writes them and Hibernate
-   reads them back. Give it a `markDeleted()`/`delete()` that sets `deleted = true`.
+   reads them back. Give it a `markDeleted()` that sets `deleted = true`.
 3. Repository: extend `Repository<E, UUID>` (not `JpaRepository`) and declare only what you need:
    `saveAndFlush`, `findById` (including deleted rows, so a `PUT` can tell "deleted" from "new") and
    an ordered list query filtering `deleted = false`. No delete methods (S2).
 4. Service: `put(id, request)` validates, takes `FamilyLock.lock()`, then creates or fully replaces;
-   a deleted id throws `409 <entity>.deleted`. `delete(id)` marks deleted if present and not yet
-   deleted. Both `@Transactional`, both reusable by M2's sync push.
+   a deleted id throws `409 <entity>.deleted`. `delete(id)` takes the lock too, then marks deleted if
+   present and not yet deleted. Both `@Transactional`, both reusable by M2's sync push.
 5. Controller: `@ConditionalOnWebApplication`, `PUT /api/<things>/{id}` with `@PathVariable UUID id`,
    `DELETE` returning `204`, `GET` returning the ordered non-deleted list. Responses carry `id`,
    `version`, `updatedAt`.
