@@ -1,13 +1,15 @@
 -- Child fields («Поля профиля», spec #5, ADR-0007) and their Defaults.
 
 -- Syncable (S1): id (client-generated, S3), version, updated_at, deleted.
--- value_type is fixed at creation (ADR-0007). position is a numeric ordering key: a reorder writes
--- only the moved field, giving it a position between its new neighbours; ties are broken by id.
+-- value_type is fixed at creation (ADR-0007). Its allowed values are checked in Java (enum
+-- ValueType), not by a CHECK here, so that a new Value type is a code change only (ADR-0007).
+-- position is a numeric ordering key: a reorder writes only the moved field, giving it a position
+-- between its new neighbours; ties are broken by id.
 CREATE TABLE child_field (
   id         UUID PRIMARY KEY,
   family_id  UUID NOT NULL REFERENCES family (id),
   name       VARCHAR(100) NOT NULL,
-  value_type VARCHAR(16) NOT NULL CHECK (value_type IN ('TEXT', 'DATE')),
+  value_type VARCHAR(16) NOT NULL,
   position   DOUBLE PRECISION NOT NULL,
   version    BIGINT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL,
