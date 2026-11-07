@@ -1,0 +1,15 @@
+# Caddy in front of the app (spec #5, Deployment). DOMAIN and ACME_EMAIL come from `.env`.
+# Automatic HTTPS: a public domain gets a Let's Encrypt certificate; DOMAIN=localhost gets one
+# from Caddy's local CA (for local verification). HTTP is redirected to HTTPS.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	# Caddy replaces any client-sent X-Forwarded-For with the real client IP.
+	reverse_proxy app:8080
+}
