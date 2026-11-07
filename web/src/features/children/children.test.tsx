@@ -139,6 +139,36 @@ describe('Adding a Child', () => {
     expect(screen.queryByRole('form', { name: 'Новый ребёнок' })).not.toBeInTheDocument();
   });
 
+  it('places a new Child by name the way the server orders names, «ё» next to «е»', async () => {
+    // In the server's order (ChildrenTest.namesAreOrderedTheRussianWayWithYoNextToYe).
+    const named = (name: string, n: number) => ({
+      ...petya,
+      id: `0c3e4a52-0000-4000-8000-00000000002${n}`,
+      name,
+    });
+    server.use(
+      childrenHandler([named('Арина', 1), named('Ежевика', 2), named('Елена', 3), named('Жора', 4)]),
+    );
+    putAnswers(savedChild);
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await openAddForm(user);
+    await user.type(within(form).getByLabelText('Имя'), 'Ёжик');
+    await user.click(within(form).getByRole('radio', { name: 'Зелёный' }));
+    await user.click(within(form).getByRole('button', { name: 'Сохранить' }));
+
+    const list = await within(await childrenSection()).findByRole('list', { name: 'Дети' });
+    await within(list).findByText('Ёжик');
+    expect(within(list).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      expect.stringContaining('Арина'),
+      expect.stringContaining('Ежевика'),
+      expect.stringContaining('Ёжик'),
+      expect.stringContaining('Елена'),
+      expect.stringContaining('Жора'),
+    ]);
+  });
+
   it('offers every palette color and sends no birthday when none is given', async () => {
     server.use(childrenHandler([]));
     const received = putAnswers(savedChild);

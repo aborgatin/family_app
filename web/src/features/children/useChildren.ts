@@ -67,7 +67,13 @@ export function newChildId(): string {
   return crypto.randomUUID();
 }
 
-/** The API's order: oldest first, no birthday last, then by name (spec #5, Ordering). */
+/**
+ * Names compare by ICU's Russian collation, the one the server names in its query (`ru-x-icu`), so
+ * a Child placed here lands where the next load from the server puts it («ё» sorts with «е»).
+ */
+const byName = new Intl.Collator('ru');
+
+/** The API's order: oldest first, no birthday last, then by name, then id (spec #5, Ordering). */
 function inOrder(children: Child[]): Child[] {
   return [...children].sort((a, b) => {
     if (a.birthday !== b.birthday) {
@@ -75,7 +81,7 @@ function inOrder(children: Child[]): Child[] {
       if (b.birthday === null) return -1;
       return a.birthday < b.birthday ? -1 : 1;
     }
-    return a.name.localeCompare(b.name, 'ru') || a.id.localeCompare(b.id);
+    return byName.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   });
 }
 

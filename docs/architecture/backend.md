@@ -138,11 +138,17 @@ there):
 | `POST /api/invites/by-token/{token}/accept` (public)           | `201 Member`, logs in                                                              |
 | `GET /api/members`, `PATCH /api/members/me`                    | list (by display name, then email) / change own `displayName`, `grammaticalGender` |
 | `POST /api/members/me/password`                                | `204`; other sessions stay                                                         |
-| `GET /api/children`, `PUT/DELETE /api/children/{id}`           | ordered by birthday (oldest first, none last), name, id                            |
+| `GET /api/children`, `PUT/DELETE /api/children/{id}`           | by birthday (oldest first, none last), name (`ru-x-icu`), id; see below            |
 | `GET /api/child-fields`, `PUT/DELETE /api/child-fields/{id}`   | ordered by `position`, then id                                                     |
 | `GET /api/password-resets/by-token/{token}` (public)           | `{expiresAt}` or the reset's state error                                           |
 | `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions, then logs in                         |
 | `GET /actuator/health` (public)                                | container healthcheck                                                              |
+
+Children's name order is ICU's Russian collation, named in `ChildRepository`'s query
+(`COLLATE "ru-x-icu"`) instead of the database default, so it does not depend on the locale the
+database was created with. The web app sorts the same way with `Intl.Collator('ru')` when it places
+a saved Child (`useChildren`); both put «ё» together with «е». `ChildrenTest` and `children.test.tsx`
+check the same names.
 
 ## Errors
 
