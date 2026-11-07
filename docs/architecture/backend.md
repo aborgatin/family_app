@@ -41,7 +41,7 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 | Module    | Public API (root package)                            | Internal                                                            |
 | --------- | ---------------------------------------------------- | ------------------------------------------------------------------- |
-| `family`  | `PasswordResets` (+ record `NewPasswordReset`)       | `family.auth`, `family.member`, `family.child`, `family.childfield` |
+| `family`  | `Members`, `MemberSummary`, `PasswordResets`         | `family.auth`, `family.member`, `family.child`, `family.childfield` |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`            | `error.internal.ApiExceptionHandler`                                |
 | `command` | `Commands` (called from `FamilyAppApplication.main`) | `PasswordResetCommand` (package-private)                            |
 | `webapp`  | none                                                 | `WebBundleConfig`                                                   |
@@ -67,13 +67,21 @@ Members are the principals. Sub-packages:
 - `family.childfield`: `ChildField`, `ChildFieldService`, `ChildFieldRequest`, `ValueType`
   (`TEXT`, `DATE`), `ChildFieldsController` (`/api/child-fields`).
 
-`PasswordResets` is public so the `command` module can create resets, and so a later
-«Сбросить пароль» action in Settings can reuse it: `createForEmail(email)`, `expiresAt(token)`,
-`complete(token, newPassword)`. It does not end sessions; `PasswordResetController` does.
+The public API (root package) is what spec #5 asks for, plus password resets:
 
-There is no public "current Member" or "Member by id" API yet. Controllers get the Member id from
-`@AuthenticationPrincipal AuthenticatedMember`, which is internal to `family.auth`. The first module
-outside `family` that needs a Member adds that API to the `family` root package.
+- `Members`: `current()` is the Member the request is logged in as (`401 auth.required` when it is
+  not, or when that Member has been removed meanwhile); `byId(id)` is an `Optional`, empty for an
+  unknown or removed Member. Both return the record `MemberSummary(id, displayName)`, never the
+  internal `family.member.Member` entity. `current()` reads Spring Security's context, whose
+  principal is named by the Member id; `MembersApiTest` checks it from a stand-in controller of
+  another module.
+- `PasswordResets` is public so the `command` module can create resets, and so a later
+  «Сбросить пароль» action in Settings can reuse it: `createForEmail(email)` (returns the record
+  `NewPasswordReset(url, expiresAt)`), `expiresAt(token)`, `complete(token, newPassword)` (returns
+  the `MemberSummary`). It does not end sessions; `PasswordResetController` does.
+
+Controllers inside `family` still take the Member id from
+`@AuthenticationPrincipal AuthenticatedMember`, which is internal to `family.auth`.
 
 Shared patterns inside `family`:
 

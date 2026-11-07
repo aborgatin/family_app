@@ -1,8 +1,9 @@
 package io.github.aborgatin.familyapp.family.auth;
 
+import io.github.aborgatin.familyapp.family.MemberSummary;
 import io.github.aborgatin.familyapp.family.PasswordResets;
-import io.github.aborgatin.familyapp.family.member.Member;
 import io.github.aborgatin.familyapp.family.member.MemberResponse;
+import io.github.aborgatin.familyapp.family.member.MemberService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -31,14 +32,17 @@ class PasswordResetController {
   private final PasswordResets passwordResets;
   private final FindByIndexNameSessionRepository<? extends Session> sessions;
   private final SessionLogin sessionLogin;
+  private final MemberService memberService;
 
   PasswordResetController(
       PasswordResets passwordResets,
       FindByIndexNameSessionRepository<? extends Session> sessions,
-      SessionLogin sessionLogin) {
+      SessionLogin sessionLogin,
+      MemberService memberService) {
     this.passwordResets = passwordResets;
     this.sessions = sessions;
     this.sessionLogin = sessionLogin;
+    this.memberService = memberService;
   }
 
   /** Whether the link still works, so the screen can explain an expired or used one up front. */
@@ -57,7 +61,7 @@ class PasswordResetController {
       @RequestBody CompleteRequest body,
       HttpServletRequest request,
       HttpServletResponse response) {
-    Member member = passwordResets.complete(token, body.newPassword());
+    MemberSummary member = passwordResets.complete(token, body.newPassword());
 
     HttpSession current = request.getSession(false);
     if (current != null) {
@@ -70,7 +74,7 @@ class PasswordResetController {
     }
 
     sessionLogin.logIn(member.id(), request, response);
-    return MemberResponse.of(member);
+    return MemberResponse.of(memberService.get(member.id()));
   }
 
   record CompleteRequest(@Nullable String newPassword) {}
