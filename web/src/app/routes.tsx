@@ -7,6 +7,7 @@ import {
   SetupPage,
 } from '@/features/auth';
 import { HomePage } from '@/features/home';
+import { SettingsPage, SETTINGS_PATH } from '@/features/settings';
 
 export const routes: RouteObject[] = [
   {
@@ -18,6 +19,7 @@ export const routes: RouteObject[] = [
       { path: '/setup', element: <SetupPage /> },
       { path: '/login', element: <LoginPage /> },
       { path: RESET_PASSWORD_PATH, element: <ResetPasswordPage /> },
+      { path: SETTINGS_PATH, element: <SettingsPage /> },
     ],
   },
 ];

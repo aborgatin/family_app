@@ -5,6 +5,8 @@ export interface SessionState {
   session: Session;
   /** Records that this device is now logged in as `member` (after bootstrap, login, …). */
   loggedIn: (member: Member) => void;
+  /** Records a change to the logged-in Member's own profile (display name, …). */
+  memberChanged: (member: Member) => void;
   /** Records that this device's session has ended; the route guard then shows the login screen. */
   loggedOut: () => void;
 }

@@ -39,6 +39,33 @@
     "action": "Выйти",
     "inProgress": "Выходим…"
   },
+  "settings": {
+    "title": "Настройки",
+    "backHome": "На главную",
+    "members": "Взрослые",
+    "children": "Дети",
+    "childFields": "Поля профиля",
+    "comingSoon": "Этот раздел появится позже."
+  },
+  "members": {
+    "me": "{{name}} (вы)",
+    "profile": {
+      "title": "Ваш профиль",
+      "displayName": "Имя",
+      "save": "Сохранить",
+      "saving": "Сохраняем…",
+      "saved": "Сохранено"
+    },
+    "password": {
+      "title": "Пароль",
+      "current": "Текущий пароль",
+      "new": "Новый пароль",
+      "save": "Сменить пароль",
+      "saving": "Меняем пароль…",
+      "changed": "Пароль изменён",
+      "wrongCurrent": "Неверный текущий пароль"
+    }
+  },
   "grammaticalGender": {
     "question": "Как писать о ваших действиях",
     "masculine": "Добавил",

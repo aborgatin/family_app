@@ -46,26 +46,9 @@ public record RegistrationRequest(
 
     String rawPassword = checkPassword("password", password, errors);
 
-    String name = displayName == null ? "" : displayName.trim();
-    if (name.isEmpty()) {
-      errors.add("displayName", FieldErrors.REQUIRED);
-    } else if (name.codePointCount(0, name.length()) > MAX_DISPLAY_NAME_LENGTH) {
-      errors.add("displayName", FieldErrors.TOO_LONG);
-    }
-
-    GrammaticalGender gender = null;
-    if (grammaticalGender == null || grammaticalGender.isBlank()) {
-      errors.add("grammaticalGender", FieldErrors.REQUIRED);
-    } else {
-      gender =
-          Arrays.stream(GrammaticalGender.values())
-              .filter(value -> value.name().equals(grammaticalGender))
-              .findFirst()
-              .orElse(null);
-      if (gender == null) {
-        errors.add("grammaticalGender", FieldErrors.VALUE_INVALID);
-      }
-    }
+    String name = checkDisplayName("displayName", displayName, errors);
+    GrammaticalGender gender =
+        checkGrammaticalGender("grammaticalGender", grammaticalGender, errors);
 
     errors.throwIfAny();
     return new Registration(normalizedEmail, rawPassword, name, gender);
@@ -86,6 +69,43 @@ public record RegistrationRequest(
       errors.add(field, FieldErrors.TOO_LONG);
     }
     return rawPassword;
+  }
+
+  /**
+   * Checks a display name (1–100 characters after trimming), adding any failure to {@code errors}
+   * under {@code field}. Returns the trimmed name, {@code ""} when missing.
+   */
+  public static String checkDisplayName(
+      String field, @Nullable String displayName, FieldErrors errors) {
+    String name = displayName == null ? "" : displayName.trim();
+    if (name.isEmpty()) {
+      errors.add(field, FieldErrors.REQUIRED);
+    } else if (name.codePointCount(0, name.length()) > MAX_DISPLAY_NAME_LENGTH) {
+      errors.add(field, FieldErrors.TOO_LONG);
+    }
+    return name;
+  }
+
+  /**
+   * Checks a {@code MASCULINE} / {@code FEMININE} choice (required), adding any failure to {@code
+   * errors} under {@code field}. Returns the value, {@code null} when missing or unknown.
+   */
+  @Nullable
+  public static GrammaticalGender checkGrammaticalGender(
+      String field, @Nullable String grammaticalGender, FieldErrors errors) {
+    if (grammaticalGender == null || grammaticalGender.isBlank()) {
+      errors.add(field, FieldErrors.REQUIRED);
+      return null;
+    }
+    GrammaticalGender gender =
+        Arrays.stream(GrammaticalGender.values())
+            .filter(value -> value.name().equals(grammaticalGender))
+            .findFirst()
+            .orElse(null);
+    if (gender == null) {
+      errors.add(field, FieldErrors.VALUE_INVALID);
+    }
+    return gender;
   }
 
   /** A registration that passed validation. */
