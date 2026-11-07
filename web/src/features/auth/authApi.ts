@@ -34,3 +34,17 @@ export function fetchSession(): Promise<Session> {
 export function bootstrap(registration: Registration): Promise<Member> {
   return api.post<Member>('/api/auth/bootstrap', registration);
 }
+
+export interface Credentials {
+  email: string;
+  password: string;
+}
+
+export function login(credentials: Credentials): Promise<Member> {
+  return api.post<Member>('/api/auth/login', credentials);
+}
+
+/** Ends this device's session only. */
+export function logout(): Promise<void> {
+  return api.post<undefined>('/api/auth/logout');
+}

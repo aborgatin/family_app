@@ -41,7 +41,7 @@ class SecurityConfig {
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/auth/session")
                     .permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/auth/bootstrap")
+                    .requestMatchers(HttpMethod.POST, "/api/auth/bootstrap", "/api/auth/login")
                     .permitAll()
                     .requestMatchers("/api/**", "/actuator/**")
                     .authenticated()

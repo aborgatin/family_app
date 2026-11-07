@@ -11,5 +11,7 @@ public interface MemberRepository extends Repository<Member, UUID> {
 
   Optional<Member> findByIdAndDeletedFalse(UUID id);
 
+  Optional<Member> findByEmailAndDeletedFalse(String email);
+
   boolean existsBy();
 }

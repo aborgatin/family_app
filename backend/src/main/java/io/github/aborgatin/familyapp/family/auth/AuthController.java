@@ -1,15 +1,23 @@
 package io.github.aborgatin.familyapp.family.auth;
 
+import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.family.member.BootstrapService;
+import io.github.aborgatin.familyapp.family.member.LoginService;
 import io.github.aborgatin.familyapp.family.member.Member;
 import io.github.aborgatin.familyapp.family.member.MemberRepository;
 import io.github.aborgatin.familyapp.family.member.MemberResponse;
 import io.github.aborgatin.familyapp.family.member.RegistrationRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import java.time.Duration;
+import java.util.Map;
+import java.util.Optional;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,12 +33,20 @@ class AuthController {
   private final MemberRepository members;
   private final BootstrapService bootstrapService;
   private final SessionLogin sessionLogin;
+  private final LoginService loginService;
+  private final LoginLimits loginLimits;
 
   AuthController(
-      MemberRepository members, BootstrapService bootstrapService, SessionLogin sessionLogin) {
+      MemberRepository members,
+      BootstrapService bootstrapService,
+      SessionLogin sessionLogin,
+      LoginService loginService,
+      LoginLimits loginLimits) {
     this.members = members;
     this.bootstrapService = bootstrapService;
     this.sessionLogin = sessionLogin;
+    this.loginService = loginService;
+    this.loginLimits = loginLimits;
   }
 
   /**
@@ -58,6 +74,51 @@ class AuthController {
     sessionLogin.logIn(member.id(), request, response);
     return MemberResponse.of(member);
   }
+
+  /**
+   * Logs a Member in on this device with a new session id. Unknown email and wrong password give
+   * the same {@code 401 auth.invalid_credentials}.
+   */
+  @PostMapping("/login")
+  MemberResponse login(
+      @RequestBody LoginRequest body, HttpServletRequest request, HttpServletResponse response) {
+    String email = LoginService.normalizeEmail(body.email() == null ? "" : body.email());
+    String password = body.password() == null ? "" : body.password();
+    // Behind Caddy this is the real client IP (forwarded headers are trusted from Caddy only).
+    String ip = request.getRemoteAddr();
+
+    Optional<Duration> retryAfter = loginLimits.retryAfter(email, ip);
+    if (retryAfter.isPresent()) {
+      long seconds = Math.max(1, (retryAfter.get().toMillis() + 999) / 1000);
+      response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(seconds));
+      throw new ApiException(
+          HttpStatus.TOO_MANY_REQUESTS,
+          "auth.too_many_attempts",
+          Map.of("retryAfterSeconds", seconds));
+    }
+
+    Optional<Member> member = loginService.authenticate(email, password);
+    if (member.isEmpty()) {
+      loginLimits.failed(email, ip);
+      throw new ApiException(HttpStatus.UNAUTHORIZED, "auth.invalid_credentials");
+    }
+    loginLimits.succeeded(email);
+    sessionLogin.logIn(member.get().id(), request, response);
+    return MemberResponse.of(member.get());
+  }
+
+  /** Ends this device's session only; the Member's other devices stay logged in. */
+  @PostMapping("/logout")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  void logout(HttpServletRequest request) {
+    HttpSession session = request.getSession(false);
+    if (session != null) {
+      session.invalidate();
+    }
+    SecurityContextHolder.clearContext();
+  }
+
+  record LoginRequest(@Nullable String email, @Nullable String password) {}
 
   record SessionResponse(boolean bootstrapRequired, @Nullable MemberResponse member) {}
 }

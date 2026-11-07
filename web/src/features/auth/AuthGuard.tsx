@@ -6,6 +6,23 @@ import { fetchSession, type Member, type Session } from './authApi';
 import { SessionContext, type SessionState } from './session';
 
 export const SETUP_PATH = '/setup';
+export const LOGIN_PATH = '/login';
+
+/** What the guard remembers in the `/login` history entry: where the visit was going. */
+interface LoginState {
+  from: string;
+}
+
+function intendedPath(state: unknown): string {
+  const from = (state as Partial<LoginState> | null)?.from;
+  // Only paths inside the app; never back to the auth screens themselves.
+  return typeof from === 'string' &&
+    from.startsWith('/') &&
+    !from.startsWith('//') &&
+    !from.startsWith(LOGIN_PATH)
+    ? from
+    : '/';
+}
 
 type Load =
   | { status: 'loading' }
@@ -18,11 +35,14 @@ function asApiError(error: unknown): ApiError {
 
 /**
  * Route guard for the whole app. Asks `GET /api/auth/session` once at start, then sends the user
- * where the answer says: to `/setup` while the installation has no Member yet, away from it after.
+ * where the answer says: to `/setup` while the installation has no Member yet, away from it after;
+ * to `/login` while this device is logged out, remembering the intended path, and back to that
+ * path once logged in.
  */
 export function AuthGuard() {
   const { t } = useTranslation();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -48,6 +68,9 @@ export function AuthGuard() {
             session: load.session,
             loggedIn: (member: Member) => {
               setLoad({ status: 'ready', session: { bootstrapRequired: false, member } });
+            },
+            loggedOut: () => {
+              setLoad({ status: 'ready', session: { bootstrapRequired: false, member: null } });
             },
           }
         : null,
@@ -75,12 +98,21 @@ export function AuthGuard() {
     );
   }
 
+  const { bootstrapRequired, member } = state.session;
   const onSetup = pathname === SETUP_PATH;
-  if (state.session.bootstrapRequired && !onSetup) {
+  const onLogin = pathname === LOGIN_PATH;
+  if (bootstrapRequired && !onSetup) {
     return <Navigate to={SETUP_PATH} replace />;
   }
-  if (!state.session.bootstrapRequired && onSetup) {
+  if (!bootstrapRequired && onSetup) {
     return <Navigate to="/" replace />;
+  }
+  if (!bootstrapRequired && member === null && !onLogin) {
+    const from: LoginState = { from: pathname + location.search + location.hash };
+    return <Navigate to={LOGIN_PATH} state={from} replace />;
+  }
+  if (member !== null && onLogin) {
+    return <Navigate to={intendedPath(location.state)} replace />;
   }
   return (
     <SessionContext value={state}>
