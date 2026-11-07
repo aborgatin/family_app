@@ -21,12 +21,19 @@ excludes `.git`, `node_modules`, build output and `docs`.
 
 `.github/workflows/ci.yml` runs on every pull request and on push to `main`:
 
+- **migrations**: `scripts/check-migrations-test.sh` (the guard's self-test), then
+  `scripts/check-migrations.sh` against the PR's target branch, or on push to `main` against the
+  commit before the push (S5).
 - **backend**: `spotlessCheck`, `compileJava compileTestJava` (Error Prone, `-Werror`), `test`
   (Testcontainers, Modulith).
 - **web**: `npm ci`, `format:check`, `lint`, `typecheck`, `test`, `build`.
 - **image**: builds the image (`load: true`, GitHub Actions cache), then
   `scripts/image-smoke-test.sh`, `scripts/deploy-stack-test.sh`, `scripts/backup-restore-test.sh`.
   Only on push to `main` it logs in to GHCR with `GITHUB_TOKEN` (`packages: write`) and pushes.
+
+Locally, `scripts/check.sh` runs the migration guard and the backend and web checks in one command
+from any directory; `scripts/check.sh --image` also builds the image and runs
+`scripts/image-smoke-test.sh`. It fails early when Docker is not running.
 
 Image tags: `ghcr.io/aborgatin/family_app:<full commit SHA>` and `:latest`. Deploy is manual; CI
 never touches the server.
@@ -70,7 +77,8 @@ Logs: `docker compose logs [-f] app` (also `postgres`, `caddy`).
 
 Local development uses `deploy/docker-compose.dev.yml` instead: PostgreSQL 18 only, on
 `127.0.0.1:5432`, database/user/password `family`. Its header shows how to run the backend and the
-web dev server against it.
+web dev server against it. `scripts/db.sh "<sql>"` runs a query against it (`-c <container>` for
+another PostgreSQL container, `-d <database>` for another database).
 
 ## Caddy
 

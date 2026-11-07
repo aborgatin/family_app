@@ -34,6 +34,7 @@ diff disables, weakens or bypasses one of them (config change, suppression comme
 | eslint-plugin-i18next `no-literal-string` | `/web` | literal text in JSX and user-visible attributes (I2) |
 | i18next typed resources | `/web` | unknown i18n keys are type errors (I2) |
 | ESLint `no-restricted-imports` (per-folder rules) | `/web` | imports into another feature only via its `index.ts`; `shared → features → app` direction (M3) |
+| `scripts/check-migrations.sh` | Flyway migrations | changed/deleted migrations merged to `main`, new versions not above `main`'s highest (S5) |
 
 ## Modules and boundaries
 
@@ -99,8 +100,9 @@ an Invite, display name, password) call their REST endpoints directly and are on
 because they need the server's answer immediately. Before M2 ships the outbox, Children and Child fields
 also call REST directly (Spec #1); M2 moves them onto the outbox.
 
-**S5 — Migrations are append-only.** A change to an already-merged Flyway migration file is a finding;
-the fix is a new migration.
+**S5 — Migrations are append-only.** A change to a Flyway migration file already merged to `main` is a
+finding; the fix is a new migration. A migration that exists only on an unmerged branch (e.g. an
+integration branch) may still be fixed in place. `scripts/check-migrations.sh` enforces this in CI.
 
 **S6 — One family, no tenancy.** Code assumes exactly one `Family` row (ADR-0004). Tenant-scoping
 logic (`familyId` filters, per-family caches, multi-tenant config) is unneeded complexity.

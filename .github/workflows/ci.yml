@@ -13,6 +13,21 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  migrations:
+    name: migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Guard self-test
+        run: scripts/check-migrations-test.sh
+      - name: Merged migrations are append-only (S5)
+        env:
+          # PRs: against the target branch. Push to main: against the commit before the push.
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: scripts/check-migrations.sh "$BASE"
+
   backend:
     name: backend
     runs-on: ubuntu-latest
