@@ -19,6 +19,17 @@
     "submit": "Зарегистрироваться",
     "submitting": "Регистрируем…"
   },
+  "login": {
+    "title": "Вход",
+    "email": "Электронная почта",
+    "password": "Пароль",
+    "submit": "Войти",
+    "submitting": "Входим…"
+  },
+  "logout": {
+    "action": "Выйти",
+    "inProgress": "Выходим…"
+  },
   "grammaticalGender": {
     "question": "Как писать о ваших действиях",
     "masculine": "Добавил",
@@ -30,6 +41,12 @@
     "authRequired": "Нужно войти.",
     "authCsrfInvalid": "Сессия устарела. Обновите страницу и попробуйте ещё раз.",
     "authBootstrapClosed": "Регистрация закрыта: первый взрослый уже зарегистрирован.",
+    "authInvalidCredentials": "Неверная почта или пароль.",
+    "authTooManyAttempts_one": "Слишком много попыток входа. Попробуйте снова через {{count}} минуту.",
+    "authTooManyAttempts_few": "Слишком много попыток входа. Попробуйте снова через {{count}} минуты.",
+    "authTooManyAttempts_many": "Слишком много попыток входа. Попробуйте снова через {{count}} минут.",
+    "authTooManyAttempts_other": "Слишком много попыток входа. Попробуйте снова через {{count}} минуты.",
+    "authTooManyAttemptsNoWait": "Слишком много попыток входа. Попробуйте позже.",
     "validationFailed": "Проверьте поля формы.",
     "field": {
       "required": "Заполните это поле",

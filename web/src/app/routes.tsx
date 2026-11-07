@@ -1,14 +1,16 @@
 import type { RouteObject } from 'react-router';
-import { AuthGuard, SetupPage } from '@/features/auth';
+import { AuthGuard, LoginPage, SetupPage } from '@/features/auth';
 import { HomePage } from '@/features/home';
 
 export const routes: RouteObject[] = [
   {
-    // Asks the server for the session once, then redirects (e.g. to /setup on a fresh install).
+    // Asks the server for the session once, then redirects: to /setup on a fresh install, to
+    // /login (and back afterwards) when this device is logged out.
     element: <AuthGuard />,
     children: [
       { path: '/', element: <HomePage /> },
       { path: '/setup', element: <SetupPage /> },
+      { path: '/login', element: <LoginPage /> },
     ],
   },
 ];
