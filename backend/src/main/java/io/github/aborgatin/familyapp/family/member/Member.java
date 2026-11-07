@@ -69,6 +69,18 @@ public class Member {
     this.grammaticalGender = grammaticalGender;
   }
 
+  void rename(String displayName) {
+    this.displayName = displayName;
+  }
+
+  void changeGrammaticalGender(GrammaticalGender grammaticalGender) {
+    this.grammaticalGender = grammaticalGender;
+  }
+
+  void changePasswordHash(String passwordHash) {
+    this.passwordHash = passwordHash;
+  }
+
   public UUID id() {
     return id;
   }

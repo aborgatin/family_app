@@ -59,6 +59,11 @@ final class Browser {
         MockMvcRequestBuilders.post(path).contentType(MediaType.APPLICATION_JSON).content(json));
   }
 
+  ResultActions patchJson(String path, String json) throws Exception {
+    return write(
+        MockMvcRequestBuilders.patch(path).contentType(MediaType.APPLICATION_JSON).content(json));
+  }
+
   /** A {@code POST} without a body. */
   ResultActions post(String path) throws Exception {
     return write(MockMvcRequestBuilders.post(path));

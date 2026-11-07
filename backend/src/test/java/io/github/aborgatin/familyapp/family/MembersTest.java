@@ -2,9 +2,11 @@ package io.github.aborgatin.familyapp.family;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.jayway.jsonpath.JsonPath;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -73,5 +75,100 @@ class MembersTest {
         .get("/api/members")
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("auth.required"));
+  }
+
+  @Test
+  void memberRenamesThemselvesAndOnlyTheNameChanges() throws Exception {
+    int before = myVersion();
+
+    anna.patchJson(
+            "/api/members/me",
+            """
+            {"displayName":"  Аня  "}
+            """)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.email").value("anna@example.com"))
+        .andExpect(jsonPath("$.displayName").value("Аня"))
+        .andExpect(jsonPath("$.grammaticalGender").value("FEMININE"))
+        .andExpect(jsonPath("$.version").value(greaterThan(before)))
+        .andExpect(jsonPath("$.passwordHash").doesNotExist());
+
+    Browser boris = logIn("boris@example.com", "boris-pass");
+    boris
+        .get("/api/members")
+        .andExpect(jsonPath("$[*].displayName", containsInAnyOrder("Аня", "Борис")));
+  }
+
+  @Test
+  void memberChangesTheirGrammaticalGenderAndOnlyThatChanges() throws Exception {
+    anna.patchJson(
+            "/api/members/me",
+            """
+            {"grammaticalGender":"MASCULINE"}
+            """)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.displayName").value("Анна"))
+        .andExpect(jsonPath("$.grammaticalGender").value("MASCULINE"));
+
+    anna.openApp().andExpect(jsonPath("$.member.grammaticalGender").value("MASCULINE"));
+  }
+
+  @Test
+  void invalidProfileChangesAreRefusedAndChangeNothing() throws Exception {
+    anna.patchJson(
+            "/api/members/me",
+            """
+            {"displayName":"   ","grammaticalGender":"NEUTER"}
+            """)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("validation.failed"))
+        .andExpect(jsonPath("$.params.errors[?(@.field=='displayName')].code").value("required"))
+        .andExpect(
+            jsonPath("$.params.errors[?(@.field=='grammaticalGender')].code")
+                .value("value.invalid"));
+
+    anna.patchJson(
+            "/api/members/me",
+            """
+            {"displayName":"%s","grammaticalGender":null}
+            """
+                .formatted("Я".repeat(101)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.params.errors[?(@.field=='displayName')].code").value("too_long"))
+        .andExpect(
+            jsonPath("$.params.errors[?(@.field=='grammaticalGender')].code").value("required"));
+
+    anna.openApp()
+        .andExpect(jsonPath("$.member.displayName").value("Анна"))
+        .andExpect(jsonPath("$.member.grammaticalGender").value("FEMININE"));
+  }
+
+  @Test
+  void profileChangesNeedASession() throws Exception {
+    Browser stranger = new Browser(mvc);
+    stranger.openApp();
+
+    stranger
+        .patchJson(
+            "/api/members/me",
+            """
+            {"displayName":"Кто-то"}
+            """)
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("auth.required"));
+  }
+
+  private int myVersion() throws Exception {
+    String body = anna.openApp().andReturn().getResponse().getContentAsString();
+    return JsonPath.read(body, "$.member.version");
+  }
+
+  private Browser logIn(String email, String password) throws Exception {
+    Browser browser = new Browser(mvc);
+    browser.openApp();
+    browser
+        .postJson("/api/auth/login", LoginTest.login(email, password))
+        .andExpect(status().isOk());
+    return browser;
   }
 }
