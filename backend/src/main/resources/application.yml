@@ -23,3 +23,8 @@ management:
     health:
       probes:
         enabled: false
+
+server:
+  # Tomcat has no mapping for the web app manifest; browsers expect this type (spec #5, PWA).
+  mime-mappings:
+    webmanifest: application/manifest+json
