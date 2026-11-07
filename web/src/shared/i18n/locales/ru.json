@@ -38,6 +38,9 @@
     "childFields": "Поля профиля",
     "comingSoon": "Этот раздел появится позже."
   },
+  "members": {
+    "me": "{{name}} (вы)"
+  },
   "grammaticalGender": {
     "question": "Как писать о ваших действиях",
     "masculine": "Добавил",
