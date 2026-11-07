@@ -5,11 +5,15 @@ import io.github.aborgatin.familyapp.family.member.MemberService;
 import io.github.aborgatin.familyapp.family.member.ProfileChange;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.HttpStatus;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -38,4 +42,14 @@ class MembersController {
     return MemberResponse.of(
         memberService.updateProfile(me.memberId(), ProfileChange.fromBody(body)));
   }
+
+  /** {@code 400 auth.invalid_credentials} when the current password is wrong. */
+  @PostMapping("/me/password")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  void changePassword(
+      @AuthenticationPrincipal AuthenticatedMember me, @RequestBody PasswordChange body) {
+    memberService.changePassword(me.memberId(), body.currentPassword(), body.newPassword());
+  }
+
+  record PasswordChange(@Nullable String currentPassword, @Nullable String newPassword) {}
 }

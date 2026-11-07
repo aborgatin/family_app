@@ -158,6 +158,73 @@ class MembersTest {
         .andExpect(jsonPath("$.code").value("auth.required"));
   }
 
+  @Test
+  void memberChangesTheirPasswordThenOnlyTheNewOneWorks() throws Exception {
+    anna.postJson(
+            "/api/members/me/password",
+            """
+            {"currentPassword":"secret123","newPassword":"brand-new-pass"}
+            """)
+        .andExpect(status().isNoContent());
+
+    Browser phone = new Browser(mvc);
+    phone.openApp();
+    phone
+        .postJson("/api/auth/login", LoginTest.login("anna@example.com", "secret123"))
+        .andExpect(status().isUnauthorized());
+    phone
+        .postJson("/api/auth/login", LoginTest.login("anna@example.com", "brand-new-pass"))
+        .andExpect(status().isOk());
+    // This device stays logged in.
+    anna.openApp().andExpect(jsonPath("$.member.email").value("anna@example.com"));
+  }
+
+  @Test
+  void wrongCurrentPasswordIsRefusedAndKeepsTheOldPassword() throws Exception {
+    anna.postJson(
+            "/api/members/me/password",
+            """
+            {"currentPassword":"not-my-password","newPassword":"brand-new-pass"}
+            """)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("auth.invalid_credentials"));
+
+    logIn("anna@example.com", "secret123");
+  }
+
+  @Test
+  void invalidPasswordChangesAreRefused() throws Exception {
+    anna.postJson(
+            "/api/members/me/password",
+            """
+            {"newPassword":"short"}
+            """)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("validation.failed"))
+        .andExpect(
+            jsonPath("$.params.errors[?(@.field=='currentPassword')].code").value("required"))
+        .andExpect(
+            jsonPath("$.params.errors[?(@.field=='newPassword')].code")
+                .value("password.too_short"));
+
+    logIn("anna@example.com", "secret123");
+  }
+
+  @Test
+  void passwordChangesNeedASession() throws Exception {
+    Browser stranger = new Browser(mvc);
+    stranger.openApp();
+
+    stranger
+        .postJson(
+            "/api/members/me/password",
+            """
+            {"currentPassword":"secret123","newPassword":"brand-new-pass"}
+            """)
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("auth.required"));
+  }
+
   private int myVersion() throws Exception {
     String body = anna.openApp().andReturn().getResponse().getContentAsString();
     return JsonPath.read(body, "$.member.version");
