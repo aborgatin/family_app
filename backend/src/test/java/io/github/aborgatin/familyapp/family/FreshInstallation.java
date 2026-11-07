@@ -1,6 +1,8 @@
 package io.github.aborgatin.familyapp.family;
 
+import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 
 /**
  * Test fixture: puts the shared Testcontainers database back to a fresh installation (no Members,
@@ -19,5 +21,27 @@ final class FreshInstallation {
   /** Removes every Member but leaves existing sessions in place. */
   static void removeMembersOnly(JdbcTemplate jdbc) {
     jdbc.execute("TRUNCATE member CASCADE");
+  }
+
+  /**
+   * Adds a Member who can log in with {@code password}, for tests that need a second Member before
+   * Invites exist.
+   */
+  static void addMember(
+      JdbcTemplate jdbc,
+      String email,
+      String password,
+      String displayName,
+      String grammaticalGender) {
+    jdbc.update(
+        """
+        INSERT INTO member (id, family_id, email, password_hash, display_name, grammatical_gender)
+        VALUES (?, (SELECT id FROM family), ?, ?, ?, ?)
+        """,
+        UUID.randomUUID(),
+        email,
+        PasswordEncoderFactories.createDelegatingPasswordEncoder().encode(password),
+        displayName,
+        grammaticalGender);
   }
 }

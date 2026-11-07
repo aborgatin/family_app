@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.family.member;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.repository.Repository;
@@ -14,4 +15,6 @@ public interface MemberRepository extends Repository<Member, UUID> {
   Optional<Member> findByEmailAndDeletedFalse(String email);
 
   boolean existsBy();
+
+  List<Member> findByDeletedFalseOrderByDisplayNameAscEmailAsc();
 }
