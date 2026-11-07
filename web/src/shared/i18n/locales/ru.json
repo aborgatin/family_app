@@ -30,6 +30,14 @@
     "action": "Выйти",
     "inProgress": "Выходим…"
   },
+  "settings": {
+    "title": "Настройки",
+    "backHome": "На главную",
+    "members": "Взрослые",
+    "children": "Дети",
+    "childFields": "Поля профиля",
+    "comingSoon": "Этот раздел появится позже."
+  },
   "grammaticalGender": {
     "question": "Как писать о ваших действиях",
     "masculine": "Добавил",
