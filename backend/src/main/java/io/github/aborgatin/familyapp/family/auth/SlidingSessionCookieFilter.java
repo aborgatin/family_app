@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.core.Ordered;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.CookieSerializer.CookieValue;
@@ -19,6 +20,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * drop it {@code SESSION_TIMEOUT} after login however active the Member is. This filter re-sends
  * the cookie (same id, fresh {@code Max-Age}) on every request that carries a valid session.
  */
+@ConditionalOnWebApplication
 @Component
 class SlidingSessionCookieFilter extends OncePerRequestFilter implements Ordered {
 

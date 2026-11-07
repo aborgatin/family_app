@@ -89,6 +89,11 @@ public class Member {
     return grammaticalGender;
   }
 
+  /** Replaces the password; the caller has validated and hashed it. */
+  public void changePasswordHash(String passwordHash) {
+    this.passwordHash = passwordHash;
+  }
+
   public long version() {
     return version;
   }

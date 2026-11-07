@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpSession;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+@ConditionalOnWebApplication
 @RestController
 @RequestMapping("/api/auth")
 class AuthController {
