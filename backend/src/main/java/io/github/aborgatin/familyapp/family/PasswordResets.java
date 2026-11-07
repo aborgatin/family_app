@@ -5,17 +5,13 @@ import io.github.aborgatin.familyapp.error.FieldErrors;
 import io.github.aborgatin.familyapp.family.member.LoginService;
 import io.github.aborgatin.familyapp.family.member.Member;
 import io.github.aborgatin.familyapp.family.member.MemberRepository;
+import io.github.aborgatin.familyapp.family.member.OneTimeTokens;
 import io.github.aborgatin.familyapp.family.member.PasswordReset;
 import io.github.aborgatin.familyapp.family.member.PasswordResetRepository;
 import io.github.aborgatin.familyapp.family.member.RegistrationRequest;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -37,10 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PasswordResets {
 
-  private static final int TOKEN_BYTES = 32;
-
   private final Clock clock = Clock.systemUTC();
-  private final SecureRandom random = new SecureRandom();
   private final MemberRepository members;
   private final PasswordResetRepository resets;
   private final PasswordEncoder passwordEncoder;
@@ -75,9 +68,7 @@ public class PasswordResets {
     for (PasswordReset older : resets.findByMemberIdAndUsedAtIsNull(member.get().id())) {
       older.expire(now);
     }
-    byte[] tokenBytes = new byte[TOKEN_BYTES];
-    random.nextBytes(tokenBytes);
-    String token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
+    String token = OneTimeTokens.newToken();
     PasswordReset reset = new PasswordReset(member.get().id(), hash(token), now, now.plus(ttl));
     resets.save(reset);
     return Optional.of(
@@ -132,11 +123,7 @@ public class PasswordResets {
   }
 
   private static byte[] hash(String token) {
-    try {
-      return MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("Every Java platform has SHA-256", e);
-    }
+    return OneTimeTokens.hash(token);
   }
 
   /** A reset just created: its link, the only place the token ever appears, and its expiry. */

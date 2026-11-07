@@ -16,5 +16,8 @@ public interface MemberRepository extends Repository<Member, UUID> {
 
   boolean existsBy();
 
+  /** Also counts removed Members: their email stays taken (the column is unique). */
+  boolean existsByEmail(String email);
+
   List<Member> findByDeletedFalseOrderByDisplayNameAscEmailAsc();
 }

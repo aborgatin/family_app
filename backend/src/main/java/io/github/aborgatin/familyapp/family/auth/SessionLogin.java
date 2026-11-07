@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Starts a session for a Member on this device. Used by every way of getting in (bootstrap, login,
- * password reset; Invite acceptance later), so each gets session fixation protection: a session the
+ * password reset, Invite acceptance), so each gets session fixation protection: a session the
  * request already had gets a new id before the Member is stored in it.
  */
 @ConditionalOnWebApplication
