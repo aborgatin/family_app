@@ -13,6 +13,22 @@ spring:
       ddl-auto: validate
   flyway:
     locations: classpath:db/migration
+  session:
+    jdbc:
+      # The tables come from Flyway (V1).
+      initialize-schema: never
+
+# Sessions live in PostgreSQL (Spring Session JDBC), so they survive redeploys. The lifetime slides:
+# every request with the session renews it on the server and re-sends the cookie.
+server:
+  servlet:
+    session:
+      timeout: ${SESSION_TIMEOUT:180d}
+      cookie:
+        http-only: true
+        secure: true
+        same-site: lax
+        max-age: ${SESSION_TIMEOUT:180d}
 
 management:
   endpoints:
