@@ -63,7 +63,68 @@ check_serves_index_html() {
   esac
 }
 
+# Spec #5, "Serving the bundle": index.html, the service worker and the manifest are revalidated on
+# every load; hashed assets are cached forever.
+check_cache_control() {
+  local path="$1" expected="$2" headers actual
+  headers="$(curl -fsS -o /dev/null -D - "$base$path")" || fail "GET $path did not return 2xx"
+  actual="$(printf '%s' "$headers" | tr -d '\r' | sed -n 's/^[Cc]ache-[Cc]ontrol: *//p' | head -n1)"
+  case "$actual" in
+    "$expected") echo "ok   GET $path has Cache-Control: $actual" ;;
+    *) fail "GET $path: expected Cache-Control '$expected', got '${actual:-none}'" ;;
+  esac
+}
+
+check_index_links_manifest() {
+  local body
+  body="$(curl -fsS "$base/")" || fail "GET / did not return 2xx"
+  case "$body" in
+    *'rel="manifest" href="/manifest.webmanifest"'*) echo "ok   index.html links the manifest" ;;
+    *) fail "index.html does not link /manifest.webmanifest" ;;
+  esac
+}
+
+check_manifest() {
+  local headers body
+  headers="$(curl -fsS -o /dev/null -D - "$base/manifest.webmanifest")" || fail "no manifest"
+  case "$(printf '%s' "$headers" | tr -d '\r')" in
+    *[Cc]ontent-[Tt]ype:\ application/manifest+json*) ;;
+    *) fail "manifest is not served as application/manifest+json" ;;
+  esac
+  body="$(curl -fsS "$base/manifest.webmanifest")"
+  case "$body" in
+    *'"name":"Семья"'*'"display":"standalone"'*) echo "ok   manifest names the app «Семья», standalone" ;;
+    *) fail "unexpected manifest: $body" ;;
+  esac
+}
+
+# The first hashed asset index.html references, e.g. /assets/index-AbC123.js.
+first_hashed_asset() {
+  curl -fsS "$base/" | grep -o '/assets/[^"]*' | head -n1
+}
+
 check_serves_index_html /
 check_serves_index_html /settings
+check_index_links_manifest
+check_manifest
+check_cache_control / no-cache
+check_cache_control /index.html no-cache
+check_cache_control /sw.js no-cache
+check_cache_control /manifest.webmanifest no-cache
+asset="$(first_hashed_asset)"
+[ -n "$asset" ] || fail "index.html references no /assets/ file"
+check_cache_control "$asset" "max-age=31536000, public, immutable"
+
+# A fresh database: the API is answering and asks for the first Member.
+check_fresh_session() {
+  local body
+  body="$(curl -fsS "$base/api/auth/session")" || fail "GET /api/auth/session did not return 2xx"
+  case "$body" in
+    *'"bootstrapRequired":true'*) echo "ok   GET /api/auth/session says bootstrapRequired" ;;
+    *) fail "GET /api/auth/session did not say bootstrapRequired: true (got: $body)" ;;
+  esac
+}
+
+check_fresh_session
 
 echo "image smoke test passed"

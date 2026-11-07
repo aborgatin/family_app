@@ -28,6 +28,7 @@ dependencies {
   implementation("org.springframework.boot:spring-boot-starter-security")
   implementation("org.springframework.boot:spring-boot-starter-data-jpa")
   implementation("org.springframework.boot:spring-boot-starter-actuator")
+  implementation("org.springframework.session:spring-session-jdbc")
   implementation("org.springframework.modulith:spring-modulith-starter-core")
   implementation("org.flywaydb:flyway-core")
   runtimeOnly("org.flywaydb:flyway-database-postgresql")
