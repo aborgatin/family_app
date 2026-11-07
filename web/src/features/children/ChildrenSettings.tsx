@@ -1,13 +1,21 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { errorMessage } from '@/shared/api';
+import { ChildForm } from './ChildForm';
+import type { Child, ChildDetails } from './childrenApi';
 import { ColorSwatch, useChildColorName } from './ColorSwatch';
-import type { Child } from './childrenApi';
-import { useChildren } from './useChildren';
+import { newChildId, useChildren } from './useChildren';
 
-/** The Children section of Settings, «Дети»: the list of Children. */
+/**
+ * The Children section of Settings, «Дети»: the list of Children, adding one, and editing or
+ * removing each. All data access goes through `useChildren()`.
+ */
 export function ChildrenSettings() {
   const { t } = useTranslation();
-  const { load, retry } = useChildren();
+  const { load, retry, save } = useChildren();
+  // The id of the Child being added, generated once when the form opens, so a retried save
+  // repeats the same idempotent PUT instead of creating a second Child (S3).
+  const [addingId, setAddingId] = useState<string>();
 
   if (load.status === 'loading') {
     return <p role="status">{t('common.loading')}</p>;
@@ -23,15 +31,42 @@ export function ChildrenSettings() {
       </>
     );
   }
-  if (load.children.length === 0) {
-    return <p>{t('children.empty')}</p>;
+
+  async function add(id: string, details: ChildDetails) {
+    await save(id, details);
+    setAddingId(undefined);
   }
+
   return (
-    <ul aria-label={t('settings.children')}>
-      {load.children.map((child) => (
-        <ChildRow key={child.id} child={child} />
-      ))}
-    </ul>
+    <>
+      {load.children.length === 0 ? (
+        <p>{t('children.empty')}</p>
+      ) : (
+        <ul aria-label={t('settings.children')}>
+          {load.children.map((child) => (
+            <ChildRow key={child.id} child={child} />
+          ))}
+        </ul>
+      )}
+      {addingId === undefined ? (
+        <button
+          type="button"
+          onClick={() => {
+            setAddingId(newChildId());
+          }}
+        >
+          {t('children.add')}
+        </button>
+      ) : (
+        <ChildForm
+          title={t('children.form.addTitle')}
+          onSave={(details) => add(addingId, details)}
+          onCancel={() => {
+            setAddingId(undefined);
+          }}
+        />
+      )}
+    </>
   );
 }
 

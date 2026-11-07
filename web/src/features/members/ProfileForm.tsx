@@ -1,9 +1,13 @@
 import { useId, useState, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Member } from '@/features/auth';
-import type { ErrorMessage } from '@/shared/api';
 import { GrammaticalGenderChoice, TextField, type GrammaticalGender } from '@/shared/ui';
-import { failureMessages, fieldMessageKey, type FieldMessages } from './fieldMessages';
+import {
+  failureMessages,
+  fieldMessageKey,
+  type ErrorMessage,
+  type FieldMessages,
+} from '@/shared/api';
 import { updateProfile, type ProfileChange } from './membersApi';
 
 type Field = 'displayName' | 'grammaticalGender';

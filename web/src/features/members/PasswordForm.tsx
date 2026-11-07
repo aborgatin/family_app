@@ -1,8 +1,13 @@
 import { useId, useState, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError, type ErrorMessage } from '@/shared/api';
 import { TextField } from '@/shared/ui';
-import { failureMessages, fieldMessageKey, type FieldMessages } from './fieldMessages';
+import {
+  ApiError,
+  failureMessages,
+  fieldMessageKey,
+  type ErrorMessage,
+  type FieldMessages,
+} from '@/shared/api';
 import { changePassword } from './membersApi';
 
 type Field = 'currentPassword' | 'newPassword';

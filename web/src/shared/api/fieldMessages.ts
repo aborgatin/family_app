@@ -1,5 +1,6 @@
 import type { ParseKeys } from 'i18next';
-import { ApiError, errorMessage, fieldErrorMessageKey, type ErrorMessage } from '@/shared/api';
+import { ApiError } from './apiClient';
+import { errorMessage, fieldErrorMessageKey, type ErrorMessage } from './errorMessages';
 
 /** Field → i18n key of its error message. */
 export type FieldMessages<F extends string> = Partial<Record<F, ParseKeys>>;

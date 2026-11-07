@@ -5,3 +5,4 @@ export {
   fieldErrorMessageKey,
   type ErrorMessage,
 } from './errorMessages';
+export { failureMessages, fieldMessageKey, type FieldMessages } from './fieldMessages';
