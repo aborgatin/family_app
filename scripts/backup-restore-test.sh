@@ -110,6 +110,7 @@ start_stack
 
 psql_value "CREATE TABLE backup_test_marker (note text); INSERT INTO backup_test_marker VALUES ('kept');" >/dev/null ||
   fail "could not write a marker row"
+migrations="$(psql_value "SELECT string_agg(version, ',' ORDER BY installed_rank) FROM flyway_schema_history")"
 
 # Pruning: a dump older than BACKUP_RETENTION_DAYS goes, a recent one and unrelated files stay.
 recent="family-$(date -u +%Y%m%dT%H%M%SZ | sed 's/T.*/T000000Z/').dump"
@@ -164,6 +165,8 @@ echo "ok   restore asks for confirmation before overwriting the live database"
 echo family | restore "$new_dump" >"$work/restore.log" 2>&1 ||
   { cat "$work/restore.log" >&2; fail "restore into the live database failed"; }
 [ "$(psql_value 'SELECT note FROM backup_test_marker')" = "kept" ] || fail "data is not back after restore"
+[ "$(psql_value "SELECT string_agg(version, ',' ORDER BY installed_rank) FROM flyway_schema_history")" = "$migrations" ] ||
+  fail "Flyway history differs after restore"
 compose up -d --wait --wait-timeout 180 app >/dev/null 2>&1 || fail "app is not healthy after restore"
 echo "ok   wipe, restore: data is back and the app is healthy"
 
