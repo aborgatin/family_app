@@ -22,6 +22,9 @@ server:
   tomcat:
     remoteip:
       internal-proxies: ${TRUSTED_PROXIES:}
+  # Tomcat has no mapping for the web app manifest; browsers expect this type (spec #5, PWA).
+  mime-mappings:
+    webmanifest: application/manifest+json
 
 management:
   endpoints:
@@ -32,8 +35,3 @@ management:
     health:
       probes:
         enabled: false
-
-server:
-  # Tomcat has no mapping for the web app manifest; browsers expect this type (spec #5, PWA).
-  mime-mappings:
-    webmanifest: application/manifest+json
