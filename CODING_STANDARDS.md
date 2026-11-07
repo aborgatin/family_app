@@ -72,8 +72,11 @@ finding.
 ## Sync and data (ADR-0003, ADR-0004, ADR-0005)
 
 **S1 — Every syncable table has `id UUID`, `version`, `updated_at`, `deleted`.** "Syncable" means
-any table whose rows reach the client: lists, items, categories, children, child fields, and every
-future module's equivalent. A new Flyway migration creating such a table without all four columns is
+any table whose rows the client stores locally and keeps up to date through sync: lists, items,
+categories, members, children, child fields, and every future module's equivalent. The authoritative
+list lives in `docs/architecture/sync.md`; a new syncable table is added there in the same PR.
+Server-only tables are not syncable even if the client sees their rows through a REST call: invites,
+sessions, push subscriptions. A new Flyway migration creating such a table without all four columns is
 a finding.
 
 **S2 — Every write bumps `version`; deletes are soft.** Any code path that changes a syncable row
