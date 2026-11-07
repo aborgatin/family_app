@@ -4,8 +4,10 @@ A private app for our family: two adults (members) and two daughters (children: 
 Vocabulary: see [`GLOSSARY.md`](../GLOSSARY.md).
 Goal: **working and supportable** first, easy to extend, cheap to host, reusable by other families.
 
-> This file is the initial plan only. Once implementation starts, details move to
-> `docs/architecture/` (`backend.md`, `frontend.md`, `sync.md`, `deployment.md`).
+> This file is the initial plan only. What is actually built is described in
+> [`docs/architecture/`](architecture/): [`backend.md`](architecture/backend.md),
+> [`frontend.md`](architecture/frontend.md), [`sync.md`](architecture/sync.md),
+> [`deployment.md`](architecture/deployment.md).
 > Key decisions and their reasoning live in [`docs/adr/`](adr/).
 
 ## 1. Product
@@ -101,7 +103,7 @@ Later modules (links, recipes, trips) get their own tables and **reuse** `List`/
 /backend   Spring Boot app (Gradle)
 /web       React PWA
 /deploy    docker-compose.yml, Caddyfile, backup scripts, .env.example
-/docs      PLAN.md, adr/, architecture/ (created during implementation)
+/docs      PLAN.md, adr/, architecture/ (what is built: backend, frontend, sync, deployment)
 ```
 
 Secrets only in the server's `.env`, never in git.
