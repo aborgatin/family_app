@@ -69,6 +69,9 @@ export function AuthGuard() {
             loggedIn: (member: Member) => {
               setLoad({ status: 'ready', session: { bootstrapRequired: false, member } });
             },
+            memberChanged: (member: Member) => {
+              setLoad({ status: 'ready', session: { ...load.session, member } });
+            },
             loggedOut: () => {
               setLoad({ status: 'ready', session: { bootstrapRequired: false, member: null } });
             },

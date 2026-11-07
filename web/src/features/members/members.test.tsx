@@ -54,3 +54,111 @@ describe('Members list', () => {
     expect(await within(section).findByText('boris@example.com')).toBeInTheDocument();
   });
 });
+
+describe('Own profile', () => {
+  async function profileForm() {
+    return screen.findByRole('form', { name: 'Ваш профиль' });
+  }
+
+  function profileAnswers(response: (body: unknown) => Response) {
+    const received: { body: unknown; csrf: string | null }[] = [];
+    server.use(
+      http.patch('/api/members/me', async ({ request }) => {
+        const body = await request.json();
+        received.push({ body, csrf: request.headers.get('X-XSRF-TOKEN') });
+        return response(body);
+      }),
+    );
+    return received;
+  }
+
+  beforeEach(() => {
+    server.use(membersHandler([anna, boris]));
+  });
+
+  it('starts with the own display name and «Добавил» / «Добавила» choice', async () => {
+    renderApp('/settings');
+    const form = await profileForm();
+
+    expect(within(form).getByLabelText('Имя')).toHaveValue('Анна');
+    expect(within(form).getByRole('radio', { name: 'Добавила' })).toBeChecked();
+    expect(within(form).getByRole('radio', { name: 'Добавил' })).not.toBeChecked();
+  });
+
+  it('renames the Member, sending only the name, and shows the new name in the list', async () => {
+    const received = profileAnswers(() => HttpResponse.json({ ...anna, displayName: 'Аня' }));
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await profileForm();
+    await user.clear(within(form).getByLabelText('Имя'));
+    await user.type(within(form).getByLabelText('Имя'), 'Аня');
+    await user.click(within(form).getByRole('button', { name: 'Сохранить' }));
+
+    expect(await within(form).findByRole('status')).toHaveTextContent('Сохранено');
+    expect(received).toEqual([{ body: { displayName: 'Аня' }, csrf: 'token-from-server' }]);
+    const list = screen.getByRole('list', { name: 'Взрослые' });
+    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('Аня (вы)');
+  });
+
+  it('changes only the «Добавил» / «Добавила» choice', async () => {
+    const received = profileAnswers(() =>
+      HttpResponse.json({ ...anna, grammaticalGender: 'MASCULINE' }),
+    );
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await profileForm();
+    await user.click(within(form).getByRole('radio', { name: 'Добавил' }));
+    await user.click(within(form).getByRole('button', { name: 'Сохранить' }));
+
+    expect(await within(form).findByRole('status')).toHaveTextContent('Сохранено');
+    expect(received.map((r) => r.body)).toEqual([{ grammaticalGender: 'MASCULINE' }]);
+  });
+
+  it('asks for a name without calling the server', async () => {
+    const received = profileAnswers(() => HttpResponse.json(anna));
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await profileForm();
+    await user.clear(within(form).getByLabelText('Имя'));
+    await user.click(within(form).getByRole('button', { name: 'Сохранить' }));
+
+    expect(await within(form).findByText('Заполните это поле')).toBeInTheDocument();
+    expect(received).toEqual([]);
+  });
+
+  it('shows the server’s field errors in Russian', async () => {
+    profileAnswers(() =>
+      HttpResponse.json(
+        {
+          code: 'validation.failed',
+          params: { errors: [{ field: 'displayName', code: 'too_long' }] },
+        },
+        { status: 400 },
+      ),
+    );
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await profileForm();
+    await user.type(within(form).getByLabelText('Имя'), 'Я'.repeat(10));
+    await user.click(within(form).getByRole('button', { name: 'Сохранить' }));
+
+    expect(await within(form).findByText('Слишком длинно')).toBeInTheDocument();
+  });
+
+  it('says the change was not saved when the server cannot be reached', async () => {
+    profileAnswers(() => HttpResponse.error());
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await profileForm();
+    await user.type(within(form).getByLabelText('Имя'), '!');
+    await user.click(within(form).getByRole('button', { name: 'Сохранить' }));
+
+    expect(await within(form).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
+    expect(within(form).getByLabelText('Имя')).toHaveValue('Анна!');
+  });
+});

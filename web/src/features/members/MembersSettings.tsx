@@ -1,14 +1,39 @@
 import { useTranslation } from 'react-i18next';
-import { useSession } from '@/features/auth';
+import { useSession, type Member } from '@/features/auth';
 import { errorMessage } from '@/shared/api';
-import { useMembers } from './useMembers';
+import { ProfileForm } from './ProfileForm';
+import { useMembers, type MembersLoad } from './useMembers';
 
-/** The Members section of Settings: the list of Members and the own profile and password. */
+/**
+ * The Members section of Settings: the list of Members, then the logged-in Member's own profile
+ * and password. All of it is online-only by design (S4 exception).
+ */
 export function MembersSettings() {
+  const { session, memberChanged } = useSession();
+  const { load, retry, replaced } = useMembers();
+  const me = session.member;
+
+  function saved(member: Member) {
+    memberChanged(member);
+    replaced(member);
+  }
+
+  return (
+    <>
+      <MembersList load={load} retry={retry} myId={me?.id} />
+      {me !== null && <ProfileForm member={me} onSaved={saved} />}
+    </>
+  );
+}
+
+interface MembersListProps {
+  load: MembersLoad;
+  retry: () => void;
+  myId: string | undefined;
+}
+
+function MembersList({ load, retry, myId }: MembersListProps) {
   const { t } = useTranslation();
-  const { session } = useSession();
-  const { load, retry } = useMembers();
-  const myId = session.member?.id;
 
   if (load.status === 'loading') {
     return <p role="status">{t('common.loading')}</p>;
@@ -24,7 +49,6 @@ export function MembersSettings() {
       </>
     );
   }
-
   return (
     <ul aria-label={t('settings.members')}>
       {load.members.map((member) => (

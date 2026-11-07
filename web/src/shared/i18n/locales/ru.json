@@ -39,7 +39,14 @@
     "comingSoon": "Этот раздел появится позже."
   },
   "members": {
-    "me": "{{name}} (вы)"
+    "me": "{{name}} (вы)",
+    "profile": {
+      "title": "Ваш профиль",
+      "displayName": "Имя",
+      "save": "Сохранить",
+      "saving": "Сохраняем…",
+      "saved": "Сохранено"
+    }
   },
   "grammaticalGender": {
     "question": "Как писать о ваших действиях",
