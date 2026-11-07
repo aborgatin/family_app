@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 import org.springframework.lang.Nullable;
 
 /**
- * The body of every registration (bootstrap now, Invite acceptance later): {@code {email, password,
+ * The body of every registration (bootstrap and Invite acceptance): {@code {email, password,
  * displayName, grammaticalGender}}. Fields are read as plain strings so that a missing or unknown
  * value becomes a field code instead of a parse error.
  */

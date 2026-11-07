@@ -40,7 +40,7 @@ class MembersTest {
              "grammaticalGender":"FEMININE"}
             """)
         .andExpect(status().isCreated());
-    // Invites arrive in a later ticket; until then the second Member is set up directly.
+    // Fixture: the second Member is set up directly (Invites are tested in InviteAcceptanceTest).
     FreshInstallation.addMember(jdbc, "boris@example.com", "boris-pass", "Борис", "MASCULINE");
   }
 

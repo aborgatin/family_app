@@ -1,6 +1,8 @@
 import type { RouteObject } from 'react-router';
 import {
   AuthGuard,
+  INVITE_PATH,
+  InvitePage,
   LoginPage,
   RESET_PASSWORD_PATH,
   ResetPasswordPage,
@@ -19,6 +21,7 @@ export const routes: RouteObject[] = [
       { path: '/setup', element: <SetupPage /> },
       { path: '/login', element: <LoginPage /> },
       { path: RESET_PASSWORD_PATH, element: <ResetPasswordPage /> },
+      { path: INVITE_PATH, element: <InvitePage /> },
       { path: SETTINGS_PATH, element: <SettingsPage /> },
     ],
   },

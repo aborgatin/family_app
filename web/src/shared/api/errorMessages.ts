@@ -19,6 +19,11 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   'password_reset.used': 'errors.passwordResetUsed',
   'child_field.deleted': 'errors.childFieldDeleted',
   'child_field.value_type_immutable': 'errors.childFieldValueTypeImmutable',
+  'invite.not_found': 'errors.inviteNotFound',
+  'invite.expired': 'errors.inviteExpired',
+  'invite.used': 'errors.inviteUsed',
+  'invite.revoked': 'errors.inviteRevoked',
+  'member.email_taken': 'errors.memberEmailTaken',
   'validation.failed': 'errors.validationFailed',
 };
 

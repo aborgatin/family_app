@@ -33,8 +33,8 @@ final class FreshInstallation {
   }
 
   /**
-   * Adds a Member who can log in with {@code password}, for tests that need a second Member before
-   * Invites exist.
+   * Adds a Member who can log in with {@code password}, for tests that need a second Member without
+   * going through an Invite.
    */
   static void addMember(
       JdbcTemplate jdbc,

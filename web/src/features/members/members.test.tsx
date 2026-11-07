@@ -2,7 +2,14 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { anna, boris, childFieldsHandler, membersHandler, sessionHandler } from '@/test/fixtures';
+import {
+  anna,
+  boris,
+  childFieldsHandler,
+  invitesHandler,
+  membersHandler,
+  sessionHandler,
+} from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -14,8 +21,11 @@ async function membersSection() {
 
 beforeEach(() => {
   document.cookie = 'XSRF-TOKEN=token-from-server';
-  server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
-  server.use(childFieldsHandler([]));
+  server.use(
+    sessionHandler({ bootstrapRequired: false, member: anna }).handler,
+    invitesHandler([]),
+    childFieldsHandler([]),
+  );
 });
 afterEach(() => {
   document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
