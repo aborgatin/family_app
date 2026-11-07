@@ -18,6 +18,7 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   'password_reset.expired': 'errors.passwordResetExpired',
   'password_reset.used': 'errors.passwordResetUsed',
   'validation.failed': 'errors.validationFailed',
+  'child.deleted': 'errors.childDeleted',
 };
 
 /** Field error code (inside `validation.failed`) → i18n key. */

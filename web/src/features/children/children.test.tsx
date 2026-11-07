@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -248,5 +248,131 @@ describe('Adding a Child', () => {
 
     expect(screen.queryByRole('form', { name: 'Новый ребёнок' })).not.toBeInTheDocument();
     expect(received).toEqual([]);
+  });
+});
+
+describe('Editing a Child', () => {
+  async function openEditForm(user: ReturnType<typeof userEvent.setup>, name: string) {
+    const section = await childrenSection();
+    await user.click(await within(section).findByRole('button', { name: `Изменить: ${name}` }));
+    return within(section).getByRole('form', { name: `Изменить: ${name}` });
+  }
+
+  it('starts with the Child’s current name, color and birthday', async () => {
+    server.use(childrenHandler([masha, petya]));
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await openEditForm(user, 'Маша');
+
+    expect(within(form).getByLabelText('Имя')).toHaveValue('Маша');
+    expect(within(form).getByRole('radio', { name: 'Коралловый' })).toBeChecked();
+    expect(within(form).getByLabelText('День рождения (необязательно)')).toHaveValue('2019-04-12');
+  });
+
+  it('replaces the Child under its own id and re-sorts the list', async () => {
+    server.use(childrenHandler([masha, petya]));
+    const received = putAnswers(savedChild);
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await openEditForm(user, 'Маша');
+    await user.clear(within(form).getByLabelText('Имя'));
+    await user.type(within(form).getByLabelText('Имя'), 'Мария');
+    await user.click(within(form).getByRole('radio', { name: 'Бирюзовый' }));
+    await user.clear(within(form).getByLabelText('День рождения (необязательно)'));
+    await user.click(within(form).getByRole('button', { name: 'Сохранить' }));
+
+    const list = await within(await childrenSection()).findByRole('list', { name: 'Дети' });
+    await within(list).findByText('Мария');
+    const items = within(list).getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent('Мария');
+    expect(items[0]).toHaveTextContent('Бирюзовый');
+    expect(items[1]).toHaveTextContent('Петя');
+    expect(received).toEqual([
+      {
+        id: masha.id,
+        body: { name: 'Мария', color: 'teal', birthday: null },
+        csrf: 'token-from-server',
+      },
+    ]);
+    expect(screen.queryByRole('form', { name: 'Изменить: Маша' })).not.toBeInTheDocument();
+  });
+
+  it('says so when the other Member has removed the Child meanwhile', async () => {
+    server.use(childrenHandler([masha]));
+    putAnswers(() => HttpResponse.json({ code: 'child.deleted', params: {} }, { status: 409 }));
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const form = await openEditForm(user, 'Маша');
+    await user.type(within(form).getByLabelText('Имя'), '!');
+    await user.click(within(form).getByRole('button', { name: 'Сохранить' }));
+
+    expect(await within(form).findByRole('alert')).toHaveTextContent(
+      'Этого ребёнка уже удалили. Откройте настройки заново, чтобы увидеть актуальный список.',
+    );
+  });
+});
+
+describe('Removing a Child', () => {
+  function deleteAnswers(response: () => Response) {
+    const received: { id: string; csrf: string | null }[] = [];
+    server.use(
+      http.delete('/api/children/:id', ({ request, params }) => {
+        received.push({ id: String(params.id), csrf: request.headers.get('X-XSRF-TOKEN') });
+        return response();
+      }),
+    );
+    return received;
+  }
+
+  it('removes the Child after confirmation', async () => {
+    server.use(childrenHandler([masha, petya]));
+    const received = deleteAnswers(() => new HttpResponse(null, { status: 204 }));
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const section = await childrenSection();
+    await user.click(await within(section).findByRole('button', { name: 'Удалить: Маша' }));
+    expect(received).toEqual([]);
+    expect(within(section).getByText('Удалить ребёнка «Маша»?')).toBeInTheDocument();
+    await user.click(within(section).getByRole('button', { name: 'Да, удалить' }));
+
+    await waitFor(() => {
+      expect(within(section).queryByText('Маша')).not.toBeInTheDocument();
+    });
+    expect(within(section).getByText('Петя')).toBeInTheDocument();
+    expect(received).toEqual([{ id: masha.id, csrf: 'token-from-server' }]);
+  });
+
+  it('keeps the Child when the removal is cancelled', async () => {
+    server.use(childrenHandler([masha]));
+    const received = deleteAnswers(() => new HttpResponse(null, { status: 204 }));
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const section = await childrenSection();
+    await user.click(await within(section).findByRole('button', { name: 'Удалить: Маша' }));
+    await user.click(within(section).getByRole('button', { name: 'Отмена' }));
+
+    expect(within(section).queryByText('Удалить ребёнка «Маша»?')).not.toBeInTheDocument();
+    expect(within(section).getByText('Маша')).toBeInTheDocument();
+    expect(received).toEqual([]);
+  });
+
+  it('keeps the Child and says so when the server cannot be reached', async () => {
+    server.use(childrenHandler([masha]));
+    deleteAnswers(() => HttpResponse.error());
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const section = await childrenSection();
+    await user.click(await within(section).findByRole('button', { name: 'Удалить: Маша' }));
+    await user.click(within(section).getByRole('button', { name: 'Да, удалить' }));
+
+    expect(await within(section).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
+    expect(within(section).getByText('Маша')).toBeInTheDocument();
   });
 });
