@@ -6,6 +6,7 @@ import {
   anna,
   boris,
   childFieldsHandler,
+  childrenHandler,
   height,
   invitesHandler,
   membersHandler,
@@ -62,7 +63,7 @@ beforeEach(() => {
   document.cookie = 'XSRF-TOKEN=token-from-server';
   server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
   server.use(membersHandler([anna, boris]));
-  server.use(invitesHandler([]));
+  server.use(invitesHandler([]), childrenHandler([]));
 });
 afterEach(() => {
   document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';

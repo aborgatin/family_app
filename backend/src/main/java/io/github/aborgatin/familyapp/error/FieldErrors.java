@@ -10,7 +10,7 @@ import org.springframework.http.HttpStatus;
  * {@code 400 {"code":"validation.failed","params":{"errors":[{"field":…,"code":…}]}}}.
  *
  * <p>Field codes used so far: {@code required}, {@code email.invalid}, {@code password.too_short},
- * {@code too_long}, {@code value.invalid}.
+ * {@code too_long}, {@code value.invalid}, {@code color.invalid}.
  */
 public final class FieldErrors {
 
@@ -19,6 +19,7 @@ public final class FieldErrors {
   public static final String PASSWORD_TOO_SHORT = "password.too_short";
   public static final String TOO_LONG = "too_long";
   public static final String VALUE_INVALID = "value.invalid";
+  public static final String COLOR_INVALID = "color.invalid";
 
   private final List<Map<String, Object>> errors = new ArrayList<>();
 

@@ -25,6 +25,7 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   'invite.revoked': 'errors.inviteRevoked',
   'member.email_taken': 'errors.memberEmailTaken',
   'validation.failed': 'errors.validationFailed',
+  'child.deleted': 'errors.childDeleted',
 };
 
 /** Field error code (inside `validation.failed`) → i18n key. */
@@ -34,6 +35,7 @@ const FIELD_ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   'password.too_short': 'errors.field.passwordTooShort',
   too_long: 'errors.field.tooLong',
   'value.invalid': 'errors.field.valueInvalid',
+  'color.invalid': 'errors.field.colorInvalid',
 };
 
 export function errorMessageKey(code: string): MessageKey {

@@ -1,0 +1,10 @@
+[
+  { "code": "coral", "hex": "#e07a5f" },
+  { "code": "orange", "hex": "#f2a541" },
+  { "code": "yellow", "hex": "#e9c46a" },
+  { "code": "green", "hex": "#6a994e" },
+  { "code": "teal", "hex": "#2a9d8f" },
+  { "code": "blue", "hex": "#457b9d" },
+  { "code": "purple", "hex": "#8e7dbe" },
+  { "code": "pink", "hex": "#d67ab1" }
+]

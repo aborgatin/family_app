@@ -6,6 +6,7 @@ import {
   anna,
   boris,
   childFieldsHandler,
+  childrenHandler,
   invitesHandler,
   membersHandler,
   sessionHandler,
@@ -25,6 +26,7 @@ beforeEach(() => {
     sessionHandler({ bootstrapRequired: false, member: anna }).handler,
     invitesHandler([]),
     childFieldsHandler([]),
+    childrenHandler([]),
   );
 });
 afterEach(() => {

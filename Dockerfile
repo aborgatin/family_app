@@ -17,6 +17,8 @@ COPY backend/gradle/ gradle/
 # Resolve Gradle and dependencies in their own layer so source changes reuse it.
 RUN ./gradlew --no-daemon dependencies > /dev/null
 COPY backend/src/ src/
+# The Child color palette lives in the web app and is read by build.gradle.kts from ../web.
+COPY web/src/shared/palette/ /web/src/shared/palette/
 COPY --from=web /web/dist/ src/main/resources/static/
 RUN ./gradlew --no-daemon bootJar && cp build/libs/*.jar /app.jar
 

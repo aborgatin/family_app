@@ -5,6 +5,7 @@ import {
   anna,
   boris,
   childFieldsHandler,
+  childrenHandler,
   invitesHandler,
   membersHandler,
   sessionHandler,
@@ -15,7 +16,7 @@ import { server } from '@/test/server';
 describe('Settings', () => {
   beforeEach(() => {
     server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
-    server.use(childFieldsHandler([]));
+    server.use(childFieldsHandler([]), childrenHandler([]));
     server.use(membersHandler([anna, boris]), invitesHandler([]));
   });
 

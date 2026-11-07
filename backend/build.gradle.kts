@@ -55,6 +55,12 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.withType<Test>().configureEach { useJUnitPlatform() }
 
+// The Child color palette is defined once, in the web app's shared folder (spec #5: "shared by API
+// validation and the web picker"); the backend reads the same file from its classpath.
+tasks.processResources {
+  from("../web/src/shared/palette/childColors.json") { into("palette") }
+}
+
 spotless {
   java {
     googleJavaFormat()

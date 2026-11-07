@@ -11,6 +11,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * The single exception-to-code mapping for MVC handlers (spec #5, I1). Security failures that never
@@ -30,6 +31,12 @@ class ApiExceptionHandler {
   /** Unparseable JSON, or a body of the wrong shape. */
   @ExceptionHandler(HttpMessageNotReadableException.class)
   ResponseEntity<ApiError> unreadable(HttpMessageNotReadableException ex) {
+    return ResponseEntity.badRequest().body(ApiError.of("request.invalid"));
+  }
+
+  /** A path or query value of the wrong type, e.g. an id that is not a UUID. */
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+  ResponseEntity<ApiError> mismatch(MethodArgumentTypeMismatchException ex) {
     return ResponseEntity.badRequest().body(ApiError.of("request.invalid"));
   }
 
