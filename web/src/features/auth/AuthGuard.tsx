@@ -8,10 +8,11 @@ import { SessionContext, type SessionState } from './session';
 export const SETUP_PATH = '/setup';
 export const LOGIN_PATH = '/login';
 export const RESET_PASSWORD_PATH = '/reset-password/:token';
+export const INVITE_PATH = '/invite/:token';
 
-/** Screens a logged-out device may open: a reset link must work without logging in first. */
+/** Screens a logged-out device may open: reset and Invite links work without logging in. */
 function isPublic(pathname: string): boolean {
-  return pathname.startsWith('/reset-password/');
+  return pathname.startsWith('/reset-password/') || pathname.startsWith('/invite/');
 }
 
 /** What the guard remembers in the `/login` history entry: where the visit was going. */
@@ -43,7 +44,8 @@ function asApiError(error: unknown): ApiError {
  * Route guard for the whole app. Asks `GET /api/auth/session` once at start, then sends the user
  * where the answer says: to `/setup` while the installation has no Member yet, away from it after;
  * to `/login` while this device is logged out, remembering the intended path, and back to that
- * path once logged in. A password reset link opens whether or not this device is logged in.
+ * path once logged in. Password reset and Invite links open whether or not this device is logged
+ * in.
  */
 export function AuthGuard() {
   const { t } = useTranslation();

@@ -49,6 +49,19 @@ export function logout(): Promise<void> {
   return api.post<undefined>('/api/auth/logout');
 }
 
+/** Whether an Invite link still works; fails with an `invite.*` code when not. */
+export function fetchInvite(token: string): Promise<{ expiresAt: string }> {
+  return api.get<{ expiresAt: string }>(`/api/invites/by-token/${encodeURIComponent(token)}`);
+}
+
+/** Registers the invited adult as a Member; the server logs them in on this device. */
+export function acceptInvite(token: string, registration: Registration): Promise<Member> {
+  return api.post<Member>(
+    `/api/invites/by-token/${encodeURIComponent(token)}/accept`,
+    registration,
+  );
+}
+
 /** Whether a password reset link still works; fails with a `password_reset.*` code when not. */
 export function fetchPasswordReset(token: string): Promise<{ expiresAt: string }> {
   return api.get<{ expiresAt: string }>(
