@@ -173,23 +173,23 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
   `method.not_allowed`, `request.invalid` or `internal.error` by status; anything else is logged and
   becomes `500 internal.error`.
 - Security failures never reach a controller; `family.auth.ApiErrorWriter` writes the same shape
-  from `SecurityConfig`'s entry point and access-denied handler.
+  from `SecurityConfig`'s entry point (`401 auth.required`) and access-denied handler
+  (`403 auth.csrf_invalid`).
 
 ### Catalogue
 
 | Status | Code                                              | When                                                                          |
 | ------ | ------------------------------------------------- | ----------------------------------------------------------------------------- |
 | 400    | `validation.failed`                               | field errors in `params.errors`                                               |
-| 400    | `request.invalid`                                 | unreadable body, wrong path value type, other 4xx from Spring                 |
+| 400    | `request.invalid`                                 | added: unreadable body, wrong path value type, other 4xx from Spring          |
 | 400    | `auth.invalid_credentials`                        | wrong current password in `POST /api/members/me/password`                     |
 | 401    | `auth.required`                                   | no session (also a session whose Member no longer exists, in `MemberService`) |
 | 401    | `auth.invalid_credentials`                        | login: unknown email or wrong password (same answer)                          |
 | 403    | `auth.csrf_invalid`                               | missing or wrong `X-XSRF-TOKEN`                                               |
-| 403    | `auth.forbidden`                                  | any other access denial (no current endpoint produces it)                     |
-| 404    | `not_found`                                       | no handler for the path                                                       |
+| 404    | `not_found`                                       | added: no handler for the path                                                |
 | 404    | `invite.not_found`                                | unknown Invite id or token                                                    |
 | 404    | `password_reset.not_found`                        | unknown reset token                                                           |
-| 405    | `method.not_allowed`                              | wrong HTTP method                                                             |
+| 405    | `method.not_allowed`                              | added: wrong HTTP method                                                      |
 | 409    | `auth.bootstrap_closed`                           | bootstrap after the first Member exists                                       |
 | 409    | `member.email_taken`                              | Invite acceptance with an email any Member row has (removed ones included)    |
 | 409    | `child.deleted`, `child_field.deleted`            | `PUT` to a soft-deleted id                                                    |
@@ -197,7 +197,13 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 | 410    | `invite.used`, `invite.revoked`, `invite.expired` | Invite link no longer works (checked in that order)                           |
 | 410    | `password_reset.used`, `password_reset.expired`   | reset link no longer works                                                    |
 | 429    | `auth.too_many_attempts`                          | login limits; `params.retryAfterSeconds`, also `Retry-After` header           |
-| 500    | `internal.error`                                  | unexpected exception (logged)                                                 |
+| 500    | `internal.error`                                  | added: unexpected exception (logged)                                          |
+
+Rows marked "added" are not in spec #5's error catalogue. They cover failures Spring raises before
+or outside an endpoint's own checks (a body that isn't JSON, an unknown path, a wrong method, an
+unexpected exception), so that every error still has the `{code, params}` shape. A 403 is always
+`auth.csrf_invalid`: no rule checks roles, so `SecurityConfig`'s access-denied handler has no other
+case.
 
 Field codes inside `validation.failed` (constants on `FieldErrors`): `required`, `email.invalid`,
 `password.too_short`, `too_long`, `value.invalid` (enum value or date not allowed), `color.invalid`.
