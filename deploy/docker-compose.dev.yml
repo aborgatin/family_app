@@ -1,0 +1,32 @@
+# Local development: PostgreSQL 18 only (spec #5). Not for the server. From the repo root:
+#
+#   docker compose -f deploy/docker-compose.dev.yml up -d
+#
+# then run the backend against it with
+#
+#   DATASOURCE_URL=jdbc:postgresql://localhost:5432/family \
+#   DATASOURCE_USERNAME=family DATASOURCE_PASSWORD=family ./gradlew bootRun
+#
+# and the web dev server (`npm run dev` in /web), which proxies /api to the backend.
+# The credentials below are local-only defaults, not secrets.
+name: family-app-dev
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: family
+      POSTGRES_USER: family
+      POSTGRES_PASSWORD: family
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U family -d family"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

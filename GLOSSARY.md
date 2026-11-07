@@ -15,8 +15,8 @@ _Avoid_: Tenant, household, account
 An adult of the Family who has a login and uses the app.
 _Avoid_: User, parent, adult, account, family member (in Russian «член семьи» also suggests children)
 
-**Grammatical gender** — — (asked as the choice «Добавил» / «Добавила»):
-A Member's choice of masculine or feminine verb forms, used to write sentences about their actions in correct Russian («Даша добавила…»).
+**Grammatical gender** — «Пол» (asked as the choice «Мужской» / «Женский»):
+A Member's choice of masculine or feminine verb forms, used to write sentences about their actions in correct Russian («Даша добавила…»). The Member is asked their sex, which decides the verb forms; in code the term stays Grammatical gender.
 _Avoid_: Gender, sex
 
 **Child** — «Ребёнок» (plural «Дети»):
@@ -26,6 +26,10 @@ _Avoid_: Kid, daughter, dependent, child user
 **Invite** — «Приглашение»:
 A link a Member sends to another adult so they can register and become a Member.
 _Avoid_: Invitation code, referral, share link
+
+**Password reset** — «Сброс пароля»:
+A one-time link, created by the operator's server command, with which a Member who forgot their password sets a new one; using it logs the Member out on every other device.
+_Avoid_: Password recovery, forgot-password token, reset code
 
 ## Lists & items
 
@@ -102,6 +106,10 @@ An optional rule (daily, weekly, monthly or yearly) that makes a todo item recur
 _Avoid_: Recurrence, recurring, schedule, cycle
 
 ## Children
+
+**Child color** — «Цвет»:
+The color a Child is shown in, picked from the fixed Child color palette. The palette is code (one list shared by the API and the web app), not Family data.
+_Avoid_: Theme, tag color, label
 
 **Child page** — «Страница ребёнка»:
 The page for one Child, holding their Child profile, Todo list and Wish list.
