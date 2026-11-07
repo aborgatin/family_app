@@ -14,6 +14,15 @@ spring:
   flyway:
     locations: classpath:db/migration
 
+server:
+  # Behind Caddy: X-Forwarded-For/-Proto give the real client IP and scheme, but only on
+  # requests from the proxy. TRUSTED_PROXIES is a regex for Caddy's address (set by
+  # deploy/docker-compose.yml); unset means no forwarded header is trusted.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      internal-proxies: ${TRUSTED_PROXIES:}
+
 management:
   endpoints:
     web:
