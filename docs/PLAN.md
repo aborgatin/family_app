@@ -74,6 +74,7 @@ Chores/rewards, shared expenses, "reserved by" on wish lists, in-app calendar.
 
 - **Client:** PWA first, native later if needed ([ADR-0001](adr/0001-pwa-first-client.md)). Share-to-app on iOS via a Shortcut that POSTs to the API.
 - **Backend:** Spring Boot 3, Java 21, Spring Security (session auth), one deployable split into feature packages (`family`, `lists`, `notifications`, later `links`, `recipes`, `trips`).
+- **UI:** iOS-style (large titles, grouped lists), iPhone first and Mac-ready; Tailwind + Radix + our own `shared/ui` kit, which feature screens are built from exclusively; light and dark theme ([ADR-0008](adr/0008-ios-style-ui-kit.md); design brief `docs/design.md` arrives with M1.5).
 - **Database:** PostgreSQL ([ADR-0002](adr/0002-postgresql.md)).
 - **Sync:** offline-first with outbox + per-record versions, last-write-wins per field ([ADR-0003](adr/0003-sync-model.md)).
 - **Hosting:** one Hetzner VPS (~€5–10/month) with Docker Compose: `app`, `postgres`, `caddy` (+ `media-worker` from R2). Own domain (~€10/year), required for HTTPS / Web Push.
@@ -121,6 +122,11 @@ Secrets only in the server's `.env`, never in git.
 - [ ] Member registration of first adult (bootstrap), login, long-lived session, invite link.
 - [ ] Settings screen: members, children, child fields.
 - [ ] Default seed data on first start.
+
+**M1.5 — UI foundation**
+- [ ] ADR-0008, design brief `docs/design.md`, standards rule U1; Tailwind, the `shared/ui` kit with its Mac behaviour, the app shell, light/dark theme.
+- [ ] Restyle the auth screens (`/setup`, `/login`, `/invite/:token`, `/reset-password/:token`).
+- [ ] Restyle Home and Settings: edit mode, swipe-to-delete, auto-save, Child screen, password screen, theme switch.
 
 **M2 — Lists core + sync**
 - [ ] `List`/`Item` CRUD API with versions and soft deletes.
