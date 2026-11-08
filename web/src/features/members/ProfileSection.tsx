@@ -5,12 +5,14 @@ import {
   autoSaveMessages,
   GroupedSection,
   InputRow,
+  ListRow,
   SegmentedControl,
   useAutoSaveChoice,
   useAutoSaveText,
   type GrammaticalGender,
 } from '@/shared/ui';
 import { updateProfile } from './membersApi';
+import { PASSWORD_PATH, usePasswordJustChanged } from './PasswordPage';
 
 interface ProfileSectionProps {
   member: Member;
@@ -57,6 +59,8 @@ export function ProfileSection({ member, onSaved }: ProfileSectionProps) {
     save: saveGender,
   });
 
+  const passwordChanged = usePasswordJustChanged();
+
   const genders = [
     { value: 'MASCULINE', label: t('grammaticalGender.masculine') },
     { value: 'FEMININE', label: t('grammaticalGender.feminine') },
@@ -65,7 +69,10 @@ export function ProfileSection({ member, onSaved }: ProfileSectionProps) {
   return (
     <GroupedSection
       header={t('members.profile.title')}
-      messages={autoSaveMessages([name.failure, gender.failure])}
+      messages={[
+        ...autoSaveMessages([name.failure, gender.failure]),
+        passwordChanged && { text: t('members.password.changed'), announce: true },
+      ]}
     >
       <InputRow label={t('members.profile.displayName')} autoComplete="name" {...name.input} />
       <SegmentedControl
@@ -73,6 +80,7 @@ export function ProfileSection({ member, onSaved }: ProfileSectionProps) {
         options={genders}
         {...gender.control}
       />
+      <ListRow title={t('members.password.title')} to={PASSWORD_PATH} />
     </GroupedSection>
   );
 }

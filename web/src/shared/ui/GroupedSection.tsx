@@ -13,7 +13,10 @@ export interface SectionMessage {
    * (`alert`).
    */
   row?: string | readonly string[];
-  /** Announce it (`alert`) even though it is about a row, e.g. a save that failed after blur. */
+  /**
+   * Announce it: an error about a row as an `alert` (e.g. a save that failed after blur), a hint
+   * as a `status` (e.g. «Пароль изменён» after coming back from the password screen).
+   */
   announce?: boolean;
   /** A small text button after the text, e.g. «Повторить». */
   action?: { label: string; onClick: () => void };
@@ -42,6 +45,14 @@ const SectionContext = createContext<SectionRows>({
 export function useSectionRow(row: string) {
   const section = use(SectionContext);
   return { describedBy: section.describedBy(row), invalid: section.invalid(row) };
+}
+
+/** An error about the whole group, or one to announce, is an `alert`; an announced hint a `status`. */
+function lineRole(message: SectionMessage) {
+  if (message.tone === 'error') {
+    return message.row === undefined || message.announce === true ? 'alert' : undefined;
+  }
+  return message.announce === true ? 'status' : undefined;
 }
 
 function isAbout(message: SectionMessage, row: string) {
@@ -87,14 +98,7 @@ export function GroupedSection({ header, messages = [], children }: GroupedSecti
               key={line.id}
               className={line.tone === 'error' ? 'text-destructive' : 'text-secondary-label'}
             >
-              <span
-                id={line.id}
-                role={
-                  line.tone === 'error' && (line.row === undefined || line.announce === true)
-                    ? 'alert'
-                    : undefined
-                }
-              >
+              <span id={line.id} role={lineRole(line)}>
                 {line.text}
               </span>
               {line.action !== undefined && (

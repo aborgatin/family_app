@@ -32,7 +32,7 @@ export function Page({ title, back, actions, children }: PageProps) {
           (underBar ? 'border-separator bg-bar backdrop-blur-xl' : 'border-transparent')
         }
       >
-        <div className="mx-auto grid min-h-11 max-w-160 grid-cols-[1fr_auto_1fr] items-center gap-2 pr-[max(0.5rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))]">
+        <div className="mx-auto grid min-h-11 max-w-160 grid-cols-[minmax(max-content,1fr)_minmax(0,auto)_minmax(max-content,1fr)] items-center gap-2 pr-[max(0.5rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))]">
           <div className="flex min-w-0 justify-start">
             {back !== undefined && (
               <Link to={back.to} icon="back">
