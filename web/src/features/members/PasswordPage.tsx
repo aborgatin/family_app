@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 import { ApiError, failureMessages, type ErrorMessage, type FieldMessages } from '@/shared/api';
-import { Button, Form, GroupedSection, InputRow, Page } from '@/shared/ui';
+import { Button, Form, GroupedSection, InputRow, Page, useFooterLines } from '@/shared/ui';
 import { changePassword } from './membersApi';
 
 /** Path of the password screen, opened from «Ваш профиль». */
@@ -54,6 +54,7 @@ interface PasswordPageProps {
  */
 export function PasswordPage({ settingsPath }: PasswordPageProps) {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const navigate = useNavigate();
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -99,23 +100,7 @@ export function PasswordPage({ settingsPath }: PasswordPageProps) {
     >
       <Form onSubmit={() => void save()} onCancel={() => void navigate(settingsPath)}>
         <GroupedSection
-          messages={[
-            ...FIELDS.map((field) => {
-              const key = fieldErrors[field];
-              return (
-                key !== undefined && {
-                  row: field,
-                  text: t(key),
-                  tone: 'error' as const,
-                  announce: true,
-                }
-              );
-            }),
-            formError !== undefined && {
-              text: t(formError.key, formError.values),
-              tone: 'error',
-            },
-          ]}
+          messages={lines.form({ fields: FIELDS, fieldErrors, formError, announce: true })}
         >
           <InputRow
             label={t('members.password.current')}

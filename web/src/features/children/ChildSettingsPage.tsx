@@ -3,40 +3,40 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
 import {
-  ActionSheet,
   autoSaveMessages,
   Button,
+  ConfirmRow,
   EmptyState,
   GroupedSection,
-  ListRow,
   Page,
   Sections,
   useAutoSaveChoice,
   useAutoSaveText,
+  useFooterLines,
 } from '@/shared/ui';
 import { ChildRows } from './ChildRows';
 import type { Child, ChildDetails } from './childrenApi';
 import { useChildren } from './useChildren';
 
-/** Route of a Child's screen, opened from «Дети» in Settings. */
-export const CHILD_PATH = '/settings/children/:id';
+/** Route of a Child's settings screen, opened from «Дети» in Settings. */
+export const CHILD_SETTINGS_PATH = '/settings/children/:id';
 
-/** Path of the screen of the Child with this id. */
-export function childPath(id: string): string {
-  return CHILD_PATH.replace(':id', encodeURIComponent(id));
+/** Path of the settings screen of the Child with this id. */
+export function childSettingsPath(id: string): string {
+  return CHILD_SETTINGS_PATH.replace(':id', encodeURIComponent(id));
 }
 
-interface ChildPageProps {
+interface ChildSettingsPageProps {
   /** Path of Settings, where the screen goes back to. */
   settingsPath: string;
 }
 
 /**
- * A Child's screen (`/settings/children/:id`): Имя, Цвет and День рождения, each saved by itself
+ * A Child's settings screen (`/settings/children/:id`; not the Child page of M3): Имя, Цвет and День рождения, each saved by itself
  * (auto-save), and «Удалить ребёнка», which asks first and then goes back to Settings. Data only
  * through `useChildren()`.
  */
-export function ChildPage({ settingsPath }: ChildPageProps) {
+export function ChildSettingsPage({ settingsPath }: ChildSettingsPageProps) {
   const { t } = useTranslation();
   const { id } = useParams();
   const { load, retry, save, remove } = useChildren();
@@ -90,6 +90,7 @@ interface ChildEditorProps {
 
 function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const navigate = useNavigate();
   const { id } = child;
 
@@ -111,10 +112,7 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
       async (value: string) => (await saveChange({ name: value })).name,
       [saveChange],
     ),
-    validate: useCallback(
-      (value: string) => (value.trim() === '' ? t('errors.field.required') : undefined),
-      [t],
-    ),
+    required: true,
   });
   const color = useAutoSaveChoice({
     name: 'color',
@@ -134,7 +132,6 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
     ),
   });
 
-  const [asking, setAsking] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<ErrorMessage>();
 
@@ -155,36 +152,18 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
       <GroupedSection messages={autoSaveMessages([name.failure, color.failure, birthday.failure])}>
         <ChildRows name={name.input} color={color.control} birthday={birthday.input} />
       </GroupedSection>
-      <GroupedSection
-        messages={[
-          deleteError !== undefined && {
-            text: t(deleteError.key, deleteError.values),
-            tone: 'error',
-          },
-        ]}
-      >
-        <ListRow
-          destructive
+      <GroupedSection messages={[lines.failure(deleteError)]}>
+        <ConfirmRow
           title={t('children.delete')}
           busy={deleting}
           disabled={deleting}
-          onClick={() => {
-            setAsking(true);
+          confirm={{
+            title: t('children.confirmDelete', { name: child.name }),
+            action: t('ui.delete'),
           }}
-        />
-        <ActionSheet
-          open={asking}
-          onOpenChange={setAsking}
-          title={t('children.confirmDelete', { name: child.name })}
-          actions={[
-            {
-              label: t('ui.delete'),
-              destructive: true,
-              onSelect: () => {
-                void deleteChild();
-              },
-            },
-          ]}
+          onConfirm={() => {
+            void deleteChild();
+          }}
         />
       </GroupedSection>
     </Sections>

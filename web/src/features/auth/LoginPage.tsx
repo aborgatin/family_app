@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asApiError, errorMessage, type ErrorMessage, fieldErrorMessageKey } from '@/shared/api';
-import { Button, CenteredPage, Form, GroupedSection, InputRow } from '@/shared/ui';
+import { Button, CenteredPage, Form, GroupedSection, InputRow, useFooterLines } from '@/shared/ui';
 import { login } from './authApi';
 import { useSession } from './session';
 
@@ -11,6 +11,7 @@ import { useSession } from './session';
  */
 export function LoginPage() {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const { loggedIn } = useSession();
 
   const [email, setEmail] = useState('');
@@ -52,10 +53,7 @@ export function LoginPage() {
           messages={[
             missing.email && { row: 'email', text: required, tone: 'error' },
             missing.password && { row: 'password', text: required, tone: 'error' },
-            formError !== undefined && {
-              text: t(formError.key, formError.values),
-              tone: 'error',
-            },
+            lines.failure(formError),
           ]}
         >
           <InputRow

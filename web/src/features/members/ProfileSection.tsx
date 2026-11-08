@@ -1,15 +1,13 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Member } from '@/features/auth';
+import { GrammaticalGenderRow, type GrammaticalGender, type Member } from '@/features/auth';
 import {
   autoSaveMessages,
   GroupedSection,
   InputRow,
   ListRow,
-  SegmentedControl,
   useAutoSaveChoice,
   useAutoSaveText,
-  type GrammaticalGender,
 } from '@/shared/ui';
 import { updateProfile } from './membersApi';
 import { PASSWORD_PATH, usePasswordJustChanged } from './PasswordPage';
@@ -34,18 +32,14 @@ export function ProfileSection({ member, onSaved }: ProfileSectionProps) {
     },
     [onSaved],
   );
-  const validateName = useCallback(
-    (displayName: string) => (displayName.trim() === '' ? t('errors.field.required') : undefined),
-    [t],
-  );
   const name = useAutoSaveText({
     name: 'displayName',
     saved: member.displayName,
     save: saveName,
-    validate: validateName,
+    required: true,
   });
 
-  const saveGender = useCallback(
+  const saveGrammaticalGender = useCallback(
     async (grammaticalGender: GrammaticalGender) => {
       const updated = await updateProfile({ grammaticalGender });
       onSaved(updated);
@@ -53,33 +47,24 @@ export function ProfileSection({ member, onSaved }: ProfileSectionProps) {
     },
     [onSaved],
   );
-  const gender = useAutoSaveChoice({
+  const grammaticalGender = useAutoSaveChoice({
     name: 'grammaticalGender',
     saved: member.grammaticalGender,
-    save: saveGender,
+    save: saveGrammaticalGender,
   });
 
   const passwordChanged = usePasswordJustChanged();
-
-  const genders = [
-    { value: 'MASCULINE', label: t('grammaticalGender.masculine') },
-    { value: 'FEMININE', label: t('grammaticalGender.feminine') },
-  ] as const;
 
   return (
     <GroupedSection
       header={t('members.profile.title')}
       messages={[
-        ...autoSaveMessages([name.failure, gender.failure]),
+        ...autoSaveMessages([name.failure, grammaticalGender.failure]),
         passwordChanged && { text: t('members.password.changed'), announce: true },
       ]}
     >
       <InputRow label={t('members.profile.displayName')} autoComplete="name" {...name.input} />
-      <SegmentedControl
-        label={t('grammaticalGender.label')}
-        options={genders}
-        {...gender.control}
-      />
+      <GrammaticalGenderRow {...grammaticalGender.control} />
       <ListRow title={t('members.password.title')} to={PASSWORD_PATH} />
     </GroupedSection>
   );

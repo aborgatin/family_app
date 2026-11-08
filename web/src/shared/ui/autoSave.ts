@@ -68,15 +68,16 @@ interface AutoSaveOptions<T> {
 }
 
 interface AutoSaveTextOptions extends AutoSaveOptions<string> {
-  /** Already translated message when the value can't be saved as is (nothing is sent). */
-  validate?: (value: string) => string | undefined;
+  /** An empty (or blank) value isn't sent: the row says «Заполните это поле» instead. */
+  required?: boolean;
 }
 
 /**
  * A text value that saves itself: spread `input` onto an `InputRow`. Esc puts the saved value
  * back; after a failure the typed text stays and `failure` offers «Повторить».
  */
-export function useAutoSaveText({ name, saved, save, validate }: AutoSaveTextOptions) {
+export function useAutoSaveText({ name, saved, save, required = false }: AutoSaveTextOptions) {
+  const { t } = useTranslation();
   const [draft, setDraftState] = useState(saved);
   const draftRef = useRef(saved);
   const savedRef = useRef(saved);
@@ -95,9 +96,8 @@ export function useAutoSaveText({ name, saved, save, validate }: AutoSaveTextOpt
       clear();
       return;
     }
-    const invalid = validate?.(value);
-    if (invalid !== undefined) {
-      fail(invalid);
+    if (required && value.trim() === '') {
+      fail(t('errors.field.required'));
       return;
     }
     run({
@@ -114,7 +114,7 @@ export function useAutoSaveText({ name, saved, save, validate }: AutoSaveTextOpt
         if (draftRef.current === value) setDraft(result);
       },
     });
-  }, [clear, fail, run, save, setDraft, validate]);
+  }, [clear, fail, required, run, save, setDraft, t]);
 
   const revert = useCallback(() => {
     setDraft(savedRef.current);

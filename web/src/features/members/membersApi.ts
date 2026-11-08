@@ -1,6 +1,5 @@
-import type { Member } from '@/features/auth';
+import type { GrammaticalGender, Member } from '@/features/auth';
 import { api } from '@/shared/api';
-import type { GrammaticalGender } from '@/shared/ui';
 
 // Member account changes are online-only by design (S4 exception): they call REST directly.
 

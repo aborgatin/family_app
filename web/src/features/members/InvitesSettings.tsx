@@ -8,6 +8,8 @@ import {
   GroupedSection,
   ListRow,
   LoadingRow,
+  useEditableList,
+  useFooterLines,
   type SectionMessage,
 } from '@/shared/ui';
 import {
@@ -71,8 +73,9 @@ function copyWhenCreated(invite: Promise<NewInvite>): Promise<boolean> {
  * If copying fails the new link shows as a row with «Скопировать» (a fresh tap). Returns the rows
  * and the section's footer lines.
  */
-export function useInviteAdult(onCreated: (invite: Invite) => void) {
+export function useInviteMember(onCreated: (invite: Invite) => void) {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<ErrorMessage>();
   const [uncopied, setUncopied] = useState<NewInvite>();
@@ -150,7 +153,8 @@ export function useInviteAdult(onCreated: (invite: Invite) => void) {
   );
 
   const messages: SectionMessage[] = [];
-  if (error !== undefined) messages.push({ text: t(error.key, error.values), tone: 'error' });
+  const failure = lines.failure(error);
+  if (failure !== false) messages.push(failure);
   if (copy === 'failed') messages.push({ text: t('members.invites.copyFailed'), tone: 'error' });
   if (copy === 'copied') messages.push({ text: t('members.invites.copied'), announce: true });
 
@@ -175,78 +179,43 @@ export function InvitesSection({
   onRevoked: (id: string) => void;
 }) {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const { load, retry, removed } = invites;
-  const [editing, setEditing] = useState(false);
-  const [revoking, setRevoking] = useState<string>();
-  const [error, setError] = useState<ErrorMessage>();
+  const list = useEditableList();
 
-  async function revoke(id: string, last: boolean) {
-    setRevoking(id);
-    setError(undefined);
-    try {
-      await revokeInvite(id);
-      // With the last one gone there is nothing left to edit.
-      if (last) setEditing(false);
-      removed(id);
-      onRevoked(id);
-    } catch (failure: unknown) {
-      setError(errorMessage(asApiError(failure)));
-    } finally {
-      setRevoking(undefined);
-    }
+  async function revoke(id: string) {
+    await revokeInvite(id);
+    removed(id);
+    onRevoked(id);
   }
 
-  if (load.status === 'loading') {
-    return (
-      <GroupedSection header={t('members.invites.title')}>
-        <LoadingRow />
-      </GroupedSection>
-    );
-  }
-  if (load.status === 'failed') {
-    const message = errorMessage(load.error);
-    return (
-      <GroupedSection
-        header={t('members.invites.title')}
-        messages={[
-          {
-            text: t(message.key, message.values),
-            tone: 'error',
-            action: { label: t('common.retry'), onClick: retry },
-          },
-        ]}
-      />
-    );
-  }
-  const messages = [
-    error !== undefined && { text: t(error.key, error.values), tone: 'error' as const },
-  ];
-  if (load.value.length === 0) {
-    return (
-      <GroupedSection header={t('members.invites.title')} messages={messages}>
-        <ListRow title={t('members.invites.none')} />
-      </GroupedSection>
-    );
-  }
+  const active = load.status === 'ready' ? load.value : [];
   return (
     <GroupedSection
       header={t('members.invites.title')}
-      edit={{ editing, onEditingChange: setEditing }}
-      messages={messages}
+      {...(active.length > 0 && { edit: list.edit })}
+      messages={[
+        load.status === 'failed' && lines.failure(errorMessage(load.error), retry),
+        lines.failure(list.error),
+      ]}
     >
-      {load.value.map((invite) => (
+      {load.status === 'loading' && <LoadingRow />}
+      {load.status === 'ready' && active.length === 0 && (
+        <ListRow title={t('members.invites.none')} />
+      )}
+      {active.map((invite) => (
         <EditableRow
           key={invite.id}
           title={t('members.invites.row', {
             date: EXPIRY_FORMAT.format(new Date(invite.expiresAt)),
           })}
-          busy={revoking === invite.id}
+          busy={list.deleting === invite.id}
           confirm={{
             title: t('members.invites.confirmRevoke'),
             message: t('members.invites.confirmRevokeMessage'),
           }}
           onDelete={() => {
-            void revoke(invite.id, load.value.length === 1);
+            void list.remove(invite.id, active.length === 1, () => revoke(invite.id));
           }}
         />
       ))}

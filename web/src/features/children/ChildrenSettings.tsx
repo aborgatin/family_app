@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import { errorMessage } from '@/shared/api';
 import { childColor } from '@/shared/palette';
 import {
   EditableRow,
@@ -8,10 +8,10 @@ import {
   ListRow,
   LoadingRow,
   Swatch,
-  type SectionMessage,
+  useEditableList,
+  useFooterLines,
 } from '@/shared/ui';
-import { childPath } from './ChildPage';
-import type { Child } from './childrenApi';
+import { childSettingsPath } from './ChildSettingsPage';
 import { useAge } from './age';
 import { NewChildSheet } from './NewChildSheet';
 import { newChildId, useChildren } from './useChildren';
@@ -24,41 +24,15 @@ import { newChildId, useChildren } from './useChildren';
  */
 export function ChildrenSettings() {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const { load, retry, save, remove } = useChildren();
   const age = useAge();
-  const [editing, setEditing] = useState(false);
-  const [deleting, setDeleting] = useState<string>();
-  const [error, setError] = useState<ErrorMessage>();
+  const list = useEditableList();
   // The id of the Child being added, made once when the sheet opens, so a retried save repeats
   // the same idempotent PUT instead of creating a second Child (S3).
   const [addingId, setAddingId] = useState<string>();
 
-  async function deleteChild(child: Child, last: boolean) {
-    setDeleting(child.id);
-    setError(undefined);
-    try {
-      await remove(child.id);
-      if (last) setEditing(false);
-    } catch (failure: unknown) {
-      setError(errorMessage(asApiError(failure)));
-    } finally {
-      setDeleting(undefined);
-    }
-  }
-
   const children = load.status === 'ready' ? load.value : [];
-  const messages: SectionMessage[] = [];
-  if (load.status === 'failed') {
-    const message = errorMessage(load.error);
-    messages.push({
-      text: t(message.key, message.values),
-      tone: 'error',
-      action: { label: t('common.retry'), onClick: retry },
-    });
-  }
-  if (error !== undefined) messages.push({ text: t(error.key, error.values), tone: 'error' });
-  if (load.status === 'ready' && children.length === 0)
-    messages.push({ text: t('children.empty') });
 
   return (
     <>
@@ -74,8 +48,12 @@ export function ChildrenSettings() {
       )}
       <GroupedSection
         header={t('settings.children')}
-        {...(children.length > 0 && { edit: { editing, onEditingChange: setEditing } })}
-        messages={messages}
+        {...(children.length > 0 && { edit: list.edit })}
+        messages={[
+          load.status === 'failed' && lines.failure(errorMessage(load.error), retry),
+          lines.failure(list.error),
+          load.status === 'ready' && children.length === 0 && { text: t('children.empty') },
+        ]}
         after={
           load.status === 'loading' ? (
             <LoadingRow />
@@ -95,14 +73,14 @@ export function ChildrenSettings() {
         {children.map((child) => (
           <EditableRow
             key={child.id}
-            to={childPath(child.id)}
+            to={childSettingsPath(child.id)}
             leading={<Swatch color={childColor(child.color)?.hex ?? 'transparent'} />}
             title={child.name}
             value={child.birthday === null ? undefined : age(child.birthday)}
-            busy={deleting === child.id}
+            busy={list.deleting === child.id}
             confirm={{ title: t('children.confirmDelete', { name: child.name }) }}
             onDelete={() => {
-              void deleteChild(child, children.length === 1);
+              void list.remove(child.id, children.length === 1, () => remove(child.id));
             }}
           />
         ))}
