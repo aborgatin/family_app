@@ -38,12 +38,4 @@ describe('Home', () => {
 
     expect(app.location()).toBe('/settings');
   });
-
-  it('keeps the logout button on Home', async () => {
-    server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
-
-    renderApp('/');
-
-    expect(await screen.findByRole('button', { name: 'Выйти' })).toBeInTheDocument();
-  });
 });

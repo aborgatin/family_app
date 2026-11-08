@@ -28,10 +28,10 @@ web/src/
   main.tsx              createBrowserRouter(routes) inside <AppProviders>; imports shared/ui/theme.css
   app/                  routes.tsx, AppProviders.tsx (I18nextProvider)
   features/
-    auth/               session, guard, setup (bootstrap), login, logout, Invite acceptance, password reset
-    home/               HomePage: Page «Семья», empty state, gear → Settings, LogoutButton
-    settings/           SettingsPage shell, SettingsSection, SETTINGS_PATH
-    members/            MembersSettings: Members list, ProfileForm, PasswordForm, InvitesSettings
+    auth/               session, guard, setup (bootstrap), login, LogoutSection, Invite acceptance, password reset
+    home/               HomePage: Page «Семья», empty state, gear → Settings
+    settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
+    members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection, PasswordForm
     children/           ChildrenSettings, ChildForm, color picker, useChildren()
     child-fields/       ChildFieldsSettings, useChildFields()
   shared/
@@ -40,7 +40,9 @@ web/src/
     load/               useLoad(): load / failed / retry for anything fetched once
     palette/            Child color palette (childColors.json)
     ui/                 theme.css (tokens), AppShell, Page (nav bar), Button, Link, Icon,
-                        EmptyState; TextField, GrammaticalGenderChoice (docs/design.md)
+                        EmptyState, Section, ListRow, Avatar, InputRow, SegmentedControl/Row,
+                        ActionSheet, SaveFailure, Spinner, auto-save hooks (autoSave.ts);
+                        TextField, GrammaticalGenderChoice (docs/design.md)
   test/                 renderApp, MSW server, fixtures, setup
 ```
 
@@ -188,6 +190,20 @@ Everything visual is specified in [`design.md`](../design.md). In short:
   `src/app/themeScript.test.ts` runs that script in jsdom.
 - Screens render as `Page` (large-title nav bar, 640px centred column, safe-area padding) inside
   `AppShell`.
+- Settings «Оформление» (`features/settings/AppearanceSection`, `themeChoice.ts`) writes the
+  choice to `localStorage` `theme` (removes it for «Авто») and dispatches
+  `new StorageEvent('storage', {key: 'theme'})`, so the theme script applies it at once.
+
+## Settings
+
+`/settings` is one `Page` of grouped `Section`s, back to «Семья»: «Взрослые» (a row per Member:
+initial, name, email, «(вы)» on the own one; not tappable), the Invites (M1 content), «Ваш
+профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved `SegmentedRow`; each change
+`PATCH`es only its own field and updates the session and the Members list), the password form (M1
+content), «Дети» and «Поля профиля» (M1 content), «Оформление», and the red «Выйти» row
+(`LogoutSection` from `features/auth`, confirmed with an `ActionSheet`; after logging out the
+guard shows `/login`). Auto-save and its failure footer are the `shared/ui` hooks
+(`useAutoSaveText`, `useAutoSaveChoice`, `SaveFailure`; see `design.md`).
 
 ## PWA
 

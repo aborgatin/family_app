@@ -1,29 +1,29 @@
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { LogoutSection } from '@/features/auth';
 import { ChildFieldsSettings } from '@/features/child-fields';
 import { ChildrenSettings } from '@/features/children';
 import { MembersSettings } from '@/features/members';
-import { SettingsSection } from './SettingsSection';
+import { Page, Section } from '@/shared/ui';
+import { AppearanceSection } from './AppearanceSection';
 
 /**
- * The Settings screen (`/settings`), «Настройки». Only the shell lives here; each section's
- * content comes from its own feature (`members`, `children`, `child-fields`).
+ * The Settings screen (`/settings`), «Настройки»: one page of grouped sections. Only the page
+ * lives here; each section's content comes from its own feature.
  */
 export function SettingsPage() {
   const { t } = useTranslation();
   return (
-    <main>
-      <Link to="/">{t('settings.backHome')}</Link>
-      <h1>{t('settings.title')}</h1>
-      <SettingsSection title={t('settings.members')}>
-        <MembersSettings />
-      </SettingsSection>
-      <SettingsSection title={t('settings.children')}>
+    <Page title={t('settings.title')} back={{ to: '/', title: t('app.name') }}>
+      <MembersSettings />
+      {/* Children and Child fields keep their M1 content until their own tickets (spec #35). */}
+      <Section title={t('settings.children')} rows={false}>
         <ChildrenSettings />
-      </SettingsSection>
-      <SettingsSection title={t('settings.childFields')}>
+      </Section>
+      <Section title={t('settings.childFields')} rows={false}>
         <ChildFieldsSettings />
-      </SettingsSection>
-    </main>
+      </Section>
+      <AppearanceSection />
+      <LogoutSection />
+    </Page>
   );
 }

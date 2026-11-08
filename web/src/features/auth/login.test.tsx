@@ -1,8 +1,15 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { anna, sessionHandler } from '@/test/fixtures';
+import {
+  anna,
+  childFieldsHandler,
+  childrenHandler,
+  invitesHandler,
+  membersHandler,
+  sessionHandler,
+} from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -181,13 +188,35 @@ describe('Login', () => {
 describe('Logout', () => {
   beforeEach(() => {
     document.cookie = 'XSRF-TOKEN=token-from-server';
+    server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
+    server.use(
+      membersHandler([anna]),
+      childrenHandler([]),
+      childFieldsHandler([]),
+      invitesHandler([]),
+    );
   });
   afterEach(() => {
     document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   });
 
-  it('logs out from the home screen and shows the login screen', async () => {
-    server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
+  /** Taps the red «Выйти» row in Settings and confirms in the action sheet. */
+  async function logOut(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+    const sheet = await screen.findByRole('dialog', {
+      name: 'Выйти из аккаунта на этом устройстве?',
+    });
+    await user.click(within(sheet).getByRole('button', { name: 'Выйти' }));
+  }
+
+  it('is not on the home screen', async () => {
+    renderApp('/');
+
+    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Выйти' })).not.toBeInTheDocument();
+  });
+
+  it('logs out from Settings after confirming, and shows the login screen', async () => {
     let csrf: string | null = null;
     server.use(
       http.post('/api/auth/logout', ({ request }) => {
@@ -197,30 +226,60 @@ describe('Logout', () => {
     );
     const user = userEvent.setup();
 
-    const app = renderApp('/');
-    await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+    const app = renderApp('/settings');
+    await logOut(user);
 
     expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
     expect(app.location()).toBe('/login');
     expect(csrf).toBe('token-from-server');
   });
 
-  it('after logging out and in again, opens the home screen', async () => {
-    server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
+  it('stays logged in when the action sheet is cancelled', async () => {
+    let calls = 0;
+    server.use(
+      http.post('/api/auth/logout', () => {
+        calls += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+
+    const app = renderApp('/settings');
+    await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+    await user.click(await screen.findByRole('button', { name: 'Отменить' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(calls).toBe(0);
+    expect(app.location()).toBe('/settings');
+  });
+
+  it('closes the action sheet with Esc', async () => {
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+    await screen.findByRole('dialog');
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  it('after logging out and in again, opens Settings again', async () => {
     server.use(http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 })));
     loginAnswers(() => HttpResponse.json(anna));
     const user = userEvent.setup();
 
-    const app = renderApp('/');
-    await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+    const app = renderApp('/settings');
+    await logOut(user);
     await logIn(user);
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
-    expect(app.location()).toBe('/');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Настройки' })).toBeInTheDocument();
+    expect(app.location()).toBe('/settings');
   });
 
   it('treats an already ended session as logged out', async () => {
-    server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
     server.use(
       http.post('/api/auth/logout', () =>
         HttpResponse.json({ code: 'auth.required', params: {} }, { status: 401 }),
@@ -228,25 +287,22 @@ describe('Logout', () => {
     );
     const user = userEvent.setup();
 
-    renderApp('/');
-    await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+    renderApp('/settings');
+    await logOut(user);
 
     expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
   });
 
   it('stays logged in and says so when the server cannot be reached', async () => {
-    server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
     server.use(http.post('/api/auth/logout', () => HttpResponse.error()));
     const user = userEvent.setup();
 
-    renderApp('/');
-    await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+    const app = renderApp('/settings');
+    await logOut(user);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
     );
-    await waitFor(() => {
-      expect(screen.getByText('Здесь пока пусто')).toBeInTheDocument();
-    });
+    expect(app.location()).toBe('/settings');
   });
 });

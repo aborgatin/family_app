@@ -1,4 +1,11 @@
-import { ChevronLeft, ChevronRight, House, Settings, type LucideIcon } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  House,
+  LoaderCircle,
+  Settings,
+  type LucideIcon,
+} from 'lucide-react';
 
 /**
  * The app's icons, by name. Features use only these names; `lucide-react` is imported nowhere
@@ -9,6 +16,7 @@ const ICONS = {
   chevron: ChevronRight,
   home: House,
   settings: Settings,
+  spinner: LoaderCircle,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

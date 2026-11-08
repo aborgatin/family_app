@@ -44,14 +44,21 @@
   },
   "logout": {
     "action": "Выйти",
+    "question": "Выйти из аккаунта на этом устройстве?",
     "inProgress": "Выходим…"
   },
   "settings": {
     "title": "Настройки",
-    "backHome": "На главную",
     "members": "Взрослые",
     "children": "Дети",
-    "childFields": "Поля профиля"
+    "childFields": "Поля профиля",
+    "appearance": {
+      "title": "Оформление",
+      "theme": "Тема",
+      "auto": "Авто",
+      "light": "Светлая",
+      "dark": "Тёмная"
+    }
   },
   "members": {
     "me": "{{name}} (вы)",
@@ -76,10 +83,7 @@
     },
     "profile": {
       "title": "Ваш профиль",
-      "displayName": "Имя",
-      "save": "Сохранить",
-      "saving": "Сохраняем…",
-      "saved": "Сохранено"
+      "displayName": "Имя"
     },
     "password": {
       "title": "Пароль",
@@ -189,5 +193,10 @@
       "colorInvalid": "Выберите цвет из списка",
       "invalid": "Проверьте это поле"
     }
+  },
+  "ui": {
+    "saving": "Сохраняем…",
+    "saveFailed": "Не удалось сохранить. Проверьте соединение.",
+    "cancel": "Отменить"
   }
 }
