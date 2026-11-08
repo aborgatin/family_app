@@ -22,7 +22,8 @@ describe('App', () => {
     renderApp('/');
 
     expect(await screen.findByRole('button', { name: 'Нет связи с сервером' })).toBeInTheDocument();
-    const retry = screen.getByRole('button', { name: 'Повторить' });
+    // The globe shows as the request fails, «Повторить» a render later, once AuthGuard has the error.
+    const retry = await screen.findByRole('button', { name: 'Повторить' });
     expect(retry).toBeEnabled();
 
     server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
