@@ -12,7 +12,9 @@ Code: tokens and base styles in `web/src/shared/ui/theme.css`, the theme script 
 Tailwind CSS v4 with the tokens as CSS variables (`@theme` in `theme.css`). Tailwind's own palette,
 type scale and fonts are switched off, so only these exist: a colour is `bg-<token>` /
 `text-<token>` / `border-<token>`, a size is `text-<size>`. Components never write `dark:`; the
-dark theme redefines the same variables.
+dark theme redefines the same variables. A colour written into code instead (a hex, `rgb(…)` or
+`color-mix(…)` in a class or style) is a lint error: it would have no dark value. A new colour is
+a new token here, with its light and dark values.
 
 | Token              | Light            | Dark             | Use                                        |
 | ------------------ | ---------------- | ---------------- | ------------------------------------------ |
@@ -35,10 +37,11 @@ dark theme redefines the same variables.
 | `swatch-edge`      | black at 12%     | white at 18%     | hairline around a colour dot (`Swatch`)    |
 | `check-shadow`     | black at 50%     | black at 50%     | keeps the white check on a colour readable |
 
-Contrast is WCAG AA (4.5:1 for text) on both `background` and `cell`; the figures are in the header
-of `theme.css`. Two deliberate departures from the iOS values: light destructive text is `#D70015`
-(iOS `#FF3B30` is 3.5:1 on white), and in dark the filled button is `#0071E3` (white on `#0A84FF`
-is 3.7:1); likewise the swipe «Удалить» in dark is `#E0262B` (white on `#FF453A` is 3.4:1). The accent is never used for decoration, so it doesn't compete with the Child colours.
+Contrast is WCAG AA (4.5:1 for text) in both themes, checked by `shared/ui/theme.test.ts` for every
+text/background pair; a new token that carries text or sits under it gets its pair there. Three
+deliberate departures from the iOS values: light destructive text is `#D70015` (iOS `#FF3B30` is
+3.5:1 on white), in dark the filled button is `#0071E3` (white on `#0A84FF` is 3.7:1), and the swipe
+«Удалить» in dark is `#E0262B` (white on `#FF453A` is 3.4:1). The accent is never used for decoration, so it doesn't compete with the Child colours.
 
 The app icon (`web/public/icon.svg`) is the house in `accent`; maskable and Apple icons are padded
 on white. Manifest `theme_color` / `background_color` are the light `background`.

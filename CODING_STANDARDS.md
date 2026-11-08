@@ -37,6 +37,9 @@ diff disables, weakens or bypasses one of them (config change, suppression comme
 | ESLint `no-restricted-imports` (per-folder rules) | `/web` | imports into another feature only via its `index.ts`; `shared → features → app` direction (M3) |
 | ESLint `no-restricted-syntax` (`u1/features-only-shared-ui`) | `/web/src/features` | raw `button`/`input`/`select`/`textarea`/`form`/`a` elements, `className`/`style` props and `createElement`/`cloneElement` (U1) |
 | ESLint `no-restricted-imports` (feature blocks) | `/web/src/features` | `@dnd-kit/*`, `lucide-react`, `@radix-ui/*` outside `shared/ui` (U1) |
+| ESLint `no-restricted-syntax` (`n1/glossary-names…`) | `/web/src` | glossary avoid-words as a word of an identifier: `user`, `adult`, `gender`, `task`, `completed`… (N1) |
+| ESLint `no-restricted-syntax` (`design/colour-tokens-only`) | `/web/src` | colours written into code (hex, `rgb(…)`, `color-mix(…)`…) instead of a `theme.css` token (docs/design.md) |
+| Vitest `shared/ui/theme.test.ts` | `/web` | WCAG AA (4.5:1) for every text/background token pair, light and dark |
 | `scripts/check-migrations.sh` | Flyway migrations | changed/deleted migrations merged to `main`, new versions not above `main`'s highest (S5) |
 
 ## Modules and boundaries
@@ -150,5 +153,8 @@ without it is a finding. Pure refactors and config changes are exempt.
 **N1 — Use GLOSSARY.md terms.** Class, table, column, endpoint, variable, i18n key and test names use
 the canonical English term (`Member`, `Child`, `Item`, `Done`, `Creator`, `Owner`, `Assignee`,
 `Repeat`, `ShoppingList`…). A term from a glossary entry's _Avoid_ line (`User`, `Task`, `StoreType`,
-`completed`, `recurrence`, `author`…) is a finding. A new domain concept with no glossary entry is a
-finding asking for a GLOSSARY.md update in the same PR.
+`completed`, `recurrence`, `author`…) is a finding. In `/web`, lint already rejects the avoid-words
+that have no other meaning in code (the list in `web/eslint.config.js`); review the rest (avoid-words
+that are also ordinary words, like section or entry, and anything in `/backend`), and a canonical
+term used for something else (a `ChildPage` that isn't the glossary's Child page). A new domain
+concept with no glossary entry is a finding asking for a GLOSSARY.md update in the same PR.

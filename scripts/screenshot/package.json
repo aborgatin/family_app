@@ -1,0 +1,14 @@
+{
+  "name": "family-app-screenshots",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "shoot": "./shoot.mjs"
+  },
+  "scripts": {
+    "shoot": "node shoot.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.65.0"
+  }
+}

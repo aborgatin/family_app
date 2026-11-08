@@ -41,6 +41,71 @@ const APP_FROM_BELOW = {
   message: 'Only app imports app: shared → features → app (M3).',
 };
 
+// ---------------------------------------------------------------------------
+// N1 — names use GLOSSARY.md terms. The words below are from glossary _Avoid_ lines and have no
+// other meaning in this code; a name with one of them as a camelCase / snake_case word (`user`,
+// `UserRow`, `INVITATION_URL`, plural too) is an error. Avoid-words that are also ordinary UI or
+// sync words (section, mode, entry, store, reset, history…) stay a review rule (CODING_STANDARDS
+// N1), as does using a canonical term for the wrong thing.
+// ---------------------------------------------------------------------------
+
+const GLOSSARY_AVOID = [
+  // Tests keep Testing Library's `userEvent` / `const user = userEvent.setup()`: the person at the
+  // keyboard, not a Member.
+  { word: 'user', use: 'Member', inTests: false },
+  { word: 'adult', use: 'Member' },
+  { word: 'tenant', use: 'Family' },
+  { word: 'household', use: 'Family' },
+  // `grammaticalGender` is the canonical term itself.
+  { word: 'gender', use: 'GrammaticalGender', unlessAfter: 'rammatical' },
+  { word: 'sex', use: 'GrammaticalGender' },
+  { word: 'kid', use: 'Child' },
+  { word: 'invitation', use: 'Invite' },
+  { word: 'referral', use: 'Invite' },
+  { word: 'forgot', use: 'PasswordReset' },
+  { word: 'recovery', use: 'PasswordReset' },
+  { word: 'task', use: 'Item (or TodoList)' },
+  { word: 'checklist', use: 'TodoList' },
+  { word: 'wishlist', use: 'WishList' },
+  { word: 'recurrence', use: 'Repeat' },
+  { word: 'completed', use: 'Done' },
+  { word: 'author', use: 'Creator (or Owner)' },
+];
+
+/** A regex matching `word` as one word of an identifier: camelCase, PascalCase or SNAKE_CASE. */
+function identifierWord({ word, unlessAfter }) {
+  const lower = unlessAfter ? `(?<!${unlessAfter})` : '';
+  const upper = unlessAfter ? `(?<!${unlessAfter.toUpperCase()}_)` : '';
+  const cap = word[0].toUpperCase() + word.slice(1);
+  const end = '(?:e?s)?(?=[A-Z0-9_]|$)';
+  return [
+    `(?:^|_)${word}${end}`,
+    `(?:^|(?<=[a-z0-9_]))${lower}${cap}${end}`,
+    `(?:^|_)${upper}${word.toUpperCase()}(?:E?S)?(?=_|$)`,
+  ].join('|');
+}
+
+const glossaryNames = (entries) =>
+  entries.map((entry) => ({
+    selector: `Identifier[name=/${identifierWord(entry)}/]`,
+    message: `Name it with the glossary term ${entry.use}, not "${entry.word}" (GLOSSARY.md, N1).`,
+  }));
+const GLOSSARY_NAMES = glossaryNames(GLOSSARY_AVOID);
+const GLOSSARY_NAMES_IN_TESTS = glossaryNames(GLOSSARY_AVOID.filter((e) => e.inTests !== false));
+
+// Design tokens — every colour is a token in shared/ui/theme.css (docs/design.md "Tokens"). A
+// colour written into code (a Tailwind arbitrary value like `shadow-[0_0_1px_rgb(0_0_0/0.5)]`, a
+// style object) has no dark-theme value. Tests are exempt.
+// The function names may follow `_` (Tailwind's space) or `[`, so no `\b` before them.
+const RAW_COLOUR = String.raw`#[0-9a-fA-F]{3,8}(?![0-9a-zA-Z])|(?<![a-zA-Z-])(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color-mix)\(`;
+const RAW_COLOURS = [
+  {
+    selector: `Literal[value=/${RAW_COLOUR}/], TemplateElement[value.raw=/${RAW_COLOUR}/]`,
+    message:
+      'Use a colour token from shared/ui/theme.css (with its dark value), not a colour written in code (docs/design.md).',
+  },
+];
+
 /**
  * Builds one config block per file depth under `root`, each banning relative imports that would
  * climb out of `root`, plus the layer's own `groups`.
@@ -117,6 +182,20 @@ export default defineConfig([
     },
   },
 
+  // no-restricted-syntax blocks replace each other per file, like no-restricted-imports, so each
+  // later block repeats the selectors of the earlier ones that also cover its files.
+  {
+    name: 'n1/glossary-names-in-tests',
+    files: TEST_FILES,
+    rules: { 'no-restricted-syntax': ['error', ...GLOSSARY_NAMES_IN_TESTS] },
+  },
+  {
+    name: 'design/colour-tokens-only',
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: TEST_FILES,
+    rules: { 'no-restricted-syntax': ['error', ...GLOSSARY_NAMES, ...RAW_COLOURS] },
+  },
+
   // U1 — screens are built only from shared/ui (ADR-0008, docs/design.md): no raw form elements or
   // links, no className / style in features, in JSX or through createElement / cloneElement (the
   // only way a .ts file can draw). A separate rule from the M3 blocks below, since
@@ -128,6 +207,8 @@ export default defineConfig([
     rules: {
       'no-restricted-syntax': [
         'error',
+        ...GLOSSARY_NAMES,
+        ...RAW_COLOURS,
         {
           selector: 'JSXOpeningElement[name.name=/^(button|input|select|textarea|form|a)$/]',
           message:
