@@ -133,11 +133,13 @@ Secrets only in the server's `.env`, never in git.
 - [ ] `List`/`Item` CRUD API with versions and soft deletes.
 - [ ] Sync endpoints: push outbox ops, pull changes since version N.
 - [ ] Client local store (Dexie), outbox, offline handling, SSE live refresh.
+- [ ] Minimal generic List screen to exercise sync on real phones: «Списки» on Home, «Новый список» (name, kind, Visibility), and a List screen to add Items, edit their text, mark them Done and delete them. M3 and M4 build their kind-specific screens on it. Children and Child fields move onto the local store + outbox too.
 - [ ] Faster CI: on a pull request, run the `backend` job only when `backend/` changed and the `web` job only when `web/` changed (plus the workflow file itself). Skip per job (e.g. a changes job with `dorny/paths-filter`, then `if:`), not with workflow-level `paths:`: once `main` requires these checks (#17), a skipped workflow leaves them pending forever, while a skipped job counts as passed. The `image` job still runs whenever either changed, and every job still runs on pushes to `main`.
 
 **M3 — Shopping**
 - [ ] Multiple shopping lists, ordered categories per list, bought section + clear.
 - [ ] Autocomplete & auto-categorisation from `ItemHistory`.
+- [ ] Default Shopping lists with their Categories, created at first-Member registration (that Member is Owner, Visibility Shared) ([ADR-0005](adr/0005-configuration-vs-code.md)).
 
 **M4 — Todos & children**
 - [ ] Private/shared todo lists, due dates, assignee, repeat rules.
