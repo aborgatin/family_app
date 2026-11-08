@@ -1,7 +1,7 @@
-import { useState, type SubmitEvent } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asApiError, errorMessage, type ErrorMessage, fieldErrorMessageKey } from '@/shared/api';
-import { TextField } from '@/shared/ui';
+import { Button, CenteredPage, Form, GroupedSection, InputRow, useFooterLines } from '@/shared/ui';
 import { login } from './authApi';
 import { useSession } from './session';
 
@@ -11,6 +11,7 @@ import { useSession } from './session';
  */
 export function LoginPage() {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const { loggedIn } = useSession();
 
   const [email, setEmail] = useState('');
@@ -43,42 +44,39 @@ export function LoginPage() {
     }
   }
 
-  function onSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void logIn();
-  }
-
   const required = t(fieldErrorMessageKey('required'));
 
   return (
-    <main>
-      <h1>{t('login.title')}</h1>
-      <form noValidate onSubmit={onSubmit}>
-        <TextField
-          label={t('login.email')}
-          type="email"
-          autoComplete="username"
-          value={email}
-          onChange={(event) => {
-            setEmail(event.target.value);
-          }}
-          error={missing.email ? required : undefined}
-        />
-        <TextField
-          label={t('login.password')}
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => {
-            setPassword(event.target.value);
-          }}
-          error={missing.password ? required : undefined}
-        />
-        {formError !== undefined && <p role="alert">{t(formError.key, formError.values)}</p>}
-        <button type="submit" disabled={submitting}>
+    <CenteredPage title={t('login.title')}>
+      <Form onSubmit={() => void logIn()}>
+        <GroupedSection
+          messages={[
+            missing.email && { row: 'email', text: required, tone: 'error' },
+            missing.password && { row: 'password', text: required, tone: 'error' },
+            lines.failure(formError),
+          ]}
+        >
+          <InputRow
+            label={t('login.email')}
+            name="email"
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={setEmail}
+          />
+          <InputRow
+            label={t('login.password')}
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={setPassword}
+          />
+        </GroupedSection>
+        <Button variant="primary" type="submit" disabled={submitting}>
           {submitting ? t('login.submitting') : t('login.submit')}
-        </button>
-      </form>
-    </main>
+        </Button>
+      </Form>
+    </CenteredPage>
   );
 }

@@ -1,25 +1,20 @@
-import { useState, type SubmitEvent } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ParseKeys } from 'i18next';
-import { ApiError, asApiError, errorMessageKey, fieldErrorMessageKey } from '@/shared/api';
-import { GrammaticalGenderChoice, TextField, type GrammaticalGender } from '@/shared/ui';
-import type { Registration } from './authApi';
+import {
+  ApiError,
+  asApiError,
+  errorMessageKey,
+  failureMessages,
+  fieldMessageKey,
+  type ErrorMessage,
+  type FieldMessages,
+} from '@/shared/api';
+import { Button, Form, GroupedSection, InputRow, useFooterLines } from '@/shared/ui';
+import type { GrammaticalGender, Registration } from './authApi';
+import { GrammaticalGenderRow } from './GrammaticalGenderRow';
 
 type Field = 'email' | 'password' | 'displayName' | 'grammaticalGender';
-type FieldMessages = Partial<Record<Field, ParseKeys>>;
-
 const FIELDS: readonly Field[] = ['email', 'password', 'displayName', 'grammaticalGender'];
-
-function isField(field: string): field is Field {
-  return (FIELDS as readonly string[]).includes(field);
-}
-
-/** «required» on the choice reads «Выберите вариант», not «Заполните это поле». */
-function messageFor(field: Field, code: string): ParseKeys {
-  return field === 'grammaticalGender' && code === 'required'
-    ? 'errors.field.choiceRequired'
-    : fieldErrorMessageKey(code);
-}
 
 interface RegistrationFormProps {
   /** Already translated. */
@@ -33,9 +28,9 @@ interface RegistrationFormProps {
 }
 
 /**
- * The registration form shared by the first Member (`/setup`) and an invited adult
- * (`/invite/:token`): email, password, display name and the required «Пол» («Мужской» / «Женский»)
- * choice. Server field errors show next to their fields; `member.email_taken` next to the email.
+ * The registration form shared by the first Member (`/setup`) and someone with an
+ * Invite (`/invite/:token`): email, password, display name and the required «Пол» («Мужской» / «Женский»)
+ * choice. Field errors show in the group footer, each describing its row; `member.email_taken` next to the email.
  */
 export function RegistrationForm({
   submitLabel,
@@ -44,22 +39,23 @@ export function RegistrationForm({
   handled,
 }: RegistrationFormProps) {
   const { t } = useTranslation();
+  const lines = useFooterLines();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [grammaticalGender, setGrammaticalGender] = useState<GrammaticalGender>();
-  const [fieldErrors, setFieldErrors] = useState<FieldMessages>({});
-  const [formError, setFormError] = useState<ParseKeys>();
+  const [fieldErrors, setFieldErrors] = useState<FieldMessages<Field>>({});
+  const [formError, setFormError] = useState<ErrorMessage>();
   const [submitting, setSubmitting] = useState(false);
 
   async function submit() {
-    const missing: FieldMessages = {};
-    if (email.trim() === '') missing.email = messageFor('email', 'required');
-    if (password === '') missing.password = messageFor('password', 'required');
-    if (displayName.trim() === '') missing.displayName = messageFor('displayName', 'required');
+    const missing: FieldMessages<Field> = {};
+    if (email.trim() === '') missing.email = fieldMessageKey('required');
+    if (password === '') missing.password = fieldMessageKey('required');
+    if (displayName.trim() === '') missing.displayName = fieldMessageKey('required');
     if (grammaticalGender === undefined) {
-      missing.grammaticalGender = messageFor('grammaticalGender', 'required');
+      missing.grammaticalGender = fieldMessageKey('required', true);
     }
     setFieldErrors(missing);
     setFormError(undefined);
@@ -76,70 +72,60 @@ export function RegistrationForm({
       if (handled?.(apiError) === true) {
         return;
       }
-      const fromServer: FieldMessages = {};
       if (apiError.code === 'member.email_taken') {
-        fromServer.email = errorMessageKey(apiError.code);
+        setFieldErrors({ email: errorMessageKey(apiError.code) });
+        return;
       }
-      for (const { field, code } of apiError.fieldErrors) {
-        if (isField(field)) fromServer[field] = messageFor(field, code);
-      }
-      setFieldErrors(fromServer);
-      if (Object.keys(fromServer).length === 0) {
-        setFormError(errorMessageKey(apiError.code));
-      }
+      const { fieldMessages, formMessage } = failureMessages(apiError, FIELDS, [
+        'grammaticalGender',
+      ]);
+      setFieldErrors(fieldMessages);
+      setFormError(formMessage);
     }
   }
 
-  function onSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void submit();
-  }
-
-  const message = (field: Field) => {
-    const key = fieldErrors[field];
-    return key === undefined ? undefined : t(key);
-  };
-
   return (
-    <form noValidate onSubmit={onSubmit}>
-      <TextField
-        label={t('setup.email')}
-        type="email"
-        autoComplete="email"
-        value={email}
-        onChange={(event) => {
-          setEmail(event.target.value);
-        }}
-        error={message('email')}
-      />
-      <TextField
-        label={t('setup.password')}
-        type="password"
-        autoComplete="new-password"
-        value={password}
-        onChange={(event) => {
-          setPassword(event.target.value);
-        }}
-        error={message('password')}
-      />
-      <TextField
-        label={t('setup.displayName')}
-        autoComplete="name"
-        value={displayName}
-        onChange={(event) => {
-          setDisplayName(event.target.value);
-        }}
-        error={message('displayName')}
-      />
-      <GrammaticalGenderChoice
-        value={grammaticalGender}
-        onChange={setGrammaticalGender}
-        error={message('grammaticalGender')}
-      />
-      {formError !== undefined && <p role="alert">{t(formError)}</p>}
-      <button type="submit" disabled={submitting}>
+    <Form onSubmit={() => void submit()}>
+      <GroupedSection
+        messages={lines.form({
+          fields: FIELDS,
+          fieldErrors,
+          formError,
+          hints: { password: t('setup.passwordHint') },
+        })}
+      >
+        <InputRow
+          label={t('setup.email')}
+          name="email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={setEmail}
+        />
+        <InputRow
+          label={t('setup.password')}
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          value={password}
+          onChange={setPassword}
+        />
+        <InputRow
+          label={t('setup.displayName')}
+          name="displayName"
+          autoComplete="name"
+          value={displayName}
+          onChange={setDisplayName}
+        />
+        <GrammaticalGenderRow
+          name="grammaticalGender"
+          value={grammaticalGender}
+          onChange={setGrammaticalGender}
+        />
+      </GroupedSection>
+      <Button variant="primary" type="submit" disabled={submitting}>
         {submitting ? submittingLabel : submitLabel}
-      </button>
-    </form>
+      </Button>
+    </Form>
   );
 }

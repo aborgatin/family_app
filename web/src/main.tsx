@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { AppProviders } from '@/app/AppProviders';
 import { routes } from '@/app/routes';
+import '@/shared/ui/theme.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

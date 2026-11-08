@@ -1,15 +1,22 @@
-import { useState, type SubmitEvent } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useParams } from 'react-router';
-import type { ParseKeys } from 'i18next';
-import { asApiError, errorMessageKey, fieldErrorMessageKey } from '@/shared/api';
-import { TextField } from '@/shared/ui';
+import { useNavigate, useParams } from 'react-router';
+import {
+  asApiError,
+  failureMessages,
+  fieldMessageKey,
+  type ErrorMessage,
+  type FieldMessages,
+} from '@/shared/api';
+import { Button, Form, GroupedSection, InputRow, useFooterLines } from '@/shared/ui';
 import { completePasswordReset, fetchPasswordReset } from './authApi';
-import { LOGIN_PATH } from './AuthGuard';
+import { LinkScreen } from './LinkScreen';
 import { useSession } from './session';
 import { useLinkCheck } from './useLinkCheck';
 
 /** The codes that mean the link itself doesn't work; the form makes no sense then. */
+const FIELDS = ['newPassword'] as const;
+
 const LINK_ERRORS: ReadonlySet<string> = new Set([
   'password_reset.not_found',
   'password_reset.expired',
@@ -23,23 +30,24 @@ const LINK_ERRORS: ReadonlySet<string> = new Set([
  */
 export function ResetPasswordPage() {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const navigate = useNavigate();
   const { token = '' } = useParams();
   const { loggedIn } = useSession();
 
   const { link, retry, broke } = useLinkCheck(() => fetchPasswordReset(token), token, LINK_ERRORS);
   const [password, setPassword] = useState('');
-  const [fieldError, setFieldError] = useState<ParseKeys>();
-  const [formError, setFormError] = useState<ParseKeys>();
+  const [fieldErrors, setFieldErrors] = useState<FieldMessages<'newPassword'>>({});
+  const [formError, setFormError] = useState<ErrorMessage>();
   const [submitting, setSubmitting] = useState(false);
 
   async function save() {
     setFormError(undefined);
     if (password === '') {
-      setFieldError(fieldErrorMessageKey('required'));
+      setFieldErrors({ newPassword: fieldMessageKey('required') });
       return;
     }
-    setFieldError(undefined);
+    setFieldErrors({});
 
     setSubmitting(true);
     try {
@@ -49,65 +57,42 @@ export function ResetPasswordPage() {
       setSubmitting(false);
       const apiError = asApiError(error);
       if (broke(apiError.code)) return;
-      const passwordError = apiError.fieldErrors.find(({ field }) => field === 'newPassword');
-      if (passwordError === undefined) {
-        setFormError(errorMessageKey(apiError.code));
-      } else {
-        setFieldError(fieldErrorMessageKey(passwordError.code));
-      }
+      const { fieldMessages, formMessage } = failureMessages(apiError, FIELDS);
+      setFieldErrors(fieldMessages);
+      setFormError(formMessage);
     }
   }
 
-  function onSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void save();
-  }
-
-  if (link.status === 'checking') {
-    return <p role="status">{t('common.loading')}</p>;
-  }
-
   return (
-    <main>
-      <h1>{t('resetPassword.title')}</h1>
-      {link.status === 'broken' && (
-        <>
-          <p role="alert">{t(link.message)}</p>
-          <p>
-            <Link to={LOGIN_PATH}>{t('resetPassword.toLogin')}</Link>
-          </p>
-        </>
-      )}
-      {link.status === 'unreachable' && (
-        <>
-          <p role="alert">{t(link.message)}</p>
-          <button type="button" onClick={retry}>
-            {t('common.retry')}
-          </button>
-        </>
-      )}
-      {link.status === 'working' && (
-        <>
-          <p>{t('resetPassword.intro')}</p>
-          <form noValidate onSubmit={onSubmit}>
-            <TextField
-              label={t('resetPassword.newPassword')}
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-              }}
-              error={fieldError === undefined ? undefined : t(fieldError)}
-            />
-            <p>{t('resetPassword.passwordHint')}</p>
-            {formError !== undefined && <p role="alert">{t(formError)}</p>}
-            <button type="submit" disabled={submitting}>
-              {submitting ? t('resetPassword.submitting') : t('resetPassword.submit')}
-            </button>
-          </form>
-        </>
-      )}
-    </main>
+    <LinkScreen
+      title={t('resetPassword.title')}
+      intro={t('resetPassword.intro')}
+      link={link}
+      retry={retry}
+      toLogin={t('resetPassword.toLogin')}
+    >
+      <Form onSubmit={() => void save()}>
+        <GroupedSection
+          messages={lines.form({
+            fields: FIELDS,
+            fieldErrors,
+            formError,
+            hints: { newPassword: t('resetPassword.passwordHint') },
+          })}
+        >
+          <InputRow
+            label={t('resetPassword.newPassword')}
+            name="newPassword"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={setPassword}
+          />
+        </GroupedSection>
+        <Button variant="primary" type="submit" disabled={submitting}>
+          {submitting ? t('resetPassword.submitting') : t('resetPassword.submit')}
+        </Button>
+      </Form>
+    </LinkScreen>
   );
 }

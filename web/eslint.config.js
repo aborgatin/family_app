@@ -32,6 +32,10 @@ const FEATURES_FROM_SHARED = {
   group: ['@/features', '@/features/**'],
   message: 'shared must not import features: shared → features → app (M3).',
 };
+const UI_LIBRARIES = {
+  group: ['@dnd-kit/*', 'lucide-react', '@radix-ui/*'],
+  message: 'Only shared/ui uses the UI libraries; build screens from `@/shared/ui` (ADR-0008).',
+};
 const APP_FROM_BELOW = {
   group: ['@/app', '@/app/**'],
   message: 'Only app imports app: shared → features → app (M3).',
@@ -113,12 +117,47 @@ export default defineConfig([
     },
   },
 
+  // U1 — screens are built only from shared/ui (ADR-0008, docs/design.md): no raw form elements or
+  // links, no className / style in features, in JSX or through createElement / cloneElement (the
+  // only way a .ts file can draw). A separate rule from the M3 blocks below, since
+  // no-restricted-imports blocks replace each other per file. Tests are exempt.
+  {
+    name: 'u1/features-only-shared-ui',
+    files: ['src/features/**/*.{ts,tsx}'],
+    ignores: TEST_FILES,
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'JSXOpeningElement[name.name=/^(button|input|select|textarea|form|a)$/]',
+          message:
+            'Build screens only from `@/shared/ui` (Button, Link, InputRow, Form, …); add a new look there first (U1).',
+        },
+        {
+          selector: 'JSXAttribute[name.name=/^(className|style)$/]',
+          message:
+            'No className or style in features: styling lives in `@/shared/ui` components and their props (U1).',
+        },
+        {
+          selector:
+            'CallExpression[callee.name=/^(createElement|cloneElement)$/], CallExpression[callee.property.name=/^(createElement|cloneElement)$/]',
+          message:
+            'No createElement / cloneElement in features: render `@/shared/ui` components in JSX (U1).',
+        },
+      ],
+    },
+  },
+
   ...layerBlocks('src/shared', 'shared', [
     FEATURES_FROM_SHARED,
     APP_FROM_BELOW,
     DEEP_FEATURE_IMPORT,
   ]),
-  ...layerBlocks('src/features/*', 'a feature folder', [APP_FROM_BELOW, DEEP_FEATURE_IMPORT]),
+  ...layerBlocks('src/features/*', 'a feature folder', [
+    APP_FROM_BELOW,
+    DEEP_FEATURE_IMPORT,
+    UI_LIBRARIES,
+  ]),
   ...layerBlocks('src/app', 'app', [DEEP_FEATURE_IMPORT]),
 
   {

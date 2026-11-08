@@ -11,8 +11,6 @@ import {
 
 export type ChildFieldsLoad = Load<ChildField[]>;
 
-export type Direction = 'up' | 'down';
-
 /** Display order: by position, ties broken by id (the same rule as the server). */
 function inOrder(fields: ChildField[]): ChildField[] {
   return [...fields].sort((a, b) =>
@@ -21,26 +19,29 @@ function inOrder(fields: ChildField[]): ChildField[] {
 }
 
 /**
- * The position a field gets when moved one step: the midpoint between its new neighbours, or one
- * past the end neighbour at the top or bottom. Only the moved field is written, so a reorder is a
- * single-record change (Last write wins). Returns `undefined` when it can't move that way.
+ * The position a field gets when moved to index `to` of the list (counted after the move): the
+ * midpoint between its new neighbours, or one past the end neighbour at the top or bottom. Only
+ * the moved field is written, so a reorder is a single-record change (Last write wins). Returns
+ * `undefined` when it doesn't move.
  */
 export function positionAfterMove(
   fields: readonly ChildField[],
   id: string,
-  direction: Direction,
+  to: number,
 ): number | undefined {
   const index = fields.findIndex((f) => f.id === id);
-  if (index === -1) return undefined;
-  const [before, after] =
-    direction === 'up'
-      ? [fields[index - 2], fields[index - 1]]
-      : [fields[index + 1], fields[index + 2]];
-  if (direction === 'up' && after === undefined) return undefined;
-  if (direction === 'down' && before === undefined) return undefined;
+  if (index === -1 || to === index || to < 0 || to >= fields.length) return undefined;
+  const others = fields.filter((f) => f.id !== id);
+  const before = others[to - 1];
+  const after = others[to];
   if (before === undefined) return (after as ChildField).position - 1;
   if (after === undefined) return before.position + 1;
   return (before.position + after.position) / 2;
+}
+
+/** A new Child field's id, made on the device (S3) once when its sheet opens. */
+export function newChildFieldId(): string {
+  return crypto.randomUUID();
 }
 
 /**
@@ -62,17 +63,20 @@ export function useChildFields() {
   );
 
   async function write(id: string, change: Parameters<typeof putChildField>[1]) {
+    let field: ChildField;
     try {
-      saved(await putChildField(id, change));
+      field = await putChildField(id, change);
     } catch (error: unknown) {
       throw asApiError(error);
     }
+    saved(field);
+    return field;
   }
 
-  /** Adds a field at the end. The device makes its id (S3). */
-  async function add(name: string, valueType: ValueType) {
+  /** Adds a field at the end, with an id from `newChildFieldId()`. */
+  async function add(id: string, name: string, valueType: ValueType) {
     const last = fields.at(-1);
-    await write(crypto.randomUUID(), {
+    return write(id, {
       name,
       valueType,
       position: last === undefined ? 1 : last.position + 1,
@@ -80,11 +84,12 @@ export function useChildFields() {
   }
 
   async function rename(field: ChildField, name: string) {
-    await write(field.id, { name, valueType: field.valueType, position: field.position });
+    return write(field.id, { name, valueType: field.valueType, position: field.position });
   }
 
-  async function move(field: ChildField, direction: Direction) {
-    const position = positionAfterMove(fields, field.id, direction);
+  /** Moves a field to index `to` of the list. */
+  async function move(field: ChildField, to: number) {
+    const position = positionAfterMove(fields, field.id, to);
     if (position === undefined) return;
     await write(field.id, { name: field.name, valueType: field.valueType, position });
   }

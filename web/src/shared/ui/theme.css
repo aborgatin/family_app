@@ -1,0 +1,149 @@
+/*
+ * Design tokens and base styles (docs/design.md, ADR-0008). Every colour, font size and font in
+ * the app is a token here; Tailwind's default palette and type scale are switched off, so a
+ * utility like `bg-red-500` or `text-xl` doesn't exist.
+ *
+ * Theme: the inline script in index.html sets `data-theme="light|dark"` on <html> before React
+ * starts (stored per-device choice, or the system's when «Авто»). Light values are the defaults
+ * below; the dark block overrides the same variables, so components never use `dark:`.
+ *
+ * Contrast (WCAG AA, 4.5:1 for text): accent #0062cc on #f2f2f7 5.2, on white 5.8; #0a84ff on
+ * #1c1c1e 4.7. White on accent-fill: #0062cc 5.8, #0071e3 4.7 (#0a84ff would be 3.7, so filled
+ * buttons in dark use the darker fill). Secondary label #6d6d72 on #f2f2f7 4.6, #98989f on #1c1c1e
+ * 5.9. Destructive text #d70015 on #f2f2f7 4.8 (iOS #ff3b30 would be 3.5), #ff453a on #1c1c1e 5.0.
+ * White on destructive-fill: #d70015 5.4, #e0262b 4.7 (#ff453a would be 3.4).
+ */
+@import 'tailwindcss';
+
+@theme {
+  --color-*: initial;
+  /* Only things you can act on. */
+  --color-accent: #0062cc;
+  /* Background of filled (primary) buttons; text on it is on-accent. */
+  --color-accent-fill: #0062cc;
+  --color-on-accent: #ffffff;
+  /* iOS systemGroupedBackground and the cells (secondarySystemGroupedBackground) on it. */
+  --color-background: #f2f2f7;
+  --color-cell: #ffffff;
+  --color-cell-pressed: #d1d1d6;
+  --color-label: #000000;
+  --color-secondary-label: #6d6d72;
+  /* Chevrons and other decoration that isn't text. */
+  --color-tertiary-label: #c4c4c7;
+  --color-separator: #c6c6c8;
+  /* Segmented control track, search fields. */
+  --color-fill: #e3e3e8;
+  /* The selected segment of a segmented control, on fill. */
+  --color-segment: #ffffff;
+  /* The nav bar once content scrolls under it (with a backdrop blur). */
+  --color-bar: rgb(242 242 247 / 0.8);
+  --color-destructive: #d70015;
+  /* Background of a filled destructive button (swipe «Удалить»); text on it is on-accent. */
+  --color-destructive-fill: #d70015;
+  /* The dimmed page behind an action sheet or dialog. */
+  --color-overlay: rgb(0 0 0 / 0.35);
+  /* The hairline around a colour dot (Swatch), so a light colour shows on a cell. */
+  --color-swatch-edge: rgb(0 0 0 / 0.12);
+  /* The shadow that keeps the white check readable on a light colour circle (ColorChoice). */
+  --color-check-shadow: rgb(0 0 0 / 0.5);
+
+  --font-*: initial;
+  --font-sans:
+    -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+
+  /* The iOS type scale (default "Large" size) in rem: 1rem = 16px. */
+  --text-*: initial;
+  --text-large-title: 2.125rem; /* 34 */
+  --text-large-title--line-height: 2.5625rem;
+  --text-large-title--letter-spacing: 0.0234rem;
+  --text-title3: 1.25rem; /* 20 */
+  --text-title3--line-height: 1.5625rem;
+  --text-body: 1.0625rem; /* 17; also headline, semibold */
+  --text-body--line-height: 1.375rem;
+  --text-body--letter-spacing: -0.0255rem;
+  --text-subhead: 0.9375rem; /* 15 */
+  --text-subhead--line-height: 1.25rem;
+  --text-footnote: 0.8125rem; /* 13 */
+  --text-footnote--line-height: 1.125rem;
+  --text-caption: 0.75rem; /* 12 */
+  --text-caption--line-height: 1rem;
+
+  /* An action sheet sliding up from the bottom edge (off with reduced motion). */
+  --animate-sheet-up: sheet-up 0.25s ease-out;
+  @keyframes sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+  }
+}
+
+/*
+ * Padding that keeps clear of the notch, the rounded corners and the home indicator
+ * (env(safe-area-inset-*)): `px-safe-4` is the inset on each side but at least 1rem (spacing
+ * 4); `pt-safe-8` / `pb-safe-8` are the top / bottom inset plus 2rem; `-0` is the inset alone.
+ */
+@utility px-safe-* {
+  padding-left: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-left));
+  padding-right: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-right));
+}
+@utility pt-safe-* {
+  padding-top: calc(env(safe-area-inset-top) + var(--spacing) * --value(integer));
+}
+@utility pb-safe-* {
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--spacing) * --value(integer));
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --color-accent: #0a84ff;
+    --color-accent-fill: #0071e3;
+    --color-on-accent: #ffffff;
+    --color-background: #000000;
+    --color-cell: #1c1c1e;
+    --color-cell-pressed: #2c2c2e;
+    --color-label: #ffffff;
+    --color-secondary-label: #98989f;
+    --color-tertiary-label: #5a5a5f;
+    --color-separator: #38383a;
+    --color-fill: #2c2c2e;
+    --color-segment: #636366;
+    --color-bar: rgb(22 22 23 / 0.8);
+    --color-destructive: #ff453a;
+    --color-destructive-fill: #e0262b;
+    --color-overlay: rgb(0 0 0 / 0.55);
+    --color-swatch-edge: rgb(255 255 255 / 0.18);
+    --color-check-shadow: rgb(0 0 0 / 0.5);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-label);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* No slide between screens; with reduced motion, nothing animates at all. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

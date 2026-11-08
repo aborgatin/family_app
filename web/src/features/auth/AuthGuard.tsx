@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { errorMessageKey } from '@/shared/api';
 import { useLoad } from '@/shared/load';
+import { Button, StatusScreen } from '@/shared/ui';
 import { fetchSession, type Member, type Session } from './authApi';
 import { SessionContext, type SessionState } from './session';
 
@@ -36,7 +37,7 @@ function intendedPath(state: unknown): string {
  * Route guard for the whole app. Asks `GET /api/auth/session` once at start, then sends the user
  * where the answer says: to `/setup` while the installation has no Member yet, away from it after;
  * to `/login` while this device is logged out, remembering the intended path, and back to that
- * path once logged in. Password reset and Invite links open whether or not this device is logged
+ * path once logged in (but not to the screen this device logged out from: then Home). Password reset and Invite links open whether or not this device is logged
  * in.
  */
 export function AuthGuard() {
@@ -44,6 +45,8 @@ export function AuthGuard() {
   const location = useLocation();
   const { pathname } = location;
   const { load, retry, update } = useLoad(fetchSession);
+  // Logging out on purpose isn't "sent to login from here": logging in again opens Home.
+  const [loggedOutHere, setLoggedOutHere] = useState(false);
 
   const state = useMemo<SessionState | null>(
     () =>
@@ -51,12 +54,14 @@ export function AuthGuard() {
         ? {
             session: load.value,
             loggedIn: (member: Member) => {
+              setLoggedOutHere(false);
               update((): Session => ({ bootstrapRequired: false, member }));
             },
             memberChanged: (member: Member) => {
               update((session) => ({ ...session, member }));
             },
             loggedOut: () => {
+              setLoggedOutHere(true);
               update((): Session => ({ bootstrapRequired: false, member: null }));
             },
           }
@@ -65,17 +70,14 @@ export function AuthGuard() {
   );
 
   if (load.status === 'loading') {
-    return <p role="status">{t('common.loading')}</p>;
+    return <StatusScreen role="status">{t('common.loading')}</StatusScreen>;
   }
   if (load.status === 'failed' || state === null) {
     const code = load.status === 'failed' ? load.error.code : 'unknown';
     return (
-      <main>
-        <p role="alert">{t(errorMessageKey(code))}</p>
-        <button type="button" onClick={retry}>
-          {t('common.retry')}
-        </button>
-      </main>
+      <StatusScreen role="alert" action={<Button onClick={retry}>{t('common.retry')}</Button>}>
+        {t(errorMessageKey(code))}
+      </StatusScreen>
     );
   }
 
@@ -89,7 +91,9 @@ export function AuthGuard() {
     return <Navigate to="/" replace />;
   }
   if (!bootstrapRequired && member === null && !onLogin && !isPublic(pathname)) {
-    const from: LoginState = { from: pathname + location.search + location.hash };
+    const from: LoginState | undefined = loggedOutHere
+      ? undefined
+      : { from: pathname + location.search + location.hash };
     return <Navigate to={LOGIN_PATH} state={from} replace />;
   }
   if (member !== null && onLogin) {

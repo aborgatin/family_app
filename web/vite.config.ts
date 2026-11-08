@@ -1,6 +1,7 @@
 /// <reference types="vitest/config" />
 import { fileURLToPath } from 'node:url';
 import { minimal2023Preset, type Preset } from '@vite-pwa/assets-generator/config';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import { VitePWA, type VitePWAOptions } from 'vite-plugin-pwa';
@@ -15,18 +16,21 @@ const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:8080';
 
 // The installed app's name comes from the ru i18n file, so the manifest and index.html follow I2.
 const APP_NAME = ru.app.name;
-// The calm accent of the icon, used for the browser and status bar.
-const THEME_COLOR = '#2f7f73';
-// Warm off-white behind the splash screen and the maskable/Apple icons.
-const BACKGROUND_COLOR = '#f6f4ef';
+// Colours follow the light tokens in src/shared/ui/theme.css (docs/design.md): the grouped
+// background behind the browser UI and the splash screen. index.html switches theme-color to the
+// dark background in the dark theme.
+const THEME_COLOR = '#f2f2f7';
+const BACKGROUND_COLOR = '#f2f2f7';
+// The maskable and Apple icons are padded on white, like iOS app icons.
+const ICON_PADDING_COLOR = '#ffffff';
 
 // Every icon is exported at build time from the one SVG source: transparent 64/192/512,
-// maskable 512, apple-touch-icon 180 and favicon.ico. Maskable and Apple icons sit on the app
-// background, padded so the house stays inside the platform mask.
+// maskable 512, apple-touch-icon 180 and favicon.ico. Maskable and Apple icons sit on white,
+// padded so the house stays inside the platform mask.
 const iconPreset: Preset = {
   ...minimal2023Preset,
-  maskable: { ...minimal2023Preset.maskable, resizeOptions: { background: BACKGROUND_COLOR } },
-  apple: { ...minimal2023Preset.apple, resizeOptions: { background: BACKGROUND_COLOR } },
+  maskable: { ...minimal2023Preset.maskable, resizeOptions: { background: ICON_PADDING_COLOR } },
+  apple: { ...minimal2023Preset.apple, resizeOptions: { background: ICON_PADDING_COLOR } },
 };
 
 /**
@@ -59,6 +63,8 @@ const pwaOptions: Partial<VitePWAOptions> = {
     preset: iconPreset,
     htmlPreset: '2023',
     overrideManifestIcons: true,
+    // index.html has its own theme-color, which its theme script switches with the theme.
+    injectThemeColor: false,
   },
   workbox: {
     // The manifest is added by the plugin itself.
@@ -80,7 +86,7 @@ function appNameInHtml(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), appNameInHtml(), VitePWA(pwaOptions)],
+  plugins: [react(), tailwindcss(), appNameInHtml(), VitePWA(pwaOptions)],
   resolve: {
     // Mirrors tsconfig "paths". Cross-folder imports use it (M3, see eslint.config.js).
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },

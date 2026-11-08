@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +17,7 @@ import { server } from '@/test/server';
 
 const NO_CONNECTION = 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.';
 const URL = 'https://family.example.com/invite/Zm9vYmFyYmF6cXV4_-0123456789abcdefghijklmno';
+const INVITE = 'Пригласить взрослого…';
 
 const older: InviteFixture = {
   id: '0b6b9f2e-0000-4000-8000-000000000001',
@@ -37,18 +38,17 @@ const created: InviteFixture = {
   expiresAt: '2026-11-14T12:00:00Z',
 };
 
+function membersRegion() {
+  return screen.findByRole('region', { name: 'Взрослые' });
+}
+
+/** «Приглашения» once its Invites have loaded. */
 async function invitesRegion() {
-  return screen.findByRole('region', { name: 'Приглашения' });
-}
-
-async function invitesList() {
-  return within(await invitesRegion()).findByRole('list', { name: 'Активные приглашения' });
-}
-
-async function firstInvite() {
-  const [first] = within(await invitesList()).getAllByRole('listitem');
-  if (first === undefined) throw new Error('No Invite is listed');
-  return first;
+  const region = await screen.findByRole('region', { name: 'Приглашения' });
+  await waitFor(() => {
+    expect(within(region).queryByText('Загрузка…')).not.toBeInTheDocument();
+  });
+  return region;
 }
 
 function createAnswers(response: () => Response) {
@@ -66,21 +66,53 @@ function createdWithUrl() {
   return createAnswers(() => HttpResponse.json({ ...created, url: URL }, { status: 201 }));
 }
 
+/** What the page put on the clipboard, item by item (each item's text/plain, once resolved). */
+interface Clipboard {
+  written: Promise<string>[];
+  writeText: ReturnType<typeof vi.fn<(text: string) => Promise<void>>>;
+  /** Whether `write` was called before the create request got its answer. */
+  calledSynchronously: boolean[];
+}
+
 /**
- * Gives the browser a share sheet and/or clipboard for one test. Call it after `userEvent.setup()`,
- * which installs its own clipboard.
+ * Gives the browser `ClipboardItem` and `navigator.clipboard` for one test (after
+ * `userEvent.setup()`, which installs its own clipboard). `write` reads the item the way a browser
+ * does and fails when `fails` says so; `writeText` (the «Скопировать» row) as `writeTextFails`.
  */
-function browserSupports({
-  share,
-  writeText,
-}: {
-  share?: (data: ShareData) => Promise<void>;
-  writeText: (text: string) => Promise<void>;
-}) {
-  if (share !== undefined) {
-    Object.defineProperty(navigator, 'share', { value: share, configurable: true });
+function browserClipboard({
+  fails = false,
+  writeTextFails = false,
+  pending,
+}: { fails?: boolean; writeTextFails?: boolean; pending?: () => boolean } = {}): Clipboard {
+  const clipboard: Clipboard = {
+    written: [],
+    writeText: vi
+      .fn<(text: string) => Promise<void>>()
+      .mockImplementation(() =>
+        writeTextFails ? Promise.reject(new Error('denied')) : Promise.resolve(),
+      ),
+    calledSynchronously: [],
+  };
+  class FakeClipboardItem {
+    constructor(readonly items: Record<string, Promise<Blob>>) {}
   }
-  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  vi.stubGlobal('ClipboardItem', FakeClipboardItem);
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: {
+      writeText: clipboard.writeText,
+      write: async (items: FakeClipboardItem[]) => {
+        clipboard.calledSynchronously.push(pending?.() ?? true);
+        const blob = items[0]?.items['text/plain'];
+        if (blob === undefined) throw new Error('no text/plain');
+        const text = blob.then((value) => value.text());
+        clipboard.written.push(text);
+        await text;
+        if (fails) throw new DOMException('not allowed', 'NotAllowedError');
+      },
+    },
+  });
+  return clipboard;
 }
 
 beforeEach(() => {
@@ -91,8 +123,122 @@ beforeEach(() => {
 });
 afterEach(() => {
   document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-  Reflect.deleteProperty(navigator, 'share');
   Reflect.deleteProperty(navigator, 'clipboard');
+  vi.unstubAllGlobals();
+});
+
+describe('Inviting a new Member', () => {
+  beforeEach(() => {
+    server.use(invitesHandler([older]));
+  });
+
+  it('creates the Invite and copies its link with one tap', async () => {
+    let answered = false;
+    const calls = createAnswers(() => {
+      answered = true;
+      return HttpResponse.json({ ...created, url: URL }, { status: 201 });
+    });
+    const user = userEvent.setup();
+    const clipboard = browserClipboard({ pending: () => !answered });
+
+    renderApp('/settings');
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+
+    expect(await within(membersSection).findByRole('status')).toHaveTextContent(
+      'Ссылка скопирована',
+    );
+    expect(clipboard.calledSynchronously).toEqual([true]);
+    expect(await Promise.all(clipboard.written)).toEqual([URL]);
+    expect(calls).toEqual(['token-from-server']);
+    const invites = await invitesRegion();
+    expect(within(invites).getAllByRole('listitem')[0]).toHaveTextContent('Ссылка · до 14 ноября');
+  });
+
+  it('stops saying the link was copied after a few seconds', async () => {
+    createdWithUrl();
+    const user = userEvent.setup();
+    browserClipboard();
+
+    renderApp('/settings');
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+    expect(await within(membersSection).findByRole('status')).toHaveTextContent(
+      'Ссылка скопирована',
+    );
+
+    await waitFor(
+      () => {
+        expect(within(membersSection).queryByText('Ссылка скопирована')).not.toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
+  }, 10_000);
+
+  it('shows the new link with «Скопировать» when copying fails', async () => {
+    createdWithUrl();
+    const user = userEvent.setup();
+    const clipboard = browserClipboard({ fails: true });
+
+    renderApp('/settings');
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+    expect(await within(membersSection).findByText(URL)).toBeInTheDocument();
+    expect(within(membersSection).queryByRole('status')).not.toBeInTheDocument();
+    await user.click(within(membersSection).getByRole('button', { name: 'Скопировать' }));
+
+    expect(clipboard.writeText).toHaveBeenCalledWith(URL);
+    expect(await within(membersSection).findByRole('status')).toHaveTextContent(
+      'Ссылка скопирована',
+    );
+  });
+
+  it('shows the new link with «Скопировать» when the browser has no ClipboardItem', async () => {
+    createdWithUrl();
+    const user = userEvent.setup();
+    const clipboard = browserClipboard();
+    vi.stubGlobal('ClipboardItem', undefined);
+
+    renderApp('/settings');
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+
+    expect(await within(membersSection).findByText(URL)).toBeInTheDocument();
+    expect(clipboard.written).toEqual([]);
+    expect(within(await invitesRegion()).getAllByRole('listitem')).toHaveLength(2);
+  });
+
+  it('asks to copy by hand when «Скопировать» fails too', async () => {
+    createdWithUrl();
+    const user = userEvent.setup();
+    browserClipboard({ fails: true, writeTextFails: true });
+
+    renderApp('/settings');
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+    await user.click(await within(membersSection).findByRole('button', { name: 'Скопировать' }));
+
+    expect(await within(membersSection).findByRole('alert')).toHaveTextContent(
+      'Не удалось скопировать. Выделите ссылку и скопируйте её вручную.',
+    );
+  });
+
+  it('says so when the Invite cannot be created, and copies nothing', async () => {
+    createAnswers(() => HttpResponse.error());
+    const user = userEvent.setup();
+    const clipboard = browserClipboard();
+
+    renderApp('/settings');
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+
+    expect(await within(membersSection).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
+    expect(
+      within(membersSection).queryByRole('button', { name: 'Скопировать' }),
+    ).not.toBeInTheDocument();
+    expect(within(membersSection).queryByRole('status')).not.toBeInTheDocument();
+    await expect(Promise.all(clipboard.written)).rejects.toThrow();
+  });
 });
 
 describe('Active Invites', () => {
@@ -101,20 +247,21 @@ describe('Active Invites', () => {
 
     renderApp('/settings');
 
-    const items = within(await invitesList()).getAllByRole('listitem');
-    expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent('Действует до 13 ноября');
-    expect(items[1]).toHaveTextContent('Действует до 12 ноября');
+    const items = within(await invitesRegion()).getAllByRole('listitem');
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Ссылка · до 13 ноября',
+      'Ссылка · до 12 ноября',
+    ]);
   });
 
-  it('says when there are none', async () => {
+  it('says there are no active Invites when there are none', async () => {
     server.use(invitesHandler([]));
 
     renderApp('/settings');
 
-    expect(
-      await within(await invitesRegion()).findByText('Активных приглашений нет'),
-    ).toBeInTheDocument();
+    const region = await invitesRegion();
+    expect(await within(region).findByText('Активных приглашений нет')).toBeInTheDocument();
+    expect(within(region).queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument();
   });
 
   it('says so when the Invites cannot be loaded, and loads them on retry', async () => {
@@ -132,126 +279,7 @@ describe('Active Invites', () => {
     expect(await within(region).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
     await user.click(within(region).getByRole('button', { name: 'Повторить' }));
 
-    expect(await within(region).findByText('Действует до 12 ноября')).toBeInTheDocument();
-  });
-});
-
-describe('Creating an Invite', () => {
-  beforeEach(() => {
-    server.use(invitesHandler([older]));
-  });
-
-  it('shows the new link and adds the Invite to the list', async () => {
-    const calls = createdWithUrl();
-    const user = userEvent.setup();
-
-    renderApp('/settings');
-    const region = await invitesRegion();
-    await user.click(within(region).getByRole('button', { name: 'Создать приглашение' }));
-
-    expect(await within(region).findByLabelText('Ссылка-приглашение')).toHaveValue(URL);
-    const items = within(await invitesList()).getAllByRole('listitem');
-    expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent('Действует до 14 ноября');
-    expect(calls).toEqual(['token-from-server']);
-  });
-
-  it('shares the link through the share sheet when the browser has one', async () => {
-    createdWithUrl();
-    const share = vi.fn<(data: ShareData) => Promise<void>>().mockResolvedValue(undefined);
-    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
-    const user = userEvent.setup();
-    browserSupports({ share, writeText });
-
-    renderApp('/settings');
-    const region = await invitesRegion();
-    await user.click(within(region).getByRole('button', { name: 'Создать приглашение' }));
-    await user.click(await within(region).findByRole('button', { name: 'Отправить ссылку' }));
-
-    expect(share).toHaveBeenCalledWith(expect.objectContaining({ url: URL }));
-    expect(writeText).not.toHaveBeenCalled();
-  });
-
-  it('copies the link when the browser cannot share', async () => {
-    createdWithUrl();
-    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
-    const user = userEvent.setup();
-    browserSupports({ writeText });
-
-    renderApp('/settings');
-    const region = await invitesRegion();
-    await user.click(within(region).getByRole('button', { name: 'Создать приглашение' }));
-    expect(
-      within(region).queryByRole('button', { name: 'Отправить ссылку' }),
-    ).not.toBeInTheDocument();
-    await user.click(await within(region).findByRole('button', { name: 'Скопировать ссылку' }));
-
-    expect(writeText).toHaveBeenCalledWith(URL);
-    expect(await within(region).findByRole('status')).toHaveTextContent('Ссылка скопирована');
-  });
-
-  it('copies the link when sharing fails', async () => {
-    createdWithUrl();
-    const share = vi
-      .fn<(data: ShareData) => Promise<void>>()
-      .mockRejectedValue(new DOMException('not allowed', 'NotAllowedError'));
-    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
-    const user = userEvent.setup();
-    browserSupports({ share, writeText });
-
-    renderApp('/settings');
-    const region = await invitesRegion();
-    await user.click(within(region).getByRole('button', { name: 'Создать приглашение' }));
-    await user.click(await within(region).findByRole('button', { name: 'Отправить ссылку' }));
-
-    expect(writeText).toHaveBeenCalledWith(URL);
-    expect(await within(region).findByRole('status')).toHaveTextContent('Ссылка скопирована');
-  });
-
-  it('does nothing more when the share sheet is closed', async () => {
-    createdWithUrl();
-    const share = vi
-      .fn<(data: ShareData) => Promise<void>>()
-      .mockRejectedValue(new DOMException('cancelled', 'AbortError'));
-    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
-    const user = userEvent.setup();
-    browserSupports({ share, writeText });
-
-    renderApp('/settings');
-    const region = await invitesRegion();
-    await user.click(within(region).getByRole('button', { name: 'Создать приглашение' }));
-    await user.click(await within(region).findByRole('button', { name: 'Отправить ссылку' }));
-
-    expect(share).toHaveBeenCalled();
-    expect(writeText).not.toHaveBeenCalled();
-    expect(within(region).queryByRole('alert')).not.toBeInTheDocument();
-  });
-
-  it('asks to copy by hand when copying fails', async () => {
-    createdWithUrl();
-    const user = userEvent.setup();
-    browserSupports({ writeText: () => Promise.reject(new Error('denied')) });
-
-    renderApp('/settings');
-    const region = await invitesRegion();
-    await user.click(within(region).getByRole('button', { name: 'Создать приглашение' }));
-    await user.click(await within(region).findByRole('button', { name: 'Скопировать ссылку' }));
-
-    expect(await within(region).findByRole('alert')).toHaveTextContent(
-      'Не удалось скопировать. Выделите ссылку и скопируйте её вручную.',
-    );
-  });
-
-  it('says so when the Invite cannot be created', async () => {
-    createAnswers(() => HttpResponse.error());
-    const user = userEvent.setup();
-
-    renderApp('/settings');
-    const region = await invitesRegion();
-    await user.click(within(region).getByRole('button', { name: 'Создать приглашение' }));
-
-    expect(await within(region).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
-    expect(within(region).queryByLabelText('Ссылка-приглашение')).not.toBeInTheDocument();
+    expect(await screen.findByText('Ссылка · до 12 ноября')).toBeInTheDocument();
   });
 });
 
@@ -267,57 +295,82 @@ describe('Revoking an Invite', () => {
     return calls;
   }
 
+  const revoked = () => new HttpResponse(null, { status: 204 });
+
   beforeEach(() => {
     server.use(invitesHandler([newer, older]));
   });
 
-  it('revokes after confirmation and removes it from the list', async () => {
-    const calls = revokeAnswers(() => new HttpResponse(null, { status: 204 }));
-    const user = userEvent.setup();
-
-    renderApp('/settings');
-    const first = await firstInvite();
-    await user.click(within(first).getByRole('button', { name: 'Отозвать' }));
-    expect(
-      within(first).getByText('Отозвать приглашение? Ссылка перестанет работать.'),
-    ).toBeInTheDocument();
-    expect(calls).toEqual([]);
-    await user.click(within(first).getByRole('button', { name: 'Да, отозвать' }));
-
-    expect(await within(await invitesList()).findAllByRole('listitem')).toHaveLength(1);
-    expect(screen.queryByText('Действует до 13 ноября')).not.toBeInTheDocument();
-    expect(calls).toEqual([{ id: newer.id, csrf: 'token-from-server' }]);
-  });
-
-  it('keeps the Invite when the confirmation is cancelled', async () => {
-    const calls = revokeAnswers(() => new HttpResponse(null, { status: 204 }));
-    const user = userEvent.setup();
-
-    renderApp('/settings');
-    const first = await firstInvite();
-    await user.click(within(first).getByRole('button', { name: 'Отозвать' }));
-    await user.click(within(first).getByRole('button', { name: 'Отмена' }));
-
-    expect(within(await invitesList()).getAllByRole('listitem')).toHaveLength(2);
-    expect(within(first).getByRole('button', { name: 'Отозвать' })).toBeInTheDocument();
-    expect(calls).toEqual([]);
-  });
-
-  it('hides the new link when that Invite is revoked', async () => {
-    createdWithUrl();
-    revokeAnswers(() => new HttpResponse(null, { status: 204 }));
+  it('revokes from edit mode after the action sheet, and removes the row', async () => {
+    const calls = revokeAnswers(revoked);
     const user = userEvent.setup();
 
     renderApp('/settings');
     const region = await invitesRegion();
-    await user.click(within(region).getByRole('button', { name: 'Создать приглашение' }));
-    expect(await within(region).findByLabelText('Ссылка-приглашение')).toBeInTheDocument();
-    const first = await firstInvite();
-    await user.click(within(first).getByRole('button', { name: 'Отозвать' }));
-    await user.click(within(first).getByRole('button', { name: 'Да, отозвать' }));
+    await user.click(within(region).getByRole('button', { name: 'Изменить' }));
+    expect(within(region).getByRole('button', { name: 'Готово' })).toBeInTheDocument();
+    await user.click(
+      within(region).getByRole('button', { name: 'Удалить «Ссылка · до 13 ноября»' }),
+    );
+    const sheet = screen.getByRole('dialog', { name: 'Удалить приглашение?' });
+    expect(sheet).toHaveTextContent('Ссылка перестанет работать.');
+    expect(calls).toEqual([]);
+    await user.click(within(sheet).getByRole('button', { name: 'Удалить' }));
 
-    expect(await within(await invitesList()).findAllByRole('listitem')).toHaveLength(2);
-    expect(within(region).queryByLabelText('Ссылка-приглашение')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(region).getAllByRole('listitem')).toHaveLength(1);
+    });
+    expect(within(region).queryByText('Ссылка · до 13 ноября')).not.toBeInTheDocument();
+    expect(calls).toEqual([{ id: newer.id, csrf: 'token-from-server' }]);
+  });
+
+  it('keeps the Invite when the action sheet is cancelled', async () => {
+    const calls = revokeAnswers(revoked);
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const region = await invitesRegion();
+    await user.click(within(region).getByRole('button', { name: 'Изменить' }));
+    await user.click(
+      within(region).getByRole('button', { name: 'Удалить «Ссылка · до 13 ноября»' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Отменить' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(region).getAllByRole('listitem')).toHaveLength(2);
+    expect(calls).toEqual([]);
+  });
+
+  it('turns edit mode off with «Готово»', async () => {
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const region = await invitesRegion();
+    await user.click(within(region).getByRole('button', { name: 'Изменить' }));
+    await user.click(within(region).getByRole('button', { name: 'Готово' }));
+
+    expect(within(region).queryByRole('button', { name: /^Удалить «/ })).not.toBeInTheDocument();
+    expect(within(region).getByRole('button', { name: 'Изменить' })).toBeInTheDocument();
+  });
+
+  it('revokes with right-click → «Удалить», after the action sheet', async () => {
+    const calls = revokeAnswers(revoked);
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const region = await invitesRegion();
+    await user.pointer({
+      keys: '[MouseRight]',
+      target: within(region).getByText('Ссылка · до 12 ноября'),
+    });
+    await user.click(await screen.findByRole('menuitem', { name: 'Удалить' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Удалить приглашение?' });
+    await user.click(within(sheet).getByRole('button', { name: 'Удалить' }));
+
+    await waitFor(() => {
+      expect(within(region).getAllByRole('listitem')).toHaveLength(1);
+    });
+    expect(calls).toEqual([{ id: older.id, csrf: 'token-from-server' }]);
   });
 
   it('says so when revoking fails, and keeps the Invite', async () => {
@@ -325,11 +378,54 @@ describe('Revoking an Invite', () => {
     const user = userEvent.setup();
 
     renderApp('/settings');
-    const first = await firstInvite();
-    await user.click(within(first).getByRole('button', { name: 'Отозвать' }));
-    await user.click(within(first).getByRole('button', { name: 'Да, отозвать' }));
+    const region = await invitesRegion();
+    await user.click(within(region).getByRole('button', { name: 'Изменить' }));
+    await user.click(
+      within(region).getByRole('button', { name: 'Удалить «Ссылка · до 13 ноября»' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Удалить' }));
 
-    expect(await within(first).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
-    expect(within(await invitesList()).getAllByRole('listitem')).toHaveLength(2);
+    expect(await within(region).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
+    expect(within(region).getAllByRole('listitem')).toHaveLength(2);
+  });
+
+  it('says there are none after the last Invite, leaving edit mode', async () => {
+    server.use(invitesHandler([older]));
+    revokeAnswers(revoked);
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const region = await invitesRegion();
+    await user.click(within(region).getByRole('button', { name: 'Изменить' }));
+    await user.click(
+      within(region).getByRole('button', { name: 'Удалить «Ссылка · до 12 ноября»' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Удалить' }));
+
+    expect(await within(region).findByText('Активных приглашений нет')).toBeInTheDocument();
+    expect(within(region).queryByRole('list')).not.toBeInTheDocument();
+    expect(within(region).queryByRole('button', { name: 'Готово' })).not.toBeInTheDocument();
+  });
+
+  it('forgets the uncopied link when its Invite is revoked', async () => {
+    createdWithUrl();
+    revokeAnswers(revoked);
+    const user = userEvent.setup();
+    browserClipboard({ fails: true });
+
+    renderApp('/settings');
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+    expect(await within(membersSection).findByText(URL)).toBeInTheDocument();
+    const region = await invitesRegion();
+    await user.click(within(region).getByRole('button', { name: 'Изменить' }));
+    await user.click(
+      within(region).getByRole('button', { name: 'Удалить «Ссылка · до 14 ноября»' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Удалить' }));
+
+    await waitFor(() => {
+      expect(within(membersSection).queryByText(URL)).not.toBeInTheDocument();
+    });
   });
 });

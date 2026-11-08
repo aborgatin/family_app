@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import { ConfirmRow, GroupedSection, useFooterLines } from '@/shared/ui';
 import { logout } from './authApi';
 import { useSession } from './session';
 
 /**
- * Logs this device out (the Member's other devices stay logged in). Online-only (S4 exception):
- * when the server can't be reached the device stays logged in and says so.
+ * The red «Выйти» row at the bottom of Settings, confirmed with an action sheet. Logs this device
+ * out (the Member's other devices stay logged in). Online-only (S4 exception): when the server
+ * can't be reached the device stays logged in and the section footer says so.
  */
-export function LogoutButton() {
+export function LogoutSection() {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const { loggedOut } = useSession();
   const [error, setError] = useState<ErrorMessage>();
   const [pending, setPending] = useState(false);
@@ -33,17 +36,15 @@ export function LogoutButton() {
   }
 
   return (
-    <>
-      <button
-        type="button"
+    <GroupedSection messages={[lines.failure(error)]}>
+      <ConfirmRow
+        title={pending ? t('logout.inProgress') : t('logout.action')}
         disabled={pending}
-        onClick={() => {
+        confirm={{ title: t('logout.question'), action: t('logout.action') }}
+        onConfirm={() => {
           void logOut();
         }}
-      >
-        {pending ? t('logout.inProgress') : t('logout.action')}
-      </button>
-      {error !== undefined && <p role="alert">{t(error.key, error.values)}</p>}
-    </>
+      />
+    </GroupedSection>
   );
 }

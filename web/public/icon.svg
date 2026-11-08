@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Family App icon: a house with a heart. The single source for every icon size (pwa-assets.config.ts). -->
-  <path fill="#2f7f73" stroke="#2f7f73" stroke-width="28" stroke-linejoin="round"
+  <!-- Family App icon: a house with a heart. The single source for every icon size (vite.config.ts, pwaAssets). The house is the accent token (shared/ui/theme.css). -->
+  <path fill="#0062cc" stroke="#0062cc" stroke-width="28" stroke-linejoin="round"
     d="M256 64 L456 236 L408 236 L408 436 L104 436 L104 236 L56 236 Z" />
   <path fill="#ffffff"
     d="M256 392 C204 356 174 328 174 292 C174 266 194 248 218 248 C236 248 249 258 256 272 C263 258 276 248 294 248 C318 248 338 266 338 292 C338 328 308 356 256 392 Z" />
