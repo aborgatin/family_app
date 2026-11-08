@@ -42,11 +42,13 @@ web/src/
     i18n/               i18next set-up, typed keys, locales/ru.json
     load/               useLoad(): load / failed / retry for anything fetched once
     palette/            Child color palette (childColors.json)
-    ui/                 theme.css (tokens), AppShell, Page (nav bar), CenteredPage, Button, Link,
-                        Icon, EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
-                        InputRow, SegmentedControl, ListRow, EditableRow, SortableList (dnd-kit),
-                        Avatar, ActionSheet, Sheet, Spinner, auto-save hooks (autoSave.ts)
-                        (docs/design.md)
+    ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
+                        AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
+                        (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
+                        InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
+                        LoadingRow, EditableRow, SortableList (dnd-kit), SwipeToDelete,
+                        RowContextMenu, Avatar, ActionSheet, Sheet (Radix), Spinner, auto-save
+                        hooks (autoSave.ts)
   test/                 renderApp, MSW server, fixtures, setup
 ```
 
@@ -58,8 +60,12 @@ web/src/
   `@/features/<name>`, `@/app/...`). A relative `../` may not climb out of it.
 - All of this is enforced by `no-restricted-imports` blocks generated per file depth in
   `web/eslint.config.js` (`layerBlocks`). Tests and `src/test/**` are exempt.
-- The UI libraries (`@dnd-kit/*`, `lucide-react`, `@radix-ui/*`) are imported only in
-  `shared/ui`; the same blocks forbid them in `features/**`.
+- Screens are built only from `shared/ui` (CODING_STANDARDS U1, ADR-0008). The UI libraries
+  (`@dnd-kit/*`, `lucide-react`, `@radix-ui/*`) are imported only in `shared/ui`; the same blocks
+  forbid them in `features/**`. A separate block, `u1/features-only-shared-ui`
+  (`no-restricted-syntax`, `src/features/**/*.tsx`, tests exempt), forbids raw `button`, `input`,
+  `select`, `textarea`, `form`, `a` elements and `className` / `style` props there. A look the kit
+  lacks is added to `shared/ui` first, with its section in `design.md`.
 - A feature keeps its components, hooks and API calls together; `*Api.ts` files hold the REST
   calls, and only the feature's hook calls them.
 
@@ -80,8 +86,8 @@ frame around every screen and the place a sidebar goes later.
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildPage`         | logged in                      |
 
-The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure),
-then:
+The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure;
+meanwhile a `StatusScreen` shows «Загрузка…», or the failure with «Повторить»), then:
 
 1. `bootstrapRequired` and not on `/setup` → `/setup`. Not required and on `/setup` → `/`.
 2. No Member, not on `/login`, path not public (`isPublic()`: `/reset-password/…`, `/invite/…`) →
@@ -149,7 +155,7 @@ Each data feature has one hook that is its only data access. Components never ca
   Ordering is `position`, then id, as on the server.
 - `useMembers()` → `{load, retry, replaced}`.
 - `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`. Lists
-  load from the server each time Settings opens. Writes reject with `ApiError` and leave the list
+  load from the server each time Settings opens; meanwhile each section shows a `LoadingRow`. Writes reject with `ApiError` and leave the list
   unchanged.
 
 The load / failed / retry part is shared: `useLoad(fetch, key?)` from `@/shared/load` returns
