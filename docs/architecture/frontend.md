@@ -34,7 +34,7 @@ web/src/
                         password reset; LinkScreen (link-check states)
     home/               HomePage: Page «Семья», empty state, gear → Settings
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
-    members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection, PasswordForm
+    members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
     children/           ChildrenSettings, ChildForm, color picker, useChildren()
     child-fields/       ChildFieldsSettings, useChildFields()
   shared/
@@ -75,6 +75,7 @@ frame around every screen and the place a sidebar goes later.
 | `/reset-password/:token` | `ResetPasswordPage` | always (public)                |
 | `/`                      | `HomePage`          | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
+| `/settings/password`     | `PasswordPage`      | logged in                      |
 
 The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure),
 then:
@@ -228,11 +229,21 @@ Everything visual is specified in [`design.md`](../design.md). In short:
 row per Member: initial, name, email, «(вы)» on the own one; not tappable; then «Пригласить
 взрослого…»), «Приглашения» (an edit-mode list, see Invites above), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
-Members list), the password form (M1 content), «Дети» and «Поля профиля» (M1 content),
+Members list; then the «Изменить пароль» chevron row), «Дети» and «Поля профиля» (M1 content),
 «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, confirmed with an
 `ActionSheet`; after logging out the guard shows `/login`). Auto-save and its failure footer are
 the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessages` (see
 `design.md`).
+
+The password screen `/settings/password` (`PasswordPage`, `PASSWORD_PATH` from
+`features/members`) is a `Page` «Изменить пароль», back to «Настройки»: «Текущий пароль» and
+«Новый пароль» as `InputRow`s in a `Form`, «Готово» in the nav bar's trailing slot, enabled once
+both are filled. Enter does the same as «Готово»; Esc (the `Form`'s `onCancel`) and the back
+button go to Settings without saving. On success it navigates to Settings with
+`state.passwordChanged`, and «Ваш профиль» shows «Пароль изменён» in its footer
+(`usePasswordJustChanged()`, which then clears the flag from the history entry so browser-back doesn't show it again); on failure the message goes in the footer under the fields (a wrong
+current password empties that field). `app/routes.tsx` passes `SETTINGS_PATH` in as
+`settingsPath`, since `settings` already imports `members`.
 
 ## PWA
 

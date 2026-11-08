@@ -126,7 +126,8 @@ screen) and `actions` (the nav bar's trailing slot), then the content.
   translucent (`bar` + backdrop blur) with a hairline. The large title (`h1`) scrolls away with the
   content; when it has gone under the bar, the small centred title fades in.
 - Back button: a chevron and the previous screen's title, left. Actions: icon `Button`s or `Link`s,
-  right.
+  right; or the one text `Button` that confirms a screen («Готово» on the password screen),
+  disabled until the screen can be confirmed.
 - Narrow: full width with 16px margins. Wide: the bar spans the window, its contents and the page
   sit in the 640px column.
 - Keyboard: the bar comes first in tab order (back, then actions), then the content.
@@ -191,6 +192,10 @@ Wraps the fields and the primary `Button` (`type="submit"`) of a screen with an 
 validation bubbles are off, the screen puts its messages in the group footer. Sections and the
 button are 24px apart. Not for auto-saved rows: they save themselves.
 
+When the confirm is «Готово» in the nav bar (the password screen), the form holds only the fields:
+Enter still calls `onSubmit` (the screen ignores it until it can be confirmed), and `onCancel`
+makes Esc in a field leave the screen without saving. Same on every device.
+
 ### GroupedSection
 
 A grouped inset list, as in the iPhone Settings app: optional `header` (footnote, uppercase,
@@ -204,8 +209,9 @@ accessible description; an error also marks the row invalid (`aria-invalid`, lab
 error without `row` is about the whole group (a failed submit) and is announced (`role="alert"`).
 Show a row's error instead of its hint, not under it. Messages come from the error-code mapping
 (I3). Same on every device. Further, optional: `row` may name several rows; `announce` makes a
-row's error an `alert` too (a save that failed after the field was left), and a hint a `status`
-(«Ссылка скопирована», shown for a few seconds); `action` adds a small
+row's error an `alert` too (a save that failed after the field was left), and a hint a
+`role="status"` (a result to report, e.g. «Пароль изменён» under «Ваш профиль» after the password
+screen, «Ссылка скопирована» for a few seconds); `action` adds a small
 text `Button` after the line («Повторить»). A `header` also names the section (a region).
 
 With `edit` (`{editing, onEditingChange}`) the group is an **edit-mode list**: «Изменить» /
@@ -311,5 +317,5 @@ auto-save hooks set only after ~400 ms.
 
 ### TextField, GrammaticalGenderChoice
 
-Still the M1 form controls inside the parts of Settings that keep their M1 content (Invites,
-password, Children, Child fields) until their own tickets of spec #35.
+Still the M1 form controls inside the parts of Settings that keep their M1 content (Children,
+Child fields) until their own tickets of spec #35.

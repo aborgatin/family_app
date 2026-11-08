@@ -2,15 +2,14 @@ import { useTranslation } from 'react-i18next';
 import { useSession, type Member } from '@/features/auth';
 import { errorMessage } from '@/shared/api';
 import type { ReactNode } from 'react';
-import { Avatar, GroupedSection, ListRow, SectionContent, type SectionMessage } from '@/shared/ui';
+import { Avatar, GroupedSection, ListRow, type SectionMessage } from '@/shared/ui';
 import { InvitesSection, useInviteAdult, useInvites } from './InvitesSettings';
-import { PasswordForm } from './PasswordForm';
 import { ProfileSection } from './ProfileSection';
 import { useMembers, type MembersLoad } from './useMembers';
 
 /**
  * The Members' sections of Settings: «Взрослые», the Invites, the logged-in Member's own profile
- * and password. All of it is online-only by design (S4 exception).
+ * (which opens the password screen). All of it is online-only by design (S4 exception).
  */
 export function MembersSettings() {
   const { session, memberChanged } = useSession();
@@ -34,13 +33,7 @@ export function MembersSettings() {
         inviteMessages={inviting.messages}
       />
       <InvitesSection invites={invites} onRevoked={inviting.revoked} />
-      {/* The password keeps its M1 content until its own ticket (spec #35). */}
       {me !== null && <ProfileSection member={me} onSaved={saved} />}
-      <GroupedSection>
-        <SectionContent>
-          <PasswordForm />
-        </SectionContent>
-      </GroupedSection>
     </>
   );
 }
