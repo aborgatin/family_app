@@ -38,8 +38,8 @@ interface IconProps {
 export function Icon({ name, size = 22, label }: IconProps) {
   const Glyph = ICONS[name];
   return label === undefined ? (
-    <Glyph size={size} strokeWidth={2} aria-hidden="true" focusable="false" />
+    <Glyph size={size} strokeWidth={2} aria-hidden="true" focusable="false" className="shrink-0" />
   ) : (
-    <Glyph size={size} strokeWidth={2} role="img" aria-label={label} />
+    <Glyph size={size} strokeWidth={2} role="img" aria-label={label} className="shrink-0" />
   );
 }

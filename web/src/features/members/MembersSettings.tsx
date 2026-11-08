@@ -3,13 +3,12 @@ import { useSession, type Member } from '@/features/auth';
 import { errorMessage } from '@/shared/api';
 import { Avatar, GroupedSection, ListRow, SectionContent } from '@/shared/ui';
 import { InvitesSettings } from './InvitesSettings';
-import { PasswordForm } from './PasswordForm';
 import { ProfileSection } from './ProfileSection';
 import { useMembers, type MembersLoad } from './useMembers';
 
 /**
  * The Members' sections of Settings: «Взрослые», the Invites, the logged-in Member's own profile
- * and password. All of it is online-only by design (S4 exception).
+ * (which opens the password screen). All of it is online-only by design (S4 exception).
  */
 export function MembersSettings() {
   const { session, memberChanged } = useSession();
@@ -24,19 +23,13 @@ export function MembersSettings() {
   return (
     <>
       <MembersSection load={load} retry={retry} myId={me?.id} />
-      {/* Invites and the password keep their M1 content, with its own heading, until their own
-          tickets (spec #35). */}
+      {/* Invites keep their M1 content, with its own heading, until their own ticket (spec #35). */}
       <GroupedSection>
         <SectionContent>
           <InvitesSettings />
         </SectionContent>
       </GroupedSection>
       {me !== null && <ProfileSection member={me} onSaved={saved} />}
-      <GroupedSection>
-        <SectionContent>
-          <PasswordForm />
-        </SectionContent>
-      </GroupedSection>
     </>
   );
 }
