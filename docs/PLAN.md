@@ -132,6 +132,7 @@ Secrets only in the server's `.env`, never in git.
 - [ ] `List`/`Item` CRUD API with versions and soft deletes.
 - [ ] Sync endpoints: push outbox ops, pull changes since version N.
 - [ ] Client local store (Dexie), outbox, offline handling, SSE live refresh.
+- [ ] Faster CI: on a pull request, run the `backend` job only when `backend/` changed and the `web` job only when `web/` changed (plus the workflow file itself). Skip per job (e.g. a changes job with `dorny/paths-filter`, then `if:`), not with workflow-level `paths:`: once `main` requires these checks (#17), a skipped workflow leaves them pending forever, while a skipped job counts as passed. The `image` job still runs whenever either changed, and every job still runs on pushes to `main`.
 
 **M3 — Shopping**
 - [ ] Multiple shopping lists, ordered categories per list, bought section + clear.
