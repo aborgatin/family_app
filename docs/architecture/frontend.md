@@ -180,8 +180,8 @@ activation only that long), calls `navigator.clipboard.write([new ClipboardItem(
 blobPromise})])` with the link still pending. Copied → «Ссылка скопирована» (`status`) in the
 footer for `COPIED_MS` (3 s). Not copied (refused, or no `ClipboardItem`) → a «Новая ссылка» row
 with the full link and «Скопировать» (`clipboard.writeText` on a fresh tap); if that fails too the
-footer asks to copy by hand. `navigator.share` is not used. `InvitesSection` («Приглашения»,
-hidden when there are none) lists them as `EditableRow`s «Ссылка · до 14 ноября», revoked from
+footer asks to copy by hand. `navigator.share` is not used. `InvitesSection` («Приглашения»; a
+«Активных приглашений нет» row when there are none) lists them as `EditableRow`s «Ссылка · до 14 ноября», revoked from
 edit mode, a swipe or right-click, always after the `ActionSheet`. Confirmations are never
 `window.confirm`.
 
@@ -254,13 +254,13 @@ The password screen `/settings/password` (`PasswordPage`, `PASSWORD_PATH` from
 «Новый пароль» as `InputRow`s in a `Form`, «Готово» in the nav bar's trailing slot, enabled once
 both are filled. Enter does the same as «Готово»; Esc (the `Form`'s `onCancel`) and the back
 button go to Settings without saving. On success it navigates to Settings with
-`state.passwordChanged`, and «Ваш профиль» shows «Пароль изменён» in its footer
+`state.passwordChanged`, replacing its own history entry (browser-back doesn't reopen it), and «Ваш профиль» shows «Пароль изменён» in its footer
 (`usePasswordJustChanged()`, which then clears the flag from the history entry so browser-back doesn't show it again); on failure the message goes in the footer under the fields (a wrong
 current password empties that field). `app/routes.tsx` passes `SETTINGS_PATH` in as
 `settingsPath`, since `settings` already imports `members`.
 
 «Дети» (`ChildrenSettings`) is an edit-mode list of `EditableRow`s: the Child's colour
-(`Swatch`), name, age on the right («7 лет», «5 месяцев» under a year, nothing without a birthday
+(`Swatch`), name, age on the right («7 лет», «5 месяцев» under a year, «меньше месяца» under one, nothing without a birthday
 or before it; `i18n` plurals `children.age.years_*` / `months_*`, computed from the device's
 date) and a chevron to `/settings/children/:id` (`childPath(id)`). Edit mode deletes only
 (Children have no order); a swipe and right-click delete too; each asks first. «Добавить ребёнка»

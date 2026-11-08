@@ -45,7 +45,7 @@ export function NewChildSheet({ id, save, onClose }: NewChildSheetProps) {
 
     setSaving(true);
     try {
-      await save(id, { name, color, birthday: birthday === '' ? null : birthday });
+      await save(id, { name: name.trim(), color, birthday: birthday === '' ? null : birthday });
       onClose();
     } catch (error: unknown) {
       const { fieldMessages, formMessage } = failureMessages(error, FIELDS, ['color']);

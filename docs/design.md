@@ -244,9 +244,10 @@ the Reminders colour picker: `label` on top, the circles in one row of 8 under i
 ringed in its own colour with a white check. `options` are `{value, label, color}`: `label` (from
 i18n) names the circle, `color` draws it; the palette itself stays in `shared/palette`. `value` may
 be `undefined` (nothing chosen yet, or a code this build doesn't know). Built from radios
-(`radiogroup` named by the label): Tab reaches it, arrow keys move the choice, Space picks. Its
-`name` links it to footer messages. Auto-saved with `useAutoSaveChoice()` (spread `control`):
-each tap saves, `busy` shows the `Spinner` after the label. Touch: each circle's target is its
+(`radiogroup` named by the label): Tab reaches it, arrow keys move the focus, Space, Enter or a
+click picks. Its `name` links it to footer messages. Auto-saved with `useAutoSaveChoice()`
+(spread `control`): each pick saves (moving the focus with the arrows doesn't), `busy` shows the
+`Spinner` at the right of the row, on the label's line. Touch: each circle's target is its
 column, 44px tall (about 40px wide on a phone). Fine pointer: smaller circles, the 8 kept in a
 288px strip at the left instead of spread across a wide cell.
 

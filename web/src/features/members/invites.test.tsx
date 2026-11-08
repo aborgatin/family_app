@@ -38,12 +38,17 @@ const created: InviteFixture = {
   expiresAt: '2026-11-14T12:00:00Z',
 };
 
-function adultsRegion() {
+function membersRegion() {
   return screen.findByRole('region', { name: 'Взрослые' });
 }
 
-function invitesRegion() {
-  return screen.findByRole('region', { name: 'Приглашения' });
+/** «Приглашения» once its Invites have loaded. */
+async function invitesRegion() {
+  const region = await screen.findByRole('region', { name: 'Приглашения' });
+  await waitFor(() => {
+    expect(within(region).queryByText('Загрузка…')).not.toBeInTheDocument();
+  });
+  return region;
 }
 
 function createAnswers(response: () => Response) {
@@ -122,7 +127,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('Inviting an adult', () => {
+describe('Inviting a new Member', () => {
   beforeEach(() => {
     server.use(invitesHandler([older]));
   });
@@ -137,10 +142,12 @@ describe('Inviting an adult', () => {
     const clipboard = browserClipboard({ pending: () => !answered });
 
     renderApp('/settings');
-    const adults = await adultsRegion();
-    await user.click(await within(adults).findByRole('button', { name: INVITE }));
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
 
-    expect(await within(adults).findByRole('status')).toHaveTextContent('Ссылка скопирована');
+    expect(await within(membersSection).findByRole('status')).toHaveTextContent(
+      'Ссылка скопирована',
+    );
     expect(clipboard.calledSynchronously).toEqual([true]);
     expect(await Promise.all(clipboard.written)).toEqual([URL]);
     expect(calls).toEqual(['token-from-server']);
@@ -154,13 +161,15 @@ describe('Inviting an adult', () => {
     browserClipboard();
 
     renderApp('/settings');
-    const adults = await adultsRegion();
-    await user.click(await within(adults).findByRole('button', { name: INVITE }));
-    expect(await within(adults).findByRole('status')).toHaveTextContent('Ссылка скопирована');
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+    expect(await within(membersSection).findByRole('status')).toHaveTextContent(
+      'Ссылка скопирована',
+    );
 
     await waitFor(
       () => {
-        expect(within(adults).queryByText('Ссылка скопирована')).not.toBeInTheDocument();
+        expect(within(membersSection).queryByText('Ссылка скопирована')).not.toBeInTheDocument();
       },
       { timeout: 5000 },
     );
@@ -172,14 +181,16 @@ describe('Inviting an adult', () => {
     const clipboard = browserClipboard({ fails: true });
 
     renderApp('/settings');
-    const adults = await adultsRegion();
-    await user.click(await within(adults).findByRole('button', { name: INVITE }));
-    expect(await within(adults).findByText(URL)).toBeInTheDocument();
-    expect(within(adults).queryByRole('status')).not.toBeInTheDocument();
-    await user.click(within(adults).getByRole('button', { name: 'Скопировать' }));
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+    expect(await within(membersSection).findByText(URL)).toBeInTheDocument();
+    expect(within(membersSection).queryByRole('status')).not.toBeInTheDocument();
+    await user.click(within(membersSection).getByRole('button', { name: 'Скопировать' }));
 
     expect(clipboard.writeText).toHaveBeenCalledWith(URL);
-    expect(await within(adults).findByRole('status')).toHaveTextContent('Ссылка скопирована');
+    expect(await within(membersSection).findByRole('status')).toHaveTextContent(
+      'Ссылка скопирована',
+    );
   });
 
   it('shows the new link with «Скопировать» when the browser has no ClipboardItem', async () => {
@@ -189,10 +200,10 @@ describe('Inviting an adult', () => {
     vi.stubGlobal('ClipboardItem', undefined);
 
     renderApp('/settings');
-    const adults = await adultsRegion();
-    await user.click(await within(adults).findByRole('button', { name: INVITE }));
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
 
-    expect(await within(adults).findByText(URL)).toBeInTheDocument();
+    expect(await within(membersSection).findByText(URL)).toBeInTheDocument();
     expect(clipboard.written).toEqual([]);
     expect(within(await invitesRegion()).getAllByRole('listitem')).toHaveLength(2);
   });
@@ -203,11 +214,11 @@ describe('Inviting an adult', () => {
     browserClipboard({ fails: true, writeTextFails: true });
 
     renderApp('/settings');
-    const adults = await adultsRegion();
-    await user.click(await within(adults).findByRole('button', { name: INVITE }));
-    await user.click(await within(adults).findByRole('button', { name: 'Скопировать' }));
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+    await user.click(await within(membersSection).findByRole('button', { name: 'Скопировать' }));
 
-    expect(await within(adults).findByRole('alert')).toHaveTextContent(
+    expect(await within(membersSection).findByRole('alert')).toHaveTextContent(
       'Не удалось скопировать. Выделите ссылку и скопируйте её вручную.',
     );
   });
@@ -218,12 +229,14 @@ describe('Inviting an adult', () => {
     const clipboard = browserClipboard();
 
     renderApp('/settings');
-    const adults = await adultsRegion();
-    await user.click(await within(adults).findByRole('button', { name: INVITE }));
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
 
-    expect(await within(adults).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
-    expect(within(adults).queryByRole('button', { name: 'Скопировать' })).not.toBeInTheDocument();
-    expect(within(adults).queryByRole('status')).not.toBeInTheDocument();
+    expect(await within(membersSection).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
+    expect(
+      within(membersSection).queryByRole('button', { name: 'Скопировать' }),
+    ).not.toBeInTheDocument();
+    expect(within(membersSection).queryByRole('status')).not.toBeInTheDocument();
     await expect(Promise.all(clipboard.written)).rejects.toThrow();
   });
 });
@@ -241,13 +254,14 @@ describe('Active Invites', () => {
     ]);
   });
 
-  it('has no «Приглашения» section when there are none', async () => {
+  it('says there are no active Invites when there are none', async () => {
     server.use(invitesHandler([]));
 
     renderApp('/settings');
 
-    await within(await adultsRegion()).findByText('Борис');
-    expect(screen.queryByRole('region', { name: 'Приглашения' })).not.toBeInTheDocument();
+    const region = await invitesRegion();
+    expect(await within(region).findByText('Активных приглашений нет')).toBeInTheDocument();
+    expect(within(region).queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument();
   });
 
   it('says so when the Invites cannot be loaded, and loads them on retry', async () => {
@@ -375,7 +389,7 @@ describe('Revoking an Invite', () => {
     expect(within(region).getAllByRole('listitem')).toHaveLength(2);
   });
 
-  it('removes the section with the last Invite', async () => {
+  it('says there are none after the last Invite, leaving edit mode', async () => {
     server.use(invitesHandler([older]));
     revokeAnswers(revoked);
     const user = userEvent.setup();
@@ -388,9 +402,9 @@ describe('Revoking an Invite', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Удалить' }));
 
-    await waitFor(() => {
-      expect(screen.queryByRole('region', { name: 'Приглашения' })).not.toBeInTheDocument();
-    });
+    expect(await within(region).findByText('Активных приглашений нет')).toBeInTheDocument();
+    expect(within(region).queryByRole('list')).not.toBeInTheDocument();
+    expect(within(region).queryByRole('button', { name: 'Готово' })).not.toBeInTheDocument();
   });
 
   it('forgets the uncopied link when its Invite is revoked', async () => {
@@ -400,9 +414,9 @@ describe('Revoking an Invite', () => {
     browserClipboard({ fails: true });
 
     renderApp('/settings');
-    const adults = await adultsRegion();
-    await user.click(await within(adults).findByRole('button', { name: INVITE }));
-    expect(await within(adults).findByText(URL)).toBeInTheDocument();
+    const membersSection = await membersRegion();
+    await user.click(await within(membersSection).findByRole('button', { name: INVITE }));
+    expect(await within(membersSection).findByText(URL)).toBeInTheDocument();
     const region = await invitesRegion();
     await user.click(within(region).getByRole('button', { name: 'Изменить' }));
     await user.click(
@@ -411,7 +425,7 @@ describe('Revoking an Invite', () => {
     await user.click(screen.getByRole('button', { name: 'Удалить' }));
 
     await waitFor(() => {
-      expect(within(adults).queryByText(URL)).not.toBeInTheDocument();
+      expect(within(membersSection).queryByText(URL)).not.toBeInTheDocument();
     });
   });
 });

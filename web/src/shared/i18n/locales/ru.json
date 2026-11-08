@@ -76,6 +76,7 @@
       "copied": "Ссылка скопирована",
       "copyFailed": "Не удалось скопировать. Выделите ссылку и скопируйте её вручную.",
       "row": "Ссылка · до {{date}}",
+      "none": "Активных приглашений нет",
       "confirmRevoke": "Удалить приглашение?",
       "confirmRevokeMessage": "Ссылка перестанет работать."
     },
@@ -120,7 +121,8 @@
       "months_one": "{{count}} месяц",
       "months_few": "{{count}} месяца",
       "months_many": "{{count}} месяцев",
-      "months_other": "{{count}} месяца"
+      "months_other": "{{count}} месяца",
+      "underMonth": "меньше месяца"
     },
     "delete": "Удалить ребёнка",
     "confirmDelete": "Удалить „{{name}}“?",

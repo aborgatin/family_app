@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
 import { useLoad } from '@/shared/load';
-import { Button, EditableRow, GroupedSection, ListRow, type SectionMessage } from '@/shared/ui';
+import {
+  Button,
+  EditableRow,
+  GroupedSection,
+  ListRow,
+  LoadingRow,
+  type SectionMessage,
+} from '@/shared/ui';
 import {
   createInvite,
   fetchInvites,
@@ -157,7 +164,8 @@ export function useInviteAdult(onCreated: (invite: Invite) => void) {
 
 /**
  * «Приглашения»: the active Invites as rows «Ссылка · до 14 ноября», revoked through edit mode,
- * a swipe or right-click, each time after the action sheet. Hidden when there are none.
+ * a swipe or right-click, each time after the action sheet; «Активных приглашений нет» when there
+ * are none.
  */
 export function InvitesSection({
   invites,
@@ -172,14 +180,12 @@ export function InvitesSection({
   const [revoking, setRevoking] = useState<string>();
   const [error, setError] = useState<ErrorMessage>();
 
-  const empty = load.status === 'ready' && load.value.length === 0;
-
   async function revoke(id: string, last: boolean) {
     setRevoking(id);
     setError(undefined);
     try {
       await revokeInvite(id);
-      // With the last one gone the section goes too, and it comes back out of edit mode.
+      // With the last one gone there is nothing left to edit.
       if (last) setEditing(false);
       removed(id);
       onRevoked(id);
@@ -190,7 +196,13 @@ export function InvitesSection({
     }
   }
 
-  if (load.status === 'loading' || empty) return null;
+  if (load.status === 'loading') {
+    return (
+      <GroupedSection header={t('members.invites.title')}>
+        <LoadingRow />
+      </GroupedSection>
+    );
+  }
   if (load.status === 'failed') {
     const message = errorMessage(load.error);
     return (
@@ -206,11 +218,21 @@ export function InvitesSection({
       />
     );
   }
+  const messages = [
+    error !== undefined && { text: t(error.key, error.values), tone: 'error' as const },
+  ];
+  if (load.value.length === 0) {
+    return (
+      <GroupedSection header={t('members.invites.title')} messages={messages}>
+        <ListRow title={t('members.invites.none')} />
+      </GroupedSection>
+    );
+  }
   return (
     <GroupedSection
       header={t('members.invites.title')}
       edit={{ editing, onEditingChange: setEditing }}
-      messages={[error !== undefined && { text: t(error.key, error.values), tone: 'error' }]}
+      messages={messages}
     >
       {load.value.map((invite) => (
         <EditableRow

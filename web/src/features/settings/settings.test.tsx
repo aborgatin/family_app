@@ -37,7 +37,14 @@ describe('Settings', () => {
     const names = screen
       .getAllByRole('heading', { level: 2 })
       .map((heading) => heading.textContent);
-    expect(names).toEqual(['Взрослые', 'Ваш профиль', 'Дети', 'Поля профиля', 'Оформление']);
+    expect(names).toEqual([
+      'Взрослые',
+      'Приглашения',
+      'Ваш профиль',
+      'Дети',
+      'Поля профиля',
+      'Оформление',
+    ]);
     expect(screen.getByRole('button', { name: 'Выйти' })).toBeInTheDocument();
   });
 

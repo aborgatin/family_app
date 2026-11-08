@@ -72,7 +72,8 @@ export function PasswordPage({ settingsPath }: PasswordPageProps) {
     try {
       await changePassword({ currentPassword, newPassword });
       const state: ChangedState = { passwordChanged: true };
-      await navigate(settingsPath, { state });
+      // Replaces the password screen in the history, so browser back doesn't reopen it.
+      await navigate(settingsPath, { replace: true, state });
     } catch (error: unknown) {
       setSaving(false);
       if (error instanceof ApiError && error.code === 'auth.invalid_credentials') {

@@ -16,16 +16,19 @@ export function ageOn(birthday: string, today: Date): Age | undefined {
   return months < 12 ? { months } : { years: Math.floor(months / 12) };
 }
 
-/** The age as the list shows it today, e.g. «7 лет», «5 месяцев»; `undefined` before birth. */
+/**
+ * The age as the list shows it today, e.g. «7 лет», «5 месяцев», «меньше месяца»; `undefined`
+ * before birth.
+ */
 export function useAge() {
   const { t } = useTranslation();
   return useCallback(
     (birthday: string) => {
       const age = ageOn(birthday, new Date());
       if (age === undefined) return undefined;
-      return 'years' in age
-        ? t('children.age.years', { count: age.years })
-        : t('children.age.months', { count: age.months });
+      if ('years' in age) return t('children.age.years', { count: age.years });
+      if (age.months === 0) return t('children.age.underMonth');
+      return t('children.age.months', { count: age.months });
     },
     [t],
   );
