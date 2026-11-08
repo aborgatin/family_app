@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -83,9 +83,7 @@ describe('Password reset', () => {
 
     renderApp(LINK);
 
-    await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent('Проверяем ссылку…');
-    });
+    expect(await screen.findByText('Проверяем ссылку…')).toHaveRole('status');
     expect(screen.getByRole('heading', { name: 'Новый пароль' })).toBeInTheDocument();
   });
 
