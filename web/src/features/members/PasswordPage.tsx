@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 import { ApiError, failureMessages, type ErrorMessage, type FieldMessages } from '@/shared/api';
@@ -16,14 +16,29 @@ interface ChangedState {
   passwordChanged: true;
 }
 
-/** Whether Settings was opened by the password screen after changing the password. */
-export function usePasswordJustChanged(): boolean {
-  const state: unknown = useLocation().state;
+function isChangedState(state: unknown): boolean {
   return (
     typeof state === 'object' &&
     state !== null &&
     (state as Partial<ChangedState>).passwordChanged === true
   );
+}
+
+/**
+ * Whether Settings was opened by the password screen after changing the password. The flag is
+ * taken once and then cleared from the history entry, so coming back to it later (browser back)
+ * doesn't say «Пароль изменён» again.
+ */
+export function usePasswordJustChanged(): boolean {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [changed] = useState(() => isChangedState(location.state));
+  const flagged = isChangedState(location.state);
+  const { pathname, search, hash } = location;
+  useEffect(() => {
+    if (flagged) void navigate({ pathname, search, hash }, { replace: true, state: null });
+  }, [flagged, navigate, pathname, search, hash]);
+  return changed;
 }
 
 interface PasswordPageProps {

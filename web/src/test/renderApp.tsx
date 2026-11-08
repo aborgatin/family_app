@@ -18,5 +18,5 @@ export function renderApp(path: string) {
     const { pathname, search, hash } = router.state.location;
     return pathname + search + hash;
   };
-  return { ...result, location };
+  return { ...result, location, router };
 }

@@ -233,7 +233,7 @@ The password screen `/settings/password` (`PasswordPage`, `PASSWORD_PATH` from
 both are filled. Enter does the same as «Готово»; Esc (the `Form`'s `onCancel`) and the back
 button go to Settings without saving. On success it navigates to Settings with
 `state.passwordChanged`, and «Ваш профиль» shows «Пароль изменён» in its footer
-(`usePasswordJustChanged()`); on failure the message goes in the footer under the fields (a wrong
+(`usePasswordJustChanged()`, which then clears the flag from the history entry so browser-back doesn't show it again); on failure the message goes in the footer under the fields (a wrong
 current password empties that field). `app/routes.tsx` passes `SETTINGS_PATH` in as
 `settingsPath`, since `settings` already imports `members`.
 

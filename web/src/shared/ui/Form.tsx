@@ -1,5 +1,16 @@
 import type { KeyboardEvent, ReactNode, SubmitEvent } from 'react';
 
+const NOT_TEXT = new Set([
+  'checkbox',
+  'radio',
+  'button',
+  'submit',
+  'reset',
+  'file',
+  'range',
+  'color',
+]);
+
 interface FormProps {
   /** Called on Enter in a field and on the form's `type="submit"` Button. */
   onSubmit: () => void;
@@ -22,7 +33,16 @@ export function Form({ onSubmit, onCancel, children }: FormProps) {
 
   function onKeyDown(event: KeyboardEvent<HTMLFormElement>) {
     // A row that handles the key itself (auto-save) has already prevented the default.
-    if (event.defaultPrevented || !(event.target instanceof HTMLInputElement)) return;
+    // Only text-like fields; not while an input method is composing.
+    const field = event.target;
+    if (
+      event.defaultPrevented ||
+      event.nativeEvent.isComposing ||
+      !(field instanceof HTMLInputElement) ||
+      NOT_TEXT.has(field.type)
+    ) {
+      return;
+    }
     if (event.key === 'Enter') {
       // Browsers submit on Enter only when the form has a submit button or a single field.
       event.preventDefault();

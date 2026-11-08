@@ -119,6 +119,26 @@ describe('Changing the password', () => {
     ]);
   });
 
+  it('says «Пароль изменён» only once: not again on coming back to Settings later', async () => {
+    passwordAnswers(changed);
+    const user = userEvent.setup();
+
+    const app = await openScreen();
+    await user.type(current(), 'secret123');
+    await user.type(next(), 'brand-new-pass');
+    await user.click(done());
+    let profile = await screen.findByRole('region', { name: 'Ваш профиль' });
+    expect(within(profile).getByRole('status')).toHaveTextContent('Пароль изменён');
+
+    await user.click(within(profile).getByRole('link', { name: 'Изменить пароль' }));
+    await screen.findByRole('heading', { name: 'Изменить пароль', level: 1 });
+    await app.router.navigate(-1);
+
+    profile = await screen.findByRole('region', { name: 'Ваш профиль' });
+    expect(app.location()).toBe('/settings');
+    expect(within(profile).queryByText('Пароль изменён')).not.toBeInTheDocument();
+  });
+
   it('submits on Enter', async () => {
     const received = passwordAnswers(changed);
     const user = userEvent.setup();
