@@ -1,5 +1,7 @@
 import {
+  Check,
   ChevronLeft,
+  CircleX,
   ChevronRight,
   GlobeOff,
   House,
@@ -15,7 +17,9 @@ import {
  */
 const ICONS = {
   back: ChevronLeft,
+  check: Check,
   chevron: ChevronRight,
+  clear: CircleX,
   home: House,
   minus: Minus,
   offline: GlobeOff,

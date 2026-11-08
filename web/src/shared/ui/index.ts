@@ -19,3 +19,7 @@ export { EditableRow } from './EditableRow';
 export { SwipeToDelete } from './SwipeToDelete';
 export { RowContextMenu, type RowMenuItem } from './RowContextMenu';
 export { useAutoSaveText, useAutoSaveChoice, autoSaveMessages } from './autoSave';
+export { Swatch } from './Swatch';
+export { ColorChoice } from './ColorChoice';
+export { DateRow } from './DateRow';
+export { Sheet } from './Sheet';

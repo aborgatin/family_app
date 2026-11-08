@@ -1,4 +1,4 @@
-import { createContext, use, useId, type ReactNode } from 'react';
+import { Children, createContext, use, useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from './Button';
 
@@ -33,6 +33,11 @@ interface GroupedSectionProps {
    * edit mode on and off. Needs a `header`.
    */
   edit?: { editing: boolean; onEditingChange: (editing: boolean) => void };
+  /**
+   * Rows after an edit-mode list's rows, on the same cell but not part of the list (e.g.
+   * «Добавить ребёнка»).
+   */
+  after?: ReactNode;
   children?: ReactNode;
 }
 
@@ -77,7 +82,13 @@ function isAbout(message: SectionMessage, row: string) {
  * cell with hairlines between them, and a footer for hints and errors. The rows share a
  * two-column grid, so inline labels line up and the values start at the same edge.
  */
-export function GroupedSection({ header, messages = [], edit, children }: GroupedSectionProps) {
+export function GroupedSection({
+  header,
+  messages = [],
+  edit,
+  after,
+  children,
+}: GroupedSectionProps) {
   const { t } = useTranslation();
   const id = useId();
   const headerId = `${id}-header`;
@@ -112,14 +123,23 @@ export function GroupedSection({ header, messages = [], edit, children }: Groupe
           )}
         </div>
       )}
-      {children !== undefined && children !== null && (
-        <div
-          role={edit === undefined ? undefined : 'list'}
-          aria-labelledby={edit === undefined || header === undefined ? undefined : headerId}
-          className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 overflow-hidden rounded-xl bg-cell"
-        >
+      {(hasRows(children) || hasRows(after)) && (
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 overflow-hidden rounded-xl bg-cell">
           <EditContext value={edit?.editing ?? false}>
-            <SectionContext value={rows}>{children}</SectionContext>
+            <SectionContext value={rows}>
+              {edit === undefined
+                ? children
+                : hasRows(children) && (
+                    <div
+                      role="list"
+                      aria-labelledby={header === undefined ? undefined : headerId}
+                      className="col-span-full grid grid-cols-subgrid"
+                    >
+                      {children}
+                    </div>
+                  )}
+              {after}
+            </SectionContext>
           </EditContext>
         </div>
       )}
@@ -147,6 +167,10 @@ export function GroupedSection({ header, messages = [], edit, children }: Groupe
       )}
     </section>
   );
+}
+
+function hasRows(rows: ReactNode) {
+  return Children.toArray(rows).length > 0;
 }
 
 /**

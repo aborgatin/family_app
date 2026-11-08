@@ -16,12 +16,8 @@ export function SettingsPage() {
     <Page title={t('settings.title')} back={{ to: '/', title: t('app.name') }}>
       <Sections>
         <MembersSettings />
-        {/* Children and Child fields keep their M1 content until their own tickets (spec #35). */}
-        <GroupedSection header={t('settings.children')}>
-          <SectionContent>
-            <ChildrenSettings />
-          </SectionContent>
-        </GroupedSection>
+        <ChildrenSettings />
+        {/* Child fields keep their M1 content until their own ticket (spec #35). */}
         <GroupedSection header={t('settings.childFields')}>
           <SectionContent>
             <ChildFieldsSettings />

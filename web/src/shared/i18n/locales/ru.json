@@ -119,27 +119,24 @@
   },
   "children": {
     "empty": "Детей пока нет",
-    "unknownColor": "Другой цвет",
     "add": "Добавить ребёнка",
-    "edit": "Изменить",
-    "editNamed": "Изменить: {{name}}",
-    "remove": {
-      "action": "Удалить",
-      "actionNamed": "Удалить: {{name}}",
-      "question": "Удалить ребёнка «{{name}}»?",
-      "confirm": "Да, удалить",
-      "cancel": "Отмена"
+    "newTitle": "Новый ребёнок",
+    "name": "Имя",
+    "color": "Цвет",
+    "birthday": "День рождения",
+    "age": {
+      "years_one": "{{count}} год",
+      "years_few": "{{count}} года",
+      "years_many": "{{count}} лет",
+      "years_other": "{{count}} года",
+      "months_one": "{{count}} месяц",
+      "months_few": "{{count}} месяца",
+      "months_many": "{{count}} месяцев",
+      "months_other": "{{count}} месяца"
     },
-    "form": {
-      "addTitle": "Новый ребёнок",
-      "editTitle": "Изменить: {{name}}",
-      "name": "Имя",
-      "color": "Цвет",
-      "birthday": "День рождения (необязательно)",
-      "save": "Сохранить",
-      "saving": "Сохраняем…",
-      "cancel": "Отмена"
-    }
+    "delete": "Удалить ребёнка",
+    "confirmDelete": "Удалить „{{name}}“?",
+    "notFound": "Такого ребёнка нет: возможно, его удалили."
   },
   "childColors": {
     "coral": "Коралловый",
@@ -198,6 +195,8 @@
     "edit": "Изменить",
     "done": "Готово",
     "delete": "Удалить",
-    "deleteRow": "Удалить «{{title}}»"
+    "deleteRow": "Удалить «{{title}}»",
+    "sheetCancel": "Отмена",
+    "clearRow": "Очистить «{{label}}»"
   }
 }

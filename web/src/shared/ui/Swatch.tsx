@@ -1,0 +1,18 @@
+interface SwatchProps {
+  /** A CSS colour, e.g. a Child color's `hex` from `@/shared/palette`. */
+  color: string;
+}
+
+/**
+ * A small dot in a colour, as `leading` of a row (a Child's colour). Decorative: whatever it marks
+ * is named in text.
+ */
+export function Swatch({ color }: SwatchProps) {
+  return (
+    <span
+      aria-hidden="true"
+      className="block size-3.5 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.12)]"
+      style={{ backgroundColor: color }}
+    />
+  );
+}
