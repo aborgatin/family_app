@@ -29,11 +29,11 @@ web/src/
   main.tsx              createBrowserRouter(routes) inside <AppProviders>; imports shared/ui/theme.css
   app/                  routes.tsx, AppProviders.tsx (I18nextProvider)
   features/
-    auth/               session, guard, setup (bootstrap), login, logout, Invite acceptance, password
-                        reset; LinkScreen (link-check states)
-    home/               HomePage: Page «Семья», empty state, gear → Settings, LogoutButton
-    settings/           SettingsPage shell, SettingsSection, SETTINGS_PATH
-    members/            MembersSettings: Members list, ProfileForm, PasswordForm, InvitesSettings
+    auth/               session, guard, setup (bootstrap), login, LogoutSection, Invite acceptance,
+                        password reset; LinkScreen (link-check states)
+    home/               HomePage: Page «Семья», empty state, gear → Settings
+    settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
+    members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection, PasswordForm
     children/           ChildrenSettings, ChildForm, color picker, useChildren()
     child-fields/       ChildFieldsSettings, useChildFields()
   shared/
@@ -42,8 +42,10 @@ web/src/
     load/               useLoad(): load / failed / retry for anything fetched once
     palette/            Child color palette (childColors.json)
     ui/                 theme.css (tokens), AppShell, Page (nav bar), CenteredPage, Button, Link,
-                        Icon, EmptyState, OfflineIndicator, Form, GroupedSection, InputRow,
-                        SegmentedControl; TextField, GrammaticalGenderChoice (docs/design.md)
+                        Icon, EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
+                        SectionContent, InputRow, SegmentedControl, ListRow, Avatar, ActionSheet,
+                        Spinner, auto-save hooks (autoSave.ts); TextField,
+                        GrammaticalGenderChoice (docs/design.md)
   test/                 renderApp, MSW server, fixtures, setup
 ```
 
@@ -208,6 +210,21 @@ Everything visual is specified in [`design.md`](../design.md). In short:
   same top-right spot. `AppShell` also holds the `role="status"` message announcing «Нет связи с
   сервером» / «Связь с сервером восстановлена». Nothing is disabled offline; saves fail with their
   usual message. M2 changes its meaning to "changes will sync later".
+- Settings «Оформление» (`features/settings/AppearanceSection`, `themeChoice.ts`) writes the
+  choice to `localStorage` `theme` (removes it for «Авто») and dispatches
+  `new StorageEvent('storage', {key: 'theme'})`, so the theme script applies it at once.
+
+## Settings
+
+`/settings` is one `Page` of `GroupedSection`s (in `Sections`), back to «Семья»: «Взрослые» (a
+row per Member: initial, name, email, «(вы)» on the own one; not tappable), the Invites (M1
+content), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
+`SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
+Members list), the password form (M1 content), «Дети» and «Поля профиля» (M1 content),
+«Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, confirmed with an
+`ActionSheet`; after logging out the guard shows `/login`). Auto-save and its failure footer are
+the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessages` (see
+`design.md`).
 
 ## PWA
 

@@ -1,5 +1,6 @@
-import { useId } from 'react';
+import { useId, type KeyboardEvent } from 'react';
 import { ROW_CLASSES, useSectionRow } from './GroupedSection';
+import { Spinner } from './Spinner';
 
 interface InputRowProps {
   /** Already translated; shown inline at the left of the row. */
@@ -8,6 +9,15 @@ interface InputRowProps {
   name: string;
   value: string;
   onChange: (value: string) => void;
+  /**
+   * Auto-save (`useAutoSaveText()`): called on blur and on Enter, which then no longer submits a
+   * surrounding form.
+   */
+  onCommit?: () => void;
+  /** Esc: put the saved value back. */
+  onRevert?: () => void;
+  /** Shows the spinner at the right of the row while saving. */
+  busy?: boolean;
   type?: 'text' | 'email' | 'password';
   autoComplete?: string;
 }
@@ -21,11 +31,25 @@ export function InputRow({
   name,
   value,
   onChange,
+  onCommit,
+  onRevert,
+  busy = false,
   type = 'text',
   autoComplete,
 }: InputRowProps) {
   const id = useId();
   const { describedBy, invalid } = useSectionRow(name);
+
+  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter' && onCommit !== undefined) {
+      event.preventDefault();
+      onCommit();
+    } else if (event.key === 'Escape' && onRevert !== undefined) {
+      event.preventDefault();
+      onRevert();
+    }
+  }
+
   return (
     <div className={ROW_CLASSES}>
       <label
@@ -43,10 +67,17 @@ export function InputRow({
         onChange={(event) => {
           onChange(event.target.value);
         }}
+        onBlur={onCommit}
+        onKeyDown={onKeyDown}
         aria-invalid={invalid}
         aria-describedby={describedBy}
         className={FIELD}
       />
+      {busy && (
+        <span className="absolute top-1/2 right-4 -translate-y-1/2">
+          <Spinner />
+        </span>
+      )}
     </div>
   );
 }

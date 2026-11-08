@@ -3,6 +3,7 @@ import {
   ChevronRight,
   GlobeOff,
   House,
+  LoaderCircle,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ const ICONS = {
   home: House,
   offline: GlobeOff,
   settings: Settings,
+  spinner: LoaderCircle,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

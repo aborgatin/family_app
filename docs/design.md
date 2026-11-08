@@ -30,6 +30,7 @@ dark theme redefines the same variables.
 | `segment`         | `#FFFFFF`        | `#636366`        | the selected segment on `fill`             |
 | `bar`             | `#F2F2F7` at 80% | `#161617` at 80% | the nav bar once content is under it       |
 | `destructive`     | `#D70015`        | `#FF453A`        | delete, log out, errors                    |
+| `overlay`         | black at 35%     | black at 55%     | the dimmed page behind an action sheet     |
 
 Contrast is WCAG AA (4.5:1 for text) on both `background` and `cell`; the figures are in the header
 of `theme.css`. Two deliberate departures from the iOS values: light destructive text is `#D70015`
@@ -93,6 +94,13 @@ The status bar is `black-translucent`: the page draws under it, and the nav bar 
   («Не удалось сохранить. Проверьте соединение.») with «Повторить». A validation error (e.g. empty
   name) shows there and sends nothing. A failed choice goes back to the previous value with the
   same message. Messages come from `errorMessage()` (I3).
+- How: `useAutoSaveText()` / `useAutoSaveChoice()` from `shared/ui` hold all of this. A screen
+  gives them the row's `name`, the saved value and a `save(value)` that resolves with the value
+  as saved; spreads `input` onto an `InputRow` / `control` onto a `SegmentedControl`; and passes
+  `messages={autoSaveMessages([a.failure, b.failure])}` to the `GroupedSection`. Those footer
+  lines are about their rows, announced (`alert`), and carry «Повторить»; rows that failed for
+  the same reason share one line, whose «Повторить» retries them all. No screen writes its own
+  saving state.
 - **Explicit confirm** only for: auth forms (full-width primary button), creating something
   (a «Новый …» sheet with «Отмена» / «Готово», so a half-filled item is never saved), and the
   password screen («Готово» in the nav bar).
@@ -127,8 +135,9 @@ screen) and `actions` (the nav bar's trailing slot), then the content.
 
 Does something. `variant`: `plain` (accent text, default), `destructive` (red text), `primary`
 (filled, full width, for the one confirm action of an auth form). Text, an icon before text
-(`icon`), or an icon alone with a translated `label`. `type="submit"` inside a form. Touch: 44px
-target; primary is 50px tall. Fine pointer: 28px (primary 36px). Hover dims it; disabled is 40%
+(`icon`), or an icon alone with a translated `label`. `type="submit"` inside a form.
+`size="small"`: footnote-sized, for a section footer («Повторить»); it keeps its touch target
+without pushing the lines apart. Touch: 44px target; primary is 50px tall. Fine pointer: 28px (primary 36px). Hover dims it; disabled is 40%
 opacity.
 
 ### Link
@@ -140,8 +149,9 @@ navigating.
 ### Icon
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
-`chevron`, `home`, `offline` (crossed globe), `settings`; a new icon is added to the map in
-`Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text colour; default size 22px.
+`chevron`, `home`, `offline` (crossed globe), `settings`, `spinner`; a new icon is added to the
+map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
+colour; default size 22px.
 
 ### EmptyState
 
@@ -193,14 +203,26 @@ The footer is `messages`: lines top to bottom, each `{text, tone, row}`. `tone: 
 accessible description; an error also marks the row invalid (`aria-invalid`, label in red). An
 error without `row` is about the whole group (a failed submit) and is announced (`role="alert"`).
 Show a row's error instead of its hint, not under it. Messages come from the error-code mapping
-(I3). Same on every device.
+(I3). Same on every device. Further, optional: `row` may name several rows; `announce` makes a
+row's error an `alert` too (a save that failed after the field was left); `action` adds a small
+text `Button` after the line («Повторить»). A `header` also names the section (a region).
+
+Content that isn't rows yet (the M1 parts of Settings until their tickets) goes in one
+`SectionContent`, a padded cell spanning the group.
+
+### Sections
+
+A screen made of `GroupedSection`s stacks them in `Sections`: 32px apart on touch, 24px with a
+fine pointer.
 
 ### InputRow
 
 A text field as a row of a `GroupedSection`: `label` inline at the left, the field filling the
 rest (`type` text, email or password; `autoComplete`). Its `name` links it to footer messages.
 Touch: 44px row, the caret is the only focus sign, as on iOS. Fine pointer: 36px row, and the
-focused field gets the accent outline. Enter submits the surrounding `Form`.
+focused field gets the accent outline. Enter submits the surrounding `Form`, unless the row
+auto-saves: with `onCommit` (from `useAutoSaveText()`), leaving the field or Enter saves, Esc
+(`onRevert`) puts the saved value back, and `busy` shows the `Spinner` at the right of the row.
 
 ### SegmentedControl
 
@@ -210,8 +232,40 @@ One of two or three choices, as an iOS segmented control in a row of a `GroupedS
 (`role="radiogroup"` named by the label): Tab reaches it, arrow keys move the choice, Space picks.
 Touch: 32px segments drawn in a 48px row, each segment's target reaching the row's top and
 bottom edges (48px tall). Fine pointer: 24px segments. Its `name` links it to footer messages like an `InputRow`.
+Auto-saved (`useAutoSaveChoice()`): each choice saves at once, so arrow keys save on every move;
+`busy` shows the `Spinner` after the label.
+
+### ListRow
+
+A row of a `GroupedSection` that isn't a field: `title`, optional `subtitle` (second, smaller line), `leading` (an
+`Avatar`, a colour dot), `value` (right-aligned, secondary colour), `busy` (spinner). What it does
+decides what it is:
+
+- `to`: opens another screen, chevron on the right (a link);
+- `onClick`: a button row; with `destructive` red text («Выйти», «Удалить …»);
+- neither: shows something, not tappable (the «Взрослые» rows).
+
+Touch: at least 44px tall, grey while pressed. Fine pointer: 36px, hover tint. Keyboard: tappable rows take focus (accent outline inside the cell),
+Enter / Space activate them.
+
+### Avatar
+
+The grey circle with a name's initial, as `leading` of a row about a person. Decorative.
+
+### ActionSheet
+
+Asks before something that can't be undone: `title` (the question), optional `message`,
+`actions` (usually one `destructive`), and «Отменить» added last. Narrow windows (< 640px): an
+iOS action sheet sliding up from the bottom, «Отменить» in its own block. Wide windows: a centred
+dialog, «Отменить» its last line. Built on Radix Dialog: focus moves in and back to the trigger,
+Esc or a tap outside cancels.
+
+### Spinner
+
+«Сохраняем…» at the right of a row while it saves; rows show it through `busy`, which the
+auto-save hooks set only after ~400 ms.
 
 ### TextField, GrammaticalGenderChoice
 
-Still the M1 form controls of the Settings screens; the Settings ticket of spec #35 replaces them
-with `InputRow` and `SegmentedControl`.
+Still the M1 form controls inside the parts of Settings that keep their M1 content (Invites,
+password, Children, Child fields) until their own tickets of spec #35.

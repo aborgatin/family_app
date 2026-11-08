@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { ROW_CLASSES, useSectionRow } from './GroupedSection';
+import { Spinner } from './Spinner';
 
 interface SegmentedControlProps<T extends string> {
   /** Already translated; names the choice, shown inline at the left of the row. */
@@ -11,6 +12,8 @@ interface SegmentedControlProps<T extends string> {
   /** `undefined` while nothing is chosen: no segment is selected. */
   value: T | undefined;
   onChange: (value: T) => void;
+  /** Shows the spinner left of the segments while the choice saves (`useAutoSaveChoice()`). */
+  busy?: boolean;
 }
 
 /**
@@ -23,6 +26,7 @@ export function SegmentedControl<T extends string>({
   options,
   value,
   onChange,
+  busy = false,
 }: SegmentedControlProps<T>) {
   const id = useId();
   const labelId = `${id}-label`;
@@ -35,8 +39,11 @@ export function SegmentedControl<T extends string>({
       aria-invalid={invalid}
       className={`${ROW_CLASSES} py-1.5`}
     >
-      <span id={labelId} className={invalid ? 'text-destructive' : undefined}>
-        {label}
+      <span className="flex items-center gap-2">
+        <span id={labelId} className={invalid ? 'text-destructive' : undefined}>
+          {label}
+        </span>
+        {busy && <Spinner />}
       </span>
       <div className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-lg bg-fill p-0.5">
         {options.map((option) => (

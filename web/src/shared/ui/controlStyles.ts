@@ -24,6 +24,15 @@ const VARIANTS: Record<ControlVariant, string> = {
     'pointer-coarse:min-h-[3.125rem] pointer-fine:min-h-9 hover:opacity-85 active:opacity-70',
 };
 
-export function controlClasses(variant: ControlVariant): string {
-  return `${BASE} ${VARIANTS[variant]}`;
+/**
+ * `regular`, or `small`: footnote-sized text inside a section footer (e.g. «Повторить»). A small
+ * control keeps its 44px touch target but doesn't push the lines around it apart.
+ */
+export type ControlSize = 'regular' | 'small';
+
+const SMALL =
+  'text-footnote! font-semibold px-1! pointer-coarse:-my-3 pointer-fine:min-h-0! pointer-fine:-my-0.5';
+
+export function controlClasses(variant: ControlVariant, size: ControlSize = 'regular'): string {
+  return `${BASE} ${VARIANTS[variant]}${size === 'small' ? ` ${SMALL}` : ''}`;
 }

@@ -1,29 +1,35 @@
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { LogoutSection } from '@/features/auth';
 import { ChildFieldsSettings } from '@/features/child-fields';
 import { ChildrenSettings } from '@/features/children';
 import { MembersSettings } from '@/features/members';
-import { SettingsSection } from './SettingsSection';
+import { GroupedSection, Page, SectionContent, Sections } from '@/shared/ui';
+import { AppearanceSection } from './AppearanceSection';
 
 /**
- * The Settings screen (`/settings`), «Настройки». Only the shell lives here; each section's
- * content comes from its own feature (`members`, `children`, `child-fields`).
+ * The Settings screen (`/settings`), «Настройки»: one page of grouped sections. Only the page
+ * lives here; each section's content comes from its own feature.
  */
 export function SettingsPage() {
   const { t } = useTranslation();
   return (
-    <main>
-      <Link to="/">{t('settings.backHome')}</Link>
-      <h1>{t('settings.title')}</h1>
-      <SettingsSection title={t('settings.members')}>
+    <Page title={t('settings.title')} back={{ to: '/', title: t('app.name') }}>
+      <Sections>
         <MembersSettings />
-      </SettingsSection>
-      <SettingsSection title={t('settings.children')}>
-        <ChildrenSettings />
-      </SettingsSection>
-      <SettingsSection title={t('settings.childFields')}>
-        <ChildFieldsSettings />
-      </SettingsSection>
-    </main>
+        {/* Children and Child fields keep their M1 content until their own tickets (spec #35). */}
+        <GroupedSection header={t('settings.children')}>
+          <SectionContent>
+            <ChildrenSettings />
+          </SectionContent>
+        </GroupedSection>
+        <GroupedSection header={t('settings.childFields')}>
+          <SectionContent>
+            <ChildFieldsSettings />
+          </SectionContent>
+        </GroupedSection>
+        <AppearanceSection />
+        <LogoutSection />
+      </Sections>
+    </Page>
   );
 }
