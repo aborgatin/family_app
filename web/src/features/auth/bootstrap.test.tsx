@@ -242,6 +242,14 @@ describe('Route guard', () => {
     expect(screen.queryByRole('heading', { name: 'Регистрация первого взрослого' })).toBeNull();
   });
 
+  it('says «Загрузка…» while the session loads', async () => {
+    server.use(http.get('/api/auth/session', () => new Promise<Response>(() => undefined)));
+
+    renderApp('/');
+
+    expect(await screen.findByText('Загрузка…')).toHaveAttribute('role', 'status');
+  });
+
   it('says so when the session cannot be loaded, and retries', async () => {
     server.use(http.get('/api/auth/session', () => HttpResponse.error()));
     const user = userEvent.setup();

@@ -6,6 +6,7 @@ import {
   EditableRow,
   GroupedSection,
   ListRow,
+  LoadingRow,
   SortableList,
   useAutoSaveText,
   type SaveFailure,
@@ -97,7 +98,7 @@ export function ChildFieldsSettings() {
         messages={messages}
         after={
           load.status === 'loading' ? (
-            <ListRow title={<span role="status">{t('common.loading')}</span>} />
+            <LoadingRow />
           ) : (
             load.status === 'ready' && (
               <ListRow

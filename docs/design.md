@@ -111,7 +111,12 @@ The status bar is `black-translucent`: the page draws under it, and the nav bar 
 
 ## Components
 
-All in `web/src/shared/ui`, exported from its `index.ts`.
+All in `web/src/shared/ui`, exported from its `index.ts` (except `OfflineIndicator` and
+`Spinner`, which only other components place). Feature code uses nothing
+else to draw: no raw `button` / `input` / `select` / `textarea` / `form` / `a`, no `className` or
+`style`, no UI library (CODING_STANDARDS U1, enforced by lint). The auto-save hooks
+`useAutoSaveText()`, `useAutoSaveChoice()` and `autoSaveMessages()` are described under
+[Saving and deleting](#saving-and-deleting).
 
 ### AppShell
 
@@ -161,6 +166,14 @@ colour; default size 22px.
 A centred quiet message where a screen or list has nothing yet: optional large `icon`, the text,
 an optional `action` under it (e.g. «Повторить»). `compact` drops its vertical padding inside a
 `CenteredPage`. Same on every device.
+
+### StatusScreen
+
+The whole window with only a message, centred both ways in a 400px column: while the app starts,
+before any screen can be shown (`AuthGuard`: «Загрузка…» while the session loads, the failure
+with «Повторить» when it couldn't be loaded). `role` (`status` / `alert`), the text, an optional
+`action`. No title, no nav bar; `AppShell` shows the offline globe in the corner. Same on every
+device. A screen that has a title uses `CenteredPage` or `Page` with an `EmptyState` instead.
 
 ### OfflineIndicator
 
@@ -308,6 +321,11 @@ Enter / Space activate them.
 
 `wrapSubtitle` shows the whole subtitle, wrapped, instead of cutting it with «…» (a link to copy
 by hand). A `Button` can go in `value` (the «Скопировать» of a link that wasn't copied).
+
+### LoadingRow
+
+«Загрузка…» as a plain `ListRow` (announced, `role="status"`) where a `GroupedSection`'s rows
+will be while its list loads («Взрослые», «Дети», «Поля профиля»). Same on every device.
 
 ### EditableRow
 

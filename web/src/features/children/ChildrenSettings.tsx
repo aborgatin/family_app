@@ -2,7 +2,14 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
 import { childColor } from '@/shared/palette';
-import { EditableRow, GroupedSection, ListRow, Swatch, type SectionMessage } from '@/shared/ui';
+import {
+  EditableRow,
+  GroupedSection,
+  ListRow,
+  LoadingRow,
+  Swatch,
+  type SectionMessage,
+} from '@/shared/ui';
 import { childPath } from './ChildPage';
 import type { Child } from './childrenApi';
 import { useAge } from './age';
@@ -71,7 +78,7 @@ export function ChildrenSettings() {
         messages={messages}
         after={
           load.status === 'loading' ? (
-            <ListRow title={<span role="status">{t('common.loading')}</span>} />
+            <LoadingRow />
           ) : (
             load.status === 'ready' && (
               <ListRow

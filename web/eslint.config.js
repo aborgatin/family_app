@@ -117,6 +117,30 @@ export default defineConfig([
     },
   },
 
+  // U1 — screens are built only from shared/ui (ADR-0008, docs/design.md): no raw form elements or
+  // links, no className / style in features. A separate rule from the M3 blocks below, since
+  // no-restricted-imports blocks replace each other per file. Tests are exempt.
+  {
+    name: 'u1/features-only-shared-ui',
+    files: ['src/features/**/*.tsx'],
+    ignores: TEST_FILES,
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'JSXOpeningElement[name.name=/^(button|input|select|textarea|form|a)$/]',
+          message:
+            'Build screens only from `@/shared/ui` (Button, Link, InputRow, Form, …); add a new look there first (U1).',
+        },
+        {
+          selector: 'JSXAttribute[name.name=/^(className|style)$/]',
+          message:
+            'No className or style in features: styling lives in `@/shared/ui` components and their props (U1).',
+        },
+      ],
+    },
+  },
+
   ...layerBlocks('src/shared', 'shared', [
     FEATURES_FROM_SHARED,
     APP_FROM_BELOW,

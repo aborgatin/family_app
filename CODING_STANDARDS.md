@@ -35,6 +35,8 @@ diff disables, weakens or bypasses one of them (config change, suppression comme
 | eslint-plugin-i18next `no-literal-string` | `/web` | literal text in JSX and user-visible attributes (I2) |
 | i18next typed resources | `/web` | unknown i18n keys are type errors (I2) |
 | ESLint `no-restricted-imports` (per-folder rules) | `/web` | imports into another feature only via its `index.ts`; `shared → features → app` direction (M3) |
+| ESLint `no-restricted-syntax` (`u1/features-only-shared-ui`) | `/web/src/features` | raw `button`/`input`/`select`/`textarea`/`form`/`a` elements and `className`/`style` props (U1) |
+| ESLint `no-restricted-imports` (feature blocks) | `/web/src/features` | `@dnd-kit/*`, `lucide-react`, `@radix-ui/*` outside `shared/ui` (U1) |
 | `scripts/check-migrations.sh` | Flyway migrations | changed/deleted migrations merged to `main`, new versions not above `main`'s highest (S5) |
 
 ## Modules and boundaries
@@ -73,6 +75,17 @@ concatenation.
 **I3 — Error codes are mapped, not echoed.** The client maps each API error code to an i18n key; an
 unknown code falls back to a generic message key. Displaying `error.code` or a server message raw is a
 finding.
+
+## UI (ADR-0008)
+
+**U1 — Screens are built only from `shared/ui`.** Code in `web/src/features/**` composes the
+components of `web/src/shared/ui` ([ADR-0008](docs/adr/0008-ios-style-ui-kit.md),
+[`docs/design.md`](docs/design.md)): no raw `button`, `input`, `select`, `textarea`, `form` or `a`
+elements, no `className` or `style` props, and no UI library (`@dnd-kit/*`, `lucide-react`,
+`@radix-ui/*`) imported directly. A look the kit doesn't have yet is added to `shared/ui` first,
+as a component or a prop, with its section in `docs/design.md`. Tests are exempt. Lint checks the
+listed elements and props; other ways around the kit (an inline SVG, `dangerouslySetInnerHTML`,
+a raw element styled from a stylesheet) are findings too.
 
 ## Sync and data (ADR-0003, ADR-0004, ADR-0005)
 

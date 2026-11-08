@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { errorMessageKey } from '@/shared/api';
 import { useLoad } from '@/shared/load';
+import { Button, StatusScreen } from '@/shared/ui';
 import { fetchSession, type Member, type Session } from './authApi';
 import { SessionContext, type SessionState } from './session';
 
@@ -69,17 +70,14 @@ export function AuthGuard() {
   );
 
   if (load.status === 'loading') {
-    return <p role="status">{t('common.loading')}</p>;
+    return <StatusScreen role="status">{t('common.loading')}</StatusScreen>;
   }
   if (load.status === 'failed' || state === null) {
     const code = load.status === 'failed' ? load.error.code : 'unknown';
     return (
-      <main>
-        <p role="alert">{t(errorMessageKey(code))}</p>
-        <button type="button" onClick={retry}>
-          {t('common.retry')}
-        </button>
-      </main>
+      <StatusScreen role="alert" action={<Button onClick={retry}>{t('common.retry')}</Button>}>
+        {t(errorMessageKey(code))}
+      </StatusScreen>
     );
   }
 

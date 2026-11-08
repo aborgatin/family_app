@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useSession, type Member } from '@/features/auth';
 import { errorMessage } from '@/shared/api';
 import type { ReactNode } from 'react';
-import { Avatar, GroupedSection, ListRow, type SectionMessage } from '@/shared/ui';
+import { Avatar, GroupedSection, ListRow, LoadingRow, type SectionMessage } from '@/shared/ui';
 import { InvitesSection, useInviteAdult, useInvites } from './InvitesSettings';
 import { ProfileSection } from './ProfileSection';
 import { useMembers, type MembersLoad } from './useMembers';
@@ -67,9 +67,7 @@ function MembersSection({ load, retry, myId, inviteRows, inviteMessages }: Membe
 
   return (
     <GroupedSection header={t('settings.members')} messages={messages}>
-      {load.status === 'loading' && (
-        <ListRow title={<span role="status">{t('common.loading')}</span>} />
-      )}
+      {load.status === 'loading' && <LoadingRow />}
       {load.status === 'ready' &&
         load.value.map((member) => (
           <ListRow
