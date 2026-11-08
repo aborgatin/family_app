@@ -149,7 +149,7 @@ navigating.
 ### Icon
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
-`chevron`, `home`, `offline` (crossed globe), `settings`, `spinner`; a new icon is added to the
+`chevron`, `home`, `minus` (edit mode's ⊖), `offline` (crossed globe), `settings`, `spinner`; a new icon is added to the
 map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
 colour; default size 22px.
 
@@ -204,8 +204,15 @@ accessible description; an error also marks the row invalid (`aria-invalid`, lab
 error without `row` is about the whole group (a failed submit) and is announced (`role="alert"`).
 Show a row's error instead of its hint, not under it. Messages come from the error-code mapping
 (I3). Same on every device. Further, optional: `row` may name several rows; `announce` makes a
-row's error an `alert` too (a save that failed after the field was left); `action` adds a small
+row's error an `alert` too (a save that failed after the field was left), and a hint a `status`
+(«Ссылка скопирована», shown for a few seconds); `action` adds a small
 text `Button` after the line («Повторить»). A `header` also names the section (a region).
+
+With `edit` (`{editing, onEditingChange}`) the group is an **edit-mode list**: «Изменить» /
+«Готово» (a small `Button`) at the right of the header turns edit mode on and off, the cell is a
+`list` named by the header, and its rows are `EditableRow`s. Leave edit mode when the last row
+goes. Same on every device; on touch it is how you delete besides swiping, with a fine pointer
+besides right-click, and with the keyboard the only way.
 
 Content that isn't rows yet (the M1 parts of Settings until their tickets) goes in one
 `SectionContent`, a padded cell spanning the group.
@@ -243,11 +250,47 @@ at the text, as on iOS), `value` (right-aligned, secondary colour), `busy` (spin
 decides what it is:
 
 - `to`: opens another screen, chevron on the right (a link);
-- `onClick`: a button row; with `destructive` red text («Выйти», «Удалить …»);
+- `onClick`: a button row; with `destructive` red text («Выйти», «Удалить …»), with `accent`
+  accent text for a row that adds something («Пригласить взрослого…», «Добавить ребёнка»);
 - neither: shows something, not tappable (the «Взрослые» rows).
 
 Touch: at least 44px tall, grey while pressed. Fine pointer: 36px, hover tint. Keyboard: tappable rows take focus (accent outline inside the cell),
 Enter / Space activate them.
+
+`wrapSubtitle` shows the whole subtitle, wrapped, instead of cutting it with «…» (a link to copy
+by hand). A `Button` can go in `value` (the «Скопировать» of a link that wasn't copied).
+
+### EditableRow
+
+A row of an edit-mode list (`GroupedSection` with `edit`) that can be deleted: `title` (a string:
+it also names ⊖), `subtitle`, `leading`, `value`, `busy` as a `ListRow`, optional `to` (opens a
+screen, chevron; not in edit mode), `confirm` (`{title, message}` of the action sheet) and
+`onDelete`, which runs only after the action sheet's «Удалить». Every way in asks first:
+
+- **Edit mode**: a red ⊖ at the left, a button named «Удалить «<title>»» (Tab reaches it,
+  Enter / Space presses it). `handle` is shown at the right: the drag handle of a list that can
+  be reordered (Child fields: the sortable list around the rows passes its `ref` and the handle).
+  Swipe and right-click are off.
+- **Touch**: `SwipeToDelete` (below).
+- **Fine pointer**: `RowContextMenu` with «Удалить» (below).
+
+Children use it for delete only (`to` their screen), Child fields with `handle`, Invites plain.
+
+### SwipeToDelete
+
+Inside `EditableRow`; use it directly only for a row that isn't one. Swipe a row left on a touch
+screen and a red «Удалить» slides in from the right (88px). A full swipe only reveals it:
+deleting is a separate tap, which then asks. Swiping right, tapping the row or tapping anywhere
+else closes it; edit mode closes it too. A vertical move scrolls the page as usual. Touch only
+(`pointerType === 'touch'`): mouse and pen never move the row. Not reachable by keyboard (edit
+mode is).
+
+### RowContextMenu
+
+Inside `EditableRow`. Right-click (or the context-menu key / Shift+F10) on a row opens a small
+menu next to the pointer: «Удалить» in red. Fine pointer only: on a touch screen a long press does
+nothing (the row is swiped there). Keyboard: arrows move, Enter picks, Esc closes. Built on Radix
+Context Menu (non-modal, so the action sheet can open from it).
 
 ### Avatar
 

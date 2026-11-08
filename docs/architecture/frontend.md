@@ -8,7 +8,8 @@ component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](b
 
 React 19, TypeScript 6 (`strict`, `noUncheckedIndexedAccess`), Vite 8, `vite-plugin-pwa` 2
 (Workbox), React Router 8 (import from `react-router`), i18next 27 + react-i18next, Tailwind CSS 4
-(`@tailwindcss/vite`), Radix primitives (`@radix-ui/react-popover`, only inside `shared/ui`),
+(`@tailwindcss/vite`), Radix primitives (`@radix-ui/react-popover`, `-dialog`, `-context-menu`, only inside
+`shared/ui`),
 `lucide-react` (only inside `shared/ui/Icon.tsx`), Vitest 5 + Testing
 Library + MSW 3, ESLint 10 flat config, Prettier 3. Node 22 or newer.
 
@@ -158,9 +159,16 @@ permanently (S4 exception).
 
 `crypto.randomUUID()` needs a secure context: HTTPS, or `localhost` in development.
 
-Invites: `InvitesSettings` sits inside `MembersSettings`. A new link is shared with
-`navigator.share` when it exists (iOS share sheet), otherwise copied with
-`navigator.clipboard.writeText`. Confirmations (revoke, remove) are inline, never
+Invites (`members/InvitesSettings.tsx`, used by `MembersSettings`): `useInvites()` loads the
+active Invites once for both sections. `useInviteAdult()` gives «Взрослые» its «Пригласить
+взрослого…» row: one tap sends `POST /api/invites` and, in the same tick (Safari keeps the user
+activation only that long), calls `navigator.clipboard.write([new ClipboardItem({'text/plain':
+blobPromise})])` with the link still pending. Copied → «Ссылка скопирована» (`status`) in the
+footer for `COPIED_MS` (3 s). Not copied (refused, or no `ClipboardItem`) → a «Новая ссылка» row
+with the full link and «Скопировать» (`clipboard.writeText` on a fresh tap); if that fails too the
+footer asks to copy by hand. `navigator.share` is not used. `InvitesSection` («Приглашения»,
+hidden when there are none) lists them as `EditableRow`s «Ссылка · до 14 ноября», revoked from
+edit mode, a swipe or right-click, always after the `ActionSheet`. Confirmations are never
 `window.confirm`.
 
 Child color palette: `web/src/shared/palette/childColors.json` (`[{code, hex}]`) is the single
@@ -217,8 +225,8 @@ Everything visual is specified in [`design.md`](../design.md). In short:
 ## Settings
 
 `/settings` is one `Page` of `GroupedSection`s (in `Sections`), back to «Семья»: «Взрослые» (a
-row per Member: initial, name, email, «(вы)» on the own one; not tappable), the Invites (M1
-content), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
+row per Member: initial, name, email, «(вы)» on the own one; not tappable; then «Пригласить
+взрослого…»), «Приглашения» (an edit-mode list, see Invites above), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
 Members list), the password form (M1 content), «Дети» and «Поля профиля» (M1 content),
 «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, confirmed with an
@@ -282,5 +290,8 @@ a Vite native-config-loader warning).
   `invitesHandler`, `sessionHandler`.
 - Query by role and label; assert on the Russian text the user sees (T1). Set
   `document.cookie = 'XSRF-TOKEN=…'` to check the CSRF header.
-- To test share/copy, stub `navigator.share` / `navigator.clipboard` after `userEvent.setup()`
-  (which installs its own clipboard).
+- To test copying, stub `ClipboardItem` (`vi.stubGlobal`) and `navigator.clipboard` (`write`,
+  `writeText`) after `userEvent.setup()`, which installs its own clipboard (`invites.test.tsx`).
+- Right-click: `user.pointer({keys: '[MouseRight]', target})`, then the `menuitem`. jsdom has no
+  `matchMedia`, so `RowContextMenu` treats the pointer as fine there. Swipes can't be tested in
+  jsdom (screenshots instead).
