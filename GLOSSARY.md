@@ -50,7 +50,7 @@ The checked-off state of an Item, recorded together with who marked it done.
 _Avoid_: Completed, bought, checked, finished, closed
 
 **Visibility** — «Личный» / «Общий»:
-Whether a List is Private (seen only by its Owner) or Shared (seen by all Members).
+Whether a List is Private (seen only by its Owner) or Shared (seen by all Members). Only the Owner changes it, in either direction: a List can be prepared as Private and shared later, and a Shared List made Private disappears for the other Member.
 _Avoid_: Family (as a visibility), public, personal, access
 
 **Owner** — «Владелец»:
@@ -89,9 +89,9 @@ _Avoid_: Catalog, product database, dictionary, suggestions
 
 ## Todos
 
-**Todo list** — «Список дел»:
-A List of kind todo.
-_Avoid_: Task list, checklist, tasks
+**Todo list** — «TODO-список» (as a List kind: «TODO»):
+A List of kind todo. Its Items are still «Задача».
+_Avoid_: Task list, checklist, tasks, «Список дел»
 
 **Assignee** — «Ответственный»:
 The Member responsible for a todo item on a Shared list; never a Child.
@@ -174,7 +174,7 @@ A server-assigned, ever-increasing number stamped on every changed record; devic
 _Avoid_: Revision, timestamp, sequence
 
 **Last write wins** — —:
-The conflict rule: when two devices change the same field of the same record, the later change is kept.
+The conflict rule: when two devices change the same field of the same record, the change the server receives later is kept, whenever it was made on the device. Changes to different fields of one record are both kept. A change to a record that was deleted meanwhile is dropped: deleting wins.
 _Avoid_: Merge, conflict resolution
 
 ## Future
