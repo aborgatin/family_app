@@ -6,6 +6,8 @@ Run all checks with `scripts/check.sh` (add `--image` to build and smoke-test th
 
 ## Agent skills
 
+Skills are in `.claude/skills/`; the grill → spec → tickets → implement → retro workflow is in `docs/agents/agentic-workflow.md`.
+
 ### Issue tracker
 
 Issues live in GitHub Issues for `aborgatin/family_app` (via `gh`). See `docs/agents/issue-tracker.md`.
