@@ -30,7 +30,7 @@ export function Page({ title, back, actions, children }: PageProps) {
           (underBar ? 'border-separator bg-bar backdrop-blur-xl' : 'border-transparent')
         }
       >
-        <div className="mx-auto grid min-h-11 max-w-160 grid-cols-[1fr_auto_1fr] items-center gap-2 px-[max(0.5rem,env(safe-area-inset-left))]">
+        <div className="mx-auto grid min-h-11 max-w-160 grid-cols-[1fr_auto_1fr] items-center gap-2 pr-[max(0.5rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))]">
           <div className="flex min-w-0 justify-start">
             {back !== undefined && (
               <Link to={back.to} icon="back">
@@ -50,7 +50,7 @@ export function Page({ title, back, actions, children }: PageProps) {
           <div className="flex min-w-0 items-center justify-end gap-1">{actions}</div>
         </div>
       </header>
-      <main className="mx-auto max-w-160 px-[max(1rem,env(safe-area-inset-left))] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+      <main className="mx-auto max-w-160 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
         <h1 ref={largeTitle} className="pt-1 pb-2 text-large-title font-bold">
           {title}
         </h1>
