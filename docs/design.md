@@ -139,13 +139,28 @@ navigating.
 ### Icon
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
-`chevron`, `home`, `settings`; a new icon is added to the map in `Icon.tsx`. Decorative
+`chevron`, `home`, `offline` (crossed globe), `settings`; a new icon is added to the map in `Icon.tsx`. Decorative
 (`aria-hidden`) unless given a `label`. Takes the current text colour; default size 22px.
 
 ### EmptyState
 
 A centred quiet message where a screen or list has nothing yet: optional large `icon`, the text,
 an optional `action` under it (e.g. «Повторить»). Same on every device.
+
+### OfflineIndicator
+
+A crossed globe (`secondary-label`) shown while the server can't be reached: after any request
+fails with `network.unavailable`, until the next request gets an answer. Screens never place it:
+`Page` puts it first in the nav bar's trailing slot, and on screens without a nav bar (auth
+screens) `AppShell` shows it in the same top-right spot of the 640px column. It disables nothing.
+
+- Tap (or click) toggles a small popover «Нет связи с сервером» under it; Esc or a tap elsewhere
+  closes it. With a mouse, hovering shows it too.
+- Touch: 44px target. Fine pointer: 28px.
+- Its accessible name is «Нет связи с сервером»; a visually hidden `role="status"` in `AppShell`
+  announces going offline and «Связь с сервером восстановлена».
+- Keyboard: reachable with Tab after the back button; Enter/Space opens the popover, Esc closes
+  it. Focus stays on the globe.
 
 ### TextField, GrammaticalGenderChoice
 
