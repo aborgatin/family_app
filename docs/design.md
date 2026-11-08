@@ -139,8 +139,8 @@ navigating.
 ### Icon
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
-`chevron`, `home`, `offline` (crossed globe), `settings`; a new icon is added to the map in `Icon.tsx`. Decorative
-(`aria-hidden`) unless given a `label`. Takes the current text colour; default size 22px.
+`chevron`, `home`, `offline` (crossed globe), `settings`; a new icon is added to the map in
+`Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text colour; default size 22px.
 
 ### EmptyState
 
