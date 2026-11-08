@@ -358,3 +358,11 @@ a Vite native-config-loader warning).
 - Right-click: `user.pointer({keys: '[MouseRight]', target})`, then the `menuitem`. jsdom has no
   `matchMedia`, so `RowContextMenu` treats the pointer as fine there. Swipes can't be tested in
   jsdom (screenshots instead).
+
+## Screenshots
+
+What jsdom can't check (layout, touch vs pointer, narrow vs wide, light vs dark, swipes) is checked
+by looking: `scripts/screenshot.sh --out <dir>` runs the app from this checkout and shoots every
+route in `scripts/screenshot/screens.mjs` at 390px touch and 1280px mouse, in light and dark. A
+change to a screen adds or updates its route there. Options, seed data and route format:
+`scripts/screenshot/README.md`.
