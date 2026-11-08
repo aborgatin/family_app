@@ -3,14 +3,42 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <!-- The app name placeholder is filled from the ru i18n file (vite.config.ts). Icon links, the
-         manifest link and theme-color are injected by vite-plugin-pwa at build time. -->
+    <!-- The app name placeholder is filled from the ru i18n file (vite.config.ts). Icon links and
+         the manifest link are injected by vite-plugin-pwa at build time. -->
     <title>%APP_NAME%</title>
-    <!-- iOS Home Screen: open full-screen, with the app's own name under the icon. -->
+    <!-- iOS Home Screen: open full-screen, with the app's own name under the icon. The status bar
+         is drawn over the page; the nav bar pads by safe-area-inset-top (shared/ui Page). -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="%APP_NAME%" />
+    <!-- The grouped background of the active theme; the script below keeps it in step. -->
+    <meta name="theme-color" content="#f2f2f7" />
+    <!-- Theme (docs/design.md): applied before React starts, so the wrong one never flashes.
+         localStorage "theme" holds this device's choice: "light", "dark", or anything else
+         (missing) for «Авто», which follows the system. Sets <html data-theme="light|dark">
+         (shared/ui/theme.css) and theme-color. Re-applies when the system theme changes and on a
+         "storage" event, which Settings dispatches after changing the choice. -->
+    <script>
+      (function () {
+        var system = window.matchMedia('(prefers-color-scheme: dark)');
+        function apply() {
+          var choice;
+          try {
+            choice = localStorage.getItem('theme');
+          } catch (e) {
+            choice = null;
+          }
+          var dark = choice === 'dark' || (choice !== 'light' && system.matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#000000' : '#f2f2f7');
+        }
+        apply();
+        system.addEventListener('change', apply);
+        window.addEventListener('storage', apply);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
