@@ -1,294 +1,184 @@
-import { useId, useState, type SubmitEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ParseKeys } from 'i18next';
-import { asApiError, errorMessage, fieldErrorMessageKey, type ErrorMessage } from '@/shared/api';
-import { TextField } from '@/shared/ui';
-import type { ChildField, ValueType } from './childFieldsApi';
-import { useChildFields, type Direction } from './useChildFields';
-
-const VALUE_TYPE_KEYS = {
-  TEXT: 'childFields.valueType.text',
-  DATE: 'childFields.valueType.date',
-} as const satisfies Record<ValueType, ParseKeys>;
-
-/** A failed save: the message for the name field if the server blamed it, else for the form. */
-function failure(error: unknown): { name?: ParseKeys; form?: ErrorMessage } {
-  const apiError = asApiError(error);
-  const nameError = apiError.fieldErrors.find((e) => e.field === 'name');
-  return nameError === undefined
-    ? { form: errorMessage(apiError) }
-    : { name: fieldErrorMessageKey(nameError.code) };
-}
+import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import {
+  autoSaveMessages,
+  EditableRow,
+  GroupedSection,
+  ListRow,
+  SortableList,
+  useAutoSaveText,
+  type SaveFailure,
+  type SectionMessage,
+  type SortableRow,
+} from '@/shared/ui';
+import type { ChildField } from './childFieldsApi';
+import { NewChildFieldSheet } from './NewChildFieldSheet';
+import { newChildFieldId, useChildFields } from './useChildFields';
+import { VALUE_TYPE_KEYS } from './valueTypes';
 
 /**
- * The Child fields section of Settings («Поля профиля»): the fields in order, adding one with a
- * value type, renaming, reordering and removing (with confirmation). The value type is shown but
- * can't be changed after creation (ADR-0007).
+ * «Поля профиля» in Settings: a row per Child field with its name (renamed in place, auto-saved)
+ * and its value type on the right, which can't change after creation (ADR-0007). Edit mode
+ * deletes (⊖) and reorders (drag handle); a swipe or right-click deletes too, always after the
+ * action sheet. «Добавить поле» opens the «Новое поле» sheet. All data access goes through
+ * `useChildFields()`, so M2 can move it onto the local store + Outbox without touching this
+ * component.
  */
 export function ChildFieldsSettings() {
   const { t } = useTranslation();
   const { load, retry, add, rename, move, remove } = useChildFields();
-  const [actionError, setActionError] = useState<ErrorMessage>();
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState<string>();
+  const [error, setError] = useState<ErrorMessage>();
+  const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
+  // The id of the field being added, made once when the sheet opens, so a retried save repeats
+  // the same idempotent PUT instead of creating a second field (S3).
+  const [addingId, setAddingId] = useState<string>();
 
-  async function run(action: () => Promise<void>): Promise<boolean> {
-    setActionError(undefined);
+  const reportFailure = useCallback((id: string, failure: SaveFailure | undefined) => {
+    setFailures((previous) =>
+      previous[id] === failure ? previous : { ...previous, [id]: failure },
+    );
+  }, []);
+
+  async function moveField(field: ChildField, to: number) {
+    setError(undefined);
     try {
-      await action();
-      return true;
-    } catch (error: unknown) {
-      setActionError(failure(error).form);
-      return false;
+      await move(field, to);
+    } catch (failure: unknown) {
+      setError(errorMessage(asApiError(failure)));
     }
   }
 
-  if (load.status === 'loading') {
-    return <p role="status">{t('common.loading')}</p>;
-  }
-  if (load.status === 'failed') {
-    const message = errorMessage(load.error);
-    return (
-      <>
-        <p role="alert">{t(message.key, message.values)}</p>
-        <button type="button" onClick={retry}>
-          {t('common.retry')}
-        </button>
-      </>
-    );
+  async function deleteField(field: ChildField, last: boolean) {
+    setDeleting(field.id);
+    setError(undefined);
+    try {
+      await remove(field);
+      if (last) setEditing(false);
+    } catch (failure: unknown) {
+      setError(errorMessage(asApiError(failure)));
+    } finally {
+      setDeleting(undefined);
+    }
   }
 
-  const fields = load.value;
+  const fields = load.status === 'ready' ? load.value : [];
+  const messages: SectionMessage[] = [];
+  if (load.status === 'failed') {
+    const message = errorMessage(load.error);
+    messages.push({
+      text: t(message.key, message.values),
+      tone: 'error',
+      action: { label: t('common.retry'), onClick: retry },
+    });
+  }
+  messages.push(...autoSaveMessages(fields.map((field) => failures[field.id])));
+  if (error !== undefined) messages.push({ text: t(error.key, error.values), tone: 'error' });
+  if (load.status === 'ready' && fields.length === 0)
+    messages.push({ text: t('childFields.empty') });
+
   return (
     <>
-      {fields.length === 0 ? (
-        <p>{t('childFields.empty')}</p>
-      ) : (
-        <ol aria-label={t('settings.childFields')}>
-          {fields.map((field, index) => (
-            <ChildFieldRow
-              key={field.id}
-              field={field}
-              first={index === 0}
-              last={index === fields.length - 1}
-              onRename={(name) => run(() => rename(field, name))}
-              onMove={(direction) => void run(() => move(field, direction))}
-              onRemove={() => void run(() => remove(field))}
-            />
-          ))}
-        </ol>
+      {addingId !== undefined && (
+        <NewChildFieldSheet
+          key={addingId}
+          id={addingId}
+          add={add}
+          onClose={() => {
+            setAddingId(undefined);
+          }}
+        />
       )}
-      {actionError !== undefined && <p role="alert">{t(actionError.key, actionError.values)}</p>}
-      <AddChildFieldForm onAdd={add} />
+      <GroupedSection
+        header={t('settings.childFields')}
+        {...(fields.length > 0 && { edit: { editing, onEditingChange: setEditing } })}
+        messages={messages}
+        after={
+          load.status === 'loading' ? (
+            <ListRow title={<span role="status">{t('common.loading')}</span>} />
+          ) : (
+            load.status === 'ready' && (
+              <ListRow
+                accent
+                title={t('childFields.add')}
+                onClick={() => {
+                  setAddingId(newChildFieldId());
+                }}
+              />
+            )
+          )
+        }
+      >
+        {fields.length > 0 && (
+          <SortableList
+            items={fields}
+            itemId={(field) => field.id}
+            itemTitle={(field) => field.name}
+            onMove={moveField}
+          >
+            {(field, sortable) => (
+              <ChildFieldRow
+                field={field}
+                sortable={sortable}
+                rename={rename}
+                onFailure={reportFailure}
+                busy={deleting === field.id}
+                onDelete={() => {
+                  void deleteField(field, fields.length === 1);
+                }}
+              />
+            )}
+          </SortableList>
+        )}
+      </GroupedSection>
     </>
   );
 }
 
 interface ChildFieldRowProps {
   field: ChildField;
-  first: boolean;
-  last: boolean;
-  /** Resolves `true` when saved. */
-  onRename: (name: string) => Promise<boolean>;
-  onMove: (direction: Direction) => void;
-  onRemove: () => void;
+  sortable: SortableRow;
+  rename: (field: ChildField, name: string) => Promise<ChildField>;
+  /** Tells the section about this row's failed save (or that it cleared), for its footer. */
+  onFailure: (id: string, failure: SaveFailure | undefined) => void;
+  busy: boolean;
+  onDelete: () => void;
 }
 
-function ChildFieldRow({ field, first, last, onRename, onMove, onRemove }: ChildFieldRowProps) {
+function ChildFieldRow({ field, sortable, rename, onFailure, busy, onDelete }: ChildFieldRowProps) {
   const { t } = useTranslation();
-  const confirmId = useId();
-  const [mode, setMode] = useState<'view' | 'rename' | 'confirmRemove'>('view');
-  const [name, setName] = useState(field.name);
-  const [nameError, setNameError] = useState<ParseKeys>();
-  const [saving, setSaving] = useState(false);
-  const label = { name: field.name };
-
-  async function saveName() {
-    if (name.trim() === '') {
-      setNameError(fieldErrorMessageKey('required'));
-      return;
-    }
-    setNameError(undefined);
-    setSaving(true);
-    const ok = await onRename(name.trim());
-    setSaving(false);
-    if (ok) setMode('view');
-  }
-
-  function onSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void saveName();
-  }
-
-  return (
-    <li>
-      {mode === 'rename' ? (
-        <form noValidate onSubmit={onSubmit}>
-          <TextField
-            label={t('childFields.name')}
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value);
-            }}
-            error={nameError === undefined ? undefined : t(nameError)}
-          />
-          <span>{t(VALUE_TYPE_KEYS[field.valueType])}</span>{' '}
-          <button type="submit" disabled={saving}>
-            {t('childFields.save')}
-          </button>{' '}
-          <button
-            type="button"
-            onClick={() => {
-              setName(field.name);
-              setNameError(undefined);
-              setMode('view');
-            }}
-          >
-            {t('childFields.cancel')}
-          </button>
-        </form>
-      ) : (
-        <>
-          <span>{field.name}</span> <span>{t(VALUE_TYPE_KEYS[field.valueType])}</span>{' '}
-          <button
-            type="button"
-            aria-label={t('childFields.renameField', label)}
-            onClick={() => {
-              setName(field.name);
-              setMode('rename');
-            }}
-          >
-            {t('childFields.rename')}
-          </button>{' '}
-          <button
-            type="button"
-            aria-label={t('childFields.moveUpField', label)}
-            disabled={first}
-            onClick={() => {
-              onMove('up');
-            }}
-          >
-            {t('childFields.moveUp')}
-          </button>{' '}
-          <button
-            type="button"
-            aria-label={t('childFields.moveDownField', label)}
-            disabled={last}
-            onClick={() => {
-              onMove('down');
-            }}
-          >
-            {t('childFields.moveDown')}
-          </button>{' '}
-          <button
-            type="button"
-            aria-label={t('childFields.removeField', label)}
-            onClick={() => {
-              setMode('confirmRemove');
-            }}
-          >
-            {t('childFields.remove')}
-          </button>
-        </>
-      )}
-      {mode === 'confirmRemove' && (
-        <div role="alertdialog" aria-labelledby={confirmId}>
-          <p id={confirmId}>{t('childFields.confirmRemove', label)}</p>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('view');
-              onRemove();
-            }}
-          >
-            {t('childFields.remove')}
-          </button>{' '}
-          <button
-            type="button"
-            onClick={() => {
-              setMode('view');
-            }}
-          >
-            {t('childFields.cancel')}
-          </button>
-        </div>
-      )}
-    </li>
+  const save = useCallback(
+    async (name: string) => (await rename(field, name.trim())).name,
+    [field, rename],
   );
-}
+  const validate = useCallback(
+    (name: string) => (name.trim() === '' ? t('errors.field.required') : undefined),
+    [t],
+  );
+  const name = useAutoSaveText({ name: field.id, saved: field.name, save, validate });
 
-interface AddChildFieldFormProps {
-  /** Rejects with an `ApiError` when the field wasn't saved. */
-  onAdd: (name: string, valueType: ValueType) => Promise<void>;
-}
-
-/** «Новое поле»: a name and a value type («Текст» unless the Member picks «Дата»). */
-function AddChildFieldForm({ onAdd }: AddChildFieldFormProps) {
-  const { t } = useTranslation();
-  const headingId = useId();
-  const typeName = useId();
-  const [name, setName] = useState('');
-  const [valueType, setValueType] = useState<ValueType>('TEXT');
-  const [nameError, setNameError] = useState<ParseKeys>();
-  const [formError, setFormError] = useState<ErrorMessage>();
-  const [saving, setSaving] = useState(false);
-
-  async function save() {
-    setFormError(undefined);
-    if (name.trim() === '') {
-      setNameError(fieldErrorMessageKey('required'));
-      return;
-    }
-    setNameError(undefined);
-    setSaving(true);
-    try {
-      await onAdd(name.trim(), valueType);
-      setName('');
-      setValueType('TEXT');
-    } catch (error: unknown) {
-      const messages = failure(error);
-      setNameError(messages.name);
-      setFormError(messages.form);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function onSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void save();
-  }
+  const { id } = field;
+  useEffect(() => {
+    onFailure(id, name.failure);
+  }, [id, name.failure, onFailure]);
+  useEffect(
+    () => () => {
+      onFailure(id, undefined);
+    },
+    [id, onFailure],
+  );
 
   return (
-    <form noValidate aria-labelledby={headingId} onSubmit={onSubmit}>
-      <h3 id={headingId}>{t('childFields.add.title')}</h3>
-      <TextField
-        label={t('childFields.name')}
-        value={name}
-        onChange={(event) => {
-          setName(event.target.value);
-        }}
-        error={nameError === undefined ? undefined : t(nameError)}
-      />
-      <fieldset className="field">
-        <legend>{t('childFields.valueType.label')}</legend>
-        {(['TEXT', 'DATE'] as const).map((type) => (
-          <label key={type}>
-            <input
-              type="radio"
-              name={typeName}
-              value={type}
-              checked={valueType === type}
-              onChange={() => {
-                setValueType(type);
-              }}
-            />
-            {t(VALUE_TYPE_KEYS[type])}
-          </label>
-        ))}
-      </fieldset>
-      {formError !== undefined && <p role="alert">{t(formError.key, formError.values)}</p>}
-      <button type="submit" disabled={saving}>
-        {saving ? t('childFields.add.saving') : t('childFields.add.submit')}
-      </button>
-    </form>
+    <EditableRow
+      title={field.name}
+      value={t(VALUE_TYPE_KEYS[field.valueType])}
+      busy={busy}
+      sortable={sortable}
+      input={{ ...name.input, label: t('childFields.nameOf', { name: field.name }) }}
+      confirm={{ title: t('childFields.confirmDelete', { name: field.name }) }}
+      onDelete={onDelete}
+    />
   );
 }

@@ -174,14 +174,6 @@ function hasRows(rows: ReactNode) {
 }
 
 /**
- * Content that isn't built from rows yet (M1 screens until their own ticket), as one padded cell
- * spanning the group.
- */
-export function SectionContent({ children }: { children: ReactNode }) {
-  return <div className={`${ROW_FRAME} py-3`}>{children}</div>;
-}
-
-/**
  * A row's frame in a GroupedSection, for rows not laid out on the label/value grid (`ListRow`):
  * both grid columns, an inset hairline above every row but the first, and the row height (44px on
  * touch, tighter with a fine pointer). A row can move its hairline's start with

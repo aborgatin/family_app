@@ -88,4 +88,5 @@ export function InputRow({
  */
 const FIELD =
   'my-1 -ml-1 w-full min-w-0 self-stretch rounded-md bg-transparent px-1 text-body text-label ' +
-  'outline-none pointer-fine:focus-visible:outline-2 pointer-fine:focus-visible:outline-accent';
+  'outline-none pointer-fine:focus-visible:outline-2 pointer-fine:focus-visible:outline-solid ' +
+  'pointer-fine:focus-visible:outline-accent';

@@ -94,28 +94,16 @@
   },
   "childFields": {
     "empty": "Полей пока нет",
-    "name": "Название поля",
+    "add": "Добавить поле",
+    "newTitle": "Новое поле",
+    "name": "Название",
+    "nameOf": "Название поля «{{name}}»",
     "valueType": {
       "label": "Тип",
       "text": "Текст",
       "date": "Дата"
     },
-    "rename": "Переименовать",
-    "renameField": "Переименовать «{{name}}»",
-    "moveUp": "Выше",
-    "moveUpField": "Переместить «{{name}}» выше",
-    "moveDown": "Ниже",
-    "moveDownField": "Переместить «{{name}}» ниже",
-    "remove": "Удалить",
-    "removeField": "Удалить «{{name}}»",
-    "confirmRemove": "Удалить поле «{{name}}»?",
-    "save": "Сохранить",
-    "cancel": "Отмена",
-    "add": {
-      "title": "Новое поле",
-      "submit": "Добавить поле",
-      "saving": "Добавляем…"
-    }
+    "confirmDelete": "Удалить поле „{{name}}“?"
   },
   "children": {
     "empty": "Детей пока нет",
@@ -197,6 +185,15 @@
     "delete": "Удалить",
     "deleteRow": "Удалить «{{title}}»",
     "sheetCancel": "Отмена",
-    "clearRow": "Очистить «{{label}}»"
+    "clearRow": "Очистить «{{label}}»",
+    "moveRow": "Переместить «{{title}}»",
+    "sortable": {
+      "roleDescription": "перемещаемая строка",
+      "instructions": "Чтобы переместить строку, нажмите пробел или Enter, двигайте её стрелками вверх и вниз, снова нажмите пробел или Enter, чтобы поставить её, или Esc, чтобы отменить.",
+      "picked": "«{{title}}» взята, место {{position}} из {{count}}.",
+      "moved": "«{{title}}» на месте {{position}} из {{count}}.",
+      "dropped": "«{{title}}» поставлена на место {{position}} из {{count}}.",
+      "cancelled": "Перемещение отменено, «{{title}}» на прежнем месте."
+    }
   }
 }

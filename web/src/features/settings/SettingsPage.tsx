@@ -3,7 +3,7 @@ import { LogoutSection } from '@/features/auth';
 import { ChildFieldsSettings } from '@/features/child-fields';
 import { ChildrenSettings } from '@/features/children';
 import { MembersSettings } from '@/features/members';
-import { GroupedSection, Page, SectionContent, Sections } from '@/shared/ui';
+import { Page, Sections } from '@/shared/ui';
 import { AppearanceSection } from './AppearanceSection';
 
 /**
@@ -17,12 +17,7 @@ export function SettingsPage() {
       <Sections>
         <MembersSettings />
         <ChildrenSettings />
-        {/* Child fields keep their M1 content until their own ticket (spec #35). */}
-        <GroupedSection header={t('settings.childFields')}>
-          <SectionContent>
-            <ChildFieldsSettings />
-          </SectionContent>
-        </GroupedSection>
+        <ChildFieldsSettings />
         <AppearanceSection />
         <LogoutSection />
       </Sections>
