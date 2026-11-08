@@ -124,12 +124,13 @@ export function SectionContent({ children }: { children: ReactNode }) {
 /**
  * A row's frame in a GroupedSection, for rows not laid out on the label/value grid (`ListRow`):
  * both grid columns, an inset hairline above every row but the first, and the row height (44px on
- * touch, tighter with a fine pointer).
+ * touch, tighter with a fine pointer). A row can move its hairline's start with
+ * `--separator-inset` (a `ListRow` with `leading` starts it at the text, as iOS does).
  */
 export const ROW_FRAME =
   'relative col-span-full px-4 pointer-coarse:min-h-11 pointer-fine:min-h-9 ' +
   'not-first:before:absolute not-first:before:top-0 not-first:before:right-0 ' +
-  'not-first:before:left-4 not-first:before:h-px not-first:before:scale-y-50 ' +
+  'not-first:before:left-[var(--separator-inset,1rem)] not-first:before:h-px not-first:before:scale-y-50 ' +
   'not-first:before:bg-separator';
 
 /** The frame of a row on the label/value grid (`InputRow`, `SegmentedControl`). */

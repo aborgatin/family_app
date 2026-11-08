@@ -238,7 +238,8 @@ Auto-saved (`useAutoSaveChoice()`): each choice saves at once, so arrow keys sav
 ### ListRow
 
 A row of a `GroupedSection` that isn't a field: `title`, optional `subtitle` (second, smaller line), `leading` (an
-`Avatar`, a colour dot), `value` (right-aligned, secondary colour), `busy` (spinner). What it does
+`Avatar`, a colour dot; centred in an avatar-wide slot, and the hairline above the row then starts
+at the text, as on iOS), `value` (right-aligned, secondary colour), `busy` (spinner). What it does
 decides what it is:
 
 - `to`: opens another screen, chevron on the right (a link);

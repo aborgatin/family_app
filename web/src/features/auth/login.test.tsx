@@ -278,7 +278,7 @@ describe('Logout', () => {
     });
   });
 
-  it('after logging out and in again, opens Settings again', async () => {
+  it('after logging out and in again, opens the home screen', async () => {
     server.use(http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 })));
     loginAnswers(() => HttpResponse.json(anna));
     const user = userEvent.setup();
@@ -287,8 +287,8 @@ describe('Logout', () => {
     await logOut(user);
     await logIn(user);
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Настройки' })).toBeInTheDocument();
-    expect(app.location()).toBe('/settings');
+    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(app.location()).toBe('/');
   });
 
   it('treats an already ended session as logged out', async () => {
