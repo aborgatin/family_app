@@ -65,12 +65,13 @@ describe('«Дети» in Settings', () => {
     );
   });
 
-  it('shows months under a year, and nothing for a birthday still to come', async () => {
+  it('shows months under a year, «меньше месяца» under one, nothing before birth', async () => {
     server.use(
       childrenHandler([
         { ...sonya, id: `${sonya.id.slice(0, -2)}21`, name: 'Лиза', birthday: '2026-06-09' },
         { ...sonya, id: `${sonya.id.slice(0, -2)}22`, name: 'Оля', birthday: '2025-12-01' },
         { ...sonya, id: `${sonya.id.slice(0, -2)}23`, name: 'Тима', birthday: '2026-12-01' },
+        { ...sonya, id: `${sonya.id.slice(0, -2)}24`, name: 'Ваня', birthday: '2026-10-20' },
       ]),
     );
 
@@ -81,6 +82,7 @@ describe('«Дети» in Settings', () => {
       'Лиза4 месяца',
       'Оля11 месяцев',
       'Тима',
+      'Ваняменьше месяца',
     ]);
   });
 
@@ -279,6 +281,34 @@ describe('The Child screen', () => {
     expect(screen.getByRole('radio', { name: 'Бирюзовый' })).toBeChecked();
   });
 
+  it('arrow keys only move between colours; Space or Enter saves the one reached', async () => {
+    server.use(childrenHandler([masha]));
+    const received = putAnswers(savedChild);
+    const user = userEvent.setup();
+
+    renderApp(`/settings/children/${masha.id}`);
+    await user.click(await screen.findByLabelText('День рождения'));
+    await user.tab({ shift: true });
+    expect(screen.getByRole('radio', { name: 'Коралловый' })).toHaveFocus();
+
+    await user.keyboard('{ArrowRight}{ArrowRight}');
+    expect(screen.getByRole('radio', { name: 'Жёлтый' })).toHaveFocus();
+    expect(screen.getByRole('radio', { name: 'Коралловый' })).toBeChecked();
+    await user.keyboard(' ');
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: 'Жёлтый' })).toBeChecked();
+    });
+
+    await user.keyboard('{ArrowLeft}{Enter}');
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: 'Оранжевый' })).toBeChecked();
+    });
+    expect(received.map((r) => r.body)).toEqual([
+      { name: 'Маша', color: 'yellow', birthday: '2019-04-12' },
+      { name: 'Маша', color: 'orange', birthday: '2019-04-12' },
+    ]);
+  });
+
   it('goes back to the previous colour when saving it fails, offering «Повторить»', async () => {
     server.use(childrenHandler([masha]));
     let calls = 0;
@@ -426,7 +456,7 @@ describe('The «Новый ребёнок» sheet', () => {
     expect(received[0]?.csrf).toBe('token-from-server');
   });
 
-  it('sends no birthday when none is given, and saves on Enter in the name', async () => {
+  it('sends no birthday when none is given, trims the name, and saves on Enter in it', async () => {
     server.use(childrenHandler([]));
     const received = putAnswers(savedChild);
     const user = userEvent.setup();
@@ -435,7 +465,7 @@ describe('The «Новый ребёнок» sheet', () => {
     const sheet = await openSheet(user);
     expect(within(sheet).queryAllByRole('radio', { checked: true })).toEqual([]);
     await user.click(within(sheet).getByRole('radio', { name: 'Фиолетовый' }));
-    await user.type(within(sheet).getByRole('textbox', { name: 'Имя' }), 'Ваня{Enter}');
+    await user.type(within(sheet).getByRole('textbox', { name: 'Имя' }), '  Ваня {Enter}');
 
     expect(await within(await childrenList()).findByText('Ваня')).toBeInTheDocument();
     expect(received.map((r) => r.body)).toEqual([

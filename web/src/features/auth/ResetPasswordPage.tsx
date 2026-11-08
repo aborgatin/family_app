@@ -1,15 +1,22 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
-import type { ParseKeys } from 'i18next';
-import { asApiError, errorMessageKey, fieldErrorMessageKey } from '@/shared/api';
-import { Button, Form, GroupedSection, InputRow } from '@/shared/ui';
+import {
+  asApiError,
+  failureMessages,
+  fieldMessageKey,
+  type ErrorMessage,
+  type FieldMessages,
+} from '@/shared/api';
+import { Button, Form, GroupedSection, InputRow, useFooterLines } from '@/shared/ui';
 import { completePasswordReset, fetchPasswordReset } from './authApi';
 import { LinkScreen } from './LinkScreen';
 import { useSession } from './session';
 import { useLinkCheck } from './useLinkCheck';
 
 /** The codes that mean the link itself doesn't work; the form makes no sense then. */
+const FIELDS = ['newPassword'] as const;
+
 const LINK_ERRORS: ReadonlySet<string> = new Set([
   'password_reset.not_found',
   'password_reset.expired',
@@ -23,23 +30,24 @@ const LINK_ERRORS: ReadonlySet<string> = new Set([
  */
 export function ResetPasswordPage() {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const navigate = useNavigate();
   const { token = '' } = useParams();
   const { loggedIn } = useSession();
 
   const { link, retry, broke } = useLinkCheck(() => fetchPasswordReset(token), token, LINK_ERRORS);
   const [password, setPassword] = useState('');
-  const [fieldError, setFieldError] = useState<ParseKeys>();
-  const [formError, setFormError] = useState<ParseKeys>();
+  const [fieldErrors, setFieldErrors] = useState<FieldMessages<'newPassword'>>({});
+  const [formError, setFormError] = useState<ErrorMessage>();
   const [submitting, setSubmitting] = useState(false);
 
   async function save() {
     setFormError(undefined);
     if (password === '') {
-      setFieldError(fieldErrorMessageKey('required'));
+      setFieldErrors({ newPassword: fieldMessageKey('required') });
       return;
     }
-    setFieldError(undefined);
+    setFieldErrors({});
 
     setSubmitting(true);
     try {
@@ -49,12 +57,9 @@ export function ResetPasswordPage() {
       setSubmitting(false);
       const apiError = asApiError(error);
       if (broke(apiError.code)) return;
-      const passwordError = apiError.fieldErrors.find(({ field }) => field === 'newPassword');
-      if (passwordError === undefined) {
-        setFormError(errorMessageKey(apiError.code));
-      } else {
-        setFieldError(fieldErrorMessageKey(passwordError.code));
-      }
+      const { fieldMessages, formMessage } = failureMessages(apiError, FIELDS);
+      setFieldErrors(fieldMessages);
+      setFormError(formMessage);
     }
   }
 
@@ -68,12 +73,12 @@ export function ResetPasswordPage() {
     >
       <Form onSubmit={() => void save()}>
         <GroupedSection
-          messages={[
-            fieldError === undefined
-              ? { row: 'newPassword', text: t('resetPassword.passwordHint') }
-              : { row: 'newPassword', text: t(fieldError), tone: 'error' },
-            formError !== undefined && { text: t(formError), tone: 'error' },
-          ]}
+          messages={lines.form({
+            fields: FIELDS,
+            fieldErrors,
+            formError,
+            hints: { newPassword: t('resetPassword.passwordHint') },
+          })}
         >
           <InputRow
             label={t('resetPassword.newPassword')}

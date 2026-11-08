@@ -5,4 +5,5 @@ export { LogoutSection } from './LogoutSection';
 export { ResetPasswordPage } from './ResetPasswordPage';
 export { SetupPage } from './SetupPage';
 export { useSession, type SessionState } from './session';
-export type { Member, Session } from './authApi';
+export type { GrammaticalGender, Member, Session } from './authApi';
+export { GrammaticalGenderRow } from './GrammaticalGenderRow';

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
-import { ActionSheet, GroupedSection, ListRow } from '@/shared/ui';
+import { ConfirmRow, GroupedSection, useFooterLines } from '@/shared/ui';
 import { logout } from './authApi';
 import { useSession } from './session';
 
@@ -12,8 +12,8 @@ import { useSession } from './session';
  */
 export function LogoutSection() {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const { loggedOut } = useSession();
-  const [asking, setAsking] = useState(false);
   const [error, setError] = useState<ErrorMessage>();
   const [pending, setPending] = useState(false);
 
@@ -36,30 +36,14 @@ export function LogoutSection() {
   }
 
   return (
-    <GroupedSection
-      messages={[error !== undefined && { text: t(error.key, error.values), tone: 'error' }]}
-    >
-      <ListRow
-        destructive
+    <GroupedSection messages={[lines.failure(error)]}>
+      <ConfirmRow
         title={pending ? t('logout.inProgress') : t('logout.action')}
         disabled={pending}
-        onClick={() => {
-          setAsking(true);
+        confirm={{ title: t('logout.question'), action: t('logout.action') }}
+        onConfirm={() => {
+          void logOut();
         }}
-      />
-      <ActionSheet
-        open={asking}
-        onOpenChange={setAsking}
-        title={t('logout.question')}
-        actions={[
-          {
-            label: t('logout.action'),
-            destructive: true,
-            onSelect: () => {
-              void logOut();
-            },
-          },
-        ]}
       />
     </GroupedSection>
   );

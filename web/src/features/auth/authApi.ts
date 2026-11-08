@@ -1,8 +1,7 @@
 import { api } from '@/shared/api';
 
-import type { GrammaticalGender } from '@/shared/ui';
-
-export type { GrammaticalGender };
+/** See GLOSSARY.md "Grammatical gender". */
+export type GrammaticalGender = 'MASCULINE' | 'FEMININE';
 
 /** The API's `Member` shape (spec #5, API contract). */
 export interface Member {
@@ -54,7 +53,7 @@ export function fetchInvite(token: string): Promise<{ expiresAt: string }> {
   return api.get<{ expiresAt: string }>(`/api/invites/by-token/${encodeURIComponent(token)}`);
 }
 
-/** Registers the invited adult as a Member; the server logs them in on this device. */
+/** Registers the Invite's recipient as a Member; the server logs them in on this device. */
 export function acceptInvite(token: string, registration: Registration): Promise<Member> {
   return api.post<Member>(
     `/api/invites/by-token/${encodeURIComponent(token)}/accept`,

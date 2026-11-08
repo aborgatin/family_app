@@ -6,7 +6,7 @@ import {
   type ErrorMessage,
   type FieldMessages,
 } from '@/shared/api';
-import { GroupedSection, InputRow, SegmentedControl, Sheet } from '@/shared/ui';
+import { GroupedSection, InputRow, SegmentedControl, Sheet, useFooterLines } from '@/shared/ui';
 import type { ValueType } from './childFieldsApi';
 import { VALUE_TYPE_KEYS } from './valueTypes';
 
@@ -28,6 +28,7 @@ interface NewChildFieldSheetProps {
  */
 export function NewChildFieldSheet({ id, add, onClose }: NewChildFieldSheetProps) {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const [name, setName] = useState('');
   const [valueType, setValueType] = useState<ValueType>('TEXT');
   const [fieldErrors, setFieldErrors] = useState<FieldMessages<Field>>({});
@@ -68,15 +69,7 @@ export function NewChildFieldSheet({ id, add, onClose }: NewChildFieldSheetProps
       onDone={() => void done()}
       busy={saving}
     >
-      <GroupedSection
-        messages={[
-          ...FIELDS.map((field) => {
-            const key = fieldErrors[field];
-            return key !== undefined && { row: field, text: t(key), tone: 'error' as const };
-          }),
-          formError !== undefined && { text: t(formError.key, formError.values), tone: 'error' },
-        ]}
-      >
+      <GroupedSection messages={lines.form({ fields: FIELDS, fieldErrors, formError })}>
         <InputRow label={t('childFields.name')} name="name" value={name} onChange={setName} />
         <SegmentedControl
           label={t('childFields.valueType.label')}

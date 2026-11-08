@@ -118,8 +118,8 @@ export function OfflineCorner({ navBarShown }: { navBarShown: boolean }) {
         {announcement}
       </div>
       {!navBarShown && (
-        <div className="pointer-events-none fixed inset-x-0 top-0 z-20 pt-[env(safe-area-inset-top)]">
-          <div className="mx-auto flex min-h-11 max-w-160 items-center justify-end pr-[max(0.5rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))] [&>*]:pointer-events-auto">
+        <div className="pointer-events-none fixed inset-x-0 top-0 z-20 pt-safe-0">
+          <div className="mx-auto flex min-h-11 max-w-160 items-center justify-end px-safe-2 [&>*]:pointer-events-auto">
             <OfflineIndicator />
           </div>
         </div>

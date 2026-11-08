@@ -15,7 +15,7 @@ interface CenteredPageProps {
  */
 export function CenteredPage({ title, intro, children }: CenteredPageProps) {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-100 flex-col justify-center gap-6 pt-[calc(env(safe-area-inset-top)+2rem)] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(env(safe-area-inset-bottom)+2rem)] pl-[max(1rem,env(safe-area-inset-left))]">
+    <main className="mx-auto flex min-h-dvh max-w-100 flex-col justify-center gap-6 px-safe-4 pt-safe-8 pb-safe-8">
       <div className="flex flex-col items-center gap-3 text-center">
         <img
           src="/icon.svg"

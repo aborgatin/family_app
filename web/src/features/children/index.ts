@@ -1,2 +1,2 @@
 export { ChildrenSettings } from './ChildrenSettings';
-export { CHILD_PATH, ChildPage } from './ChildPage';
+export { CHILD_SETTINGS_PATH, ChildSettingsPage } from './ChildSettingsPage';

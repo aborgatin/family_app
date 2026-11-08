@@ -31,11 +31,12 @@ web/src/
   app/                  routes.tsx, AppProviders.tsx (I18nextProvider)
   features/
     auth/               session, guard, setup (bootstrap), login, LogoutSection, Invite acceptance,
-                        password reset; LinkScreen (link-check states)
-    home/               HomePage: Page «Семья», empty state, gear → Settings
+                        password reset; LinkScreen (link-check states); GrammaticalGender (type)
+                        and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
+    home/               HomePage: Page «Семья», empty state, gear → Settings; HOME_PATH
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
-    children/           ChildrenSettings («Дети»), ChildPage, NewChildSheet, ChildRows, age, useChildren()
+    children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields()
   shared/
     api/                API client, error-code mapping, form error helpers
@@ -47,8 +48,8 @@ web/src/
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
                         LoadingRow, EditableRow, SortableList (dnd-kit), SwipeToDelete,
-                        RowContextMenu, Avatar, ActionSheet, Sheet (Radix), Spinner, auto-save
-                        hooks (autoSave.ts)
+                        RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner,
+                        auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
   test/                 renderApp, MSW server, fixtures, setup
 ```
 
@@ -84,7 +85,7 @@ frame around every screen and the place a sidebar goes later.
 | `/`                      | `HomePage`          | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
-| `/settings/children/:id` | `ChildPage`         | logged in                      |
+| `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
 
 The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure;
 meanwhile a `StatusScreen` shows «Загрузка…», or the failure with «Повторить»), then:
@@ -174,14 +175,14 @@ permanently (S4 exception).
 `crypto.randomUUID()` needs a secure context: HTTPS, or `localhost` in development.
 
 Invites (`members/InvitesSettings.tsx`, used by `MembersSettings`): `useInvites()` loads the
-active Invites once for both sections. `useInviteAdult()` gives «Взрослые» its «Пригласить
+active Invites once for both sections. `useInviteMember()` gives «Взрослые» its «Пригласить
 взрослого…» row: one tap sends `POST /api/invites` and, in the same tick (Safari keeps the user
 activation only that long), calls `navigator.clipboard.write([new ClipboardItem({'text/plain':
 blobPromise})])` with the link still pending. Copied → «Ссылка скопирована» (`status`) in the
 footer for `COPIED_MS` (3 s). Not copied (refused, or no `ClipboardItem`) → a «Новая ссылка» row
 with the full link and «Скопировать» (`clipboard.writeText` on a fresh tap); if that fails too the
-footer asks to copy by hand. `navigator.share` is not used. `InvitesSection` («Приглашения»,
-hidden when there are none) lists them as `EditableRow`s «Ссылка · до 14 ноября», revoked from
+footer asks to copy by hand. `navigator.share` is not used. `InvitesSection` («Приглашения»; a
+«Активных приглашений нет» row when there are none) lists them as `EditableRow`s «Ссылка · до 14 ноября», revoked from
 edit mode, a swipe or right-click, always after the `ActionSheet`. Confirmations are never
 `window.confirm`.
 
@@ -208,8 +209,8 @@ against the same file (see [`backend.md`](backend.md#stack)). Each code's Russia
   and `<key>_feminine`, plus the plain `<key>` as the neutral fallback when the value is missing.
   No such key exists yet; the first one arrives with M2/M3 messages. The choice itself is asked
   as «Пол» with «Мужской» / «Женский» (keys `grammaticalGender.label`, `.masculine`,
-  `.feminine`; nothing pre-selected): a `SegmentedControl` at registration and in
-  «Ваш профиль».
+  `.feminine`; nothing pre-selected): `GrammaticalGenderRow` (a `SegmentedControl`) from
+  `features/auth`, at registration and in «Ваш профиль».
 - The app name «Семья» is `app.name`; `vite.config.ts` puts it into the manifest and replaces
   `%APP_NAME%` in `index.html`.
 
@@ -244,25 +245,29 @@ row per Member: initial, name, email, «(вы)» on the own one; not tappable; t
 взрослого…»), «Приглашения» (an edit-mode list, see Invites above), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
 Members list; then the «Изменить пароль» chevron row), «Дети» (below), «Поля профиля» (below),
-«Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, confirmed with an
-`ActionSheet`; after logging out the guard shows `/login`). Auto-save and its failure footer are
+«Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, a `ConfirmRow`;
+after logging out the guard shows `/login`). `app/routes.tsx` passes `HOME_PATH` in as
+`homePath`, since `home` already imports `settings`. Auto-save and its failure footer are
 the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessages` (see
-`design.md`).
+`design.md`). Other footer lines come from `useFooterLines()`: `failure(error, retry?)` for a
+failed delete or load, `form({...})` for a form's field errors and its failure. The edit-mode
+lists («Приглашения», «Дети», «Поля профиля») keep their edit mode, the row being deleted and the
+failure in `useEditableList()`.
 
 The password screen `/settings/password` (`PasswordPage`, `PASSWORD_PATH` from
 `features/members`) is a `Page` «Изменить пароль», back to «Настройки»: «Текущий пароль» and
 «Новый пароль» as `InputRow`s in a `Form`, «Готово» in the nav bar's trailing slot, enabled once
 both are filled. Enter does the same as «Готово»; Esc (the `Form`'s `onCancel`) and the back
 button go to Settings without saving. On success it navigates to Settings with
-`state.passwordChanged`, and «Ваш профиль» shows «Пароль изменён» in its footer
+`state.passwordChanged`, replacing its own history entry (browser-back doesn't reopen it), and «Ваш профиль» shows «Пароль изменён» in its footer
 (`usePasswordJustChanged()`, which then clears the flag from the history entry so browser-back doesn't show it again); on failure the message goes in the footer under the fields (a wrong
 current password empties that field). `app/routes.tsx` passes `SETTINGS_PATH` in as
 `settingsPath`, since `settings` already imports `members`.
 
 «Дети» (`ChildrenSettings`) is an edit-mode list of `EditableRow`s: the Child's colour
-(`Swatch`), name, age on the right («7 лет», «5 месяцев» under a year, nothing without a birthday
+(`Swatch`), name, age on the right («7 лет», «5 месяцев» under a year, «меньше месяца» under one, nothing without a birthday
 or before it; `i18n` plurals `children.age.years_*` / `months_*`, computed from the device's
-date) and a chevron to `/settings/children/:id` (`childPath(id)`). Edit mode deletes only
+date) and a chevron to `/settings/children/:id` (`childSettingsPath(id)`). Edit mode deletes only
 (Children have no order); a swipe and right-click delete too; each asks first. «Добавить ребёнка»
 (the section's `after` row) opens `NewChildSheet`: a `Sheet` «Новый ребёнок» with the same rows
 as the Child screen (`ChildRows`), name and colour required, saved only with «Готово»; on success
@@ -282,13 +287,13 @@ back and the footer shows the error. A swipe and right-click delete too; every d
 and «Тип» (`SegmentedControl` «Текст» / «Дата», «Текст» chosen), saved only with «Готово»; the
 field goes to the end. With no fields the footer says «Полей пока нет».
 
-The Child screen `/settings/children/:id` (`ChildPage`, `CHILD_PATH`; `app/routes.tsx` passes
+The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_PATH`; `app/routes.tsx` passes
 `settingsPath` as for the password screen) is a `Page` titled with the Child's name, back to
 «Настройки». It loads through `useChildren()` like the list (so a deep link works) and shows
 `ChildRows`: Имя (`InputRow`, `useAutoSaveText`; empty is refused without a request), Цвет
 (`ColorChoice`, `useAutoSaveChoice`), День рождения (`DateRow`, `useAutoSaveText` with `''` for
 none). Each change `PUT`s the whole Child on top of what was last saved. Then a red «Удалить
-ребёнка» row: the `ActionSheet` «Удалить „Маша“?», then back to Settings (replacing the history
+ребёнка» `ConfirmRow`: the `ActionSheet` «Удалить „Маша“?», then back to Settings (replacing the history
 entry); a failure stays and shows in that group's footer. An unknown id shows «Такого ребёнка
 нет: возможно, его удалили.».
 

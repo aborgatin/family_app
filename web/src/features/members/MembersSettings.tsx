@@ -2,8 +2,15 @@ import { useTranslation } from 'react-i18next';
 import { useSession, type Member } from '@/features/auth';
 import { errorMessage } from '@/shared/api';
 import type { ReactNode } from 'react';
-import { Avatar, GroupedSection, ListRow, LoadingRow, type SectionMessage } from '@/shared/ui';
-import { InvitesSection, useInviteAdult, useInvites } from './InvitesSettings';
+import {
+  Avatar,
+  GroupedSection,
+  ListRow,
+  LoadingRow,
+  useFooterLines,
+  type SectionMessage,
+} from '@/shared/ui';
+import { InvitesSection, useInviteMember, useInvites } from './InvitesSettings';
 import { ProfileSection } from './ProfileSection';
 import { useMembers, type MembersLoad } from './useMembers';
 
@@ -16,7 +23,7 @@ export function MembersSettings() {
   const { load, retry, replaced } = useMembers();
   const me = session.member;
   const invites = useInvites();
-  const inviting = useInviteAdult(invites.added);
+  const inviting = useInviteMember(invites.added);
 
   function saved(member: Member) {
     memberChanged(member);
@@ -53,15 +60,10 @@ interface MembersSectionProps {
  */
 function MembersSection({ load, retry, myId, inviteRows, inviteMessages }: MembersSectionProps) {
   const { t } = useTranslation();
-  const failure = load.status === 'failed' ? errorMessage(load.error) : undefined;
+  const lines = useFooterLines();
+  const failure = load.status === 'failed' && lines.failure(errorMessage(load.error), retry);
   const messages: SectionMessage[] = [];
-  if (failure !== undefined) {
-    messages.push({
-      text: t(failure.key, failure.values),
-      tone: 'error',
-      action: { label: t('common.retry'), onClick: retry },
-    });
-  }
+  if (failure !== false) messages.push(failure);
   messages.push(...inviteMessages);
   if (messages.length === 0) messages.push({ text: t('members.invites.hint') });
 

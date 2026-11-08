@@ -139,6 +139,25 @@ describe('Changing the password', () => {
     expect(within(profile).queryByText('Пароль изменён')).not.toBeInTheDocument();
   });
 
+  it('after the change, going back from Settings doesn’t reopen the password screen', async () => {
+    passwordAnswers(changed);
+    const user = userEvent.setup();
+
+    const app = renderApp('/settings');
+    const profile = await screen.findByRole('region', { name: 'Ваш профиль' });
+    await user.click(within(profile).getByRole('link', { name: 'Изменить пароль' }));
+    await screen.findByRole('heading', { name: 'Изменить пароль', level: 1 });
+    await user.type(current(), 'secret123');
+    await user.type(next(), 'brand-new-pass');
+    await user.click(done());
+    await screen.findByText('Пароль изменён');
+
+    await app.router.navigate(-1);
+
+    await screen.findByRole('region', { name: 'Ваш профиль' });
+    expect(app.location()).toBe('/settings');
+  });
+
   it('submits on Enter', async () => {
     const received = passwordAnswers(changed);
     const user = userEvent.setup();

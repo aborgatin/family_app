@@ -6,7 +6,7 @@ import {
   type ErrorMessage,
   type FieldMessages,
 } from '@/shared/api';
-import { GroupedSection, Sheet } from '@/shared/ui';
+import { GroupedSection, Sheet, useFooterLines } from '@/shared/ui';
 import { ChildRows } from './ChildRows';
 import type { ChildDetails } from './childrenApi';
 
@@ -28,6 +28,7 @@ interface NewChildSheetProps {
  */
 export function NewChildSheet({ id, save, onClose }: NewChildSheetProps) {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const [name, setName] = useState('');
   const [color, setColor] = useState<string>();
   const [birthday, setBirthday] = useState('');
@@ -45,7 +46,7 @@ export function NewChildSheet({ id, save, onClose }: NewChildSheetProps) {
 
     setSaving(true);
     try {
-      await save(id, { name, color, birthday: birthday === '' ? null : birthday });
+      await save(id, { name: name.trim(), color, birthday: birthday === '' ? null : birthday });
       onClose();
     } catch (error: unknown) {
       const { fieldMessages, formMessage } = failureMessages(error, FIELDS, ['color']);
@@ -65,15 +66,7 @@ export function NewChildSheet({ id, save, onClose }: NewChildSheetProps) {
       onDone={() => void done()}
       busy={saving}
     >
-      <GroupedSection
-        messages={[
-          ...FIELDS.map((field) => {
-            const key = fieldErrors[field];
-            return key !== undefined && { row: field, text: t(key), tone: 'error' as const };
-          }),
-          formError !== undefined && { text: t(formError.key, formError.values), tone: 'error' },
-        ]}
-      >
+      <GroupedSection messages={lines.form({ fields: FIELDS, fieldErrors, formError })}>
         <ChildRows
           name={{ name: 'name', value: name, onChange: setName }}
           color={{ name: 'color', value: color, onChange: setColor }}

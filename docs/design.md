@@ -32,6 +32,8 @@ dark theme redefines the same variables.
 | `destructive`      | `#D70015`        | `#FF453A`        | delete, log out, errors                    |
 | `destructive-fill` | `#D70015`        | `#E0262B`        | background of the swipe «Удалить» button   |
 | `overlay`          | black at 35%     | black at 55%     | the dimmed page behind an action sheet     |
+| `swatch-edge`      | black at 12%     | white at 18%     | hairline around a colour dot (`Swatch`)    |
+| `check-shadow`     | black at 50%     | black at 50%     | keeps the white check on a colour readable |
 
 Contrast is WCAG AA (4.5:1 for text) on both `background` and `cell`; the figures are in the header
 of `theme.css`. Two deliberate departures from the iOS values: light destructive text is `#D70015`
@@ -67,7 +69,9 @@ starts, so the wrong theme never flashes: it sets `<html data-theme="light|dark"
 
 The status bar is `black-translucent`: the page draws under it, and the nav bar pads by
 `safe-area-inset-top`. The page bottom pads by `safe-area-inset-bottom`, the sides by
-`safe-area-inset-left/right`.
+`safe-area-inset-left/right`. Components pad with the utilities in `theme.css`: `px-safe-<n>`
+(the side inset, but at least spacing `n`), `pt-safe-<n>` / `pb-safe-<n>` (the inset plus
+spacing `n`).
 
 ## Rules every component follows
 
@@ -92,8 +96,8 @@ The status bar is `black-translucent`: the page draws under it, and the nav bar 
   puts the saved value back. A spinner appears at the right of the row only after ~400 ms. No
   success toast or checkmark.
 - **On failure** the typed value stays; a red message goes in the group footer under the row
-  («Не удалось сохранить. Проверьте соединение.») with «Повторить». A validation error (e.g. empty
-  name) shows there and sends nothing. A failed choice goes back to the previous value with the
+  («Не удалось сохранить. Проверьте соединение.») with «Повторить». A validation error (an empty
+  name, with `required` on `useAutoSaveText()`) shows there and sends nothing. A failed choice goes back to the previous value with the
   same message. Messages come from `errorMessage()` (I3).
 - How: `useAutoSaveText()` / `useAutoSaveChoice()` from `shared/ui` hold all of this. A screen
   gives them the row's `name`, the saved value and a `save(value)` that resolves with the value
@@ -111,12 +115,23 @@ The status bar is `black-translucent`: the page draws under it, and the nav bar 
 
 ## Components
 
-All in `web/src/shared/ui`, exported from its `index.ts` (except `OfflineIndicator` and
-`Spinner`, which only other components place). Feature code uses nothing
+All in `web/src/shared/ui`, exported from its `index.ts` (except `OfflineIndicator`,
+`Spinner` and `RowContextMenu`, which only other components place). Feature code uses nothing
 else to draw: no raw `button` / `input` / `select` / `textarea` / `form` / `a`, no `className` or
 `style`, no UI library (CODING_STANDARDS U1, enforced by lint). The auto-save hooks
 `useAutoSaveText()`, `useAutoSaveChoice()` and `autoSaveMessages()` are described under
 [Saving and deleting](#saving-and-deleting).
+
+Two more hooks keep screens from writing the same state twice:
+
+- `useFooterLines()` gives `GroupedSection` footer lines from error messages, translated:
+  `failure(error, retry?)` is a red line about the group (a failed delete; with `retry`, a list
+  that couldn't load, with «Повторить»); `form({fields, fieldErrors, formError, hints})` is a red
+  line under each field with an error (else its hint), then the form's own failure.
+- `useEditableList()` holds an edit-mode list's state: spread `edit` onto the `GroupedSection`,
+  mark the row `busy` while `deleting` is its id, show `error` with `failure()`.
+  `remove(id, last, run)` runs a delete (and leaves edit mode with the last row);
+  `attempt(run)` reports any other change (a move) the same way.
 
 ### AppShell
 
@@ -244,9 +259,10 @@ the Reminders colour picker: `label` on top, the circles in one row of 8 under i
 ringed in its own colour with a white check. `options` are `{value, label, color}`: `label` (from
 i18n) names the circle, `color` draws it; the palette itself stays in `shared/palette`. `value` may
 be `undefined` (nothing chosen yet, or a code this build doesn't know). Built from radios
-(`radiogroup` named by the label): Tab reaches it, arrow keys move the choice, Space picks. Its
-`name` links it to footer messages. Auto-saved with `useAutoSaveChoice()` (spread `control`):
-each tap saves, `busy` shows the `Spinner` after the label. Touch: each circle's target is its
+(`radiogroup` named by the label): Tab reaches it, arrow keys move the focus, Space, Enter or a
+click picks. Its `name` links it to footer messages. Auto-saved with `useAutoSaveChoice()`
+(spread `control`): each pick saves (moving the focus with the arrows doesn't), `busy` shows the
+`Spinner` at the right of the row, on the label's line. Touch: each circle's target is its
 column, 44px tall (about 40px wide on a phone). Fine pointer: smaller circles, the 8 kept in a
 288px strip at the left instead of spread across a wide cell.
 
@@ -387,6 +403,13 @@ Context Menu (non-modal, so the action sheet can open from it).
 ### Avatar
 
 The grey circle with a name's initial, as `leading` of a row about a person. Decorative.
+
+### ConfirmRow
+
+A red row that does something that can't be undone and isn't a list row («Удалить ребёнка»,
+«Выйти»): `title`, `confirm` (`{title, message, action}` of the `ActionSheet`), `onConfirm`, which
+runs only after the sheet's red action, `busy`, `disabled`. Looks like a `destructive` `ListRow`.
+Same on every device.
 
 ### ActionSheet
 

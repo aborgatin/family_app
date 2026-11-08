@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import { errorMessage } from '@/shared/api';
 import {
   autoSaveMessages,
   EditableRow,
@@ -9,8 +9,9 @@ import {
   LoadingRow,
   SortableList,
   useAutoSaveText,
+  useEditableList,
+  useFooterLines,
   type SaveFailure,
-  type SectionMessage,
   type SortableRow,
 } from '@/shared/ui';
 import type { ChildField } from './childFieldsApi';
@@ -28,10 +29,9 @@ import { VALUE_TYPE_KEYS } from './valueTypes';
  */
 export function ChildFieldsSettings() {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const { load, retry, add, rename, move, remove } = useChildFields();
-  const [editing, setEditing] = useState(false);
-  const [deleting, setDeleting] = useState<string>();
-  const [error, setError] = useState<ErrorMessage>();
+  const list = useEditableList();
   const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
   // The id of the field being added, made once when the sheet opens, so a retried save repeats
   // the same idempotent PUT instead of creating a second field (S3).
@@ -43,42 +43,7 @@ export function ChildFieldsSettings() {
     );
   }, []);
 
-  async function moveField(field: ChildField, to: number) {
-    setError(undefined);
-    try {
-      await move(field, to);
-    } catch (failure: unknown) {
-      setError(errorMessage(asApiError(failure)));
-    }
-  }
-
-  async function deleteField(field: ChildField, last: boolean) {
-    setDeleting(field.id);
-    setError(undefined);
-    try {
-      await remove(field);
-      if (last) setEditing(false);
-    } catch (failure: unknown) {
-      setError(errorMessage(asApiError(failure)));
-    } finally {
-      setDeleting(undefined);
-    }
-  }
-
   const fields = load.status === 'ready' ? load.value : [];
-  const messages: SectionMessage[] = [];
-  if (load.status === 'failed') {
-    const message = errorMessage(load.error);
-    messages.push({
-      text: t(message.key, message.values),
-      tone: 'error',
-      action: { label: t('common.retry'), onClick: retry },
-    });
-  }
-  messages.push(...autoSaveMessages(fields.map((field) => failures[field.id])));
-  if (error !== undefined) messages.push({ text: t(error.key, error.values), tone: 'error' });
-  if (load.status === 'ready' && fields.length === 0)
-    messages.push({ text: t('childFields.empty') });
 
   return (
     <>
@@ -94,8 +59,13 @@ export function ChildFieldsSettings() {
       )}
       <GroupedSection
         header={t('settings.childFields')}
-        {...(fields.length > 0 && { edit: { editing, onEditingChange: setEditing } })}
-        messages={messages}
+        {...(fields.length > 0 && { edit: list.edit })}
+        messages={[
+          load.status === 'failed' && lines.failure(errorMessage(load.error), retry),
+          ...autoSaveMessages(fields.map((field) => failures[field.id])),
+          lines.failure(list.error),
+          load.status === 'ready' && fields.length === 0 && { text: t('childFields.empty') },
+        ]}
         after={
           load.status === 'loading' ? (
             <LoadingRow />
@@ -117,7 +87,7 @@ export function ChildFieldsSettings() {
             items={fields}
             itemId={(field) => field.id}
             itemTitle={(field) => field.name}
-            onMove={moveField}
+            onMove={(field, to) => list.attempt(() => move(field, to))}
           >
             {(field, sortable) => (
               <ChildFieldRow
@@ -125,9 +95,9 @@ export function ChildFieldsSettings() {
                 sortable={sortable}
                 rename={rename}
                 onFailure={reportFailure}
-                busy={deleting === field.id}
+                busy={list.deleting === field.id}
                 onDelete={() => {
-                  void deleteField(field, fields.length === 1);
+                  void list.remove(field.id, fields.length === 1, () => remove(field));
                 }}
               />
             )}
@@ -154,11 +124,7 @@ function ChildFieldRow({ field, sortable, rename, onFailure, busy, onDelete }: C
     async (name: string) => (await rename(field, name.trim())).name,
     [field, rename],
   );
-  const validate = useCallback(
-    (name: string) => (name.trim() === '' ? t('errors.field.required') : undefined),
-    [t],
-  );
-  const name = useAutoSaveText({ name: field.id, saved: field.name, save, validate });
+  const name = useAutoSaveText({ name: field.id, saved: field.name, save, required: true });
 
   const { id } = field;
   useEffect(() => {

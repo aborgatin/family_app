@@ -8,8 +8,8 @@ import {
   ResetPasswordPage,
   SetupPage,
 } from '@/features/auth';
-import { CHILD_PATH, ChildPage } from '@/features/children';
-import { HomePage } from '@/features/home';
+import { CHILD_SETTINGS_PATH, ChildSettingsPage } from '@/features/children';
+import { HOME_PATH, HomePage } from '@/features/home';
 import { PASSWORD_PATH, PasswordPage } from '@/features/members';
 import { SettingsPage, SETTINGS_PATH } from '@/features/settings';
 import { AppShell } from '@/shared/ui';
@@ -24,14 +24,17 @@ export const routes: RouteObject[] = [
         // /login (and back afterwards) when this device is logged out.
         element: <AuthGuard />,
         children: [
-          { path: '/', element: <HomePage /> },
+          { path: HOME_PATH, element: <HomePage /> },
           { path: '/setup', element: <SetupPage /> },
           { path: '/login', element: <LoginPage /> },
           { path: RESET_PASSWORD_PATH, element: <ResetPasswordPage /> },
           { path: INVITE_PATH, element: <InvitePage /> },
-          { path: SETTINGS_PATH, element: <SettingsPage /> },
+          { path: SETTINGS_PATH, element: <SettingsPage homePath={HOME_PATH} /> },
           { path: PASSWORD_PATH, element: <PasswordPage settingsPath={SETTINGS_PATH} /> },
-          { path: CHILD_PATH, element: <ChildPage settingsPath={SETTINGS_PATH} /> },
+          {
+            path: CHILD_SETTINGS_PATH,
+            element: <ChildSettingsPage settingsPath={SETTINGS_PATH} />,
+          },
         ],
       },
     ],
