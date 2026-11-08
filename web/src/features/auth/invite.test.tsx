@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { anna, boris, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
@@ -63,7 +63,7 @@ describe('Invite link', () => {
     const app = renderApp(LINK);
     expect(await screen.findByRole('heading', { name: 'Приглашение в семью' })).toBeInTheDocument();
     expect(
-      screen.getByText('Вас пригласили в семью. Зарегистрируйтесь, чтобы присоединиться.'),
+      await screen.findByText('Вас пригласили в семью. Зарегистрируйтесь, чтобы присоединиться.'),
     ).toBeInTheDocument();
     expect(app.location()).toBe(LINK);
     await fillIn(user);
@@ -106,13 +106,23 @@ describe('Invite link', () => {
     await user.type(await screen.findByLabelText('Электронная почта'), 'boris@example.com');
     await user.type(screen.getByLabelText('Пароль'), 'boris-pass');
     await user.type(screen.getByLabelText('Имя'), 'Борис');
-    const choice = screen.getByRole('group', { name: 'Пол' });
+    const choice = screen.getByRole('radiogroup', { name: 'Пол' });
     expect(within(choice).getByRole('radio', { name: 'Мужской' })).not.toBeChecked();
     expect(within(choice).getByRole('radio', { name: 'Женский' })).not.toBeChecked();
     await join(user);
 
     expect(await screen.findByText('Выберите вариант')).toBeInTheDocument();
     expect(sent).toBe(false);
+  });
+
+  it('says it is checking the link until the server answers', async () => {
+    loggedOut();
+    linkAnswers(() => delay('infinite') as never);
+
+    renderApp(LINK);
+
+    expect(await screen.findByText('Проверяем ссылку…')).toHaveRole('status');
+    expect(screen.getByRole('heading', { name: 'Приглашение в семью' })).toBeInTheDocument();
   });
 
   it.each([

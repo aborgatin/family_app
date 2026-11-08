@@ -29,7 +29,8 @@ web/src/
   main.tsx              createBrowserRouter(routes) inside <AppProviders>; imports shared/ui/theme.css
   app/                  routes.tsx, AppProviders.tsx (I18nextProvider)
   features/
-    auth/               session, guard, setup (bootstrap), login, logout, Invite acceptance, password reset
+    auth/               session, guard, setup (bootstrap), login, logout, Invite acceptance, password
+                        reset; LinkScreen (link-check states)
     home/               HomePage: Page «Семья», empty state, gear → Settings, LogoutButton
     settings/           SettingsPage shell, SettingsSection, SETTINGS_PATH
     members/            MembersSettings: Members list, ProfileForm, PasswordForm, InvitesSettings
@@ -40,9 +41,9 @@ web/src/
     i18n/               i18next set-up, typed keys, locales/ru.json
     load/               useLoad(): load / failed / retry for anything fetched once
     palette/            Child color palette (childColors.json)
-    ui/                 theme.css (tokens), AppShell, Page (nav bar), Button, Link, Icon,
-                        EmptyState, OfflineIndicator; TextField, GrammaticalGenderChoice
-                        (docs/design.md)
+    ui/                 theme.css (tokens), AppShell, Page (nav bar), CenteredPage, Button, Link,
+                        Icon, EmptyState, OfflineIndicator, Form, GroupedSection, InputRow,
+                        SegmentedControl; TextField, GrammaticalGenderChoice (docs/design.md)
   test/                 renderApp, MSW server, fixtures, setup
 ```
 
@@ -86,6 +87,13 @@ It provides `SessionContext`; screens read it with `useSession()` (`@/features/a
 `loggedOut()`. Screens report what happened and let the guard redirect: `LoginPage` calls
 `loggedIn()` and does not navigate itself. `ResetPasswordPage` and `InvitePage` navigate to `/`
 after `loggedIn()`. `/setup` and `/invite/:token` share `RegistrationForm`.
+
+The four auth screens are `CenteredPage`s (app icon, large title, no nav bar): one
+`GroupedSection` of `InputRow`s (registration adds «Пол» as a `SegmentedControl`) inside a
+`Form`, field and form errors in the group footer, and the full-width primary `Button`. The
+Invite and reset screens go through `LinkScreen`, which shows the link check
+(«Проверяем ссылку…»), a broken link («Ко входу») or an unreachable server («Повторить») as an
+`EmptyState` in the same layout, and the form once the link works.
 
 A new public screen needs a branch in `isPublic()`. Server deep links work because the backend
 returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
@@ -174,10 +182,10 @@ against the same file (see [`backend.md`](backend.md#stack)). Each code's Russia
 - **Grammatical gender**: a sentence about a Member's action uses i18next `context` with the
   Member's `grammaticalGender` lower-cased (`masculine` / `feminine`), i.e. keys `<key>_masculine`
   and `<key>_feminine`, plus the plain `<key>` as the neutral fallback when the value is missing.
-  No such key exists yet; the first one arrives with M2/M3 messages. The choice itself is
-  `GrammaticalGenderChoice` in `@/shared/ui`, asked as «Пол» with «Мужской» / «Женский» (keys
-  `grammaticalGender.label`, `.masculine`, `.feminine`; nothing pre-selected), used
-  at registration and in the profile form.
+  No such key exists yet; the first one arrives with M2/M3 messages. The choice itself is asked
+  as «Пол» with «Мужской» / «Женский» (keys `grammaticalGender.label`, `.masculine`,
+  `.feminine`; nothing pre-selected): a `SegmentedControl` at registration, still
+  `GrammaticalGenderChoice` in the profile form.
 - The app name «Семья» is `app.name`; `vite.config.ts` puts it into the manifest and replaces
   `%APP_NAME%` in `index.html`.
 
@@ -193,7 +201,7 @@ Everything visual is specified in [`design.md`](../design.md). In short:
   `theme-color` meta. It re-applies on a system change or a `storage` event.
   `src/app/themeScript.test.ts` runs that script in jsdom.
 - Screens render as `Page` (large-title nav bar, 640px centred column, safe-area padding) inside
-  `AppShell`.
+  `AppShell`; the auth screens as `CenteredPage` (app icon, title, 400px column centred both ways).
 - Offline indicator: a crossed globe in the `Page` nav bar's trailing slot while
   `useServerReachable()` is `false`. Each mounted `Page` registers its nav bar with `AppShell`;
   with none (auth screens, the start-up error in `AuthGuard`) `AppShell` shows the globe in the

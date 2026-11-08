@@ -32,6 +32,8 @@
   --color-separator: #c6c6c8;
   /* Segmented control track, search fields. */
   --color-fill: #e3e3e8;
+  /* The selected segment of a segmented control, on fill. */
+  --color-segment: #ffffff;
   /* The nav bar once content scrolls under it (with a backdrop blur). */
   --color-bar: rgb(242 242 247 / 0.8);
   --color-destructive: #d70015;
@@ -77,6 +79,7 @@
     --color-tertiary-label: #5a5a5f;
     --color-separator: #38383a;
     --color-fill: #2c2c2e;
+    --color-segment: #636366;
     --color-bar: rgb(22 22 23 / 0.8);
     --color-destructive: #ff453a;
   }

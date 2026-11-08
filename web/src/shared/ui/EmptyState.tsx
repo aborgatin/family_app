@@ -8,14 +8,18 @@ interface EmptyStateProps {
   children: ReactNode;
   /** Optional control under the message, e.g. a «Повторить» `Button`. */
   action?: ReactNode;
+  /** `status` for a wait («Проверяем ссылку…»), `alert` for a failure the screen is about. */
+  role?: 'status' | 'alert';
 }
 
 /** A centred, quiet message where a screen or list has nothing to show yet. */
-export function EmptyState({ icon, children, action }: EmptyStateProps) {
+export function EmptyState({ icon, children, action, role }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center gap-3 px-4 py-16 text-center text-secondary-label">
       {icon !== undefined && <Icon name={icon} size={48} />}
-      <p className="text-body">{children}</p>
+      <p role={role} className="text-body">
+        {children}
+      </p>
       {action !== undefined && <div className="mt-2">{action}</div>}
     </div>
   );
