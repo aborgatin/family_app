@@ -65,6 +65,25 @@ describe('«Дети» in Settings', () => {
     );
   });
 
+  it('shows months under a year, and nothing for a birthday still to come', async () => {
+    server.use(
+      childrenHandler([
+        { ...sonya, id: `${sonya.id.slice(0, -2)}21`, name: 'Лиза', birthday: '2026-06-09' },
+        { ...sonya, id: `${sonya.id.slice(0, -2)}22`, name: 'Оля', birthday: '2025-12-01' },
+        { ...sonya, id: `${sonya.id.slice(0, -2)}23`, name: 'Тима', birthday: '2026-12-01' },
+      ]),
+    );
+
+    renderApp('/settings');
+
+    const items = within(await childrenList()).getAllByRole('listitem');
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Лиза4 месяца',
+      'Оля11 месяцев',
+      'Тима',
+    ]);
+  });
+
   it('says when there are no Children yet, still offering to add one', async () => {
     server.use(childrenHandler([]));
 
