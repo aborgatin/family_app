@@ -6,6 +6,7 @@ import {
   GlobeOff,
   House,
   LoaderCircle,
+  Menu,
   Minus,
   Settings,
   type LucideIcon,
@@ -23,6 +24,7 @@ const ICONS = {
   home: House,
   minus: Minus,
   offline: GlobeOff,
+  reorder: Menu,
   settings: Settings,
   spinner: LoaderCircle,
 } satisfies Record<string, LucideIcon>;

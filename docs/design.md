@@ -152,7 +152,7 @@ navigating.
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
 `check` (the chosen colour), `chevron`, `clear` (a circled ×), `home`, `minus` (edit mode's ⊖),
-`offline` (crossed globe), `settings`, `spinner`; a new icon is added to the
+`offline` (crossed globe), `reorder` (≡, a drag handle), `settings`, `spinner`; a new icon is added to the
 map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
 colour; default size 22px.
 
@@ -223,9 +223,6 @@ goes. Same on every device; on touch it is how you delete besides swiping, with 
 besides right-click, and with the keyboard the only way.
 `after` puts rows on the same cell after the list but outside it (an accent «Добавить …» row):
 they stay when the list is empty, and the «Изменить» button is left out then (pass no `edit`).
-
-Content that isn't rows yet (the M1 parts of Settings until their tickets) goes in one
-`SectionContent`, a padded cell spanning the group.
 
 ### ColorChoice
 
@@ -320,13 +317,38 @@ screen, chevron; not in edit mode), `confirm` (`{title, message}` of the action 
 `onDelete`, which runs only after the action sheet's «Удалить». Every way in asks first:
 
 - **Edit mode**: a red ⊖ at the left, a button named «Удалить «<title>»» (Tab reaches it,
-  Enter / Space presses it). `handle` is shown at the right: the drag handle of a list that can
-  be reordered (Child fields: the sortable list around the rows passes its `ref` and the handle).
-  Swipe and right-click are off.
+  Enter / Space presses it). In a `SortableList` (below) the row takes its `sortable` and shows
+  the drag handle at the right. Swipe and right-click are off.
 - **Touch**: `SwipeToDelete` (below).
 - **Fine pointer**: `RowContextMenu` with «Удалить» (below).
 
-Children use it for delete only (`to` their screen), Child fields with `handle`, Invites plain.
+`input` renames in place: out of edit mode the title is a text field (spread `input` of
+`useAutoSaveText()` and add a translated `label`, its accessible name, e.g. «Название поля
+«Вес»»), auto-saved like an `InputRow`: blur or Enter saves, Esc puts the saved text back, `busy`
+shows the spinner, and its `name` links it to the footer messages. It looks like the title; with
+a fine pointer the focused field gets the accent outline. In edit mode the row shows `title`.
+
+Children use it for delete only (`to` their screen), Child fields with `input` and `sortable`,
+Invites plain.
+
+### SortableList
+
+The rows of an edit-mode list that can be reordered (Child fields), on dnd-kit (used nowhere else):
+`items` in order, `itemId`, `itemTitle` (names the handle «Переместить «<title>»» and the
+announcements), `onMove(item, to)` with the index after the move, and a render function that gets
+each item and its `sortable` for an `EditableRow`. Goes inside a `GroupedSection` with `edit`,
+adding no element of its own. In edit mode each row has a grey ≡ drag handle at the right; out of
+edit mode nothing moves. The dragged row lifts (shadow) and stays inside the list; the others
+make room. After a drop the list shows the new order until the promise `onMove` returns settles;
+if `items` didn't change by then (the save failed), the rows go back and the screen shows the
+error in the footer.
+
+- Touch: drag the handle (44px target); the rest of the row still swipes and scrolls.
+- Fine pointer: drag the handle (28px wide) with the mouse.
+- Keyboard: Tab to the handle; Space or Enter picks the row up, ↑ / ↓ move it, Space or Enter puts
+  it down, Esc puts it back. Screen readers get the instructions and each step in Russian
+  (`ui.sortable.*`).
+- Same on narrow and wide windows.
 
 ### SwipeToDelete
 
@@ -360,8 +382,3 @@ Esc or a tap outside cancels.
 
 «Сохраняем…» at the right of a row while it saves; rows show it through `busy`, which the
 auto-save hooks set only after ~400 ms.
-
-### TextField, GrammaticalGenderChoice
-
-Still the M1 form controls inside the part of Settings that keeps its M1 content (Child fields)
-until its own ticket of spec #35.

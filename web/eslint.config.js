@@ -32,6 +32,10 @@ const FEATURES_FROM_SHARED = {
   group: ['@/features', '@/features/**'],
   message: 'shared must not import features: shared → features → app (M3).',
 };
+const UI_LIBRARIES = {
+  group: ['@dnd-kit/*', 'lucide-react', '@radix-ui/*'],
+  message: 'Only shared/ui uses the UI libraries; build screens from `@/shared/ui` (ADR-0008).',
+};
 const APP_FROM_BELOW = {
   group: ['@/app', '@/app/**'],
   message: 'Only app imports app: shared → features → app (M3).',
@@ -118,7 +122,11 @@ export default defineConfig([
     APP_FROM_BELOW,
     DEEP_FEATURE_IMPORT,
   ]),
-  ...layerBlocks('src/features/*', 'a feature folder', [APP_FROM_BELOW, DEEP_FEATURE_IMPORT]),
+  ...layerBlocks('src/features/*', 'a feature folder', [
+    APP_FROM_BELOW,
+    DEEP_FEATURE_IMPORT,
+    UI_LIBRARIES,
+  ]),
   ...layerBlocks('src/app', 'app', [DEEP_FEATURE_IMPORT]),
 
   {

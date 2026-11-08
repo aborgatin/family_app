@@ -36,7 +36,7 @@ web/src/
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
     children/           ChildrenSettings («Дети»), ChildPage, NewChildSheet, ChildRows, age, useChildren()
-    child-fields/       ChildFieldsSettings, useChildFields()
+    child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields()
   shared/
     api/                API client, error-code mapping, form error helpers
     i18n/               i18next set-up, typed keys, locales/ru.json
@@ -44,9 +44,9 @@ web/src/
     palette/            Child color palette (childColors.json)
     ui/                 theme.css (tokens), AppShell, Page (nav bar), CenteredPage, Button, Link,
                         Icon, EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
-                        SectionContent, InputRow, SegmentedControl, ListRow, Avatar, ActionSheet,
-                        Spinner, auto-save hooks (autoSave.ts); TextField,
-                        GrammaticalGenderChoice (docs/design.md)
+                        InputRow, SegmentedControl, ListRow, EditableRow, SortableList (dnd-kit),
+                        Avatar, ActionSheet, Sheet, Spinner, auto-save hooks (autoSave.ts)
+                        (docs/design.md)
   test/                 renderApp, MSW server, fixtures, setup
 ```
 
@@ -58,6 +58,8 @@ web/src/
   `@/features/<name>`, `@/app/...`). A relative `../` may not climb out of it.
 - All of this is enforced by `no-restricted-imports` blocks generated per file depth in
   `web/eslint.config.js` (`layerBlocks`). Tests and `src/test/**` are exempt.
+- The UI libraries (`@dnd-kit/*`, `lucide-react`, `@radix-ui/*`) are imported only in
+  `shared/ui`; the same blocks forbid them in `features/**`.
 - A feature keeps its components, hooks and API calls together; `*Api.ts` files hold the REST
   calls, and only the feature's hook calls them.
 
@@ -139,9 +141,12 @@ Each data feature has one hook that is its only data access. Components never ca
 - `useChildren()` → `{load, retry, save(id, details), remove(id)}`; `newChildId()` uses
   `crypto.randomUUID()`. The «Новый ребёнок» sheet gets its id once when it opens, so a retried save repeats the same
   `PUT`. `save` replaces the whole Child (the API's `PUT`).
-- `useChildFields()` → `{load, retry, add, rename, move, remove}`. `positionAfterMove()` gives a
-  moved field the midpoint between its new neighbours, or one past either end; a new field goes
-  one past the last. Ordering is `position`, then id, as on the server.
+- `useChildFields()` → `{load, retry, add(id, name, valueType), rename(field, name),
+  move(field, to), remove(field)}`; `newChildFieldId()` makes the id once when the «Новое поле»
+  sheet opens, so a retried save repeats the same `PUT`. `move` takes the field's index after the
+  move; `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or
+  one past either end, and only that field is written. A new field goes one past the last.
+  Ordering is `position`, then id, as on the server.
 - `useMembers()` → `{load, retry, replaced}`.
 - `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`. Lists
   load from the server each time Settings opens. Writes reject with `ApiError` and leave the list
@@ -197,8 +202,8 @@ against the same file (see [`backend.md`](backend.md#stack)). Each code's Russia
   and `<key>_feminine`, plus the plain `<key>` as the neutral fallback when the value is missing.
   No such key exists yet; the first one arrives with M2/M3 messages. The choice itself is asked
   as «Пол» with «Мужской» / «Женский» (keys `grammaticalGender.label`, `.masculine`,
-  `.feminine`; nothing pre-selected): a `SegmentedControl` at registration, still
-  `GrammaticalGenderChoice` in the profile form.
+  `.feminine`; nothing pre-selected): a `SegmentedControl` at registration and in
+  «Ваш профиль».
 - The app name «Семья» is `app.name`; `vite.config.ts` puts it into the manifest and replaces
   `%APP_NAME%` in `index.html`.
 
@@ -231,7 +236,7 @@ Everything visual is specified in [`design.md`](../design.md). In short:
 row per Member: initial, name, email, «(вы)» on the own one; not tappable; then «Пригласить
 взрослого…»), «Приглашения» (an edit-mode list, see Invites above), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
-Members list; then the «Изменить пароль» chevron row), «Дети» (below), «Поля профиля» (M1 content),
+Members list; then the «Изменить пароль» chevron row), «Дети» (below), «Поля профиля» (below),
 «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, confirmed with an
 `ActionSheet`; after logging out the guard shows `/login`). Auto-save and its failure footer are
 the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessages` (see
@@ -256,6 +261,19 @@ date) and a chevron to `/settings/children/:id` (`childPath(id)`). Edit mode del
 as the Child screen (`ChildRows`), name and colour required, saved only with «Готово»; on success
 the Child appears in the list in the API's order. With no Children the footer says «Детей пока
 нет».
+
+«Поля профиля» (`ChildFieldsSettings`) is an edit-mode list of `EditableRow`s inside a
+`SortableList`: each row's name is a text field (`input`, `useAutoSaveText`, named «Название поля
+«Вес»»; empty is refused without a request) that renames the field in place on blur or Enter,
+with the value type («Текст» / «Дата») on the right; it can't be changed (ADR-0007). Each row
+reports its save failure up to the section's footer (`autoSaveMessages`). Edit mode shows ⊖ and a
+drag handle: dragging (mouse, touch or keyboard) calls `move(field, to)`, which `PUT`s only that
+field; `SortableList` shows the new order until the save settles, so a failed move puts the rows
+back and the footer shows the error. A swipe and right-click delete too; every delete asks
+(«Удалить поле „Вес“?»), and a failed one leaves the list as it was with the error in the footer.
+«Добавить поле» opens `NewChildFieldSheet`: a `Sheet` «Новое поле» with «Название» (`InputRow`)
+and «Тип» (`SegmentedControl` «Текст» / «Дата», «Текст» chosen), saved only with «Готово»; the
+field goes to the end. With no fields the footer says «Полей пока нет».
 
 The Child screen `/settings/children/:id` (`ChildPage`, `CHILD_PATH`; `app/routes.tsx` passes
 `settingsPath` as for the password screen) is a `Page` titled with the Child's name, back to

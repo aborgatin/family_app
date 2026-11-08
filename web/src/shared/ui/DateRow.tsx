@@ -97,7 +97,7 @@ export function DateRow({
 const FIELD =
   'my-1.5 min-w-0 rounded-md bg-fill px-2 py-1 text-right text-body text-label ' +
   '[&::-webkit-date-and-time-value]:text-right pointer-fine:my-1 pointer-fine:py-0.5 ' +
-  'outline-none focus-visible:outline-2 focus-visible:outline-accent';
+  'outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-accent';
 
 const CLEAR =
   'flex shrink-0 cursor-pointer items-center justify-center rounded-full text-tertiary-label ' +
