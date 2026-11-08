@@ -14,28 +14,29 @@ type scale and fonts are switched off, so only these exist: a colour is `bg-<tok
 `text-<token>` / `border-<token>`, a size is `text-<size>`. Components never write `dark:`; the
 dark theme redefines the same variables.
 
-| Token             | Light            | Dark             | Use                                        |
-| ----------------- | ---------------- | ---------------- | ------------------------------------------ |
-| `accent`          | `#0062CC`        | `#0A84FF`        | only things you can act on                 |
-| `accent-fill`     | `#0062CC`        | `#0071E3`        | background of a filled (primary) button    |
-| `on-accent`       | `#FFFFFF`        | `#FFFFFF`        | text on `accent-fill`                      |
-| `background`      | `#F2F2F7`        | `#000000`        | grouped page background                    |
-| `cell`            | `#FFFFFF`        | `#1C1C1E`        | grouped cells                              |
-| `cell-pressed`    | `#D1D1D6`        | `#2C2C2E`        | a cell while pressed                       |
-| `label`           | `#000000`        | `#FFFFFF`        | text                                       |
-| `secondary-label` | `#6D6D72`        | `#98989F`        | values, hints, section headers, footers    |
-| `tertiary-label`  | `#C4C4C7`        | `#5A5A5F`        | chevrons and other non-text decoration     |
-| `separator`       | `#C6C6C8`        | `#38383A`        | hairlines between cells, under the nav bar |
-| `fill`            | `#E3E3E8`        | `#2C2C2E`        | segmented control track                    |
-| `segment`         | `#FFFFFF`        | `#636366`        | the selected segment on `fill`             |
-| `bar`             | `#F2F2F7` at 80% | `#161617` at 80% | the nav bar once content is under it       |
-| `destructive`     | `#D70015`        | `#FF453A`        | delete, log out, errors                    |
-| `overlay`         | black at 35%     | black at 55%     | the dimmed page behind an action sheet     |
+| Token              | Light            | Dark             | Use                                        |
+| ------------------ | ---------------- | ---------------- | ------------------------------------------ |
+| `accent`           | `#0062CC`        | `#0A84FF`        | only things you can act on                 |
+| `accent-fill`      | `#0062CC`        | `#0071E3`        | background of a filled (primary) button    |
+| `on-accent`        | `#FFFFFF`        | `#FFFFFF`        | text on `accent-fill`                      |
+| `background`       | `#F2F2F7`        | `#000000`        | grouped page background                    |
+| `cell`             | `#FFFFFF`        | `#1C1C1E`        | grouped cells                              |
+| `cell-pressed`     | `#D1D1D6`        | `#2C2C2E`        | a cell while pressed                       |
+| `label`            | `#000000`        | `#FFFFFF`        | text                                       |
+| `secondary-label`  | `#6D6D72`        | `#98989F`        | values, hints, section headers, footers    |
+| `tertiary-label`   | `#C4C4C7`        | `#5A5A5F`        | chevrons and other non-text decoration     |
+| `separator`        | `#C6C6C8`        | `#38383A`        | hairlines between cells, under the nav bar |
+| `fill`             | `#E3E3E8`        | `#2C2C2E`        | segmented control track                    |
+| `segment`          | `#FFFFFF`        | `#636366`        | the selected segment on `fill`             |
+| `bar`              | `#F2F2F7` at 80% | `#161617` at 80% | the nav bar once content is under it       |
+| `destructive`      | `#D70015`        | `#FF453A`        | delete, log out, errors                    |
+| `destructive-fill` | `#D70015`        | `#E0262B`        | background of the swipe «Удалить» button   |
+| `overlay`          | black at 35%     | black at 55%     | the dimmed page behind an action sheet     |
 
 Contrast is WCAG AA (4.5:1 for text) on both `background` and `cell`; the figures are in the header
 of `theme.css`. Two deliberate departures from the iOS values: light destructive text is `#D70015`
 (iOS `#FF3B30` is 3.5:1 on white), and in dark the filled button is `#0071E3` (white on `#0A84FF`
-is 3.7:1). The accent is never used for decoration, so it doesn't compete with the Child colours.
+is 3.7:1); likewise the swipe «Удалить» in dark is `#E0262B` (white on `#FF453A` is 3.4:1). The accent is never used for decoration, so it doesn't compete with the Child colours.
 
 The app icon (`web/public/icon.svg`) is the house in `accent`; maskable and Apple icons are padded
 on white. Manifest `theme_color` / `background_color` are the light `background`.

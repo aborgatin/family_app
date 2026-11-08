@@ -126,7 +126,7 @@ export function SwipeToDelete({
           }}
           className={
             'absolute inset-y-0 right-0 flex cursor-pointer items-center justify-center ' +
-            'bg-destructive px-2 text-body text-on-accent focus-visible:outline-2 ' +
+            'bg-destructive-fill px-2 text-body text-on-accent focus-visible:outline-2 ' +
             'focus-visible:-outline-offset-4 focus-visible:outline-on-accent'
           }
           style={{ width: REVEAL }}
