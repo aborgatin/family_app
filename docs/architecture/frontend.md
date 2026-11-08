@@ -8,7 +8,8 @@ component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](b
 
 React 19, TypeScript 6 (`strict`, `noUncheckedIndexedAccess`), Vite 8, `vite-plugin-pwa` 2
 (Workbox), React Router 8 (import from `react-router`), i18next 27 + react-i18next, Tailwind CSS 4
-(`@tailwindcss/vite`), `lucide-react` (only inside `shared/ui/Icon.tsx`), Vitest 5 + Testing
+(`@tailwindcss/vite`), Radix primitives (`@radix-ui/react-popover`, only inside `shared/ui`),
+`lucide-react` (only inside `shared/ui/Icon.tsx`), Vitest 5 + Testing
 Library + MSW 3, ESLint 10 flat config, Prettier 3. Node 22 or newer.
 
 Scripts (`web/package.json`): `dev`, `build` (does not typecheck), `typecheck` (`tsc --noEmit`),
@@ -40,7 +41,8 @@ web/src/
     load/               useLoad(): load / failed / retry for anything fetched once
     palette/            Child color palette (childColors.json)
     ui/                 theme.css (tokens), AppShell, Page (nav bar), Button, Link, Icon,
-                        EmptyState; TextField, GrammaticalGenderChoice (docs/design.md)
+                        EmptyState, OfflineIndicator; TextField, GrammaticalGenderChoice
+                        (docs/design.md)
   test/                 renderApp, MSW server, fixtures, setup
 ```
 
@@ -100,6 +102,10 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
   isn't one already); use it instead of writing the check again. A fetch that
   throws (offline, server unreachable) becomes `ApiError(0, 'network.unavailable')`
   (`NETWORK_UNAVAILABLE`). A non-JSON error body becomes code `unknown`.
+- Every request reports whether it reached the server (`serverReachable.ts`): one that throws
+  marks the server unreachable, the next one that gets any HTTP answer (even an error status)
+  marks it reachable. `useServerReachable()` reads that; the offline indicator is its only user.
+  `navigator.onLine` is not used (unreliable on iOS, and says nothing about our server).
 - `errorMessageKey(code)` maps an API code to an i18n key through `ERROR_KEYS` in
   `errorMessages.ts`; anything unmapped → `errors.generic` (I3). Add a line there for every new
   code the user may see. Never render `error.code`.
@@ -188,6 +194,12 @@ Everything visual is specified in [`design.md`](../design.md). In short:
   `src/app/themeScript.test.ts` runs that script in jsdom.
 - Screens render as `Page` (large-title nav bar, 640px centred column, safe-area padding) inside
   `AppShell`.
+- Offline indicator: a crossed globe in the `Page` nav bar's trailing slot while
+  `useServerReachable()` is `false`. Each mounted `Page` registers its nav bar with `AppShell`;
+  with none (auth screens, the start-up error in `AuthGuard`) `AppShell` shows the globe in the
+  same top-right spot. `AppShell` also holds the `role="status"` message announcing «Нет связи с
+  сервером» / «Связь с сервером восстановлена». Nothing is disabled offline; saves fail with their
+  usual message. M2 changes its meaning to "changes will sync later".
 
 ## PWA
 
