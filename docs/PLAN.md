@@ -41,6 +41,7 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 
 ### Later releases (outline only — to be brainstormed when we get there)
 
+- **R1.5 — Claude (MCP):** a remote MCP server built into the app, starting after M5. Read: children with their fields, todo lists, wish lists, shopping lists. Write: create lists and items, so Claude can turn a plan into a todo list or a recipe into a shopping list. It acts as the logged-in member, so the sync and notification rules apply unchanged. To grill before starting: auth (per-member token vs OAuth for claude.ai), which tools to offer, and limits on what it can write. Overlaps with R3: revisit R3's scope once this exists.
 - **R2 — Links:** save links from Instagram / Telegram / YouTube etc. via iOS Shortcut in the share sheet; archive media (yt-dlp worker) so it survives source deletion.
 - **R3 — Recipes:** manual entry, import from URL, "add ingredients to shopping list".
 - **R4 — Travel planning:** trip page, itinerary, bookings, packing list (reuses lists), links (reuses R2).
@@ -73,7 +74,7 @@ Chores/rewards, shared expenses, "reserved by" on wish lists, in-app calendar.
 ```
 
 - **Client:** PWA first, native later if needed ([ADR-0001](adr/0001-pwa-first-client.md)). Share-to-app on iOS via a Shortcut that POSTs to the API.
-- **Backend:** Spring Boot 3, Java 21, Spring Security (session auth), one deployable split into feature packages (`family`, `lists`, `notifications`, later `links`, `recipes`, `trips`).
+- **Backend:** Spring Boot 3, Java 21, Spring Security (session auth), one deployable split into feature packages (`family`, `lists`, `notifications`, later `mcp`, `links`, `recipes`, `trips`).
 - **UI:** iOS-style (large titles, grouped lists), iPhone first and Mac-ready; Tailwind + Radix + our own `shared/ui` kit, which feature screens are built from exclusively; light and dark theme ([ADR-0008](adr/0008-ios-style-ui-kit.md); design brief `docs/design.md` arrives with M1.5).
 - **Database:** PostgreSQL ([ADR-0002](adr/0002-postgresql.md)).
 - **Sync:** offline-first with outbox + per-record versions, last-write-wins per field ([ADR-0003](adr/0003-sync-model.md)).
