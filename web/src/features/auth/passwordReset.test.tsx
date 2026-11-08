@@ -1,6 +1,6 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { anna, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
@@ -75,6 +75,18 @@ describe('Password reset', () => {
 
     expect(await screen.findByLabelText('Новый пароль')).toBeInTheDocument();
     expect(app.location()).toBe(LINK);
+  });
+
+  it('says it is checking the link until the server answers', async () => {
+    loggedOut();
+    linkAnswers(() => delay('infinite') as never);
+
+    renderApp(LINK);
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('Проверяем ссылку…');
+    });
+    expect(screen.getByRole('heading', { name: 'Новый пароль' })).toBeInTheDocument();
   });
 
   it.each([

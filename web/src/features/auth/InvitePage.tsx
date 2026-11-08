@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import type { ApiError } from '@/shared/api';
 import { acceptInvite, fetchInvite, type Registration } from './authApi';
-import { LOGIN_PATH } from './AuthGuard';
+import { LinkScreen } from './LinkScreen';
 import { RegistrationForm } from './RegistrationForm';
 import { useSession } from './session';
 import { useLinkCheck } from './useLinkCheck';
@@ -37,40 +37,20 @@ export function InvitePage() {
     return broke(error.code);
   }
 
-  if (link.status === 'checking') {
-    return <p role="status">{t('common.loading')}</p>;
-  }
-
   return (
-    <main>
-      <h1>{t('invite.title')}</h1>
-      {link.status === 'broken' && (
-        <>
-          <p role="alert">{t(link.message)}</p>
-          <p>
-            <Link to={LOGIN_PATH}>{t('invite.toLogin')}</Link>
-          </p>
-        </>
-      )}
-      {link.status === 'unreachable' && (
-        <>
-          <p role="alert">{t(link.message)}</p>
-          <button type="button" onClick={retry}>
-            {t('common.retry')}
-          </button>
-        </>
-      )}
-      {link.status === 'working' && (
-        <>
-          <p>{t('invite.intro')}</p>
-          <RegistrationForm
-            submitLabel={t('invite.submit')}
-            submittingLabel={t('invite.submitting')}
-            register={register}
-            handled={linkBroke}
-          />
-        </>
-      )}
-    </main>
+    <LinkScreen
+      title={t('invite.title')}
+      intro={t('invite.intro')}
+      link={link}
+      retry={retry}
+      toLogin={t('invite.toLogin')}
+    >
+      <RegistrationForm
+        submitLabel={t('invite.submit')}
+        submittingLabel={t('invite.submitting')}
+        register={register}
+        handled={linkBroke}
+      />
+    </LinkScreen>
   );
 }

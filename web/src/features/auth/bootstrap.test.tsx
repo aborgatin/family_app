@@ -61,11 +61,33 @@ describe('First Member registration', () => {
 
     renderApp('/setup');
 
-    const choice = await screen.findByRole('group', { name: 'Пол' });
+    const choice = await screen.findByRole('radiogroup', { name: 'Пол' });
     const masculine = within(choice).getByRole('radio', { name: 'Мужской' });
     const feminine = within(choice).getByRole('radio', { name: 'Женский' });
     expect(masculine).not.toBeChecked();
     expect(feminine).not.toBeChecked();
+  });
+
+  it('says how long the password must be', async () => {
+    freshInstallation();
+
+    renderApp('/setup');
+
+    expect(await screen.findByLabelText('Пароль')).toHaveAccessibleDescription(
+      'Не короче 8 символов',
+    );
+  });
+
+  it('registers with Enter from a field', async () => {
+    freshInstallation();
+    server.use(http.post('/api/auth/bootstrap', () => HttpResponse.json(anna, { status: 201 })));
+    const user = userEvent.setup();
+
+    renderApp('/setup');
+    await fillForm(user);
+    await user.type(screen.getByLabelText('Имя'), '{Enter}');
+
+    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
   });
 
   it('requires the «Пол» choice before sending', async () => {

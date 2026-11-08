@@ -1,8 +1,15 @@
-import { useState, type SubmitEvent } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ParseKeys } from 'i18next';
 import { ApiError, asApiError, errorMessageKey, fieldErrorMessageKey } from '@/shared/api';
-import { GrammaticalGenderChoice, TextField, type GrammaticalGender } from '@/shared/ui';
+import {
+  Button,
+  Form,
+  GroupedSection,
+  InputRow,
+  SegmentedControl,
+  type GrammaticalGender,
+} from '@/shared/ui';
 import type { Registration } from './authApi';
 
 type Field = 'email' | 'password' | 'displayName' | 'grammaticalGender';
@@ -35,7 +42,7 @@ interface RegistrationFormProps {
 /**
  * The registration form shared by the first Member (`/setup`) and an invited adult
  * (`/invite/:token`): email, password, display name and the required «Пол» («Мужской» / «Женский»)
- * choice. Server field errors show next to their fields; `member.email_taken` next to the email.
+ * choice. Field errors show in the group footer, each describing its row; `member.email_taken` next to the email.
  */
 export function RegistrationForm({
   submitLabel,
@@ -90,56 +97,59 @@ export function RegistrationForm({
     }
   }
 
-  function onSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void submit();
-  }
-
   const message = (field: Field) => {
     const key = fieldErrors[field];
-    return key === undefined ? undefined : t(key);
+    return key !== undefined && { row: field, text: t(key), tone: 'error' as const };
   };
 
   return (
-    <form noValidate onSubmit={onSubmit}>
-      <TextField
-        label={t('setup.email')}
-        type="email"
-        autoComplete="email"
-        value={email}
-        onChange={(event) => {
-          setEmail(event.target.value);
-        }}
-        error={message('email')}
-      />
-      <TextField
-        label={t('setup.password')}
-        type="password"
-        autoComplete="new-password"
-        value={password}
-        onChange={(event) => {
-          setPassword(event.target.value);
-        }}
-        error={message('password')}
-      />
-      <TextField
-        label={t('setup.displayName')}
-        autoComplete="name"
-        value={displayName}
-        onChange={(event) => {
-          setDisplayName(event.target.value);
-        }}
-        error={message('displayName')}
-      />
-      <GrammaticalGenderChoice
-        value={grammaticalGender}
-        onChange={setGrammaticalGender}
-        error={message('grammaticalGender')}
-      />
-      {formError !== undefined && <p role="alert">{t(formError)}</p>}
-      <button type="submit" disabled={submitting}>
+    <Form onSubmit={() => void submit()}>
+      <GroupedSection
+        messages={[
+          message('email'),
+          message('password') || { row: 'password', text: t('setup.passwordHint') },
+          message('displayName'),
+          message('grammaticalGender'),
+          formError !== undefined && { text: t(formError), tone: 'error' },
+        ]}
+      >
+        <InputRow
+          label={t('setup.email')}
+          name="email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={setEmail}
+        />
+        <InputRow
+          label={t('setup.password')}
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          value={password}
+          onChange={setPassword}
+        />
+        <InputRow
+          label={t('setup.displayName')}
+          name="displayName"
+          autoComplete="name"
+          value={displayName}
+          onChange={setDisplayName}
+        />
+        <SegmentedControl
+          label={t('grammaticalGender.label')}
+          name="grammaticalGender"
+          options={[
+            { value: 'MASCULINE', label: t('grammaticalGender.masculine') },
+            { value: 'FEMININE', label: t('grammaticalGender.feminine') },
+          ]}
+          value={grammaticalGender}
+          onChange={setGrammaticalGender}
+        />
+      </GroupedSection>
+      <Button variant="primary" type="submit" disabled={submitting}>
         {submitting ? submittingLabel : submitLabel}
-      </button>
-    </form>
+      </Button>
+    </Form>
   );
 }

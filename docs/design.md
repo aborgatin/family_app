@@ -27,6 +27,7 @@ dark theme redefines the same variables.
 | `tertiary-label`  | `#C4C4C7`        | `#5A5A5F`        | chevrons and other non-text decoration     |
 | `separator`       | `#C6C6C8`        | `#38383A`        | hairlines between cells, under the nav bar |
 | `fill`            | `#E3E3E8`        | `#2C2C2E`        | segmented control track                    |
+| `segment`         | `#FFFFFF`        | `#636366`        | the selected segment on `fill`             |
 | `bar`             | `#F2F2F7` at 80% | `#161617` at 80% | the nav bar once content is under it       |
 | `destructive`     | `#D70015`        | `#FF453A`        | delete, log out, errors                    |
 
@@ -147,7 +148,54 @@ navigating.
 A centred quiet message where a screen or list has nothing yet: optional large `icon`, the text,
 an optional `action` under it (e.g. «Повторить»). Same on every device.
 
+### CenteredPage
+
+A screen outside the app's navigation: `/setup`, `/login`, `/invite/:token`,
+`/reset-password/:token`. The app icon (`/icon.svg` on a `cell` tile), the large `title`
+centred under it, an optional `intro` in `secondary-label`, then the content. No nav bar. The
+column is at most 400px (`max-w-100`) and centred both ways in the window; on a phone it is the
+full width minus 16px margins and the safe areas. A screen waiting for something or showing a
+failure (the link check: «Проверяем ссылку…», a broken link, «Повторить») keeps the same layout
+and shows an `EmptyState` with `role` instead of the form.
+
+### Form
+
+Wraps the fields and the primary `Button` (`type="submit"`) of a screen with an explicit confirm
+(the auth forms). `onSubmit` runs on Enter in any field and on the button; the browser's own
+validation bubbles are off, the screen puts its messages in the group footer. Sections and the
+button are 24px apart. Not for auto-saved rows: they save themselves.
+
+### GroupedSection
+
+A grouped inset list, as in the iPhone Settings app: optional `header` (footnote, uppercase,
+`secondary-label`), the rows on one `cell` with rounded corners and inset hairlines between them,
+and a footer. Rows share a two-column grid, so inline labels line up and values start at one
+edge. Use it for every group of rows; a screen is a stack of them.
+
+The footer is `messages`: lines top to bottom, each `{text, tone, row}`. `tone: 'error'` is red,
+`hint` (default) is `secondary-label`. A line with `row` (a row's `name`) is that row's
+accessible description; an error also marks the row invalid (`aria-invalid`, label in red). An
+error without `row` is about the whole group (a failed submit) and is announced (`role="alert"`).
+Show a row's error instead of its hint, not under it. Messages come from the error-code mapping
+(I3). Same on every device.
+
+### InputRow
+
+A text field as a row of a `GroupedSection`: `label` inline at the left, the field filling the
+rest (`type` text, email or password; `autoComplete`). Its `name` links it to footer messages.
+Touch: 44px row, the caret is the only focus sign, as on iOS. Fine pointer: 36px row, and the
+focused field gets the accent outline. Enter submits the surrounding `Form`.
+
+### SegmentedControl
+
+One of two or three choices, as an iOS segmented control in a row of a `GroupedSection`:
+`label` at the left, the segments at the right on the `fill` track, the chosen one on `segment`.
+`value` may be `undefined`: nothing is selected (e.g. «Пол» at registration). Built from radios
+(`role="radiogroup"` named by the label): Tab reaches it, arrow keys move the choice, Space picks.
+Touch: 32px segments in a 44px row (iOS's own size, the row is the target area). Fine pointer:
+24px segments. Its `name` links it to footer messages like an `InputRow`.
+
 ### TextField, GrammaticalGenderChoice
 
-Still the M1 form controls; the auth and Settings tickets of spec #35 replace them with grouped
-rows and a segmented control.
+Still the M1 form controls of the Settings screens; the Settings ticket of spec #35 replaces them
+with `InputRow` and `SegmentedControl`.

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
+import { CenteredPage } from '@/shared/ui';
 import { bootstrap, type Registration } from './authApi';
 import { RegistrationForm } from './RegistrationForm';
 import { useSession } from './session';
@@ -16,14 +17,12 @@ export function SetupPage() {
   }
 
   return (
-    <main>
-      <h1>{t('setup.title')}</h1>
-      <p>{t('setup.intro')}</p>
+    <CenteredPage title={t('setup.title')} intro={t('setup.intro')}>
       <RegistrationForm
         submitLabel={t('setup.submit')}
         submittingLabel={t('setup.submitting')}
         register={register}
       />
-    </main>
+    </CenteredPage>
   );
 }

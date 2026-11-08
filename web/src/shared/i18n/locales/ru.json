@@ -4,7 +4,8 @@
   },
   "common": {
     "loading": "Загрузка…",
-    "retry": "Повторить"
+    "retry": "Повторить",
+    "checkingLink": "Проверяем ссылку…"
   },
   "home": {
     "emptyState": "Здесь пока пусто"
