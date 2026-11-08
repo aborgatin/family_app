@@ -146,7 +146,8 @@ navigating.
 ### EmptyState
 
 A centred quiet message where a screen or list has nothing yet: optional large `icon`, the text,
-an optional `action` under it (e.g. «Повторить»). Same on every device.
+an optional `action` under it (e.g. «Повторить»). `compact` drops its vertical padding inside a
+`CenteredPage`. Same on every device.
 
 ### OfflineIndicator
 
@@ -171,7 +172,7 @@ centred under it, an optional `intro` in `secondary-label`, then the content. No
 column is at most 400px (`max-w-100`) and centred both ways in the window; on a phone it is the
 full width minus 16px margins and the safe areas. A screen waiting for something or showing a
 failure (the link check: «Проверяем ссылку…», a broken link, «Повторить») keeps the same layout
-and shows an `EmptyState` with `role` instead of the form.
+and shows a `compact` `EmptyState` with `role` instead of the form.
 
 ### Form
 
@@ -207,8 +208,8 @@ One of two or three choices, as an iOS segmented control in a row of a `GroupedS
 `label` at the left, the segments at the right on the `fill` track, the chosen one on `segment`.
 `value` may be `undefined`: nothing is selected (e.g. «Пол» at registration). Built from radios
 (`role="radiogroup"` named by the label): Tab reaches it, arrow keys move the choice, Space picks.
-Touch: 32px segments in a 44px row (iOS's own size, the row is the target area). Fine pointer:
-24px segments. Its `name` links it to footer messages like an `InputRow`.
+Touch: 32px segments drawn in a 48px row, each segment's target reaching the row's top and
+bottom edges (48px tall). Fine pointer: 24px segments. Its `name` links it to footer messages like an `InputRow`.
 
 ### TextField, GrammaticalGenderChoice
 

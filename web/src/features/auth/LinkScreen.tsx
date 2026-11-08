@@ -28,13 +28,15 @@ export function LinkScreen({ title, intro, link, retry, toLogin, children }: Lin
     case 'checking':
       return (
         <CenteredPage title={title}>
-          <EmptyState role="status">{t('common.checkingLink')}</EmptyState>
+          <EmptyState compact role="status">
+            {t('common.checkingLink')}
+          </EmptyState>
         </CenteredPage>
       );
     case 'broken':
       return (
         <CenteredPage title={title}>
-          <EmptyState role="alert" action={<Link to={LOGIN_PATH}>{toLogin}</Link>}>
+          <EmptyState compact role="alert" action={<Link to={LOGIN_PATH}>{toLogin}</Link>}>
             {t(link.message)}
           </EmptyState>
         </CenteredPage>
@@ -42,7 +44,11 @@ export function LinkScreen({ title, intro, link, retry, toLogin, children }: Lin
     case 'unreachable':
       return (
         <CenteredPage title={title}>
-          <EmptyState role="alert" action={<Button onClick={retry}>{t('common.retry')}</Button>}>
+          <EmptyState
+            compact
+            role="alert"
+            action={<Button onClick={retry}>{t('common.retry')}</Button>}
+          >
             {t(link.message)}
           </EmptyState>
         </CenteredPage>

@@ -40,7 +40,10 @@ export function SegmentedControl<T extends string>({
       </span>
       <div className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-lg bg-fill p-0.5">
         {options.map((option) => (
-          <label key={option.value} className="flex min-w-0 cursor-pointer">
+          <label
+            key={option.value}
+            className="flex min-w-0 cursor-pointer pointer-coarse:-my-2 pointer-coarse:py-2"
+          >
             <input
               type="radio"
               name={id}
