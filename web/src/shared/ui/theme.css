@@ -7,11 +7,10 @@
  * starts (stored per-device choice, or the system's when «Авто»). Light values are the defaults
  * below; the dark block overrides the same variables, so components never use `dark:`.
  *
- * Contrast (WCAG AA, 4.5:1 for text): accent #0062cc on #f2f2f7 5.2, on white 5.8; #0a84ff on
- * #1c1c1e 4.7. White on accent-fill: #0062cc 5.8, #0071e3 4.7 (#0a84ff would be 3.7, so filled
- * buttons in dark use the darker fill). Secondary label #6d6d72 on #f2f2f7 4.6, #98989f on #1c1c1e
- * 5.9. Destructive text #d70015 on #f2f2f7 4.8 (iOS #ff3b30 would be 3.5), #ff453a on #1c1c1e 5.0.
- * White on destructive-fill: #d70015 5.4, #e0262b 4.7 (#ff453a would be 3.4).
+ * Contrast: theme.test.ts checks every text/background pair against WCAG AA (4.5:1) in both
+ * themes. That is why some values aren't the iOS ones: filled buttons in dark use #0071e3 (white on
+ * #0a84ff is 3.7), destructive text in light is #d70015 (iOS #ff3b30 is 3.5 on #f2f2f7) and the
+ * dark destructive fill is #e0262b (white on #ff453a is 3.4).
  */
 @import 'tailwindcss';
 
