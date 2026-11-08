@@ -28,11 +28,11 @@ export function Page({ title, back, actions, children }: PageProps) {
       <header
         ref={bar}
         className={
-          'sticky top-0 z-10 border-b pt-[env(safe-area-inset-top)] transition-colors duration-200 ' +
+          'sticky top-0 z-10 border-b pt-safe-0 transition-colors duration-200 ' +
           (underBar ? 'border-separator bg-bar backdrop-blur-xl' : 'border-transparent')
         }
       >
-        <div className="mx-auto grid min-h-11 max-w-160 grid-cols-[minmax(max-content,1fr)_minmax(0,auto)_minmax(max-content,1fr)] items-center gap-2 pr-[max(0.5rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))]">
+        <div className="mx-auto grid min-h-11 max-w-160 grid-cols-[minmax(max-content,1fr)_minmax(0,auto)_minmax(max-content,1fr)] items-center gap-2 px-safe-2">
           <div className="flex min-w-0 justify-start">
             {back !== undefined && (
               <Link to={back.to} icon="back">
@@ -55,7 +55,7 @@ export function Page({ title, back, actions, children }: PageProps) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-160 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+      <main className="mx-auto max-w-160 px-safe-4 pb-safe-8">
         <h1 ref={largeTitle} className="pt-1 pb-2 text-large-title font-bold">
           {title}
         </h1>

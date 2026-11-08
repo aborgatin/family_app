@@ -73,7 +73,7 @@ export function Sheet({ open, onOpenChange, title, onDone, busy = false, childre
                 {t('ui.done')}
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:pb-6">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-safe-8 sm:pb-6">
               {children}
             </div>
           </form>

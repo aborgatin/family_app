@@ -81,7 +81,7 @@ export function ColorChoice<T extends string>({
                 }
               >
                 {checked && (
-                  <span className="flex text-on-accent drop-shadow-[0_0_1px_rgb(0_0_0/0.5)]">
+                  <span className="flex text-on-accent drop-shadow-[0_0_1px_var(--color-check-shadow)]">
                     <Icon name="check" size={16} />
                   </span>
                 )}

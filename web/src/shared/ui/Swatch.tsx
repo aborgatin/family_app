@@ -11,7 +11,7 @@ export function Swatch({ color }: SwatchProps) {
   return (
     <span
       aria-hidden="true"
-      className="block size-3.5 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.12)]"
+      className="block size-3.5 rounded-full inset-ring inset-ring-swatch-edge"
       style={{ backgroundColor: color }}
     />
   );

@@ -16,7 +16,7 @@ interface StatusScreenProps {
  */
 export function StatusScreen({ role, children, action }: StatusScreenProps) {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-100 flex-col justify-center pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
+    <main className="mx-auto flex min-h-dvh max-w-100 flex-col justify-center px-safe-0 pt-safe-0 pb-safe-0">
       <EmptyState role={role} action={action}>
         {children}
       </EmptyState>

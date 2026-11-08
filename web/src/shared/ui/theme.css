@@ -42,6 +42,10 @@
   --color-destructive-fill: #d70015;
   /* The dimmed page behind an action sheet or dialog. */
   --color-overlay: rgb(0 0 0 / 0.35);
+  /* The hairline around a colour dot (Swatch), so a light colour shows on a cell. */
+  --color-swatch-edge: rgb(0 0 0 / 0.12);
+  /* The shadow that keeps the white check readable on a light colour circle (ColorChoice). */
+  --color-check-shadow: rgb(0 0 0 / 0.5);
 
   --font-*: initial;
   --font-sans:
@@ -74,6 +78,22 @@
   }
 }
 
+/*
+ * Padding that keeps clear of the notch, the rounded corners and the home indicator
+ * (env(safe-area-inset-*)): `px-safe-4` is the inset on each side but at least 1rem (spacing
+ * 4); `pt-safe-8` / `pb-safe-8` are the top / bottom inset plus 2rem; `-0` is the inset alone.
+ */
+@utility px-safe-* {
+  padding-left: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-left));
+  padding-right: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-right));
+}
+@utility pt-safe-* {
+  padding-top: calc(env(safe-area-inset-top) + var(--spacing) * --value(integer));
+}
+@utility pb-safe-* {
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--spacing) * --value(integer));
+}
+
 @layer base {
   :root {
     color-scheme: light;
@@ -97,6 +117,8 @@
     --color-destructive: #ff453a;
     --color-destructive-fill: #e0262b;
     --color-overlay: rgb(0 0 0 / 0.55);
+    --color-swatch-edge: rgb(255 255 255 / 0.18);
+    --color-check-shadow: rgb(0 0 0 / 0.5);
   }
 
   html {
