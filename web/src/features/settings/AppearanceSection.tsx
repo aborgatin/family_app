@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
-import { Section, SegmentedRow } from '@/shared/ui';
+import { GroupedSection, SegmentedControl } from '@/shared/ui';
 import { readThemeChoice, storeThemeChoice, type ThemeChoice } from './themeChoice';
 
 /**
@@ -17,9 +17,9 @@ export function AppearanceSection() {
   ] as const;
 
   return (
-    <Section title={t('settings.appearance.title')}>
-      <SegmentedRow
-        labelHidden
+    <GroupedSection header={t('settings.appearance.title')}>
+      <SegmentedControl
+        name="theme"
         label={t('settings.appearance.theme')}
         options={options}
         value={choice}
@@ -28,6 +28,6 @@ export function AppearanceSection() {
           setChoice(value);
         }}
       />
-    </Section>
+    </GroupedSection>
   );
 }

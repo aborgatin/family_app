@@ -1,6 +1,7 @@
 import {
   ChevronLeft,
   ChevronRight,
+  GlobeOff,
   House,
   LoaderCircle,
   Settings,
@@ -15,6 +16,7 @@ const ICONS = {
   back: ChevronLeft,
   chevron: ChevronRight,
   home: House,
+  offline: GlobeOff,
   settings: Settings,
   spinner: LoaderCircle,
 } satisfies Record<string, LucideIcon>;

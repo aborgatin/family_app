@@ -1,3 +1,5 @@
+import { reportServerReachable } from './serverReachable';
+
 /** Client-side code for a request that never got an answer (offline, server unreachable). */
 export const NETWORK_UNAVAILABLE = 'network.unavailable';
 
@@ -75,8 +77,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
+    reportServerReachable(false);
     throw new ApiError(0, NETWORK_UNAVAILABLE);
   }
+  // Any answer, even an error status, means the server is there.
+  reportServerReachable(true);
 
   if (!response.ok) {
     throw await toApiError(response);

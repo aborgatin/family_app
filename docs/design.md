@@ -14,23 +14,23 @@ type scale and fonts are switched off, so only these exist: a colour is `bg-<tok
 `text-<token>` / `border-<token>`, a size is `text-<size>`. Components never write `dark:`; the
 dark theme redefines the same variables.
 
-| Token             | Light            | Dark             | Use                                         |
-| ----------------- | ---------------- | ---------------- | ------------------------------------------- |
-| `accent`          | `#0062CC`        | `#0A84FF`        | only things you can act on                  |
-| `accent-fill`     | `#0062CC`        | `#0071E3`        | background of a filled (primary) button     |
-| `on-accent`       | `#FFFFFF`        | `#FFFFFF`        | text on `accent-fill`                       |
-| `background`      | `#F2F2F7`        | `#000000`        | grouped page background                     |
-| `cell`            | `#FFFFFF`        | `#1C1C1E`        | grouped cells                               |
-| `cell-pressed`    | `#D1D1D6`        | `#2C2C2E`        | a cell while pressed                        |
-| `label`           | `#000000`        | `#FFFFFF`        | text                                        |
-| `secondary-label` | `#6D6D72`        | `#98989F`        | values, hints, section headers, footers     |
-| `tertiary-label`  | `#C4C4C7`        | `#5A5A5F`        | chevrons and other non-text decoration      |
-| `separator`       | `#C6C6C8`        | `#38383A`        | hairlines between cells, under the nav bar  |
-| `fill`            | `#E3E3E8`        | `#2C2C2E`        | segmented control track                     |
-| `bar`             | `#F2F2F7` at 80% | `#161617` at 80% | the nav bar once content is under it        |
-| `destructive`     | `#D70015`        | `#FF453A`        | delete, log out, errors                     |
-| `segment`         | `#FFFFFF`        | `#636366`        | the selected segment of a segmented control |
-| `overlay`         | black at 35%     | black at 55%     | the dimmed page behind an action sheet      |
+| Token             | Light            | Dark             | Use                                        |
+| ----------------- | ---------------- | ---------------- | ------------------------------------------ |
+| `accent`          | `#0062CC`        | `#0A84FF`        | only things you can act on                 |
+| `accent-fill`     | `#0062CC`        | `#0071E3`        | background of a filled (primary) button    |
+| `on-accent`       | `#FFFFFF`        | `#FFFFFF`        | text on `accent-fill`                      |
+| `background`      | `#F2F2F7`        | `#000000`        | grouped page background                    |
+| `cell`            | `#FFFFFF`        | `#1C1C1E`        | grouped cells                              |
+| `cell-pressed`    | `#D1D1D6`        | `#2C2C2E`        | a cell while pressed                       |
+| `label`           | `#000000`        | `#FFFFFF`        | text                                       |
+| `secondary-label` | `#6D6D72`        | `#98989F`        | values, hints, section headers, footers    |
+| `tertiary-label`  | `#C4C4C7`        | `#5A5A5F`        | chevrons and other non-text decoration     |
+| `separator`       | `#C6C6C8`        | `#38383A`        | hairlines between cells, under the nav bar |
+| `fill`            | `#E3E3E8`        | `#2C2C2E`        | segmented control track                    |
+| `segment`         | `#FFFFFF`        | `#636366`        | the selected segment on `fill`             |
+| `bar`             | `#F2F2F7` at 80% | `#161617` at 80% | the nav bar once content is under it       |
+| `destructive`     | `#D70015`        | `#FF453A`        | delete, log out, errors                    |
+| `overlay`         | black at 35%     | black at 55%     | the dimmed page behind an action sheet     |
 
 Contrast is WCAG AA (4.5:1 for text) on both `background` and `cell`; the figures are in the header
 of `theme.css`. Two deliberate departures from the iOS values: light destructive text is `#D70015`
@@ -94,10 +94,13 @@ The status bar is `black-translucent`: the page draws under it, and the nav bar 
   («Не удалось сохранить. Проверьте соединение.») with «Повторить». A validation error (e.g. empty
   name) shows there and sends nothing. A failed choice goes back to the previous value with the
   same message. Messages come from `errorMessage()` (I3).
-- How: `useAutoSaveText()` / `useAutoSaveChoice()` from `shared/ui` hold all of this; a screen
-  gives them the saved value and a `save(value)` that resolves with the value as saved, spreads
-  the result onto an `InputRow` / `SegmentedRow`, and puts `<SaveFailure failures={[…]} />` in the
-  `Section` footer. No screen writes its own saving state.
+- How: `useAutoSaveText()` / `useAutoSaveChoice()` from `shared/ui` hold all of this. A screen
+  gives them the row's `name`, the saved value and a `save(value)` that resolves with the value
+  as saved; spreads `input` onto an `InputRow` / `control` onto a `SegmentedControl`; and passes
+  `messages={autoSaveMessages([a.failure, b.failure])}` to the `GroupedSection`. Those footer
+  lines are about their rows, announced (`alert`), and carry «Повторить»; rows that failed for
+  the same reason share one line, whose «Повторить» retries them all. No screen writes its own
+  saving state.
 - **Explicit confirm** only for: auth forms (full-width primary button), creating something
   (a «Новый …» sheet with «Отмена» / «Готово», so a half-filled item is never saved), and the
   password screen («Готово» in the nav bar).
@@ -132,10 +135,9 @@ screen) and `actions` (the nav bar's trailing slot), then the content.
 
 Does something. `variant`: `plain` (accent text, default), `destructive` (red text), `primary`
 (filled, full width, for the one confirm action of an auth form). Text, an icon before text
-(`icon`), or an icon alone with a translated `label`. `type="submit"` inside a form. `size="small"`:
-footnote-sized, for a section footer («Повторить»); it keeps its touch target without pushing the
-lines apart. Touch: 44px
-target; primary is 50px tall. Fine pointer: 28px (primary 36px). Hover dims it; disabled is 40%
+(`icon`), or an icon alone with a translated `label`. `type="submit"` inside a form.
+`size="small"`: footnote-sized, for a section footer («Повторить»); it keeps its touch target
+without pushing the lines apart. Touch: 44px target; primary is 50px tall. Fine pointer: 28px (primary 36px). Hover dims it; disabled is 40%
 opacity.
 
 ### Link
@@ -147,24 +149,95 @@ navigating.
 ### Icon
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
-`chevron`, `home`, `settings`, `spinner`; a new icon is added to the map in `Icon.tsx`. Decorative
-(`aria-hidden`) unless given a `label`. Takes the current text colour; default size 22px.
+`chevron`, `home`, `offline` (crossed globe), `settings`, `spinner`; a new icon is added to the
+map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
+colour; default size 22px.
 
 ### EmptyState
 
 A centred quiet message where a screen or list has nothing yet: optional large `icon`, the text,
-an optional `action` under it (e.g. «Повторить»). Same on every device.
+an optional `action` under it (e.g. «Повторить»). `compact` drops its vertical padding inside a
+`CenteredPage`. Same on every device.
 
-### Section
+### OfflineIndicator
 
-A group of the inset grouped list: optional `title` (small capitals, names the region), the cells
-on a rounded card, optional `footer` (hints, `SaveFailure`). Children are rows; `rows={false}`
-puts free content on one padded card instead, for M1 content not yet built from rows. Touch:
-32px between sections; fine pointer: 24px.
+A crossed globe (`secondary-label`) shown while the server can't be reached: after any request
+fails with `network.unavailable`, until the next request gets an answer. Screens never place it:
+`Page` puts it first in the nav bar's trailing slot, and on screens without a nav bar (auth
+screens) `AppShell` shows it in the same top-right spot of the 640px column. It disables nothing.
+
+- Tap (or click) toggles a small popover «Нет связи с сервером» under it; Esc or a tap elsewhere
+  closes it. With a mouse, hovering shows it too.
+- Touch: 44px target. Fine pointer: 28px.
+- Its accessible name is «Нет связи с сервером»; a visually hidden `role="status"` in `AppShell`
+  announces going offline and «Связь с сервером восстановлена».
+- Keyboard: reachable with Tab after the back button; Enter/Space opens the popover, Esc closes
+  it. Focus stays on the globe.
+
+### CenteredPage
+
+A screen outside the app's navigation: `/setup`, `/login`, `/invite/:token`,
+`/reset-password/:token`. The app icon (`/icon.svg` on a `cell` tile), the large `title`
+centred under it, an optional `intro` in `secondary-label`, then the content. No nav bar. The
+column is at most 400px (`max-w-100`) and centred both ways in the window; on a phone it is the
+full width minus 16px margins and the safe areas. A screen waiting for something or showing a
+failure (the link check: «Проверяем ссылку…», a broken link, «Повторить») keeps the same layout
+and shows a `compact` `EmptyState` with `role` instead of the form.
+
+### Form
+
+Wraps the fields and the primary `Button` (`type="submit"`) of a screen with an explicit confirm
+(the auth forms). `onSubmit` runs on Enter in any field and on the button; the browser's own
+validation bubbles are off, the screen puts its messages in the group footer. Sections and the
+button are 24px apart. Not for auto-saved rows: they save themselves.
+
+### GroupedSection
+
+A grouped inset list, as in the iPhone Settings app: optional `header` (footnote, uppercase,
+`secondary-label`), the rows on one `cell` with rounded corners and inset hairlines between them,
+and a footer. Rows share a two-column grid, so inline labels line up and values start at one
+edge. Use it for every group of rows; a screen is a stack of them.
+
+The footer is `messages`: lines top to bottom, each `{text, tone, row}`. `tone: 'error'` is red,
+`hint` (default) is `secondary-label`. A line with `row` (a row's `name`) is that row's
+accessible description; an error also marks the row invalid (`aria-invalid`, label in red). An
+error without `row` is about the whole group (a failed submit) and is announced (`role="alert"`).
+Show a row's error instead of its hint, not under it. Messages come from the error-code mapping
+(I3). Same on every device. Further, optional: `row` may name several rows; `announce` makes a
+row's error an `alert` too (a save that failed after the field was left); `action` adds a small
+text `Button` after the line («Повторить»). A `header` also names the section (a region).
+
+Content that isn't rows yet (the M1 parts of Settings until their tickets) goes in one
+`SectionContent`, a padded cell spanning the group.
+
+### Sections
+
+A screen made of `GroupedSection`s stacks them in `Sections`: 32px apart on touch, 24px with a
+fine pointer.
+
+### InputRow
+
+A text field as a row of a `GroupedSection`: `label` inline at the left, the field filling the
+rest (`type` text, email or password; `autoComplete`). Its `name` links it to footer messages.
+Touch: 44px row, the caret is the only focus sign, as on iOS. Fine pointer: 36px row, and the
+focused field gets the accent outline. Enter submits the surrounding `Form`, unless the row
+auto-saves: with `onCommit` (from `useAutoSaveText()`), leaving the field or Enter saves, Esc
+(`onRevert`) puts the saved value back, and `busy` shows the `Spinner` at the right of the row.
+
+### SegmentedControl
+
+One of two or three choices, as an iOS segmented control in a row of a `GroupedSection`:
+`label` at the left, the segments at the right on the `fill` track, the chosen one on `segment`.
+`value` may be `undefined`: nothing is selected (e.g. «Пол» at registration). Built from radios
+(`role="radiogroup"` named by the label): Tab reaches it, arrow keys move the choice, Space picks.
+Touch: 32px segments drawn in a 48px row, each segment's target reaching the row's top and
+bottom edges (48px tall). Fine pointer: 24px segments. Its `name` links it to footer messages like an `InputRow`.
+Auto-saved (`useAutoSaveChoice()`): each choice saves at once, so arrow keys save on every move;
+`busy` shows the `Spinner` after the label.
 
 ### ListRow
 
-One cell of a `Section`: `title`, optional `subtitle` (second, smaller line), `leading` (an
+A row of a `GroupedSection` that isn't a field: `title`, optional `subtitle` (second, smaller line), `leading` (an
 `Avatar`, a colour dot), `value` (right-aligned, secondary colour), `busy` (spinner). What it does
 decides what it is:
 
@@ -172,29 +245,12 @@ decides what it is:
 - `onClick`: a button row; with `destructive` red text («Выйти», «Удалить …»);
 - neither: shows something, not tappable (the «Взрослые» rows).
 
-Touch: at least 44px tall, grey while pressed. Fine pointer: 36px, hover tint. The separator
-starts where the text starts. Keyboard: tappable rows take focus (accent outline inside the cell),
+Touch: at least 44px tall, grey while pressed. Fine pointer: 36px, hover tint. Keyboard: tappable rows take focus (accent outline inside the cell),
 Enter / Space activate them.
 
 ### Avatar
 
 The grey circle with a name's initial, as `leading` of a row about a person. Decorative.
-
-### InputRow
-
-A row to edit text in place: the label left, a borderless input right-aligned. With
-`useAutoSaveText()` spread its `input` onto it: Enter or leaving the field saves, Esc puts the
-saved value back. `invalid` turns the text red and points the input at the footer message. Fine
-pointer: the focused row gets the accent outline; touch: only the caret.
-
-### SegmentedControl, SegmentedRow
-
-A few mutually exclusive choices («Мужской / Женский», «Авто / Светлая / Тёмная»). Native radio
-buttons underneath: Tab reaches the group, the arrow keys move the choice, and each move is a
-choice (saved at once). `SegmentedRow` is the control as a cell: label left, control right, or
-`labelHidden` for a control filling the cell (the label is then only its accessible name). With
-`useAutoSaveChoice()` spread its `control` onto it. Touch: 32px segments in a 44px row; fine
-pointer: 24px.
 
 ### ActionSheet
 
@@ -204,12 +260,6 @@ iOS action sheet sliding up from the bottom, «Отменить» in its own blo
 dialog, «Отменить» its last line. Built on Radix Dialog: focus moves in and back to the trigger,
 Esc or a tap outside cancels.
 
-### SaveFailure
-
-The footer of a `Section` with auto-saved rows: `failures` = each row's `failure`. Shows the
-message in red with «Повторить» (missing when trying again can't help, e.g. invalid input). Rows
-that failed for the same reason share one message and one «Повторить».
-
 ### Spinner
 
 «Сохраняем…» at the right of a row while it saves; rows show it through `busy`, which the
@@ -217,5 +267,5 @@ auto-save hooks set only after ~400 ms.
 
 ### TextField, GrammaticalGenderChoice
 
-Still the M1 form controls of the auth screens and the M1 parts of Settings; the auth ticket of
-spec #35 replaces them with grouped rows and a segmented control.
+Still the M1 form controls inside the parts of Settings that keep their M1 content (Invites,
+password, Children, Child fields) until their own tickets of spec #35.

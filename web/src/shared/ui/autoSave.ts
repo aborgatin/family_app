@@ -1,27 +1,66 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asApiError, errorMessage, fieldErrorMessageKey, NETWORK_UNAVAILABLE } from '@/shared/api';
+import type { SectionMessage } from './GroupedSection';
 
 /**
  * Auto-save (docs/design.md "Saving and deleting"): editing something that exists saves itself,
  * text on blur or Enter, a choice on tap. These hooks hold the saving state; the rows show it
- * (`InputRow`, `SegmentedRow`) and the section footer shows a failure (`SaveFailure`).
+ * (`InputRow`, `SegmentedControl`) and the `GroupedSection` footer shows a failure
+ * (`messages={autoSaveMessages([…])}`).
  */
 
 /** How long a save runs before the row shows its spinner. */
 export const SPINNER_DELAY_MS = 400;
 
 /** What went wrong with a save, shown in the section footer under the row. */
-export interface SaveFailureState {
-  /** Id of the message, for the row's `aria-describedby`. */
-  id: string;
+export interface SaveFailure {
+  /** The row's `name`. */
+  row: string;
   /** Already translated message. */
   message: string;
   /** Tries the same change again; missing when trying again can't help (invalid input). */
   retry?: () => void;
+  /** «Повторить», already translated. */
+  retryLabel: string;
+}
+
+/**
+ * The footer lines for the auto-saved rows of one `GroupedSection`: each failure in red, about
+ * its row and announced, with «Повторить». Rows that failed for the same reason share one line,
+ * and its «Повторить» retries all of them.
+ */
+export function autoSaveMessages(failures: readonly (SaveFailure | undefined)[]): SectionMessage[] {
+  const byMessage = new Map<string, SaveFailure[]>();
+  for (const failure of failures) {
+    if (failure === undefined) continue;
+    byMessage.set(failure.message, [...(byMessage.get(failure.message) ?? []), failure]);
+  }
+  return [...byMessage].map(([text, same]) => {
+    const retries = same.flatMap((failure) => (failure.retry === undefined ? [] : [failure.retry]));
+    const label = same[0]?.retryLabel ?? '';
+    return {
+      text,
+      tone: 'error',
+      row: same.map((failure) => failure.row),
+      announce: true,
+      ...(retries.length > 0 && {
+        action: {
+          label,
+          onClick: () => {
+            retries.forEach((retry) => {
+              retry();
+            });
+          },
+        },
+      }),
+    };
+  });
 }
 
 interface AutoSaveOptions<T> {
+  /** The row's `name` in its `GroupedSection`, which links it to its footer message. */
+  name: string;
   /** The value as saved now (e.g. from the server). Read once, when the row first shows. */
   saved: T;
   /** Saves a value; resolves with the value as saved, rejects with an `ApiError`. */
@@ -37,12 +76,12 @@ interface AutoSaveTextOptions extends AutoSaveOptions<string> {
  * A text value that saves itself: spread `input` onto an `InputRow`. Esc puts the saved value
  * back; after a failure the typed text stays and `failure` offers «Повторить».
  */
-export function useAutoSaveText({ saved, save, validate }: AutoSaveTextOptions) {
+export function useAutoSaveText({ name, saved, save, validate }: AutoSaveTextOptions) {
   const [draft, setDraftState] = useState(saved);
   const draftRef = useRef(saved);
   const savedRef = useRef(saved);
   const sending = useRef<string>(undefined);
-  const { busy, failure, fail, clear, run } = useSaving();
+  const { busy, failure, fail, clear, run } = useSaving(name);
 
   const setDraft = useCallback((value: string) => {
     draftRef.current = value;
@@ -85,27 +124,19 @@ export function useAutoSaveText({ saved, save, validate }: AutoSaveTextOptions) 
   return {
     failure,
     busy,
-    input: {
-      value: draft,
-      onChange: setDraft,
-      onCommit: commit,
-      onRevert: revert,
-      busy,
-      invalid: failure !== undefined,
-      describedBy: failure?.id,
-    },
+    /** Spread onto an `InputRow`. */
+    input: { name, value: draft, onChange: setDraft, onCommit: commit, onRevert: revert, busy },
   };
 }
 
 /**
  * A choice that saves on tap. While saving it shows the new choice; when the save fails it goes
- * back to the previous one and `failure` offers «Повторить». Spread `control` onto a
- * `SegmentedRow`.
+ * back to the previous one and `failure` offers «Повторить».
  */
-export function useAutoSaveChoice<T>({ saved, save }: AutoSaveOptions<T>) {
+export function useAutoSaveChoice<T>({ name, saved, save }: AutoSaveOptions<T>) {
   const [value, setValue] = useState(saved);
   const savedRef = useRef(saved);
-  const { busy, failure, clear, run } = useSaving();
+  const { busy, failure, clear, run } = useSaving(name);
 
   const choose = useCallback(
     (choice: T) => {
@@ -130,13 +161,8 @@ export function useAutoSaveChoice<T>({ saved, save }: AutoSaveOptions<T>) {
   return {
     failure,
     busy,
-    control: {
-      value,
-      onChange: choose,
-      busy,
-      invalid: failure !== undefined,
-      describedBy: failure?.id,
-    },
+    /** Spread onto a `SegmentedControl`. */
+    control: { name, value, onChange: choose, busy },
   };
 }
 
@@ -148,11 +174,10 @@ interface Attempt<R> {
 }
 
 /** The spinner after ~400 ms, and the failure message, shared by both hooks. */
-function useSaving() {
+function useSaving(row: string) {
   const { t } = useTranslation();
-  const id = useId();
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<SaveFailureState>();
+  const [failure, setFailure] = useState<SaveFailure>();
   const latest = useRef(0);
   const mounted = useRef(true);
 
@@ -165,9 +190,12 @@ function useSaving() {
 
   const fail = useCallback(
     (message: string, retry?: () => void) => {
-      setFailure(retry === undefined ? { id, message } : { id, message, retry });
+      const retryLabel = t('common.retry');
+      setFailure(
+        retry === undefined ? { row, message, retryLabel } : { row, message, retry, retryLabel },
+      );
     },
-    [id],
+    [row, t],
   );
 
   const clear = useCallback(() => {

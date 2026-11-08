@@ -41,13 +41,10 @@ describe('Members list', () => {
 
     const section = await membersSection();
     await within(section).findByText('boris@example.com');
-    const items = within(section).getAllByRole('listitem');
-    expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent('Анна (вы)');
-    expect(items[0]).toHaveTextContent('anna@example.com');
-    expect(items[1]).toHaveTextContent('Борис');
-    expect(items[1]).not.toHaveTextContent('(вы)');
-    expect(items[1]).toHaveTextContent('boris@example.com');
+    expect(within(section).getByText('Анна (вы)')).toBeInTheDocument();
+    expect(within(section).getByText('anna@example.com')).toBeInTheDocument();
+    expect(within(section).getByText('Борис')).toBeInTheDocument();
+    expect(within(section).queryByText('Борис (вы)')).not.toBeInTheDocument();
   });
 
   it('rows are not tappable', async () => {

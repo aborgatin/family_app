@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useSession, type Member } from '@/features/auth';
 import { errorMessage } from '@/shared/api';
-import { Avatar, Button, ListRow, Section } from '@/shared/ui';
+import { Avatar, GroupedSection, ListRow, SectionContent } from '@/shared/ui';
 import { InvitesSettings } from './InvitesSettings';
 import { PasswordForm } from './PasswordForm';
 import { ProfileSection } from './ProfileSection';
@@ -26,13 +26,17 @@ export function MembersSettings() {
       <MembersSection load={load} retry={retry} myId={me?.id} />
       {/* Invites and the password keep their M1 content, with its own heading, until their own
           tickets (spec #35). */}
-      <Section rows={false}>
-        <InvitesSettings />
-      </Section>
+      <GroupedSection>
+        <SectionContent>
+          <InvitesSettings />
+        </SectionContent>
+      </GroupedSection>
       {me !== null && <ProfileSection member={me} onSaved={saved} />}
-      <Section rows={false}>
-        <PasswordForm />
-      </Section>
+      <GroupedSection>
+        <SectionContent>
+          <PasswordForm />
+        </SectionContent>
+      </GroupedSection>
     </>
   );
 }
@@ -50,21 +54,20 @@ function MembersSection({ load, retry, myId }: MembersSectionProps) {
   if (load.status === 'failed') {
     const message = errorMessage(load.error);
     return (
-      <Section
-        title={t('settings.members')}
-        footer={
-          <>
-            <span role="alert">{t(message.key, message.values)}</span>{' '}
-            <Button size="small" onClick={retry}>
-              {t('common.retry')}
-            </Button>
-          </>
-        }
+      <GroupedSection
+        header={t('settings.members')}
+        messages={[
+          {
+            text: t(message.key, message.values),
+            tone: 'error',
+            action: { label: t('common.retry'), onClick: retry },
+          },
+        ]}
       />
     );
   }
   return (
-    <Section title={t('settings.members')}>
+    <GroupedSection header={t('settings.members')}>
       {load.status === 'loading' ? (
         <ListRow title={<span role="status">{t('common.loading')}</span>} />
       ) : (
@@ -81,6 +84,6 @@ function MembersSection({ load, retry, myId }: MembersSectionProps) {
           />
         ))
       )}
-    </Section>
+    </GroupedSection>
   );
 }

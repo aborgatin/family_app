@@ -1,98 +1,78 @@
 import { useId } from 'react';
-import { RowText } from './ListRow';
+import { ROW_CLASSES, useSectionRow } from './GroupedSection';
 import { Spinner } from './Spinner';
 
-export interface SegmentedControlProps<T extends string> {
-  /** Already translated name of the choice (the group's accessible name). */
+interface SegmentedControlProps<T extends string> {
+  /** Already translated; names the choice, shown inline at the left of the row. */
   label: string;
-  /** Already translated segments, left to right. */
+  /** Names the row for the group footer's messages (`SectionMessage.row`). */
+  name: string;
+  /** Two or three choices; labels already translated. */
   options: readonly { value: T; label: string }[];
-  /** `undefined`: no segment selected yet. */
+  /** `undefined` while nothing is chosen: no segment is selected. */
   value: T | undefined;
   onChange: (value: T) => void;
-  /** Marks the group invalid and points it at a message elsewhere (e.g. a section footer). */
-  invalid?: boolean;
-  describedBy?: string | undefined;
+  /** Shows the spinner left of the segments while the choice saves (`useAutoSaveChoice()`). */
+  busy?: boolean;
 }
 
 /**
- * iOS segmented control: a few mutually exclusive choices. Built on native radio buttons, so Tab
- * reaches it and the arrow keys move the choice (each move is a choice, saved at once).
+ * A row of a GroupedSection that picks one of a few choices, as an iOS segmented control. The
+ * segments are radios: Tab reaches the group, arrow keys move the choice, Space picks one.
  */
 export function SegmentedControl<T extends string>({
   label,
+  name,
   options,
   value,
   onChange,
-  invalid = false,
-  describedBy,
+  busy = false,
 }: SegmentedControlProps<T>) {
-  const name = useId();
+  const id = useId();
+  const labelId = `${id}-label`;
+  const { describedBy, invalid } = useSectionRow(name);
   return (
     <div
       role="radiogroup"
-      aria-label={label}
-      aria-invalid={invalid}
+      aria-labelledby={labelId}
       aria-describedby={describedBy}
-      className="grid flex-1 auto-cols-fr grid-flow-col gap-0.5 rounded-lg bg-fill p-0.5"
+      aria-invalid={invalid}
+      className={`${ROW_CLASSES} py-1.5`}
     >
-      {options.map((option) => (
-        <label
-          key={option.value}
-          className={
-            'flex cursor-pointer items-center justify-center rounded-[7px] px-2 text-subhead ' +
-            'font-medium select-none pointer-coarse:min-h-8 pointer-fine:min-h-6 ' +
-            'has-checked:bg-segment has-checked:font-semibold has-checked:shadow-sm ' +
-            'has-focus-visible:outline-2 has-focus-visible:outline-accent'
-          }
-        >
-          <input
-            type="radio"
-            name={name}
-            value={option.value}
-            checked={value === option.value}
-            onChange={() => {
-              onChange(option.value);
-            }}
-            className="sr-only"
-          />
-          {option.label}
-        </label>
-      ))}
+      <span className="flex items-center gap-2">
+        <span id={labelId} className={invalid ? 'text-destructive' : undefined}>
+          {label}
+        </span>
+        {busy && <Spinner />}
+      </span>
+      <div className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-lg bg-fill p-0.5">
+        {options.map((option) => (
+          <label
+            key={option.value}
+            className="flex min-w-0 cursor-pointer pointer-coarse:-my-2 pointer-coarse:py-2"
+          >
+            <input
+              type="radio"
+              name={id}
+              value={option.value}
+              checked={value === option.value}
+              onChange={() => {
+                onChange(option.value);
+              }}
+              className="peer sr-only"
+            />
+            <span className={SEGMENT}>{option.label}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }
 
-type SegmentedRowProps<T extends string> = SegmentedControlProps<T> & {
-  /** `true`: the control fills the row and `label` is only its accessible name. */
-  labelHidden?: boolean;
-  /** Shows the spinner at the right of the row. */
-  busy?: boolean;
-};
-
-/** A `SegmentedControl` as a cell: the label left and the control right, or the control alone. */
-export function SegmentedRow<T extends string>({
-  labelHidden = false,
-  busy = false,
-  ...control
-}: SegmentedRowProps<T>) {
-  return (
-    <li className="group/row flex items-center gap-3 pl-4 text-body">
-      <RowText>
-        {!labelHidden && (
-          <span aria-hidden="true" className="shrink-0 py-2.5 pointer-fine:py-1.5">
-            {control.label}
-          </span>
-        )}
-        <span
-          className={
-            'flex py-1.5 ' + (labelHidden ? 'flex-1' : 'ml-auto w-[min(14rem,60%)] justify-end')
-          }
-        >
-          <SegmentedControl {...control} />
-        </span>
-        {busy && <Spinner />}
-      </RowText>
-    </li>
-  );
-}
+const SEGMENT =
+  'flex min-w-0 flex-1 items-center justify-center truncate rounded-md px-1 text-footnote ' +
+  'font-semibold ' +
+  'select-none pointer-coarse:min-h-8 pointer-fine:min-h-6 ' +
+  'peer-checked:bg-segment peer-checked:shadow-sm ' +
+  'peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 ' +
+  'peer-focus-visible:outline-accent';

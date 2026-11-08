@@ -44,6 +44,18 @@ describe('Login', () => {
     expect(app.location()).toBe('/login');
   });
 
+  it('logs in with Enter from the password field', async () => {
+    loggedOut();
+    loginAnswers(() => HttpResponse.json(anna));
+    const user = userEvent.setup();
+
+    renderApp('/login');
+    await user.type(await screen.findByLabelText('Электронная почта'), 'anna@example.com');
+    await user.type(screen.getByLabelText('Пароль'), 'secret123{Enter}');
+
+    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+  });
+
   it('logs in with the CSRF header and returns to where the Member was going', async () => {
     loggedOut();
     let received: { body: unknown; csrf: string | null } | undefined;

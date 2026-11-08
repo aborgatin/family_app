@@ -8,7 +8,8 @@ component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](b
 
 React 19, TypeScript 6 (`strict`, `noUncheckedIndexedAccess`), Vite 8, `vite-plugin-pwa` 2
 (Workbox), React Router 8 (import from `react-router`), i18next 27 + react-i18next, Tailwind CSS 4
-(`@tailwindcss/vite`), `lucide-react` (only inside `shared/ui/Icon.tsx`), Vitest 5 + Testing
+(`@tailwindcss/vite`), Radix primitives (`@radix-ui/react-popover`, only inside `shared/ui`),
+`lucide-react` (only inside `shared/ui/Icon.tsx`), Vitest 5 + Testing
 Library + MSW 3, ESLint 10 flat config, Prettier 3. Node 22 or newer.
 
 Scripts (`web/package.json`): `dev`, `build` (does not typecheck), `typecheck` (`tsc --noEmit`),
@@ -28,7 +29,8 @@ web/src/
   main.tsx              createBrowserRouter(routes) inside <AppProviders>; imports shared/ui/theme.css
   app/                  routes.tsx, AppProviders.tsx (I18nextProvider)
   features/
-    auth/               session, guard, setup (bootstrap), login, LogoutSection, Invite acceptance, password reset
+    auth/               session, guard, setup (bootstrap), login, LogoutSection, Invite acceptance,
+                        password reset; LinkScreen (link-check states)
     home/               HomePage: Page «Семья», empty state, gear → Settings
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection, PasswordForm
@@ -39,10 +41,11 @@ web/src/
     i18n/               i18next set-up, typed keys, locales/ru.json
     load/               useLoad(): load / failed / retry for anything fetched once
     palette/            Child color palette (childColors.json)
-    ui/                 theme.css (tokens), AppShell, Page (nav bar), Button, Link, Icon,
-                        EmptyState, Section, ListRow, Avatar, InputRow, SegmentedControl/Row,
-                        ActionSheet, SaveFailure, Spinner, auto-save hooks (autoSave.ts);
-                        TextField, GrammaticalGenderChoice (docs/design.md)
+    ui/                 theme.css (tokens), AppShell, Page (nav bar), CenteredPage, Button, Link,
+                        Icon, EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
+                        SectionContent, InputRow, SegmentedControl, ListRow, Avatar, ActionSheet,
+                        Spinner, auto-save hooks (autoSave.ts); TextField,
+                        GrammaticalGenderChoice (docs/design.md)
   test/                 renderApp, MSW server, fixtures, setup
 ```
 
@@ -87,6 +90,13 @@ It provides `SessionContext`; screens read it with `useSession()` (`@/features/a
 `loggedIn()` and does not navigate itself. `ResetPasswordPage` and `InvitePage` navigate to `/`
 after `loggedIn()`. `/setup` and `/invite/:token` share `RegistrationForm`.
 
+The four auth screens are `CenteredPage`s (app icon, large title, no nav bar): one
+`GroupedSection` of `InputRow`s (registration adds «Пол» as a `SegmentedControl`) inside a
+`Form`, field and form errors in the group footer, and the full-width primary `Button`. The
+Invite and reset screens go through `LinkScreen`, which shows the link check
+(«Проверяем ссылку…»), a broken link («Ко входу») or an unreachable server («Повторить») as an
+`EmptyState` in the same layout, and the form once the link works.
+
 A new public screen needs a branch in `isPublic()`. Server deep links work because the backend
 returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 
@@ -102,6 +112,10 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
   isn't one already); use it instead of writing the check again. A fetch that
   throws (offline, server unreachable) becomes `ApiError(0, 'network.unavailable')`
   (`NETWORK_UNAVAILABLE`). A non-JSON error body becomes code `unknown`.
+- Every request reports whether it reached the server (`serverReachable.ts`): one that throws
+  marks the server unreachable, the next one that gets any HTTP answer (even an error status)
+  marks it reachable. `useServerReachable()` reads that; the offline indicator is its only user.
+  `navigator.onLine` is not used (unreliable on iOS, and says nothing about our server).
 - `errorMessageKey(code)` maps an API code to an i18n key through `ERROR_KEYS` in
   `errorMessages.ts`; anything unmapped → `errors.generic` (I3). Add a line there for every new
   code the user may see. Never render `error.code`.
@@ -170,10 +184,10 @@ against the same file (see [`backend.md`](backend.md#stack)). Each code's Russia
 - **Grammatical gender**: a sentence about a Member's action uses i18next `context` with the
   Member's `grammaticalGender` lower-cased (`masculine` / `feminine`), i.e. keys `<key>_masculine`
   and `<key>_feminine`, plus the plain `<key>` as the neutral fallback when the value is missing.
-  No such key exists yet; the first one arrives with M2/M3 messages. The choice itself is
-  `GrammaticalGenderChoice` in `@/shared/ui`, asked as «Пол» with «Мужской» / «Женский» (keys
-  `grammaticalGender.label`, `.masculine`, `.feminine`; nothing pre-selected), used
-  at registration and in the profile form.
+  No such key exists yet; the first one arrives with M2/M3 messages. The choice itself is asked
+  as «Пол» with «Мужской» / «Женский» (keys `grammaticalGender.label`, `.masculine`,
+  `.feminine`; nothing pre-selected): a `SegmentedControl` at registration, still
+  `GrammaticalGenderChoice` in the profile form.
 - The app name «Семья» is `app.name`; `vite.config.ts` puts it into the manifest and replaces
   `%APP_NAME%` in `index.html`.
 
@@ -189,21 +203,28 @@ Everything visual is specified in [`design.md`](../design.md). In short:
   `theme-color` meta. It re-applies on a system change or a `storage` event.
   `src/app/themeScript.test.ts` runs that script in jsdom.
 - Screens render as `Page` (large-title nav bar, 640px centred column, safe-area padding) inside
-  `AppShell`.
+  `AppShell`; the auth screens as `CenteredPage` (app icon, title, 400px column centred both ways).
+- Offline indicator: a crossed globe in the `Page` nav bar's trailing slot while
+  `useServerReachable()` is `false`. Each mounted `Page` registers its nav bar with `AppShell`;
+  with none (auth screens, the start-up error in `AuthGuard`) `AppShell` shows the globe in the
+  same top-right spot. `AppShell` also holds the `role="status"` message announcing «Нет связи с
+  сервером» / «Связь с сервером восстановлена». Nothing is disabled offline; saves fail with their
+  usual message. M2 changes its meaning to "changes will sync later".
 - Settings «Оформление» (`features/settings/AppearanceSection`, `themeChoice.ts`) writes the
   choice to `localStorage` `theme` (removes it for «Авто») and dispatches
   `new StorageEvent('storage', {key: 'theme'})`, so the theme script applies it at once.
 
 ## Settings
 
-`/settings` is one `Page` of grouped `Section`s, back to «Семья»: «Взрослые» (a row per Member:
-initial, name, email, «(вы)» on the own one; not tappable), the Invites (M1 content), «Ваш
-профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved `SegmentedRow`; each change
-`PATCH`es only its own field and updates the session and the Members list), the password form (M1
-content), «Дети» and «Поля профиля» (M1 content), «Оформление», and the red «Выйти» row
-(`LogoutSection` from `features/auth`, confirmed with an `ActionSheet`; after logging out the
-guard shows `/login`). Auto-save and its failure footer are the `shared/ui` hooks
-(`useAutoSaveText`, `useAutoSaveChoice`, `SaveFailure`; see `design.md`).
+`/settings` is one `Page` of `GroupedSection`s (in `Sections`), back to «Семья»: «Взрослые» (a
+row per Member: initial, name, email, «(вы)» on the own one; not tappable), the Invites (M1
+content), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
+`SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
+Members list), the password form (M1 content), «Дети» and «Поля профиля» (M1 content),
+«Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, confirmed with an
+`ActionSheet`; after logging out the guard shows `/login`). Auto-save and its failure footer are
+the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessages` (see
+`design.md`).
 
 ## PWA
 

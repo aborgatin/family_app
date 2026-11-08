@@ -2,10 +2,10 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Member } from '@/features/auth';
 import {
+  autoSaveMessages,
+  GroupedSection,
   InputRow,
-  SaveFailure,
-  Section,
-  SegmentedRow,
+  SegmentedControl,
   useAutoSaveChoice,
   useAutoSaveText,
   type GrammaticalGender,
@@ -37,6 +37,7 @@ export function ProfileSection({ member, onSaved }: ProfileSectionProps) {
     [t],
   );
   const name = useAutoSaveText({
+    name: 'displayName',
     saved: member.displayName,
     save: saveName,
     validate: validateName,
@@ -50,7 +51,11 @@ export function ProfileSection({ member, onSaved }: ProfileSectionProps) {
     },
     [onSaved],
   );
-  const gender = useAutoSaveChoice({ saved: member.grammaticalGender, save: saveGender });
+  const gender = useAutoSaveChoice({
+    name: 'grammaticalGender',
+    saved: member.grammaticalGender,
+    save: saveGender,
+  });
 
   const genders = [
     { value: 'MASCULINE', label: t('grammaticalGender.masculine') },
@@ -58,12 +63,16 @@ export function ProfileSection({ member, onSaved }: ProfileSectionProps) {
   ] as const;
 
   return (
-    <Section
-      title={t('members.profile.title')}
-      footer={<SaveFailure failures={[name.failure, gender.failure]} />}
+    <GroupedSection
+      header={t('members.profile.title')}
+      messages={autoSaveMessages([name.failure, gender.failure])}
     >
       <InputRow label={t('members.profile.displayName')} autoComplete="name" {...name.input} />
-      <SegmentedRow label={t('grammaticalGender.label')} options={genders} {...gender.control} />
-    </Section>
+      <SegmentedControl
+        label={t('grammaticalGender.label')}
+        options={genders}
+        {...gender.control}
+      />
+    </GroupedSection>
   );
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
-import { ActionSheet, ListRow, Section } from '@/shared/ui';
+import { ActionSheet, GroupedSection, ListRow } from '@/shared/ui';
 import { logout } from './authApi';
 import { useSession } from './session';
 
@@ -36,7 +36,9 @@ export function LogoutSection() {
   }
 
   return (
-    <Section footer={error !== undefined && <span role="alert">{t(error.key, error.values)}</span>}>
+    <GroupedSection
+      messages={[error !== undefined && { text: t(error.key, error.values), tone: 'error' }]}
+    >
       <ListRow
         destructive
         title={pending ? t('logout.inProgress') : t('logout.action')}
@@ -59,6 +61,6 @@ export function LogoutSection() {
           },
         ]}
       />
-    </Section>
+    </GroupedSection>
   );
 }
