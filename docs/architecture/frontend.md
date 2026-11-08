@@ -35,7 +35,7 @@ web/src/
     home/               HomePage: Page «Семья», empty state, gear → Settings
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
-    children/           ChildrenSettings, ChildForm, color picker, useChildren()
+    children/           ChildrenSettings («Дети»), ChildPage, NewChildSheet, ChildRows, age, useChildren()
     child-fields/       ChildFieldsSettings, useChildFields()
   shared/
     api/                API client, error-code mapping, form error helpers
@@ -76,6 +76,7 @@ frame around every screen and the place a sidebar goes later.
 | `/`                      | `HomePage`          | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
+| `/settings/children/:id` | `ChildPage`         | logged in                      |
 
 The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure),
 then:
@@ -136,7 +137,8 @@ Each data feature has one hook that is its only data access. Components never ca
 `*Api.ts` files:
 
 - `useChildren()` → `{load, retry, save(id, details), remove(id)}`; `newChildId()` uses
-  `crypto.randomUUID()`. The add form creates the id once, so a retried save repeats the same `PUT`.
+  `crypto.randomUUID()`. The «Новый ребёнок» sheet gets its id once when it opens, so a retried save repeats the same
+  `PUT`. `save` replaces the whole Child (the API's `PUT`).
 - `useChildFields()` → `{load, retry, add, rename, move, remove}`. `positionAfterMove()` gives a
   moved field the midpoint between its new neighbours, or one past either end; a new field goes
   one past the last. Ordering is `position`, then id, as on the server.
@@ -182,7 +184,7 @@ against the same file (see [`backend.md`](backend.md#stack)). Each code's Russia
 - One resource file, `web/src/shared/i18n/locales/ru.json`; `lng` and `fallbackLng` are `ru`,
   no language switcher, `<html lang="ru">`. Set-up in `shared/i18n/i18n.ts`, provider in
   `app/AppProviders.tsx`.
-- Keys are nested by feature or area (`login.title`, `children.form…`, `errors.field.required`,
+- Keys are nested by feature or area (`login.title`, `children.age…`, `errors.field.required`,
   `childColors.coral`). `i18next.d.ts` types `t()` against `ru.json`, so an unknown key is a type
   error.
 - `eslint-plugin-i18next` `no-literal-string` in `jsx-only` mode flags literal JSX text and the
@@ -229,7 +231,7 @@ Everything visual is specified in [`design.md`](../design.md). In short:
 row per Member: initial, name, email, «(вы)» on the own one; not tappable; then «Пригласить
 взрослого…»), «Приглашения» (an edit-mode list, see Invites above), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
-Members list; then the «Изменить пароль» chevron row), «Дети» and «Поля профиля» (M1 content),
+Members list; then the «Изменить пароль» chevron row), «Дети» (below), «Поля профиля» (M1 content),
 «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, confirmed with an
 `ActionSheet`; after logging out the guard shows `/login`). Auto-save and its failure footer are
 the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessages` (see
@@ -244,6 +246,26 @@ button go to Settings without saving. On success it navigates to Settings with
 (`usePasswordJustChanged()`, which then clears the flag from the history entry so browser-back doesn't show it again); on failure the message goes in the footer under the fields (a wrong
 current password empties that field). `app/routes.tsx` passes `SETTINGS_PATH` in as
 `settingsPath`, since `settings` already imports `members`.
+
+«Дети» (`ChildrenSettings`) is an edit-mode list of `EditableRow`s: the Child's colour
+(`Swatch`), name, age on the right («7 лет», «5 месяцев» under a year, nothing without a birthday
+or before it; `i18n` plurals `children.age.years_*` / `months_*`, computed from the device's
+date) and a chevron to `/settings/children/:id` (`childPath(id)`). Edit mode deletes only
+(Children have no order); a swipe and right-click delete too; each asks first. «Добавить ребёнка»
+(the section's `after` row) opens `NewChildSheet`: a `Sheet` «Новый ребёнок» with the same rows
+as the Child screen (`ChildRows`), name and colour required, saved only with «Готово»; on success
+the Child appears in the list in the API's order. With no Children the footer says «Детей пока
+нет».
+
+The Child screen `/settings/children/:id` (`ChildPage`, `CHILD_PATH`; `app/routes.tsx` passes
+`settingsPath` as for the password screen) is a `Page` titled with the Child's name, back to
+«Настройки». It loads through `useChildren()` like the list (so a deep link works) and shows
+`ChildRows`: Имя (`InputRow`, `useAutoSaveText`; empty is refused without a request), Цвет
+(`ColorChoice`, `useAutoSaveChoice`), День рождения (`DateRow`, `useAutoSaveText` with `''` for
+none). Each change `PUT`s the whole Child on top of what was last saved. Then a red «Удалить
+ребёнка» row: the `ActionSheet` «Удалить „Маша“?», then back to Settings (replacing the history
+entry); a failure stays and shows in that group's footer. An unknown id shows «Такого ребёнка
+нет: возможно, его удалили.».
 
 ## PWA
 

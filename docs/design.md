@@ -151,7 +151,8 @@ navigating.
 ### Icon
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
-`chevron`, `home`, `minus` (edit mode's ⊖), `offline` (crossed globe), `settings`, `spinner`; a new icon is added to the
+`check` (the chosen colour), `chevron`, `clear` (a circled ×), `home`, `minus` (edit mode's ⊖),
+`offline` (crossed globe), `settings`, `spinner`; a new icon is added to the
 map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
 colour; default size 22px.
 
@@ -220,9 +221,53 @@ With `edit` (`{editing, onEditingChange}`) the group is an **edit-mode list**: �
 `list` named by the header, and its rows are `EditableRow`s. Leave edit mode when the last row
 goes. Same on every device; on touch it is how you delete besides swiping, with a fine pointer
 besides right-click, and with the keyboard the only way.
+`after` puts rows on the same cell after the list but outside it (an accent «Добавить …» row):
+they stay when the list is empty, and the «Изменить» button is left out then (pass no `edit`).
 
 Content that isn't rows yet (the M1 parts of Settings until their tickets) goes in one
 `SectionContent`, a padded cell spanning the group.
+
+### ColorChoice
+
+One colour of a few (the Child color palette, 8), as a row of a `GroupedSection` in the style of
+the Reminders colour picker: `label` on top, the circles in one row of 8 under it, the chosen one
+ringed in its own colour with a white check. `options` are `{value, label, color}`: `label` (from
+i18n) names the circle, `color` draws it; the palette itself stays in `shared/palette`. `value` may
+be `undefined` (nothing chosen yet, or a code this build doesn't know). Built from radios
+(`radiogroup` named by the label): Tab reaches it, arrow keys move the choice, Space picks. Its
+`name` links it to footer messages. Auto-saved with `useAutoSaveChoice()` (spread `control`):
+each tap saves, `busy` shows the `Spinner` after the label. Touch: each circle's target is its
+column, 44px tall (about 40px wide on a phone). Fine pointer: smaller circles, the 8 kept in a
+288px strip at the left instead of spread across a wide cell.
+
+### DateRow
+
+An optional date as a row: `label` inline at the left, the browser's own date field at the right
+in a grey pill (the wheel on the iPhone, a calendar popup on the Mac; the format follows the
+browser's language), and a grey ⊗ «Очистить «<label>»» after it while there is a date. `value`
+is `YYYY-MM-DD` or `''`. Auto-saved like an `InputRow` (spread `input` of `useAutoSaveText()`):
+leaving the field or Enter saves, Esc puts the saved date back, clearing saves at once; not on
+every change, since typing a year digit by digit is a valid date at each step. Without
+`onCommit` (in a `Sheet`) Enter submits. Touch: the ⊗ has a 44px target. Fine pointer: 28px.
+
+### Sheet
+
+Creates something with an explicit «Готово» (the «Новый ребёнок», «Новое поле» sheets): `title`
+(names the dialog), `onDone`, `onOpenChange` (`false` on «Отмена» or Esc), `busy` (disables
+«Готово» while saving), and the `GroupedSection`s as children. A header «Отмена» · title ·
+«Готово» (semibold), the content on the grouped `background` under it. The sheet is a `form`:
+Enter in a text field is «Готово». Narrow windows: slides up from the bottom and fills the
+window but a strip at the top, rounded top corners. Wide windows: a centred dialog at most 540px
+wide. Built on Radix Dialog: focus starts in the first field and goes back to the trigger; Esc
+cancels; a click outside does nothing (it would lose what was typed). The screen owns the field
+state, validates on «Готово» and shows messages in the group footer like any form; it closes the
+sheet once saved. Mount it only while open (with a `key` per item being created), so it starts
+empty each time.
+
+### Swatch
+
+A small dot in a colour (`color`, a CSS colour such as a Child color's `hex`), as `leading` of a
+row. Decorative: the row names what it marks.
 
 ### Sections
 
@@ -318,5 +363,5 @@ auto-save hooks set only after ~400 ms.
 
 ### TextField, GrammaticalGenderChoice
 
-Still the M1 form controls inside the parts of Settings that keep their M1 content (Children,
-Child fields) until their own tickets of spec #35.
+Still the M1 form controls inside the part of Settings that keeps its M1 content (Child fields)
+until its own ticket of spec #35.

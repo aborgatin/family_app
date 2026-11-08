@@ -8,6 +8,7 @@ import {
   ResetPasswordPage,
   SetupPage,
 } from '@/features/auth';
+import { CHILD_PATH, ChildPage } from '@/features/children';
 import { HomePage } from '@/features/home';
 import { PASSWORD_PATH, PasswordPage } from '@/features/members';
 import { SettingsPage, SETTINGS_PATH } from '@/features/settings';
@@ -30,6 +31,7 @@ export const routes: RouteObject[] = [
           { path: INVITE_PATH, element: <InvitePage /> },
           { path: SETTINGS_PATH, element: <SettingsPage /> },
           { path: PASSWORD_PATH, element: <PasswordPage settingsPath={SETTINGS_PATH} /> },
+          { path: CHILD_PATH, element: <ChildPage settingsPath={SETTINGS_PATH} /> },
         ],
       },
     ],
