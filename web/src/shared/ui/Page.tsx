@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from './Link';
+import { OfflineIndicator, useRegisterNavBar } from './OfflineIndicator';
 
 interface PageProps {
   /** Already translated screen title: the large title, and the small one in the bar. */
@@ -20,6 +21,7 @@ export function Page({ title, back, actions, children }: PageProps) {
   const largeTitle = useRef<HTMLHeadingElement>(null);
   const bar = useRef<HTMLElement>(null);
   const { underBar, titleGone } = useScrolledUnder(largeTitle, bar);
+  useRegisterNavBar();
 
   return (
     <>
@@ -47,7 +49,10 @@ export function Page({ title, back, actions, children }: PageProps) {
           >
             {title}
           </div>
-          <div className="flex min-w-0 items-center justify-end gap-1">{actions}</div>
+          <div className="flex min-w-0 items-center justify-end gap-1">
+            <OfflineIndicator />
+            {actions}
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-160 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
