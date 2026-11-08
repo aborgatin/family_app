@@ -54,7 +54,12 @@ describe('Members list', () => {
 
     const section = await membersSection();
     await within(section).findByText('boris@example.com');
-    expect(within(section).queryByRole('button')).not.toBeInTheDocument();
+    // The only button is «Пригласить взрослого…» after the Members.
+    expect(
+      within(section)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Пригласить взрослого…']);
     expect(within(section).queryByRole('link')).not.toBeInTheDocument();
   });
 

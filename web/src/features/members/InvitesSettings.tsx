@@ -1,8 +1,8 @@
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
 import { useLoad } from '@/shared/load';
-import { TextField } from '@/shared/ui';
+import { Button, EditableRow, GroupedSection, ListRow, type SectionMessage } from '@/shared/ui';
 import {
   createInvite,
   fetchInvites,
@@ -11,198 +11,223 @@ import {
   type NewInvite,
 } from './invitesApi';
 
+// Invites are online-only by design (S4 exception).
+
 const EXPIRY_FORMAT = new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'long' });
 
-/**
- * Invites in Settings › Members: create a link and send it through the share sheet (or copy it),
- * see the active Invites and revoke one after confirming. Online-only by design (S4 exception).
- */
-export function InvitesSettings() {
-  const { t } = useTranslation();
-  const headingId = useId();
+/** How long the footer says «Ссылка скопирована». */
+export const COPIED_MS = 3000;
+
+/** The active Invites, loaded once for both «Взрослые» (adds to them) and «Приглашения». */
+export function useInvites() {
   const { load, retry, update } = useLoad(fetchInvites);
-  const [newInvite, setNewInvite] = useState<NewInvite>();
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<ErrorMessage>();
-
-  async function create() {
-    setCreating(true);
-    setCreateError(undefined);
-    try {
-      const invite = await createInvite();
-      setNewInvite(invite);
+  const added = useCallback(
+    (invite: Invite) => {
       update((invites) => [invite, ...invites]);
-    } catch (error: unknown) {
-      setCreateError(errorMessage(asApiError(error)));
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  const revoked = useCallback(
-    (id: string) => {
-      update((invites) => invites.filter((invite) => invite.id !== id));
-      setNewInvite((previous) => (previous?.id === id ? undefined : previous));
     },
     [update],
   );
-
-  return (
-    <section aria-labelledby={headingId}>
-      <h3 id={headingId}>{t('members.invites.title')}</h3>
-      <p>{t('members.invites.intro')}</p>
-      <button
-        type="button"
-        disabled={creating}
-        onClick={() => {
-          void create();
-        }}
-      >
-        {creating ? t('members.invites.creating') : t('members.invites.create')}
-      </button>
-      {createError !== undefined && <p role="alert">{t(createError.key, createError.values)}</p>}
-      {newInvite !== undefined && <NewInviteLink key={newInvite.id} url={newInvite.url} />}
-      {load.status === 'loading' && <p role="status">{t('common.loading')}</p>}
-      {load.status === 'failed' && (
-        <>
-          <p role="alert">{t(errorMessage(load.error).key, errorMessage(load.error).values)}</p>
-          <button type="button" onClick={retry}>
-            {t('common.retry')}
-          </button>
-        </>
-      )}
-      {load.status === 'ready' && load.value.length === 0 && <p>{t('members.invites.none')}</p>}
-      {load.status === 'ready' && load.value.length > 0 && (
-        <ul aria-label={t('members.invites.active')}>
-          {load.value.map((invite) => (
-            <InviteItem key={invite.id} invite={invite} onRevoked={revoked} />
-          ))}
-        </ul>
-      )}
-    </section>
+  const removed = useCallback(
+    (id: string) => {
+      update((invites) => invites.filter((invite) => invite.id !== id));
+    },
+    [update],
   );
+  return { load, retry, added, removed };
 }
 
-type Sent = 'idle' | 'copied' | 'copyFailed';
+export type Invites = ReturnType<typeof useInvites>;
 
-function isAbort(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
+type Copy = 'idle' | 'copied' | 'failed';
+
+/**
+ * Starts copying the link of an Invite that is still being created. The clipboard is written in
+ * the same tick as the tap, with the link as a promise, so Safari keeps the user activation it
+ * needs. Resolves with whether the link was copied; never rejects (no `ClipboardItem`, a
+ * refusal, or a failed create are all «not copied»).
+ */
+function copyWhenCreated(invite: Promise<NewInvite>): Promise<boolean> {
+  const link = invite.then((created) => new Blob([created.url], { type: 'text/plain' }));
+  link.catch(() => undefined); // A failed create is reported by the caller.
+  try {
+    return navigator.clipboard.write([new ClipboardItem({ 'text/plain': link })]).then(
+      () => true,
+      () => false,
+    );
+  } catch {
+    return Promise.resolve(false);
+  }
 }
 
-/** The link just created, the only time it can be seen: share it, or copy it as a fallback. */
-function NewInviteLink({ url }: { url: string }) {
+/**
+ * «Пригласить взрослого…» at the end of «Взрослые»: one tap creates an Invite and copies its link.
+ * If copying fails the new link shows as a row with «Скопировать» (a fresh tap). Returns the rows
+ * and the section's footer lines.
+ */
+export function useInviteAdult(onCreated: (invite: Invite) => void) {
   const { t } = useTranslation();
-  const [sent, setSent] = useState<Sent>('idle');
-  const canShare = 'share' in navigator;
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<ErrorMessage>();
+  const [uncopied, setUncopied] = useState<NewInvite>();
+  const [copy, setCopy] = useState<Copy>('idle');
 
-  async function copy() {
+  useEffect(() => {
+    if (copy !== 'copied') return;
+    const timer = setTimeout(() => {
+      setCopy('idle');
+    }, COPIED_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [copy]);
+
+  async function invite() {
+    setCreating(true);
+    setError(undefined);
+    setCopy('idle');
+    setUncopied(undefined);
+    const created = createInvite();
+    const copied = copyWhenCreated(created);
+    let newInvite: NewInvite;
+    try {
+      newInvite = await created;
+    } catch (failure: unknown) {
+      setCreating(false);
+      setError(errorMessage(asApiError(failure)));
+      return;
+    }
+    setCreating(false);
+    onCreated(newInvite);
+    if (await copied) setCopy('copied');
+    else setUncopied(newInvite);
+  }
+
+  async function copyAgain(url: string) {
+    setCopy('idle');
     try {
       await navigator.clipboard.writeText(url);
-      setSent('copied');
+      setCopy('copied');
     } catch {
-      setSent('copyFailed');
+      setCopy('failed');
     }
   }
 
-  async function share() {
-    setSent('idle');
-    try {
-      await navigator.share({ title: t('members.invites.shareTitle'), url });
-    } catch (error: unknown) {
-      // Closing the share sheet is not a failure; anything else falls back to copying.
-      if (!isAbort(error)) await copy();
-    }
-  }
-
-  return (
-    <div>
-      <TextField
-        label={t('members.invites.link')}
-        readOnly
-        value={url}
-        onFocus={(event) => {
-          event.target.select();
+  const rows = (
+    <>
+      <ListRow
+        accent
+        title={t('members.invites.create')}
+        busy={creating}
+        disabled={creating}
+        onClick={() => {
+          void invite();
         }}
       />
-      <button
-        type="button"
-        onClick={() => {
-          void (canShare ? share() : copy());
-        }}
-      >
-        {canShare ? t('members.invites.share') : t('members.invites.copy')}
-      </button>
-      {sent === 'copied' && <p role="status">{t('members.invites.copied')}</p>}
-      {sent === 'copyFailed' && <p role="alert">{t('members.invites.copyFailed')}</p>}
-    </div>
+      {uncopied !== undefined && (
+        <ListRow
+          title={t('members.invites.newLink')}
+          subtitle={uncopied.url}
+          wrapSubtitle
+          value={
+            <Button
+              onClick={() => {
+                void copyAgain(uncopied.url);
+              }}
+            >
+              {t('members.invites.copy')}
+            </Button>
+          }
+        />
+      )}
+    </>
   );
+
+  const messages: SectionMessage[] = [];
+  if (error !== undefined) messages.push({ text: t(error.key, error.values), tone: 'error' });
+  if (copy === 'failed') messages.push({ text: t('members.invites.copyFailed'), tone: 'error' });
+  if (copy === 'copied') messages.push({ text: t('members.invites.copied'), announce: true });
+
+  /** Forgets the uncopied link once its Invite is revoked. */
+  const revoked = useCallback((id: string) => {
+    setUncopied((previous) => (previous?.id === id ? undefined : previous));
+  }, []);
+
+  return { rows, messages, revoked };
 }
 
-interface InviteItemProps {
-  invite: Invite;
+/**
+ * «Приглашения»: the active Invites as rows «Ссылка · до 14 ноября», revoked through edit mode,
+ * a swipe or right-click, each time after the action sheet. Hidden when there are none.
+ */
+export function InvitesSection({
+  invites,
+  onRevoked,
+}: {
+  invites: Invites;
   onRevoked: (id: string) => void;
-}
-
-/** One active Invite, with «Отозвать» behind a confirmation. */
-function InviteItem({ invite, onRevoked }: InviteItemProps) {
+}) {
   const { t } = useTranslation();
-  const [confirming, setConfirming] = useState(false);
-  const [revoking, setRevoking] = useState(false);
+  const { load, retry, removed } = invites;
+  const [editing, setEditing] = useState(false);
+  const [revoking, setRevoking] = useState<string>();
   const [error, setError] = useState<ErrorMessage>();
 
-  async function revoke() {
-    setRevoking(true);
+  const empty = load.status === 'ready' && load.value.length === 0;
+
+  async function revoke(id: string, last: boolean) {
+    setRevoking(id);
     setError(undefined);
     try {
-      await revokeInvite(invite.id);
-      onRevoked(invite.id);
+      await revokeInvite(id);
+      // With the last one gone the section goes too, and it comes back out of edit mode.
+      if (last) setEditing(false);
+      removed(id);
+      onRevoked(id);
     } catch (failure: unknown) {
-      setRevoking(false);
       setError(errorMessage(asApiError(failure)));
+    } finally {
+      setRevoking(undefined);
     }
   }
 
+  if (load.status === 'loading' || empty) return null;
+  if (load.status === 'failed') {
+    const message = errorMessage(load.error);
+    return (
+      <GroupedSection
+        header={t('members.invites.title')}
+        messages={[
+          {
+            text: t(message.key, message.values),
+            tone: 'error',
+            action: { label: t('common.retry'), onClick: retry },
+          },
+        ]}
+      />
+    );
+  }
   return (
-    <li>
-      <span>
-        {t('members.invites.expiresAt', {
-          date: EXPIRY_FORMAT.format(new Date(invite.expiresAt)),
-        })}
-      </span>{' '}
-      {confirming ? (
-        <>
-          <span>{t('members.invites.confirmRevoke')}</span>{' '}
-          <button
-            type="button"
-            disabled={revoking}
-            onClick={() => {
-              void revoke();
-            }}
-          >
-            {t('members.invites.revokeConfirmed')}
-          </button>{' '}
-          <button
-            type="button"
-            disabled={revoking}
-            onClick={() => {
-              setConfirming(false);
-              setError(undefined);
-            }}
-          >
-            {t('members.invites.cancel')}
-          </button>
-        </>
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setConfirming(true);
+    <GroupedSection
+      header={t('members.invites.title')}
+      edit={{ editing, onEditingChange: setEditing }}
+      messages={[error !== undefined && { text: t(error.key, error.values), tone: 'error' }]}
+    >
+      {load.value.map((invite) => (
+        <EditableRow
+          key={invite.id}
+          title={t('members.invites.row', {
+            date: EXPIRY_FORMAT.format(new Date(invite.expiresAt)),
+          })}
+          busy={revoking === invite.id}
+          confirm={{
+            title: t('members.invites.confirmRevoke'),
+            message: t('members.invites.confirmRevokeMessage'),
           }}
-        >
-          {t('members.invites.revoke')}
-        </button>
-      )}
-      {error !== undefined && <p role="alert">{t(error.key, error.values)}</p>}
-    </li>
+          onDelete={() => {
+            void revoke(invite.id, load.value.length === 1);
+          }}
+        />
+      ))}
+    </GroupedSection>
   );
 }

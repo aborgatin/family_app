@@ -4,6 +4,7 @@ import {
   GlobeOff,
   House,
   LoaderCircle,
+  Minus,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -16,6 +17,7 @@ const ICONS = {
   back: ChevronLeft,
   chevron: ChevronRight,
   home: House,
+  minus: Minus,
   offline: GlobeOff,
   settings: Settings,
   spinner: LoaderCircle,

@@ -1,4 +1,5 @@
 import { createContext, use, useId, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from './Button';
 
 /** One line in a group's footer. */
@@ -27,7 +28,19 @@ interface GroupedSectionProps {
   header?: string;
   /** The footer's lines, top to bottom; `false` and `undefined` entries are skipped. */
   messages?: readonly (SectionMessage | false | undefined)[];
+  /**
+   * Makes the rows an edit-mode list (`EditableRow`s): «Изменить» / «Готово» in the header turns
+   * edit mode on and off. Needs a `header`.
+   */
+  edit?: { editing: boolean; onEditingChange: (editing: boolean) => void };
   children?: ReactNode;
+}
+
+const EditContext = createContext(false);
+
+/** Whether the `GroupedSection` around a row is in edit mode. */
+export function useEditing() {
+  return use(EditContext);
 }
 
 interface SectionRows {
@@ -64,7 +77,8 @@ function isAbout(message: SectionMessage, row: string) {
  * cell with hairlines between them, and a footer for hints and errors. The rows share a
  * two-column grid, so inline labels line up and the values start at the same edge.
  */
-export function GroupedSection({ header, messages = [], children }: GroupedSectionProps) {
+export function GroupedSection({ header, messages = [], edit, children }: GroupedSectionProps) {
+  const { t } = useTranslation();
   const id = useId();
   const headerId = `${id}-header`;
   const lines = messages
@@ -82,13 +96,31 @@ export function GroupedSection({ header, messages = [], children }: GroupedSecti
   return (
     <section aria-labelledby={header === undefined ? undefined : headerId}>
       {header !== undefined && (
-        <h2 id={headerId} className="px-4 pb-1.5 text-footnote text-secondary-label uppercase">
-          {header}
-        </h2>
+        <div className="flex items-end justify-between gap-2 px-4 pb-1.5">
+          <h2 id={headerId} className="text-footnote text-secondary-label uppercase">
+            {header}
+          </h2>
+          {edit !== undefined && (
+            <Button
+              size="small"
+              onClick={() => {
+                edit.onEditingChange(!edit.editing);
+              }}
+            >
+              {edit.editing ? t('ui.done') : t('ui.edit')}
+            </Button>
+          )}
+        </div>
       )}
       {children !== undefined && children !== null && (
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 overflow-hidden rounded-xl bg-cell">
-          <SectionContext value={rows}>{children}</SectionContext>
+        <div
+          role={edit === undefined ? undefined : 'list'}
+          aria-labelledby={edit === undefined || header === undefined ? undefined : headerId}
+          className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 overflow-hidden rounded-xl bg-cell"
+        >
+          <EditContext value={edit?.editing ?? false}>
+            <SectionContext value={rows}>{children}</SectionContext>
+          </EditContext>
         </div>
       )}
       {lines.length > 0 && (
