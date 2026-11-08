@@ -35,7 +35,7 @@ diff disables, weakens or bypasses one of them (config change, suppression comme
 | eslint-plugin-i18next `no-literal-string` | `/web` | literal text in JSX and user-visible attributes (I2) |
 | i18next typed resources | `/web` | unknown i18n keys are type errors (I2) |
 | ESLint `no-restricted-imports` (per-folder rules) | `/web` | imports into another feature only via its `index.ts`; `shared → features → app` direction (M3) |
-| ESLint `no-restricted-syntax` (`u1/features-only-shared-ui`) | `/web/src/features` | raw `button`/`input`/`select`/`textarea`/`form`/`a` elements and `className`/`style` props (U1) |
+| ESLint `no-restricted-syntax` (`u1/features-only-shared-ui`) | `/web/src/features` | raw `button`/`input`/`select`/`textarea`/`form`/`a` elements, `className`/`style` props and `createElement`/`cloneElement` (U1) |
 | ESLint `no-restricted-imports` (feature blocks) | `/web/src/features` | `@dnd-kit/*`, `lucide-react`, `@radix-ui/*` outside `shared/ui` (U1) |
 | `scripts/check-migrations.sh` | Flyway migrations | changed/deleted migrations merged to `main`, new versions not above `main`'s highest (S5) |
 

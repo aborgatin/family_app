@@ -1,7 +1,7 @@
 # Frontend
 
 What exists in `/web` after Spec #1 (M0 + M1) and the M1.5 UI foundation (spec #35). Rules:
-[`CODING_STANDARDS.md`](../../CODING_STANDARDS.md) (M3, I2, I3, S4, T1). Look, tokens and
+[`CODING_STANDARDS.md`](../../CODING_STANDARDS.md) (M3, I2, I3, S4, T1, U1). Look, tokens and
 component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](backend.md).
 
 ## Stack
@@ -63,7 +63,7 @@ web/src/
 - Screens are built only from `shared/ui` (CODING_STANDARDS U1, ADR-0008). The UI libraries
   (`@dnd-kit/*`, `lucide-react`, `@radix-ui/*`) are imported only in `shared/ui`; the same blocks
   forbid them in `features/**`. A separate block, `u1/features-only-shared-ui`
-  (`no-restricted-syntax`, `src/features/**/*.tsx`, tests exempt), forbids raw `button`, `input`,
+  (`no-restricted-syntax`, `src/features/**/*.{ts,tsx}`, tests exempt), forbids raw `button`, `input`,
   `select`, `textarea`, `form`, `a` elements and `className` / `style` props there. A look the kit
   lacks is added to `shared/ui` first, with its section in `design.md`.
 - A feature keeps its components, hooks and API calls together; `*Api.ts` files hold the REST
@@ -148,7 +148,7 @@ Each data feature has one hook that is its only data access. Components never ca
   `crypto.randomUUID()`. The «Новый ребёнок» sheet gets its id once when it opens, so a retried save repeats the same
   `PUT`. `save` replaces the whole Child (the API's `PUT`).
 - `useChildFields()` → `{load, retry, add(id, name, valueType), rename(field, name),
-  move(field, to), remove(field)}`; `newChildFieldId()` makes the id once when the «Новое поле»
+move(field, to), remove(field)}`; `newChildFieldId()` makes the id once when the «Новое поле»
   sheet opens, so a retried save repeats the same `PUT`. `move` takes the field's index after the
   move; `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or
   one past either end, and only that field is written. A new field goes one past the last.
@@ -225,7 +225,8 @@ Everything visual is specified in [`design.md`](../design.md). In short:
   `theme-color` meta. It re-applies on a system change or a `storage` event.
   `src/app/themeScript.test.ts` runs that script in jsdom.
 - Screens render as `Page` (large-title nav bar, 640px centred column, safe-area padding) inside
-  `AppShell`; the auth screens as `CenteredPage` (app icon, title, 400px column centred both ways).
+  `AppShell`; the auth screens as `CenteredPage` (app icon, title, 400px column centred both ways);
+  the start-up states of `AuthGuard` as `StatusScreen` (message only).
 - Offline indicator: a crossed globe in the `Page` nav bar's trailing slot while
   `useServerReachable()` is `false`. Each mounted `Page` registers its nav bar with `AppShell`;
   with none (auth screens, the start-up error in `AuthGuard`) `AppShell` shows the globe in the

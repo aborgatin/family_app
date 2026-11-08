@@ -118,11 +118,12 @@ export default defineConfig([
   },
 
   // U1 — screens are built only from shared/ui (ADR-0008, docs/design.md): no raw form elements or
-  // links, no className / style in features. A separate rule from the M3 blocks below, since
+  // links, no className / style in features, in JSX or through createElement / cloneElement (the
+  // only way a .ts file can draw). A separate rule from the M3 blocks below, since
   // no-restricted-imports blocks replace each other per file. Tests are exempt.
   {
     name: 'u1/features-only-shared-ui',
-    files: ['src/features/**/*.tsx'],
+    files: ['src/features/**/*.{ts,tsx}'],
     ignores: TEST_FILES,
     rules: {
       'no-restricted-syntax': [
@@ -136,6 +137,12 @@ export default defineConfig([
           selector: 'JSXAttribute[name.name=/^(className|style)$/]',
           message:
             'No className or style in features: styling lives in `@/shared/ui` components and their props (U1).',
+        },
+        {
+          selector:
+            'CallExpression[callee.name=/^(createElement|cloneElement)$/], CallExpression[callee.property.name=/^(createElement|cloneElement)$/]',
+          message:
+            'No createElement / cloneElement in features: render `@/shared/ui` components in JSX (U1).',
         },
       ],
     },
