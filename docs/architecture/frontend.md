@@ -1,13 +1,15 @@
 # Frontend
 
-What exists in `/web` after Spec #1 (M0 + M1). Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md)
-(M3, I2, I3, S4, T1). Backend contract: [`backend.md`](backend.md).
+What exists in `/web` after Spec #1 (M0 + M1) and the M1.5 UI foundation (spec #35). Rules:
+[`CODING_STANDARDS.md`](../../CODING_STANDARDS.md) (M3, I2, I3, S4, T1). Look, tokens and
+component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](backend.md).
 
 ## Stack
 
 React 19, TypeScript 6 (`strict`, `noUncheckedIndexedAccess`), Vite 8, `vite-plugin-pwa` 2
-(Workbox), React Router 8 (import from `react-router`), i18next 27 + react-i18next, Vitest 5 +
-Testing Library + MSW 3, ESLint 10 flat config, Prettier 3. Node 22 or newer.
+(Workbox), React Router 8 (import from `react-router`), i18next 27 + react-i18next, Tailwind CSS 4
+(`@tailwindcss/vite`), `lucide-react` (only inside `shared/ui/Icon.tsx`), Vitest 5 + Testing
+Library + MSW 3, ESLint 10 flat config, Prettier 3. Node 22 or newer.
 
 Scripts (`web/package.json`): `dev`, `build` (does not typecheck), `typecheck` (`tsc --noEmit`),
 `lint` (`--max-warnings 0`), `format` / `format:check`, `test` (`vitest run`). CI job `web` runs
@@ -23,11 +25,11 @@ run the backend (see the header of that file), then `npm run dev`. Vite proxies 
 
 ```
 web/src/
-  main.tsx              createBrowserRouter(routes) inside <AppProviders>
+  main.tsx              createBrowserRouter(routes) inside <AppProviders>; imports shared/ui/theme.css
   app/                  routes.tsx, AppProviders.tsx (I18nextProvider)
   features/
     auth/               session, guard, setup (bootstrap), login, logout, Invite acceptance, password reset
-    home/               HomePage: empty-state placeholder, link to Settings, LogoutButton
+    home/               HomePage: Page «Семья», empty state, gear → Settings, LogoutButton
     settings/           SettingsPage shell, SettingsSection, SETTINGS_PATH
     members/            MembersSettings: Members list, ProfileForm, PasswordForm, InvitesSettings
     children/           ChildrenSettings, ChildForm, color picker, useChildren()
@@ -37,7 +39,8 @@ web/src/
     i18n/               i18next set-up, typed keys, locales/ru.json
     load/               useLoad(): load / failed / retry for anything fetched once
     palette/            Child color palette (childColors.json)
-    ui/                 TextField, GrammaticalGenderChoice
+    ui/                 theme.css (tokens), AppShell, Page (nav bar), Button, Link, Icon,
+                        EmptyState; TextField, GrammaticalGenderChoice (docs/design.md)
   test/                 renderApp, MSW server, fixtures, setup
 ```
 
@@ -55,7 +58,8 @@ web/src/
 ## Routing and the auth guard
 
 `web/src/app/routes.tsx`: every route is a child of the layout route `AuthGuard`
-(`features/auth/AuthGuard.tsx`).
+(`features/auth/AuthGuard.tsx`), which sits inside the layout route `AppShell` (`@/shared/ui`), the
+frame around every screen and the place a sidebar goes later.
 
 | Path                     | Screen              | Reachable                      |
 | ------------------------ | ------------------- | ------------------------------ |
@@ -171,18 +175,35 @@ against the same file (see [`backend.md`](backend.md#stack)). Each code's Russia
 - The app name «Семья» is `app.name`; `vite.config.ts` puts it into the manifest and replaces
   `%APP_NAME%` in `index.html`.
 
+## Look and theme
+
+Everything visual is specified in [`design.md`](../design.md). In short:
+
+- Tailwind CSS 4 via `@tailwindcss/vite`; tokens (colours, type scale, font) are CSS variables in
+  `@theme` in `web/src/shared/ui/theme.css`, with Tailwind's default palette and type scale
+  switched off. The dark theme redefines the variables under `:root[data-theme='dark']`.
+- An inline script in `web/index.html` applies the theme before React starts: `localStorage`
+  `theme` (`light` / `dark` / absent = follow the system) → `<html data-theme>` and the
+  `theme-color` meta. It re-applies on a system change or a `storage` event.
+  `src/app/themeScript.test.ts` runs that script in jsdom.
+- Screens render as `Page` (large-title nav bar, 640px centred column, safe-area padding) inside
+  `AppShell`.
+
 ## PWA
 
 All PWA configuration is in `web/vite.config.ts` (a second TS config file imported from it triggers
 a Vite native-config-loader warning).
 
 - **Manifest**: `name` / `short_name` from `app.name`, `lang: ru`, `start_url` and `scope` `/`,
-  `display: standalone`, theme `#2f7f73`, background `#f6f4ef`.
+  `display: standalone`, theme and background `#f2f2f7` (the light `background` token).
 - **Icons**: generated at build time by `pwaAssets` (`@vite-pwa/assets-generator`, sharp) from the
   single source `web/public/icon.svg`: 64/192/512, maskable 512, `apple-touch-icon` 180, favicon.
-  No PNGs are committed. Maskable and Apple icons are padded on the background color.
+  No PNGs are committed. The house is the accent `#0062cc`; maskable and Apple icons are padded on
+  white. `injectThemeColor: false`: `index.html` has its own `theme-color`, switched by the theme
+  script.
 - **iOS meta tags** in `web/index.html`: `apple-mobile-web-app-capable`,
-  `mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`,
+  `mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style` (`black-translucent`: the page
+  draws under the status bar, the nav bar pads by `safe-area-inset-top`),
   `apple-mobile-web-app-title`, `viewport-fit=cover`.
 - **Service worker** (`sw.js`, registered by the injected `registerSW.js`): precaches the built
   shell (`**/*.{js,css,html,svg,png,ico}` + manifest), no runtime caching, navigation fallback to

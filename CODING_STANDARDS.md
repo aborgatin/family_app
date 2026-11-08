@@ -4,6 +4,7 @@ Read by the `/code-review` agent. Apply **every rule** below to every changed fi
 cite the rule ID (e.g. `B2`) in each finding. A rule with no violation needs no mention.
 
 Stack and decisions: [`docs/PLAN.md`](docs/PLAN.md), [`docs/adr/`](docs/adr/). Vocabulary: [`GLOSSARY.md`](GLOSSARY.md).
+UI look and component rules: [`docs/design.md`](docs/design.md).
 
 ## Baseline
 

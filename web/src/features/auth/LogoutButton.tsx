@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import { Button } from '@/shared/ui';
 import { logout } from './authApi';
 import { useSession } from './session';
 
@@ -34,15 +35,15 @@ export function LogoutButton() {
 
   return (
     <>
-      <button
-        type="button"
+      <Button
+        variant="destructive"
         disabled={pending}
         onClick={() => {
           void logOut();
         }}
       >
         {pending ? t('logout.inProgress') : t('logout.action')}
-      </button>
+      </Button>
       {error !== undefined && <p role="alert">{t(error.key, error.values)}</p>}
     </>
   );
