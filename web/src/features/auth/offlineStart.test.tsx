@@ -205,6 +205,8 @@ describe('Opening the app with no connection', () => {
     await within(await listsSection()).findByRole('button', { name: 'Добавить список' });
     expect(screen.queryByText('Супермаркет')).not.toBeInTheDocument();
     expect(syncServer.operations('list')).toEqual([]);
+    // Анна's Version went with her rows: Борис's first pull is a full one.
+    expect(syncServer.pulls.at(-1)).toBe(0);
   });
 
   it('opens the setup screen when the server turns out to need setup', async () => {

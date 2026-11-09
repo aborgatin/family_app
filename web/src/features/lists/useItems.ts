@@ -60,7 +60,20 @@ export function useItems(listId: string) {
 function openInOrder(rows: Item[], listId: string): Item[] {
   return rows
     .filter((item) => item.listId === listId && !item.done)
-    .sort((a, b) => compare(a.createdAt, b.createdAt) || compare(a.id, b.id));
+    .sort(
+      (a, b) =>
+        compare(sortableTime(a.createdAt), sortableTime(b.createdAt)) || compare(a.id, b.id),
+    );
+}
+
+/**
+ * An ISO-8601 UTC time that sorts as text: the server prints 0, 3, 6 or 9 fraction digits
+ * (`…:00Z`, `…:00.123Z`, `…:00.123456Z`), so the fraction is padded to 9.
+ */
+function sortableTime(time: string | undefined): string | undefined {
+  if (time === undefined) return undefined;
+  const [, seconds = time, fraction = ''] = /^(.*?)(?:\.(\d+))?Z$/.exec(time) ?? [];
+  return `${seconds}.${fraction.padEnd(9, '0')}Z`;
 }
 
 /** Ascending; a missing value after every present one. */

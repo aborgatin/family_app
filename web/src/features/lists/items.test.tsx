@@ -82,6 +82,23 @@ describe('The List screen’s Items', () => {
     });
     expect(screen.queryByText('Товаров пока нет')).not.toBeInTheDocument();
   });
+
+  it('orders by the time added however many fraction digits the server prints', async () => {
+    // The server prints an Instant with 0, 3, 6 or 9 fraction digits.
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item', [
+      item(1, 'Яйца', '2026-11-02T09:00:00.123456Z'),
+      item(2, 'Молоко', '2026-11-02T09:00:00.123Z'),
+      item(3, 'Хлеб', '2026-11-02T09:00:01Z'),
+      item(4, 'Сыр', '2026-11-02T09:00:00Z'),
+    ]);
+
+    renderApp(`/lists/${groceries.id}`);
+
+    await waitFor(async () => {
+      expect(await itemTexts()).toEqual(['Сыр', 'Молоко', 'Яйца', 'Хлеб']);
+    });
+  });
 });
 
 describe('Adding an Item', () => {
