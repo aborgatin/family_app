@@ -185,7 +185,7 @@ the Child name limits; known kind and Visibility) → `ListDetails`; `ListServic
   `ListEntity.notFound(listId)`, the one factory `ItemService` uses too); then `Outcome.deleteWins`; upsert merges the carried fields over the stored ones, validates, then
   `list.kind_immutable` if the kind changed, `list.owner_only` if a Member other than the Owner
   changed the Visibility (the same value is no change), and `list.wish_shared_only` for a Private
-  Wish list.
+  Wish list; a delete by a Member other than the Owner is `list.owner_only` too.
   A create sets the Owner (`operation.memberId()`) and `createdAt`; neither ever changes. A
   Visibility change also gives the List's Items a new Version (`ItemRepository.bumpVersionsInList`,
   a no-op UPDATE the trigger stamps), so the pull sends them again with or without their fields.

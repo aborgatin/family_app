@@ -32,8 +32,9 @@ interface ListSettingsPageProps {
 /**
  * «Настройки списка» (`/lists/:id/settings`), back to the List: «Название» for either Member,
  * Visibility («Личный» / «Общий») only for the Owner and never for a Wish list (the server
- * enforces both), and «Удалить список», which asks first and then goes back to Home. A List
- * that disappears while open says so. Data only through `useLists()`.
+ * enforces both), and «Удалить список», only for the Owner (the server enforces it), which asks
+ * first and then goes back to Home. A List that disappears while open says so. Data only through
+ * `useLists()`.
  */
 export function ListSettingsPage({ homePath }: ListSettingsPageProps) {
   const { t } = useTranslation();
@@ -50,7 +51,7 @@ export function ListSettingsPage({ homePath }: ListSettingsPageProps) {
     <Page title={t('lists.settings')} back={{ to: listPath(list.id), title: list.name }}>
       <Sections>
         <ListDetailsSection key={list.id} list={list} owned={owned} save={save} />
-        <DeleteListSection list={list} remove={remove} homePath={homePath} />
+        {owned && <DeleteListSection list={list} remove={remove} homePath={homePath} />}
       </Sections>
     </Page>
   );
@@ -58,7 +59,7 @@ export function ListSettingsPage({ homePath }: ListSettingsPageProps) {
 
 interface ListDetailsSectionProps {
   list: List;
-  /** Whether the Member is the List's Owner, who alone may change its Visibility. */
+  /** Whether the Member is the List's Owner, who alone may change its Visibility or delete it. */
   owned: boolean;
   save: (id: string, fields: Partial<ListDetails>) => Promise<void>;
 }

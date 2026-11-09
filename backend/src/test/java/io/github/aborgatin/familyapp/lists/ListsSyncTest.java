@@ -248,22 +248,41 @@ class ListsSyncTest {
   }
 
   @Test
+  void onlyTheOwnerDeletesAList() throws Exception {
+    UUID groceries = UUID.randomUUID();
+    SyncRequests.push(anna, create(groceries, "Супермаркет", "SHOPPING", "SHARED"));
+
+    SyncRequests.push(boris, SyncRequests.delete("list", groceries))
+        .andExpect(jsonPath("$.results[*].status", contains("rejected")))
+        .andExpect(jsonPath("$.results[0].code").value("list.owner_only"));
+
+    assertThat(SyncRequests.change(boris, 0, "list", groceries)).containsEntry("deleted", false);
+
+    SyncRequests.push(anna, SyncRequests.delete("list", groceries))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    assertThat(SyncRequests.change(boris, 0, "list", groceries)).isNull();
+  }
+
+  @Test
   void aDeletedListIsATombstoneAndDeleteWinsOverALaterChange() throws Exception {
     UUID groceries = UUID.randomUUID();
     SyncRequests.push(anna, create(groceries, "Супермаркет", "SHOPPING", "SHARED"));
     long since = SyncRequests.version(SyncRequests.pull(boris, 0));
 
+    SyncRequests.push(anna, SyncRequests.delete("list", groceries))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
     SyncRequests.push(
             boris,
-            SyncRequests.delete("list", groceries),
             SyncRequests.upsert("list", groceries, "{\"name\":\"Ашан\"}"),
+            SyncRequests.delete("list", groceries),
             SyncRequests.delete("list", UUID.randomUUID()))
-        .andExpect(jsonPath("$.results[*].status", contains("applied", "ignored", "ignored")));
+        .andExpect(jsonPath("$.results[*].status", contains("ignored", "ignored", "ignored")));
 
-    assertThat(SyncRequests.change(anna, since, "list", groceries))
+    assertThat(SyncRequests.change(boris, since, "list", groceries))
         .containsEntry("deleted", true)
         .doesNotContainKey("fields");
-    assertThat(SyncRequests.change(anna, 0, "list", groceries)).isNull();
+    assertThat(SyncRequests.change(boris, 0, "list", groceries)).isNull();
   }
 
   private static String notFound() {

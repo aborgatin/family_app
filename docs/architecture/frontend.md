@@ -272,8 +272,8 @@ Each data feature has one hook that is its only data access. Components never ca
   name): a `GroupedSection` with the auto-saved «Название» and Visibility
   «Личный» / «Общий» only when the Member is the Owner, or `ownerId` is still unset, and never for
   a Wish list: `hasVisibility(kind)`; the segments are `VISIBILITY_CHOICES`, both in
-  `listTypes.ts` and shared with «Новый список»), then «Удалить список» in its own
-  `GroupedSection` (`DeleteListSection`, a `ConfirmRow`, «Удалить „{{name}}“ со всем
+  `listTypes.ts` and shared with «Новый список»), then, again only for the Owner (or while
+  `ownerId` is unset), «Удалить список» in its own `GroupedSection` (`DeleteListSection`, a `ConfirmRow`, «Удалить „{{name}}“ со всем
   содержимым?», then back to Home). A List that is unknown, or disappears while either screen is
   open (deleted, or made Private by its Owner: the pull's tombstone removes it), shows «Такого
   списка нет: возможно, его удалили.» with the back link to Home (`ListMissing`). Kind texts (segment,
