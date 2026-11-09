@@ -242,7 +242,9 @@ its List) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so t
 ## Data access
 
 Each data feature has one hook that is its only data access. Components never call `api`, the
-`*Api.ts` files, Dexie or `@/shared/sync`'s writers directly:
+`*Api.ts` files, Dexie or `@/shared/sync`'s writers directly. ESLint enforces the sync half
+(`data-access/components-use-hooks` in `web/eslint.config.js`: no sync writers, `@/shared/sync/*`
+internals or Dexie in a `.tsx`):
 
 - `useChildren()` → `{load, save(id, fields), remove(id)}` (`useSyncedRows('child', …)`): `load`
   is `loading` until the first local read, then `ready` with the Children in order (birthday, then

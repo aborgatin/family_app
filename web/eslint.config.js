@@ -229,6 +229,44 @@ export default defineConfig([
     },
   },
 
+  // Data access (docs/architecture/frontend.md "Data access"): a component reads and writes synced
+  // data only through its feature's hook, never through `@/shared/sync`'s writers, its internals or
+  // Dexie. The typescript-eslint copy of no-restricted-imports, so it doesn't replace the M3 blocks
+  // above for the same files. Hooks (.ts) and tests are exempt.
+  {
+    name: 'data-access/components-use-hooks',
+    files: ['src/features/**/*.tsx', 'src/app/**/*.tsx'],
+    ignores: TEST_FILES,
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@/shared/sync',
+              importNames: ['upsertRow', 'deleteRow', 'flushOutbox', 'stopSyncAndWipe'],
+              allowTypeImports: true,
+              message:
+                'Components write synced data through their feature hook (useChildren, useItems, useLogout…), not the sync writers (frontend.md "Data access").',
+            },
+            {
+              name: 'dexie',
+              message: 'Only @/shared/sync touches Dexie (frontend.md "Data access").',
+            },
+          ],
+          patterns: [
+            {
+              group: ['@/shared/sync/*'],
+              allowTypeImports: true,
+              message:
+                'Import @/shared/sync through its index, and only its hooks from a component (frontend.md "Data access").',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   ...layerBlocks('src/shared', 'shared', [
     FEATURES_FROM_SHARED,
     APP_FROM_BELOW,
