@@ -39,7 +39,7 @@ shown), `invite`, `password_reset`, `spring_session`, `spring_session_attributes
   sets these columns: entities map them with `@Generated(event = {INSERT, UPDATE})`,
   `insertable = false, updatable = false`, and Hibernate reads them back after each write.
 - Default rows (the two Child fields in `V4`) get Versions from the trigger too.
-- Tested: `everyWriteGetsAHigherVersion…` in `ChildrenSyncTest` and `ChildFieldsTest`.
+- Tested: `everyWriteGetsAHigherVersion…` in `ChildrenSyncTest`.
 
 **Soft deletes.** Removing a row sets `deleted = true` (an UPDATE, so the Version advances). The
 repositories extend Spring Data's bare `Repository` and declare no delete methods. No code path
@@ -49,9 +49,10 @@ ignore deleted Members. Email uniqueness counts deleted Members too.
 **Client UUIDs** (S3). Children and Child fields are created with the id the client chose; the
 server never generates one for them. Members get theirs from the server at registration.
 
-**Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move writes only the moved
-field (midpoint between its new neighbours, computed by the client in `positionAfterMove`). Ties
-sort by id. Children have no manual order (birthday, then name, then id).
+**Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move is one upsert carrying
+only the moved field's `position` (midpoint between its new neighbours, computed by the client in
+`positionAfterMove`), so a reorder is a single-record change. The client sorts by position, ties
+by id (`useChildFields`); the pull sends rows in Version order. Children have no manual order (birthday, then name, then id).
 
 ## Push: the only write path
 
@@ -71,6 +72,8 @@ sort by id. Children have no manual order (birthday, then name, then id).
 - The push is one transaction that takes the `SyncLock` (`FamilyLock`) first. Each operation runs
   inside an SQL savepoint; a rejected one rolls back alone and the others still apply.
 - Repeating a whole push leaves the same state (S3).
+- Table rules: a Child field's `valueType` can't change after creation (ADR-0007): an upsert
+  carrying another one is rejected with `child_field.value_type_immutable`.
 - Codes of the push itself: `sync.table_unknown` (`params.table`), `sync.read_only` (a pull-only
   table such as `member`), `request.invalid` (no valid id or `op`).
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
@@ -112,8 +115,8 @@ Version, a second push, a pull in between; fails without the lock) and
 ## Client
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
-  table (`member`, `child` so far), the Outbox (`++seq`) and the stored Version. The app asks for
-  persistent storage at start. Dexie upgrades keep every table not dropped, so the Outbox survives
+  table (`member`, `child`, `child_field` so far), the Outbox (`++seq`) and the stored Version.
+  The app asks for persistent storage at start. Dexie upgrades keep every table not dropped, so the Outbox survives
   store upgrades.
 - **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
   appended to the Outbox in the same transaction, then the engine is asked to sync.
@@ -131,6 +134,5 @@ Version, a second push, a pull in between; fails without the lock) and
   сохранить» once, and the next pull is a full one (`since=0`, replacing every local row and
   re-applying the Outbox), which restores the server's copy even of a row the pull since N would
   not send again.
-- Children are on the store. Child fields still use REST until their ticket moves them
-  (`PUT/DELETE /api/child-fields/{id}`: idempotent full upserts under `FamilyLock`, `409
-child_field.deleted` on a deleted id); Lists and Items, SSE (`changed` → pull) and logout with a pending Outbox are the next M2 tickets.
+- Children and Child fields are on the store. Lists and Items, SSE (`changed` → pull) and logout
+  with a pending Outbox are the next M2 tickets.
