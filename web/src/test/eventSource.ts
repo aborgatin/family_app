@@ -50,6 +50,7 @@ export class FakeEventSource extends EventTarget {
   }
 
   open() {
+    this.refuseIfClosed('open');
     this.readyState = FakeEventSource.OPEN;
     const event = new Event('open');
     this.onopen?.(event);
@@ -58,6 +59,7 @@ export class FakeEventSource extends EventTarget {
 
   /** A server event: `message` (also calls `onmessage`) or a named one such as `changed`. */
   emit(type: string, data: string) {
+    this.refuseIfClosed(`emit '${type}' on`);
     const event = new MessageEvent(type, { data });
     if (type === 'message') this.onmessage?.(event);
     this.dispatchEvent(event);
@@ -71,5 +73,12 @@ export class FakeEventSource extends EventTarget {
 
   close() {
     this.readyState = FakeEventSource.CLOSED;
+  }
+
+  /** Fails the test instead of sending into a connection no one listens on any more. */
+  private refuseIfClosed(what: string) {
+    if (this.closed) {
+      throw new Error(`Can't ${what} an EventSource the app closed; use FakeEventSource.latest()`);
+    }
   }
 }

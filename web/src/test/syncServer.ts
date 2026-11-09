@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { network } from './network';
 
 /*
  * A fake of the server's sync API (`POST /api/sync/push`, `GET /api/sync/pull`) for MSW, installed
@@ -8,7 +9,7 @@ import { http, HttpResponse } from 'msw';
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
- *   syncServer.goOffline();                      // push and pull fail like a lost network
+ *   syncServer.goOffline();                      // the network is gone (`network.goOffline()`)
  *   syncServer.rejectWhen((op) => op.id === masha.id);
  *   syncServer.operations('child')               // every operation pushed, in order
  *   syncServer.row('child', masha.id)            // the server's copy now
@@ -46,7 +47,8 @@ const VALIDATION_FAILED = { code: 'validation.failed', params: { errors: [] } };
 class FakeSyncServer {
   private version = 0;
   private stored = new Map<string, StoredRow>();
-  private offline = false;
+  /** Only push and pull fail (`failSyncOnly()`); a lost network is `network.goOffline()`. */
+  private syncFailing = false;
   private rejecter: Rejecter | undefined;
   private heldPull: Promise<void> | undefined;
   /** Every push received, in order (failed ones while offline are not received). */
@@ -56,7 +58,7 @@ class FakeSyncServer {
 
   readonly handlers = [
     http.post('/api/sync/push', async ({ request }) => {
-      if (this.offline) return HttpResponse.error();
+      if (this.syncFailing) return HttpResponse.error();
       const body = (await request.json()) as { operations: PushedOperation[] };
       this.pushes.push({
         operations: body.operations,
@@ -66,7 +68,7 @@ class FakeSyncServer {
       return HttpResponse.json({ results, version: this.version });
     }),
     http.get('/api/sync/pull', async ({ request }) => {
-      if (this.offline) return HttpResponse.error();
+      if (this.syncFailing) return HttpResponse.error();
       const since = Number(new URL(request.url).searchParams.get('since'));
       this.pulls.push(since);
       // A held pull answers with the server's state at release time.
@@ -85,7 +87,7 @@ class FakeSyncServer {
   reset() {
     this.version = 0;
     this.stored.clear();
-    this.offline = false;
+    this.syncFailing = false;
     this.rejecter = undefined;
     this.heldPull = undefined;
     this.pushes.length = 0;
@@ -94,6 +96,11 @@ class FakeSyncServer {
 
   /** Stores rows (`{id, ...fields}`) as if another device had written them, each a new Version. */
   seed(table: string, rows: readonly ({ id: string } & Record<string, unknown>)[]) {
+    if (rows.length === 0) {
+      throw new Error(
+        `syncServer.seed('${table}', []) changes nothing; to remove a row use change(table, id, 'deleted')`,
+      );
+    }
     for (const { id, ...fields } of rows) {
       this.write(table, id, fields, false);
     }
@@ -102,10 +109,13 @@ class FakeSyncServer {
   /** Changes or deletes a row as if the other Member had done it (the next pull returns it). */
   change(table: string, id: string, fields: Record<string, unknown> | 'deleted') {
     const current = this.stored.get(key(table, id));
+    if (current === undefined) {
+      throw new Error(`syncServer.change: no ${table} ${id} on the server; seed it first`);
+    }
     if (fields === 'deleted') {
-      this.write(table, id, current?.fields ?? {}, true);
+      this.write(table, id, current.fields, true);
     } else {
-      this.write(table, id, { ...current?.fields, ...fields }, false);
+      this.write(table, id, { ...current.fields, ...fields }, false);
     }
   }
 
@@ -125,13 +135,23 @@ class FakeSyncServer {
     return this.pushes.flatMap((push) => push.operations.filter((op) => op.table === table));
   }
 
-  /** Push and pull fail as if the network were gone (MSW network error). */
+  /** The whole network goes (`network.goOffline()`): every request fails, the sync API with it. */
   goOffline() {
-    this.offline = true;
+    network.goOffline();
   }
 
+  /** The network is back and the sync API answers again. */
   goOnline() {
-    this.offline = false;
+    network.goOnline();
+    this.syncFailing = false;
+  }
+
+  /**
+   * Only push and pull fail (MSW network error) while every other request still answers. Use it
+   * only when a test is about that split; a lost connection is `goOffline()`.
+   */
+  failSyncOnly() {
+    this.syncFailing = true;
   }
 
   /**

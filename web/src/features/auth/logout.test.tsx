@@ -12,6 +12,7 @@ import {
   sessionHandler,
 } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
+import { network } from '@/test/network';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
 
@@ -36,26 +37,21 @@ function logoutAnswers() {
 }
 
 /**
- * The server's auth API for Анна's device: a session that lasts until it hears of a logout, and
- * that fails like a lost network while offline (the sync API with it). `requests` lists the
- * logouts and logins the server received, in order.
+ * The server's auth API for Анна's device: a session that lasts until it hears of a logout.
+ * `requests` lists the logouts and logins the server received, in order. Offline is the whole
+ * network (`network.goOffline()`), so these fail with everything else.
  */
 function authServer() {
-  let offline = false;
   let member: typeof anna | null = anna;
   const requests: ('logout' | 'login')[] = [];
   server.use(
-    http.get('/api/auth/session', () =>
-      offline ? HttpResponse.error() : HttpResponse.json({ bootstrapRequired: false, member }),
-    ),
+    http.get('/api/auth/session', () => HttpResponse.json({ bootstrapRequired: false, member })),
     http.post('/api/auth/logout', () => {
-      if (offline) return HttpResponse.error();
       requests.push('logout');
       member = null;
       return new HttpResponse(null, { status: 204 });
     }),
     http.post('/api/auth/login', () => {
-      if (offline) return HttpResponse.error();
       requests.push('login');
       member = anna;
       return HttpResponse.json(anna);
@@ -64,13 +60,11 @@ function authServer() {
   return {
     requests,
     goOffline() {
-      offline = true;
-      syncServer.goOffline();
+      network.goOffline();
     },
     /** The server answers again; the app notices on its next request. */
     goOnline() {
-      offline = false;
-      syncServer.goOnline();
+      network.goOnline();
     },
     /** The server answers again and the browser says so (`online`). */
     reconnect() {
@@ -147,8 +141,8 @@ describe('Logout with an empty Outbox', () => {
     expect(logout.count).toBe(1);
     expect(syncServer.pushes).toEqual([]);
 
-    // Logging in again while the server can't be reached: the device has nothing left to show.
-    syncServer.goOffline();
+    // Logging in again while sync can't refill the device: it has nothing left to show.
+    syncServer.failSyncOnly();
     await logIn(user, anna.email);
     await user.click(await screen.findByRole('link', { name: 'Настройки' }));
     expect(await within(await childrenSection()).findByText('Детей пока нет')).toBeInTheDocument();

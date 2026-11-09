@@ -41,7 +41,7 @@ Give each ticket its **blocking edges**: the other tickets that must complete be
 
 ### 3b. Check coverage
 
-Every user story and every Implementation Decision in the source belongs to at least one ticket's acceptance criteria. Cross-cutting decisions (a module's public API, a shared convention, a UI/copy rule) are the ones that fall between tickets. Give each leftover to the ticket that first needs it, or make it its own ticket. Coverage is done when you can name the owning ticket for every story and decision.
+Every user story and every Implementation Decision in the source belongs to at least one ticket's acceptance criteria. Cross-cutting decisions (a module's public API, a shared convention, a UI/copy rule) are the ones that fall between tickets. Give each leftover to the ticket that first needs it, or make it its own ticket. A story's **conditions** (offline, after a restart, the other Member, an expired session) travel with it: the owning ticket's criterion and its test name each one, so "kept across a restart" in an offline story reads "kept across a restart with no connection". Coverage is done when you can name the owning ticket, and the criterion carrying every condition, for each story and decision.
 
 ### 4. Quiz the user
 

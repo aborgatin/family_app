@@ -76,7 +76,8 @@ web/src/
   `select`, `textarea`, `form`, `a` elements and `className` / `style` props there. A look the kit
   lacks is added to `shared/ui` first, with its section in `design.md`.
 - A feature keeps its components, hooks and API calls together; `*Api.ts` files hold the REST
-  calls, and only the feature's hook calls them.
+  calls. Synced data goes through the feature's hook only ("Data access"); online-only screens
+  (auth, Invites, Member account changes, S4) may call their own feature's `*Api.ts` directly.
 
 ## Routing and the auth guard
 
@@ -241,8 +242,10 @@ its List) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so t
 
 ## Data access
 
-Each data feature has one hook that is its only data access. Components never call `api`, the
-`*Api.ts` files, Dexie or `@/shared/sync`'s writers directly:
+Each synced data feature has one hook that is its only data access. Components never call `api`,
+Dexie or `@/shared/sync`'s writers directly; ESLint enforces it (`data-access/components-use-hooks`
+in `web/eslint.config.js`: no sync writers, `@/shared/sync/*` internals or Dexie in a `.tsx`).
+Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hooks:
 
 - `useChildren()` → `{load, save(id, fields), remove(id)}` (`useSyncedRows('child', …)`): `load`
   is `loading` until the first local read, then `ready` with the Children in order (birthday, then

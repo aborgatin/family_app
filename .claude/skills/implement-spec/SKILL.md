@@ -25,7 +25,7 @@ Briefs carry pointers and constraints, not shared values (a migration version, a
 A run spans hours, so it is **budgeted**:
 
 - At the start, run `caffeinate -ims -t 43200` in the background so the laptop stays awake while you wait.
-- `usage.sh` (next to this file) prints the 5-hour usage % and reset time. Check it before every agent spawn. Run `watch-usage.sh 70` in the background; it exits once usage reaches 70%.
+- `usage.sh` (next to this file) prints the 5-hour usage % and reset time, from a 5-minute cache (`stale` when the endpoint is rate-limited: use that reading). Check it before every agent spawn. Run `watch-usage.sh 70` in the background; it refreshes the cache every 5 minutes and exits once usage reaches 70%.
 - At 70%: spawn nothing new, let running agents finish and merge, post a resume note on the draft PR (merged, in progress, next), then wait in the background until the reset time and resume. Continue stopped agents with SendMessage rather than spawning fresh ones.
 
 ## Steps

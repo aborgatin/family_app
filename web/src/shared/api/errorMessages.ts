@@ -24,7 +24,6 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   'invite.revoked': 'errors.inviteRevoked',
   'member.email_taken': 'errors.memberEmailTaken',
   'validation.failed': 'errors.validationFailed',
-  'child.deleted': 'errors.childDeleted',
 };
 
 /** Field error code (inside `validation.failed`) → i18n key. */

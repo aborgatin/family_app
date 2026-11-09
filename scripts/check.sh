@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Runs every local check in one command, from any directory:
 #
-#   scripts/check.sh            # migration guard, backend build + tests, all web checks
+#   scripts/check.sh            # migration and error-code guards, backend build + tests, web checks
 #   scripts/check.sh --image    # also builds the Docker image and runs scripts/image-smoke-test.sh
 #
-# Steps: scripts/check-migrations.sh against origin/main; backend `./gradlew spotlessApply build`
-# (spotlessApply reformats Java in place, build runs spotlessCheck, Error Prone and the tests);
+# Steps: scripts/check-migrations.sh against origin/main; scripts/check-error-codes.sh (I3) and its
+# self-test; backend `./gradlew spotlessApply build` (spotlessApply reformats Java in place, build
+# runs spotlessCheck, Error Prone and the tests);
 # web `npm ci` (only when node_modules is missing or stale), `format:check`, `lint`, `typecheck`,
 # `test`, `build`. Stops at the first failing step and names it. Needs Docker running (backend
 # tests use Testcontainers) and Node 22+ (found on PATH or in Homebrew's keg-only node@22).
@@ -50,6 +51,10 @@ step() {
 
 step "migration guard"
 (cd "$root" && scripts/check-migrations.sh)
+
+step "error-code guard"
+"$root/scripts/check-error-codes-test.sh" | { grep -v '^ok ' || true; }
+"$root/scripts/check-error-codes.sh"
 
 step "backend: spotlessApply build"
 (cd "$root/backend" && ./gradlew spotlessApply build)
