@@ -35,6 +35,51 @@ function logoutAnswers() {
   return calls;
 }
 
+/**
+ * The server's auth API for Анна's device: a session that lasts until it hears of a logout, and
+ * that fails like a lost network while offline (the sync API with it). `requests` lists the
+ * logouts and logins the server received, in order.
+ */
+function authServer() {
+  let offline = false;
+  let member: typeof anna | null = anna;
+  const requests: ('logout' | 'login')[] = [];
+  server.use(
+    http.get('/api/auth/session', () =>
+      offline ? HttpResponse.error() : HttpResponse.json({ bootstrapRequired: false, member }),
+    ),
+    http.post('/api/auth/logout', () => {
+      if (offline) return HttpResponse.error();
+      requests.push('logout');
+      member = null;
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.post('/api/auth/login', () => {
+      if (offline) return HttpResponse.error();
+      requests.push('login');
+      member = anna;
+      return HttpResponse.json(anna);
+    }),
+  );
+  return {
+    requests,
+    goOffline() {
+      offline = true;
+      syncServer.goOffline();
+    },
+    /** The server answers again; the app notices on its next request. */
+    goOnline() {
+      offline = false;
+      syncServer.goOnline();
+    },
+    /** The server answers again and the browser says so (`online`). */
+    reconnect() {
+      this.goOnline();
+      window.dispatchEvent(new Event('online'));
+    },
+  };
+}
+
 function loginAnswers(member: typeof anna) {
   server.use(http.post('/api/auth/login', () => HttpResponse.json(member)));
 }
@@ -156,30 +201,78 @@ describe('Logout with unsent changes', () => {
   });
 
   it('warns when they can’t be sent, and «Выйти» logs out and wipes them', async () => {
-    const logout = logoutAnswers();
-    loginAnswers(anna);
+    const auth = authServer();
     const user = userEvent.setup();
 
     renderApp('/settings');
     await within(await childrenSection()).findByText('Петя');
-    syncServer.goOffline();
+    auth.goOffline();
     await deletePetya(user);
     await logOut(user);
     const warning = await screen.findByRole('dialog', { name: WARNING });
     await user.click(within(warning).getByRole('button', { name: 'Выйти' }));
 
+    // The server can't hear of the logout either: the device logs out on its own at once.
     expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
-    expect(logout.count).toBe(1);
+    expect(auth.requests).toEqual([]);
 
-    // Back as the same Member, still offline: nothing of the old store is left.
+    // Online again: the server is told, the lost delete is never sent.
+    auth.reconnect();
+    await waitFor(() => {
+      expect(auth.requests).toEqual(['logout']);
+    });
     await logIn(user, anna.email);
     await user.click(await screen.findByRole('link', { name: 'Настройки' }));
-    expect(await within(await childrenSection()).findByText('Детей пока нет')).toBeInTheDocument();
-
-    // Online again: the lost delete is never sent, and the server's Children come back.
-    reconnect();
     expect(await within(await childrenSection()).findByText('Петя')).toBeInTheDocument();
     expect(syncServer.operations('child')).toEqual([]);
+  });
+});
+
+describe('Logout while the server can’t be reached', () => {
+  it('keeps the device logged out across restarts until the server hears of it', async () => {
+    const auth = authServer();
+    const user = userEvent.setup();
+
+    const first = renderApp('/settings');
+    await within(await childrenSection()).findByText('Маша');
+    auth.goOffline();
+    await logOut(user);
+    expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
+    first.unmount();
+
+    // Opened again with the server back: the session cookie is still valid there, but the
+    // device stays logged out, syncs nothing, and tells the server.
+    auth.goOnline();
+    const pullsBefore = syncServer.pulls.length;
+    renderApp('/');
+    expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(auth.requests).toEqual(['logout']);
+    });
+    expect(syncServer.pulls.length).toBe(pullsBefore);
+  });
+
+  it('logging in again ends the pending logout without logging the new session out', async () => {
+    const auth = authServer();
+    const user = userEvent.setup();
+
+    const first = renderApp('/settings');
+    await within(await childrenSection()).findByText('Маша');
+    auth.goOffline();
+    await logOut(user);
+    expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
+
+    // The server is back, but the app hasn't noticed before the Member logs in.
+    auth.goOnline();
+    await logIn(user, anna.email);
+    await user.click(await screen.findByRole('link', { name: 'Настройки' }));
+    expect(await within(await childrenSection()).findByText('Маша')).toBeInTheDocument();
+    first.unmount();
+
+    // Opened again: still logged in, and the server never logged the new session out.
+    renderApp('/settings');
+    expect(await within(await childrenSection()).findByText('Маша')).toBeInTheDocument();
+    expect(auth.requests.at(-1)).toBe('login');
   });
 });
 
