@@ -18,7 +18,7 @@ reading=$(curl -s -m 10 ${USAGE_URL:-https://api.anthropic.com/api/oauth/usage} 
  | /usr/bin/python3 -I -c 'import json,sys; d=json.load(sys.stdin)["five_hour"]; print(int(d["utilization"]), d["resets_at"])' 2>/dev/null)
 
 if [[ -n $reading ]]; then
-  mkdir -p ${cache:h} && echo "$reading $now" >$cache
+  mkdir -p ${cache:h} && echo "$reading $now" >$cache.$$ && mv $cache.$$ $cache # whole, never half-written
   echo "$reading"
 elif [[ -r $cache ]]; then
   read -r util resets at <$cache

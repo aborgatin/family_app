@@ -47,7 +47,8 @@ const VALIDATION_FAILED = { code: 'validation.failed', params: { errors: [] } };
 class FakeSyncServer {
   private version = 0;
   private stored = new Map<string, StoredRow>();
-  private offline = false;
+  /** Only push and pull fail (`failSyncOnly()`); a lost network is `network.goOffline()`. */
+  private syncFailing = false;
   private rejecter: Rejecter | undefined;
   private heldPull: Promise<void> | undefined;
   /** Every push received, in order (failed ones while offline are not received). */
@@ -57,7 +58,7 @@ class FakeSyncServer {
 
   readonly handlers = [
     http.post('/api/sync/push', async ({ request }) => {
-      if (this.offline) return HttpResponse.error();
+      if (this.syncFailing) return HttpResponse.error();
       const body = (await request.json()) as { operations: PushedOperation[] };
       this.pushes.push({
         operations: body.operations,
@@ -67,7 +68,7 @@ class FakeSyncServer {
       return HttpResponse.json({ results, version: this.version });
     }),
     http.get('/api/sync/pull', async ({ request }) => {
-      if (this.offline) return HttpResponse.error();
+      if (this.syncFailing) return HttpResponse.error();
       const since = Number(new URL(request.url).searchParams.get('since'));
       this.pulls.push(since);
       // A held pull answers with the server's state at release time.
@@ -86,7 +87,7 @@ class FakeSyncServer {
   reset() {
     this.version = 0;
     this.stored.clear();
-    this.offline = false;
+    this.syncFailing = false;
     this.rejecter = undefined;
     this.heldPull = undefined;
     this.pushes.length = 0;
@@ -142,7 +143,7 @@ class FakeSyncServer {
   /** The network is back and the sync API answers again. */
   goOnline() {
     network.goOnline();
-    this.offline = false;
+    this.syncFailing = false;
   }
 
   /**
@@ -150,7 +151,7 @@ class FakeSyncServer {
    * only when a test is about that split; a lost connection is `goOffline()`.
    */
   failSyncOnly() {
-    this.offline = true;
+    this.syncFailing = true;
   }
 
   /**

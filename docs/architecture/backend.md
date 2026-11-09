@@ -462,8 +462,8 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
      required field must be there), throw `FieldErrors`/`ApiException` to reject, then create or
      change and `saveAndFlush` → `APPLIED`. Server-set fields (Owner, Creator…) come from
      `operation.memberId()`, never from `fields`; times from a `Clock` field
-     (`Clock.systemUTC()`; `ClockTest` fails on a bare `Instant.now()` and the like). The push already holds `FamilyLock`; the Family id is
-     `Family.id()`.
+     (`Clock.systemUTC()`; `ClockTest` fails on a bare `Instant.now()` and the like). The push
+     already holds `FamilyLock`; the Family id is `Family.id()`.
 5. Pull: `changesSince(version, memberId)`: `SyncRow.changes(repository.findByVersionGreaterThan(version),
    visible, (row, fields) -> …)` putting what the client stores (no secrets; nullable values
    allowed); it sends a tombstone for deleted rows and for rows `visible` refuses for this Member

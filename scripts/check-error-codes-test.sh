@@ -68,6 +68,15 @@ expect() { # expect pass|fail <name> <tree>
 tree="$(new_tree mapped)"
 expect pass "every code mapped (multi-line ApiException, file names ignored, SERVER_ONLY, CLIENT_ONLY)" "$tree"
 
+tree="$(new_tree wrapped)"
+cat >"$tree/web/src/shared/sync/saveRejection.ts" <<'EOF'
+const REJECTION_KEYS = {
+  'list.owner_only':
+    'sync.rejected.listOwnerOnly',
+} as const;
+EOF
+expect pass "a map entry Prettier wrapped onto two lines" "$tree"
+
 tree="$(new_tree unmapped)"
 cat >>"$tree/backend/src/main/java/app/Errors.java" <<'EOF'
 class More { ApiException c() { return new ApiException(HttpStatus.FORBIDDEN, "list.kind_immutable"); } }

@@ -41,6 +41,9 @@ diff disables, weakens or bypasses one of them (config change, suppression comme
 | ESLint `no-restricted-syntax` (`design/colour-tokens-only`) | `/web/src` | colours written into code (hex, `rgb(…)`, `color-mix(…)`…) instead of a `theme.css` token (docs/design.md) |
 | Vitest `shared/ui/theme.test.ts` | `/web` | WCAG AA (4.5:1) for every text/background token pair, light and dark |
 | `scripts/check-migrations.sh` | Flyway migrations | changed/deleted migrations merged to `main`, new versions not above `main`'s highest (S5) |
+| `scripts/check-error-codes.sh` | `/backend` + `/web` | a server error code with no client message, a client message for a code the server no longer sends (I3) |
+| ArchUnit `ClockTest` | `/backend` | a bare `Instant.now()`, `LocalDate.now()`… instead of the class's `Clock` field |
+| ESLint `@typescript-eslint/no-restricted-imports` (`data-access/components-use-hooks`) | `/web/src` `.tsx` | components importing `@/shared/sync` writers or internals, or Dexie (frontend.md "Data access") |
 
 ## Modules and boundaries
 

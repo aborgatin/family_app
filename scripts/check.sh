@@ -53,7 +53,7 @@ step "migration guard"
 (cd "$root" && scripts/check-migrations.sh)
 
 step "error-code guard"
-"$root/scripts/check-error-codes-test.sh" >/dev/null
+"$root/scripts/check-error-codes-test.sh" | { grep -v '^ok ' || true; }
 "$root/scripts/check-error-codes.sh"
 
 step "backend: spotlessApply build"

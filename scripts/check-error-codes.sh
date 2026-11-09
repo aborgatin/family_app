@@ -14,6 +14,7 @@
 #
 # Self-test: scripts/check-error-codes-test.sh
 set -euo pipefail
+export LC_ALL=C # sort and comm agree on order on macOS and Linux
 
 root="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
 main="$root/backend/src/main"
@@ -38,7 +39,7 @@ codes_of() { awk 'NF { print $1 }' <<<"$1" | sort -u; }
 server_codes() {
   {
     # Dotted literals, minus file names ("index.html").
-    grep -rhoE '"[a-z][a-z_]*(\.[a-z][a-z_]*)+"' "$main" --include='*.java' |
+    grep -rhoE '"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+"' "$main" --include='*.java' |
       tr -d '"' | grep -vE '\.(html|js|css|json|sql|txt|png|svg|ico)$' || true
     # Field codes, dotted or not, declared in FieldErrors.
     find "$main" -name FieldErrors.java -exec \
@@ -47,8 +48,9 @@ server_codes() {
 }
 
 client_codes() {
-  # Map lines: `'list.owner_only': 'sync.rejected.listOwnerOnly',` or `required: 'errors.…',`.
-  sed -nE "s/^[[:space:]]*'?([a-z][a-z_.]*)'?:[[:space:]]*'[A-Za-z0-9_.]+',?[[:space:]]*$/\1/p" \
+  # Map entries `'list.owner_only': 'sync.rejected.listOwnerOnly',` or `required: 'errors.…',`, also
+  # when Prettier wraps the value onto the next line (\x27 is a single quote).
+  perl -0777 -ne 'print "$1\n" while /^[ \t]*\x27?([a-z][a-z0-9_.]*)\x27?:\s*\x27[A-Za-z0-9_.]+\x27,?[ \t]*$/mg' \
     "${maps[@]}" | sort -u
 }
 
