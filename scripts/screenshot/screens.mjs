@@ -121,6 +121,35 @@ export default {
       steps: [{ click: 'role=link[name=/Желания Маши/]' }, { waitFor: 'text=Желаний пока нет' }],
     },
     {
+      // Борис's Shared List: Анна may rename and delete it, but sees no Visibility.
+      name: 'list-not-owner',
+      path: '/',
+      steps: [{ click: 'role=link[name=/Гараж/]' }, { waitFor: 'text=Задач пока нет' }],
+    },
+    {
+      name: 'list-delete-confirm',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Аптека/]' },
+        { click: 'role=button[name="Удалить список"]' },
+        { waitFor: 'role=dialog' },
+        { wait: 400 },
+      ],
+    },
+    {
+      name: 'list-deleted',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Аптека/]' },
+        { click: 'role=button[name="Удалить список"]' },
+        { click: 'role=dialog >> role=button[name="Удалить"]' },
+        { waitFor: 'role=heading[name="Семья"]' },
+        { wait: 400 },
+      ],
+    },
+    {
       name: 'list-not-found',
       path: '/lists/00000000-0000-4000-8000-000000000000',
       steps: [{ waitFor: 'role=alert' }],

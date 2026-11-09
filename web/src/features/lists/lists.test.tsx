@@ -6,8 +6,9 @@ import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
 
-// Lists live in the local store and reach the server through the Outbox (spec #3, ticket #55):
-// Home lists them, «Новый список» creates one (offline too), and a List opens its own screen.
+// Lists live in the local store and reach the server through the Outbox (spec #3, tickets #55, #56):
+// Home lists them, «Новый список» creates one (offline too), a List opens its own screen, and List
+// settings rename it, change its Visibility (Owner only) and delete it.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -245,5 +246,109 @@ describe('The List screen', () => {
     expect(
       await screen.findByText('Такого списка нет: возможно, его удалили.'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('List settings', () => {
+  function settings() {
+    return screen.getByRole('region', { name: 'Настройки списка' });
+  }
+
+  it('renames the List from «Название», whoever owns it, sending only the name', async () => {
+    syncServer.seed('list', [{ ...groceries, ownerId: boris.id }]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    const name = await screen.findByRole('textbox', { name: 'Название' });
+    expect(name).toHaveValue('Супермаркет');
+    await user.clear(name);
+    await user.type(name, 'Ашан{Enter}');
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ашан' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(syncServer.operations('list')).toEqual([
+        { table: 'list', id: groceries.id, op: 'upsert', fields: { name: 'Ашан' } },
+      ]);
+    });
+  });
+
+  it('lets the Owner make a Shared List Private and Shared again', async () => {
+    syncServer.seed('list', [groceries]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    await screen.findByRole('heading', { level: 1, name: 'Супермаркет' });
+    const visibility = within(settings()).getByRole('radiogroup', { name: 'Видимость' });
+    expect(within(visibility).getByRole('radio', { name: 'Общий' })).toBeChecked();
+    await user.click(within(visibility).getByRole('radio', { name: 'Личный' }));
+
+    await waitFor(() => {
+      expect(syncServer.row('list', groceries.id)).toMatchObject({ visibility: 'PRIVATE' });
+    });
+    await user.click(within(visibility).getByRole('radio', { name: 'Общий' }));
+    await waitFor(() => {
+      expect(syncServer.operations('list').map((op) => op.fields)).toEqual([
+        { visibility: 'PRIVATE' },
+        { visibility: 'SHARED' },
+      ]);
+    });
+  });
+
+  it.each([
+    ['another Member’s List', { ...groceries, ownerId: boris.id }],
+    ['a Wish list', list(3, 'Подарки', 'WISH')],
+  ])('shows no Visibility for %s', async (_, shown) => {
+    syncServer.seed('list', [shown]);
+
+    renderApp(`/lists/${shown.id}`);
+
+    await screen.findByRole('heading', { level: 1, name: shown.name });
+    expect(within(settings()).getByRole('textbox', { name: 'Название' })).toBeInTheDocument();
+    expect(within(settings()).queryByRole('radiogroup')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Личный' })).not.toBeInTheDocument();
+  });
+
+  it('deletes the List after the action sheet and goes back to Home', async () => {
+    syncServer.seed('list', [groceries, list(2, 'Аптека', 'SHOPPING')]);
+    const user = userEvent.setup();
+
+    const app = renderApp(`/lists/${groceries.id}`);
+    await user.click(await screen.findByRole('button', { name: 'Удалить список' }));
+    const sheet = screen.getByRole('dialog', {
+      name: 'Удалить „Супермаркет“ со всем содержимым?',
+    });
+    expect(syncServer.operations('list')).toEqual([]);
+    await user.click(within(sheet).getByRole('button', { name: 'Удалить' }));
+
+    await waitFor(() => {
+      expect(app.location()).toBe('/');
+    });
+    await waitFor(async () => {
+      expect(await listRows()).toEqual(['АптекаПокупки']);
+    });
+    await waitFor(() => {
+      expect(syncServer.operations('list')).toEqual([
+        { table: 'list', id: groceries.id, op: 'delete' },
+      ]);
+    });
+  });
+
+  it('says the List is gone when it disappears while open, with the way back to Home', async () => {
+    syncServer.seed('list', [{ ...groceries, ownerId: boris.id }]);
+    const user = userEvent.setup();
+
+    const app = renderApp(`/lists/${groceries.id}`);
+    await screen.findByRole('heading', { level: 1, name: 'Супермаркет' });
+
+    // Deleted, or made Private by Boris: either way the pull brings a tombstone.
+    syncServer.change('list', groceries.id, 'deleted');
+    window.dispatchEvent(new Event('online'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Такого списка нет: возможно, его удалили.',
+    );
+    expect(screen.queryByRole('textbox', { name: 'Название' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Семья' }));
+    expect(app.location()).toBe('/');
   });
 });
