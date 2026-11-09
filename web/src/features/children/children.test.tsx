@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   anna,
@@ -11,6 +12,7 @@ import {
   petya,
   sessionHandler,
 } from '@/test/fixtures';
+import { localStore } from '@/shared/sync/localStore';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
@@ -121,6 +123,26 @@ describe('«Дети» in Settings', () => {
     renderApp('/settings');
 
     expect(await within(await childrenList()).findByText('Маша')).toBeInTheDocument();
+  });
+
+  it('sends a change still waiting in the store of an older app version after the upgrade', async () => {
+    // The store as the first app version with sync created it (schema version 1), with a Child
+    // added offline and not sent yet. Later versions must keep it when they upgrade the store.
+    localStore.close();
+    await Dexie.delete(localStore.name);
+    const older = new Dexie(localStore.name);
+    older.version(1).stores({ member: 'id', child: 'id', outbox: '++seq', meta: 'key' });
+    await older.table('child').put(masha);
+    await older.table('outbox').add({ table: 'child', id: masha.id, op: 'upsert', fields: masha });
+    older.close();
+    await localStore.open();
+
+    renderApp('/settings');
+
+    expect(await within(await childrenList()).findByText('Маша')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(syncServer.row('child', masha.id)).toEqual(masha);
+    });
   });
 
   it('deletes from edit mode after the action sheet, leaving edit mode with the last one', async () => {
