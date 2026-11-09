@@ -193,7 +193,8 @@ describe('Opening the app with no connection', () => {
 
     renderApp('/');
     await addList(user, 'Аптека');
-    syncServer.seed('list', []);
+    // The server has no List now, so «Супермаркет» could only come from Анна's local rows.
+    syncServer.change('list', groceries.id, 'deleted');
     auth.state.session = { bootstrapRequired: false, member: boris };
     auth.reconnect();
 
