@@ -94,7 +94,8 @@ frame around every screen and the place a sidebar goes later.
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
 
-The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure;
+The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure,
+or after an offline cold start, below;
 meanwhile a `StatusScreen` shows «Загрузка…», or the failure with «Повторить»), then:
 
 1. `bootstrapRequired` and not on `/setup` → `/setup`. Not required and on `/setup` → `/`.
@@ -102,6 +103,20 @@ meanwhile a `StatusScreen` shows «Загрузка…», or the failure with «
    `/login` with `state.from` = path + search + hash.
 3. Member present and on `/login` → back to `state.from` (only same-app paths, never `/login`
    itself), else `/`.
+
+**Offline cold start** (`sessionAtStart`): when the session request fails because the server
+can't be reached (`network.unavailable`), there is no pending logout and the local store has an
+owner, the guard starts as that Member from the copy kept on the device (`ownerCopy()`, saved by
+`saveOwnerCopy(member)` whenever the server confirms the session or the Member changes; it is
+wiped with the store) instead of showing the start-up error. Screens work from the local store,
+writes go to the Outbox, and the offline indicator shows as usual. Such a session is marked
+`fromDevice`: the engine does not start, and the guard asks for the session again on the browser's
+`online` event, any API answer, the foreground, and with backoff (1 s doubling to 30 s) until the
+server answers. The answer replaces the session and the rules above apply: the same Member starts
+the engine (the answer has issued the CSRF cookie before any push), no Member → `/login` with the
+store and Outbox kept for the same Member, `bootstrapRequired` → `/setup`. The device copy carries
+the session's Member (with email) because the pulled `member` rows carry only id, display name and
+Grammatical gender. With a pending logout or an ownerless store the start-up error shows as before.
 
 It provides `SessionContext`; screens read it with `useSession()` (`@/features/auth`):
 `session` (`{bootstrapRequired, member}`), `loggedIn(member)`, `memberChanged(member)`,
@@ -164,14 +179,17 @@ code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
   (`member`, `child`, `child_field`, `list`; `child_field` and `list` came with store version 2),
-  `outbox` (`++seq`) and `meta` (the stored Version and the owner: the Member whose data it holds).
-  Internal to the folder, except `claimLocalStore(memberId)` (below).
+  `outbox` (`++seq`) and `meta` (the stored Version, the owner: the Member whose data it holds,
+  and the owner copy the app starts from offline). Internal to the folder, except
+  `claimLocalStore(memberId)` (below) and `saveOwnerCopy(owner)` / `ownerCopy()` (see "Offline
+  cold start" above).
   `wipeLocalStore()` clears every table Dexie knows (`localStore.tables`), so a table added later
   is wiped without changes there.
 - `engine.ts`: `startSync()` / `stopSync()` / `requestSync()`, `onRejection(listener)`. `AuthGuard`
   first calls `claimLocalStore(memberId)` (keeps the store when it is that Member's or nobody's,
   wipes it when it is another Member's), shows «Загрузка…» until it is done, then starts the
-  engine while the Member is logged in (keyed on the Member id) and stops it otherwise.
+  engine while the Member is logged in and the server has confirmed the session (keyed on the
+  Member id; not while started offline from the device) and stops it otherwise.
 - Logout (`LogoutSection`): `flushOutbox()` sends the whole Outbox now (pausing the engine
   meanwhile) and rejects with the `ApiError` when it can't; after the server's logout, or when the
   logout itself can't reach the server (then a pending logout, see the auth guard),

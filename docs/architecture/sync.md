@@ -180,5 +180,11 @@ auth.required` without one) tells open apps when to pull:
   meta) is wiped, so the next person on the device sees none of the Member's data. When the
   logout can't reach the server either, the store is wiped at once and the device stays logged
   out (no sync) until the server is told or someone logs in (`frontend.md`, "Pending logout").
+- **Start with no connection**: the store also keeps a copy of its owner as the server last
+  confirmed them. When the app opens and the session request can't reach the server, with no
+  pending logout and an owned store, it starts as that Member from the store (Outbox kept and
+  added to) without starting the engine; once the server answers the session again, the engine
+  starts for the same Member, or the app goes to `/login` (store and Outbox kept for the same
+  Member) or `/setup` (`frontend.md`, "Offline cold start").
 - Children, Child fields and Lists are on the store, and live updates (`changed` → pull) run.
   Items and the List screen are the next M2 tickets.
