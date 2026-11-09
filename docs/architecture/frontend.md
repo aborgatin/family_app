@@ -30,9 +30,9 @@ run the backend (see the header of that file), then `npm run dev`. Vite proxies 
 ```
 web/src/
   main.tsx              createBrowserRouter(routes) inside <AppProviders>; imports shared/ui/theme.css
-  app/                  routes.tsx, AppProviders.tsx (I18nextProvider)
+  app/                  routes.tsx, AppProviders.tsx (I18nextProvider), SaveRejectedToast
   features/
-    auth/               session, guard, setup (bootstrap), login, LogoutSection, Invite acceptance,
+    auth/               session, guard, setup (bootstrap), login, LogoutSection + useLogout, Invite acceptance,
                         password reset; LinkScreen (link-check states); GrammaticalGender (type)
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
     home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
@@ -47,15 +47,15 @@ web/src/
     api/                API client, error-code mapping, form error helpers
     i18n/               i18next set-up, typed keys, locales/ru.json
     load/               useLoad(): load / failed / retry for anything fetched once
-    sync/               local store (Dexie), sync engine, useRows / upsertRow / deleteRow /
-                        useSaveRejected, startSync / stopSync
+    sync/               local store (Dexie), sync engine, useRows / useSyncedRows / upsertRow /
+                        deleteRow, useSaveRejection, startSync / stopSync / onSessionEnded
     palette/            Child color palette (childColors.json)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
                         LoadingRow, EditableRow, AddRow, SortableList (dnd-kit), SwipeToDelete,
-                        RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner,
+                        RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
   test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
 ```
@@ -187,15 +187,21 @@ code that touches IndexedDB or the sync API:
   cold start" above).
   `wipeLocalStore()` clears every table Dexie knows (`localStore.tables`), so a table added later
   is wiped without changes there.
-- `engine.ts`: `startSync()` / `stopSync()` / `requestSync()`, `onRejection(listener)`. `AuthGuard`
+- `engine.ts`: `startSync()` / `stopSync()` / `requestSync()`, `onSessionEnded(listener)`. `AuthGuard`
   first calls `claimLocalStore(memberId)` (keeps the store when it is that Member's or nobody's,
   wipes it when it is another Member's), shows «Загрузка…» until it is done, then starts the
   engine while the Member is logged in and the server has confirmed the session (keyed on the
-  Member id; not while started offline from the device) and stops it otherwise.
-- Logout (`LogoutSection`): `flushOutbox()` sends the whole Outbox now (pausing the engine
-  meanwhile) and rejects with the `ApiError` when it can't; after the server's logout, or when the
-  logout itself can't reach the server (then a pending logout, see the auth guard),
-  `stopSyncAndWipe()` stops the engine and wipes the store.
+  Member id; not while started offline from the device) and stops it otherwise. When a push or
+  pull gets a `401` the engine stops and `onSessionEnded` listeners are told: `AuthGuard` then
+  sets the session's Member to none, so `/login` shows with `state.from` = where the Member was,
+  store and Outbox kept; logging in as the same Member goes back there and resumes.
+- Logout (`useLogout()` in `features/auth`, used by `LogoutSection`): `flushOutbox()` sends the
+  whole Outbox now (pausing the engine meanwhile; it resumes afterwards, except after a `401`) and
+  rejects with the `ApiError` when it can't. Any failure, an unreachable server or a `401` (the
+  session already gone), opens the unsent-changes warning; «Выйти» there goes on without them.
+  After the server's logout (`auth.required` counts as logged out), or when the logout itself
+  can't reach the server (then a pending logout, see the auth guard), `stopSyncAndWipe()` stops
+  the engine and wipes the store: an explicit logout always wipes, owner copy included.
 - `liveUpdates.ts`: `openLiveUpdates(onNewerVersion)`, opened by `startSync` and closed by
   `stopSync`. One `EventSource` on `/api/sync/events`; a `changed` event whose Version is above
   the stored one calls `requestSync()`, any other causes no pull. When the browser gives up on the
@@ -205,51 +211,62 @@ code that touches IndexedDB or the sync API:
 - `rows.ts`, what features use:
   - `useRows(table)`: every local row, live (Dexie `liveQuery`), `undefined` until the first read;
     unordered, untyped (`Row`): the feature sorts and casts (`as Child[]`);
-  - `upsertRow(table, id, fields, local?)`: create (all required fields) or change only the given
-    fields; `local` fields go only into the local row and the Outbox entry, never to the server,
+  - `useSyncedRows(table, inOrder)` → `{load, save(id, fields), remove(id)}`: a feature's whole
+    table on the local store; `load` is a `LocalLoad` (`loading` until the first read, then
+    `ready` with the rows sorted by `inOrder`; it never fails); `save` is `upsertRow`, `remove`
+    `deleteRow`. `useChildren`, `useChildFields` and `useLists` are built on it;
+  - `upsertRow(table, id, fields, local?)`: create (all required fields) or set the given fields,
+    of which only those that differ from the local row are written and sent (read in the same
+    transaction; nothing differs, nothing written), so a screen passes just the changed field and
+    a change the other Member made meanwhile stays; `local` fields go only into the local row and the Outbox entry, never to the server,
     until the server's copy replaces them (an Item's `doneHereAt`); `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
     once, online or not;
-  - `useSaveRejected(table)` → `{rejected, clear}`: true after the server rejected an operation on
-    that table while the screen was open; the feature shows «Не удалось сохранить»
-    (`sync.saveRejected`) once, in the footer where it shows save failures, and clears it on the
-    Member's next change.
+  - `useSaveRejection()` → `{message, dismiss}`: the message about the last operation the server
+    rejected (`saveRejection.ts`, I3: `list.not_found`, `list.owner_only`, `list.kind_immutable`,
+    `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only` map to
+    `sync.rejected.*`, «Не удалось сохранить: …» with the reason; any other code to
+    `sync.saveRejected`, plain «Не удалось сохранить»). It is recorded whatever screen is open and
+    cleared by the Member's next change, `dismiss()` or a logout. Its one user is
+    `app/SaveRejectedToast`, placed next to `AppShell` in `routes.tsx`, which shows it in a `Toast`
+    once, wherever the Member is (not in a screen's footer: the screen that made the change may
+    be gone).
 
 **Adding a syncable table** on the client: add the name to `SYNCED_TABLES` and declare it in a new
 `this.version(n).stores({...})` in `localStore.ts` (keep the older versions as they are, never drop
-`outbox`); the pull fills it, and the feature's hook reads it with `useRows` and writes with
-`upsertRow` / `deleteRow`. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
+`outbox`); the pull fills it, and the feature's hook reads and writes it with `useSyncedRows` (or
+`useRows` and `upsertRow` / `deleteRow`). Rows that belong to a row of another table (an Item to
+its List) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
 
 ## Data access
 
 Each data feature has one hook that is its only data access. Components never call `api`, the
 `*Api.ts` files, Dexie or `@/shared/sync`'s writers directly:
 
-- `useChildren()` → `{load, retry, save(id, details), remove(id), saveFailure}` on the local store:
-  `load` is `loading` until the first local read, then `ready` with the Children in order
-  (birthday, then name by `Intl.Collator('ru')`, then id); it never fails, and `retry` does
-  nothing. `save` resolves at once, offline too, and sends only the fields that differ from the
-  Child as this hook first saw it or last saved it (the screens pass the whole Child), so a change
-  the other Member made meanwhile stays. `newChildId()` uses `crypto.randomUUID()`; the
-  «Новый ребёнок» sheet gets its id once when it opens. `saveFailure` is the «Не удалось
-  сохранить» message after a rejection.
-- `useChildFields()` → `{load, retry, add(id, name, valueType), rename(field, name),
-  move(field, to), remove(field), saveFailure}` on the local store and the Outbox, like
+- `useChildren()` → `{load, save(id, fields), remove(id)}` (`useSyncedRows('child', …)`): `load`
+  is `loading` until the first local read, then `ready` with the Children in order (birthday, then
+  name by `Intl.Collator('ru')`, then id); it never fails. `save` resolves at once, offline too:
+  the «Новый ребёнок» sheet passes every field, the Child screen only the field that changed, and
+  only fields that differ from the local row are sent, so a change the other Member made meanwhile
+  stays. `newChildId()` uses `crypto.randomUUID()`; the sheet gets its id once when it opens.
+- `useChildFields()` → `{load, add(id, name, valueType), rename(field, name),
+  move(field, to), remove(field)}` on the local store and the Outbox (`useSyncedRows`), like
   `useChildren()`: every write resolves at once, offline too, and sends only what it changes
   (`rename` the name, `move` the position, `add` all three fields). `newChildFieldId()` makes the
   id once when the «Новое поле» sheet opens. `move` takes the field's index after the move;
   `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or one past
   either end, so a reorder is a single-record change. A new field goes one past the last.
-  Ordering is `position`, then id. `saveFailure` is «Не удалось сохранить» after a rejection.
-- `useLists()` → `{load, save(id, details), remove(id), saveFailure}` on the local store, like
+  Ordering is `position`, then id.
+- `useLists()` → `{load, save(id, fields), remove(id)}` (`useSyncedRows('list', …)`), like
   `useChildren()`: `load` is `ready` with every List the pull brought (never the other Member's
   Private ones: the server filters them), by name with `Intl.Collator('ru')`, then id. `save`
-  creates (all of `name`, `kind`, `visibility`) or sends only the fields that differ from the
-  current local row. `ownerId` and `createdAt` are set by the server and absent locally until the
+  creates (all of `name`, `kind`, `visibility`) or sends only the given fields that differ from
+  the current local row (List settings pass only the changed one). `ownerId` and `createdAt` are set by the server and absent locally until the
   pull after the create. `newListId()` makes the id once when «Новый список» opens. Used by
   `ListsSection` (Home) and `ListPage`: title, the Items (`ItemsSection`, below), then
   «Настройки списка» at the bottom (a `GroupedSection`: auto-saved «Название»; Visibility
   «Личный» / «Общий» only when the Member is the Owner, or `ownerId` is still unset, and never for
-  a Wish list) and «Удалить список» (`ConfirmRow`, «Удалить „{{name}}“ со всем содержимым?», then
+  a Wish list: `hasVisibility(kind)`; the segments are `VISIBILITY_CHOICES`, both in
+  `listTypes.ts` and shared with «Новый список») and «Удалить список» (`ConfirmRow`, «Удалить „{{name}}“ со всем содержимым?», then
   back to Home). A List that is unknown, or disappears while open (deleted, or made Private by its
   Owner: the pull's tombstone removes it), shows «Такого списка нет: возможно, его удалили.» with
   the back link to Home. Kind texts (segment,
@@ -257,7 +274,7 @@ Each data feature has one hook that is its only data access. Components never ca
   Done toggle's name) are in `KIND_TEXTS`. Each Home row's value is the List's count of open
   Items (`useOpenItemCounts()`, 0 included).
 - `useItems(listId)` → `{items, doneItems, add(text), rename(item, text), setDone(item, done),
-  remove(item), saveFailure}` on the local store, like `useLists()`: `items` / `doneItems` are
+  remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
   by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
   after them, ordered by its id, which `newItemId()` makes time-ordered (UUID v7); an Item ticked
@@ -276,12 +293,16 @@ Each data feature has one hook that is its only data access. Components never ca
   text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), deleted from edit
   mode, a swipe or right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая
   задача» / «Новое желание» (Enter adds and keeps the focus). Footer: «Товаров пока нет» (by
-  kind) with no open Items, «Не удалось сохранить» after a rejection (a rejected new Item leaves
-  the List). Under it, while there are Done Items, a second `GroupedSection` headed «Куплено» /
+  kind) with no open Items (a rejected new Item leaves the List; «Не удалось сохранить» shows
+  app-wide, see `useSaveRejection`). Under it, while there are Done Items, a second `GroupedSection` headed «Куплено» /
   «Выполнено» / «Исполнено» with edit mode: each an `EditableRow`, `muted`, with its ticked
   `DoneToggle` (untick puts it back among the open ones), deleted the same ways.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
-- `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`.
+- `useLogout()` → `{logOut({discardUnsent?}), pending, error, unsentWarning, dismissWarning}`:
+  the only data access of `LogoutSection` (Outbox flush, logout request, pending logout, wipe;
+  see "Local store and sync").
+- REST-backed `load` (`Load<T>`) is `{status: 'loading'} | {status: 'failed', error} |
+  {status: 'ready', value}`; a local-store `load` (`LocalLoad<T>`) has no `failed`.
 
 The load / failed / retry part of REST-backed data is shared: `useLoad(fetch, key?)` from
 `@/shared/load` returns `{load, retry, update}`. It fetches on mount and when `key` changes, drops
@@ -399,8 +420,8 @@ date) and a chevron to `/settings/children/:id` (`childSettingsPath(id)`). Edit 
 (the section's `after` row) opens `NewChildSheet`: a `Sheet` «Новый ребёнок» with the same rows
 as the Child screen (`ChildRows`), name and colour required, saved only with «Готово» (at once, also offline);
 the Child appears in the list in order. With no Children the footer says «Детей пока нет». A
-rejected change shows «Не удалось сохранить» in the «Дети» footer (a rejected new Child leaves the
-list).
+rejected new Child leaves the list (and «Не удалось сохранить» shows app-wide, as for every
+rejected change).
 
 «Поля профиля» (`ChildFieldsSettings`) is an edit-mode list of `EditableRow`s inside a
 `SortableList`: each row's name is a text field (`input`, `useAutoSaveText`, named «Название поля
@@ -413,7 +434,7 @@ field's position. A swipe and right-click delete too; every delete asks («Уд�
 and «Тип» (`SegmentedControl` «Текст» / «Дата», «Текст» chosen), saved only with «Готово» (at
 once, also offline); the field goes to the end. Every change shows at once and goes out through
 the Outbox. With no fields the footer says «Полей пока нет»; a rejected change shows «Не удалось
-сохранить» there (a rejected new field leaves the list).
+сохранить» app-wide (a rejected new field leaves the list).
 
 The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_PATH`; `app/routes.tsx` passes
 `settingsPath` as for the password screen) is a `Page` titled with the Child's name, back to
@@ -421,8 +442,8 @@ The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_
 `ChildRows`: Имя (`InputRow`, `useAutoSaveText`; empty is refused without a request), Цвет
 (`ColorChoice`, `useAutoSaveChoice`), День рождения (`DateRow`, `useAutoSaveText` with `''` for
 none). Each change saves only that field through `useChildren().save` (local store + Outbox), so
-it shows at once offline too; a rejection shows «Не удалось сохранить» in the rows' footer and the
-rows show the server's value again. Then a red «Удалить ребёнка» `ConfirmRow`: the `ActionSheet`
+it shows at once offline too; after a rejection («Не удалось сохранить» app-wide) the rows show
+the server's value again. Then a red «Удалить ребёнка» `ConfirmRow`: the `ActionSheet`
 «Удалить „Маша“?», then back to Settings (replacing the history entry). An unknown id shows «Такого ребёнка
 нет: возможно, его удалили.».
 

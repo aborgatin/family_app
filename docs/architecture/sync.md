@@ -181,7 +181,9 @@ auth.required` without one) tells open apps when to pull:
   dropped, so the Outbox survives
   store upgrades.
 - **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
-  appended to the Outbox in the same transaction, then the engine is asked to sync. An upsert may
+  appended to the Outbox in the same transaction, then the engine is asked to sync. An upsert
+  carries only the fields that differ from the local row (none: nothing is written); one written
+  when the device had no row with that id is marked `creates` (see "Applying a pull"). An upsert may
   also carry `local` fields: written to the local row and kept with the operation (so a pull
   while it is pending applies them again), never pushed; the server's copy replaces them. Used for
   when an Item was ticked off on this device, which orders it among the Done Items until the
@@ -191,24 +193,42 @@ auth.required` without one) tells open apps when to pull:
   (`visibilitychange`), when the server becomes reachable again (any API answer, or the browser's
   `online` event), after each local change, on a live-update `changed` event above the stored
   Version (`liveUpdates.ts`, see "Live updates" above), and pulls right after each push. A failure retries
-  with backoff (1 s doubling to 30 s); a `401` stops it until the next trigger and keeps the store
-  and the Outbox. Its requests go through `api`, so `serverReachable` (the offline indicator) stays
-  the only sign of unsent changes.
-- **Applying a pull**: pulled rows replace local ones, tombstones delete them, then the Outbox
-  operations still pending for those ids are applied again on top, so a pull never reverts an
-  unsent local edit. Pending upserts of a tombstoned row are not re-applied (delete wins). A
-  tombstoned List takes its local Items with it (deleted, or made Private by its Owner).
-- **Rejected operation**: dropped from the Outbox, listeners (`useSaveRejected`) show «Не удалось
-  сохранить» once, and the next pull is a full one (`since=0`, replacing every local row and
-  re-applying the Outbox), which restores the server's copy even of a row the pull since N would
-  not send again.
+  with backoff (1 s doubling to 30 s); a `401` (the session has ended) stops it, keeps the store
+  and the Outbox, and tells `onSessionEnded` listeners: the app shows `/login` from where the
+  Member is, and logging in as the same Member resumes ("Owner and logout"). Its requests go
+  through `api`, so `serverReachable` (the offline indicator) stays the only sign of unsent changes.
+- **Applying a pull**: pulled rows replace local ones, tombstones (a deleted or hidden row: id and
+  Version, no fields) delete them, then the Outbox operations still pending for those ids are
+  applied again on top, so a pull never reverts an unsent local edit. Pending upserts of a
+  tombstoned row are not re-applied (delete wins). A full pull (first sync, or after a rejection)
+  replaces every row and leaves deleted ones out without tombstones: of the rows it didn't send,
+  pending upserts come back only when the Outbox still holds the one that creates the row (an
+  unsent new row, marked `creates`), never onto a row the server deleted or hid, which would come
+  back with only the pending fields.
+- **Gone rows take their dependents**: a row removed locally because it is gone on the server (a
+  tombstone, or `ignored` below) takes the rows that belong to it, declared with the tables in
+  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items. So a tombstoned List (deleted, or made
+  Private by its Owner) takes its local Items, and the engine names no table.
+- **Ignored operation** (delete wins): dropped from the Outbox, and the local row is removed with
+  its dependents: the record is deleted on the server, and a pull may not send its tombstone
+  again (it was already pulled, or a full pull left it out).
+- **Rejected operation**: dropped from the Outbox; «Не удалось сохранить» shows once, app-wide,
+  wherever the Member is by then (`useSaveRejection`, a `Toast` placed by the app), with the
+  reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
+  `list.kind_immutable`, `list.wish_shared_only`, `child_field.value_type_immutable`,
+  `sync.read_only`; anything else plain), until closed or the Member's next change; and the next
+  pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
+  which restores the server's copy even of a row the pull since N would not send again.
 - **Owner and logout**: the store records the Member whose data it holds. At login (and at start
   with a session) `AuthGuard` claims it for the Member before the engine starts: kept when it is
   theirs or nobody's, wiped first when it is another Member's, so their Outbox is never sent under
-  this session. A `401` during sync therefore keeps unsent changes for the same Member. Logout
-  pushes the Outbox first; when it can't be sent the Member is warned that the unsent changes will
-  be lost (confirm or cancel); after the server's logout every table of the store (rows, Outbox,
-  meta) is wiped, so the next person on the device sees none of the Member's data. When the
+  this session. A `401` during sync therefore keeps unsent changes for the same Member, who is sent
+  to `/login`. An explicit logout always wipes: it pushes the Outbox first; when that can't be done
+  (the server can't be reached, or the push gets a `401` because the session has already ended)
+  the Member is warned that the unsent changes will be lost (confirm or cancel); after the
+  server's logout (a `401` there counts as logged out) every table of the store (rows, Outbox,
+  meta, so the owner and its copy too) is wiped, so the next person on the device sees none of the
+  Member's data and an offline start can't open as them. When the
   logout can't reach the server either, the store is wiped at once and the device stays logged
   out (no sync) until the server is told or someone logs in (`frontend.md`, "Pending logout").
 - **Start with no connection**: the store also keeps a copy of its owner as the server last

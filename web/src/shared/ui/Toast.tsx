@@ -17,11 +17,11 @@ export function Toast({ message, onClose }: ToastProps) {
   const { t } = useTranslation();
   if (message === undefined) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-safe-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-safe-4 pb-safe-4">
       <div
         role="alert"
         className={
-          'pointer-events-auto mx-auto flex max-w-[min(40rem,calc(100vw-2rem))] items-center gap-2 ' +
+          'pointer-events-auto mx-auto flex max-w-160 items-center gap-2 ' +
           'rounded-xl border border-separator bg-cell py-1 pl-4 pr-1 text-subhead text-destructive ' +
           'shadow-lg'
         }
