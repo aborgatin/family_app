@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
+import { asApiError, errorMessage, type ErrorMessage, NETWORK_UNAVAILABLE } from '@/shared/api';
 import { flushOutbox, stopSyncAndWipe } from '@/shared/sync';
 import { ActionSheet, ConfirmRow, GroupedSection, useFooterLines } from '@/shared/ui';
-import { logout } from './authApi';
+import { logout, markLogoutPending } from './logoutApi';
 import { useSession } from './session';
 
 /**
@@ -14,8 +14,8 @@ import { useSession } from './session';
  * Unsent changes are sent first. When they can't be, a second action sheet warns that they will
  * be lost: «Выйти» goes on without them, «Отменить» keeps everything. A session that has already
  * ended is logged out without wiping, so the same Member gets their unsent changes back by
- * logging in again (`AuthGuard`). Logout itself is online-only (S4 exception): when the server
- * can't be reached the device stays logged in and the section footer says so.
+ * logging in again (`AuthGuard`). When the server can't be reached the device logs out on its own
+ * at once, and the server is told when it can be (a pending logout, `logoutApi.ts`).
  */
 export function LogoutSection() {
   const { t } = useTranslation();
@@ -46,8 +46,11 @@ export function LogoutSection() {
       await logout();
     } catch (failure: unknown) {
       const apiError = asApiError(failure);
-      // `auth.required`: the session had already ended (e.g. expired): logged out either way.
-      if (apiError.code !== 'auth.required') {
+      if (apiError.code === NETWORK_UNAVAILABLE) {
+        // Logged out on this device now; the server is told once it can be reached.
+        markLogoutPending();
+      } else if (apiError.code !== 'auth.required') {
+        // `auth.required`: the session had already ended (e.g. expired): logged out either way.
         setPending(false);
         setError(errorMessage(apiError));
         return;

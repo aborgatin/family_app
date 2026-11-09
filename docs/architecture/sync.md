@@ -137,7 +137,9 @@ Version, a second push, a pull in between; fails without the lock) and
   this session. A `401` during sync therefore keeps unsent changes for the same Member. Logout
   pushes the Outbox first; when it can't be sent the Member is warned that the unsent changes will
   be lost (confirm or cancel); after the server's logout every table of the store (rows, Outbox,
-  meta) is wiped, so the next person on the device sees none of the Member's data.
+  meta) is wiped, so the next person on the device sees none of the Member's data. When the
+  logout can't reach the server either, the store is wiped at once and the device stays logged
+  out (no sync) until the server is told or someone logs in (`frontend.md`, "Pending logout").
 - Children are on the store. Child fields still use REST until their ticket moves them
   (`PUT/DELETE /api/child-fields/{id}`: idempotent full upserts under `FamilyLock`, `409
 child_field.deleted` on a deleted id); Lists and Items and SSE (`changed` → pull) are the next M2 tickets.

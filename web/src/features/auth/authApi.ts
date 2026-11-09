@@ -1,4 +1,7 @@
 import { api } from '@/shared/api';
+import { loggingIn } from './logoutApi';
+
+// Every way of logging in goes through `loggingIn`, which settles a pending logout first.
 
 /** See GLOSSARY.md "Grammatical gender". */
 export type GrammaticalGender = 'MASCULINE' | 'FEMININE';
@@ -31,7 +34,7 @@ export function fetchSession(): Promise<Session> {
 }
 
 export function bootstrap(registration: Registration): Promise<Member> {
-  return api.post<Member>('/api/auth/bootstrap', registration);
+  return loggingIn(() => api.post<Member>('/api/auth/bootstrap', registration));
 }
 
 export interface Credentials {
@@ -40,12 +43,7 @@ export interface Credentials {
 }
 
 export function login(credentials: Credentials): Promise<Member> {
-  return api.post<Member>('/api/auth/login', credentials);
-}
-
-/** Ends this device's session only. */
-export function logout(): Promise<void> {
-  return api.post<undefined>('/api/auth/logout');
+  return loggingIn(() => api.post<Member>('/api/auth/login', credentials));
 }
 
 /** Whether an Invite link still works; fails with an `invite.*` code when not. */
@@ -55,9 +53,8 @@ export function fetchInvite(token: string): Promise<{ expiresAt: string }> {
 
 /** Registers the Invite's recipient as a Member; the server logs them in on this device. */
 export function acceptInvite(token: string, registration: Registration): Promise<Member> {
-  return api.post<Member>(
-    `/api/invites/by-token/${encodeURIComponent(token)}/accept`,
-    registration,
+  return loggingIn(() =>
+    api.post<Member>(`/api/invites/by-token/${encodeURIComponent(token)}/accept`, registration),
   );
 }
 
@@ -70,7 +67,9 @@ export function fetchPasswordReset(token: string): Promise<{ expiresAt: string }
 
 /** Sets the new password; the server logs the Member out everywhere else and in on this device. */
 export function completePasswordReset(token: string, newPassword: string): Promise<Member> {
-  return api.post<Member>(`/api/password-resets/by-token/${encodeURIComponent(token)}/complete`, {
-    newPassword,
-  });
+  return loggingIn(() =>
+    api.post<Member>(`/api/password-resets/by-token/${encodeURIComponent(token)}/complete`, {
+      newPassword,
+    }),
+  );
 }
