@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import {
   anna,
   childFieldsHandler,
-  childrenHandler,
   invitesHandler,
   membersHandler,
   sessionHandler,
@@ -24,12 +23,7 @@ describe('Home', () => {
 
   it('opens Settings with the gear button in the nav bar', async () => {
     server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
-    server.use(
-      membersHandler([anna]),
-      childrenHandler([]),
-      childFieldsHandler([]),
-      invitesHandler([]),
-    );
+    server.use(membersHandler([anna]), childFieldsHandler([]), invitesHandler([]));
     const user = userEvent.setup();
 
     const app = renderApp('/');

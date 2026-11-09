@@ -63,14 +63,14 @@ export function invitesHandler(invites: InviteFixture[]) {
   return http.get('/api/invites', () => HttpResponse.json(invites));
 }
 
-/** A Child as the API returns it (spec #5, API contract). */
+/**
+ * A Child as the sync pull returns its fields (`syncServer.seed('child', [masha])`).
+ */
 export const masha = {
   id: '0c3e4a52-0000-4000-8000-000000000011',
   name: 'Маша',
   color: 'coral',
   birthday: '2019-04-12' as string | null,
-  version: 10,
-  updatedAt: '2026-11-07T11:00:00Z',
 };
 
 /** A second Child, without a birthday. */
@@ -79,14 +79,7 @@ export const petya: typeof masha = {
   name: 'Петя',
   color: 'blue',
   birthday: null,
-  version: 11,
-  updatedAt: '2026-11-07T11:05:00Z',
 };
-
-/** `GET /api/children` answering with the given Children (already in the API's order). */
-export function childrenHandler(children: (typeof masha)[]) {
-  return http.get('/api/children', () => HttpResponse.json(children));
-}
 
 /** `GET /api/auth/session` answering with the given state; counts how often it was asked. */
 export function sessionHandler(body: { bootstrapRequired: boolean; member: typeof anna | null }) {
