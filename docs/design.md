@@ -370,7 +370,17 @@ shows the spinner, and its `name` links it to the footer messages. It looks like
 a fine pointer the focused field gets the accent outline. In edit mode the row shows `title`.
 
 Children use it for delete only (`to` their screen), Child fields with `input` and `sortable`,
-Invites plain.
+Items with `input`, Invites plain.
+
+### AddRow
+
+The last row of a list that adds an entry by typing, as on paper (a List's «Новый товар»): an
+empty text field showing `label` as its placeholder (secondary colour), which is also its
+accessible name. Enter calls `onAdd(text)` with the trimmed text and empties the field, keeping
+the focus for the next entry; leaving the field with text in it adds it too; blank text adds
+nothing; Esc empties the field. Goes in a `GroupedSection`'s `after`, under an edit-mode list.
+Touch: 44px row, the caret is the focus sign; fine pointer: 36px row, accent outline when focused.
+Same on narrow and wide windows.
 
 ### SortableList
 

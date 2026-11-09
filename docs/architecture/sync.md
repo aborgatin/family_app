@@ -19,6 +19,7 @@ table adds it here.
 | `child`       | `V3__child.sql`                 | client (`crypto.randomUUID()`)                 | M1    |
 | `child_field` | `V4__child_field.sql`           | client; Default rows by the migration          | M1    |
 | `list`        | `V5__list.sql`                  | client (`crypto.randomUUID()`)                 | M2    |
+| `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7) | M2    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -47,8 +48,9 @@ repositories extend Spring Data's bare `Repository` and declare no delete method
 deletes a Member yet; `member.deleted` exists, and login, session and `MemberService` lookups
 ignore deleted Members. Email uniqueness counts deleted Members too.
 
-**Client UUIDs** (S3). Children, Child fields and Lists are created with the id the client chose; the
-server never generates one for them. Members get theirs from the server at registration.
+**Client UUIDs** (S3). Children, Child fields, Lists and Items are created with the id the client
+chose; the server never generates one for them. Item ids are UUID version 7 (the first 48 bits are
+the time), so Items added on one device and not yet pulled back keep the order they were added in. Members get theirs from the server at registration.
 
 **Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move is one upsert carrying
 only the moved field's `position` (midpoint between its new neighbours, computed by the client in
@@ -84,7 +86,14 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   other than the Owner changing `visibility`; either Member may rename or delete a Shared List),
   `list.not_found` (any operation on another Member's Private List), and the Child name limits on
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
-  is `ignored` (delete wins).
+  is `ignored` (delete wins). Deleting a List soft-deletes its Items in the same operation.
+- **Items** (`item`, ticket #57): an upsert carries `listId` (create only; a later upsert naming
+  another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code points after
+  trim) and `note` (optional, ≤ 10000, no UI yet); the pull also sends `done`, `doneById`,
+  `doneAt` (Done is ticket #58) and the server-set `creatorId` (the Member who pushed the create)
+  and `createdAt`. Rules: an Item of another Member's Private List, or in an unknown List, is
+  `list.not_found` (`params.listId`) for every operation; creating an Item in a deleted List, and
+  anything on a deleted Item, is `ignored` (delete wins).
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
   reach other devices through the pull.
 
@@ -106,6 +115,11 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   and a first sync leaves it out. Made Shared again, it is a new Version and arrives with its
   fields. Operations on it are rejected with `list.not_found`, as if it
   didn't exist.
+- **Visibility change.** Changing a List's Visibility gives all its Items a new Version (an UPDATE
+  that changes nothing; the trigger still runs), so the next pull sends them again: with their
+  fields to a Member who may now see the List (a List shared later arrives with its Items), as
+  tombstones to one who no longer may. An Item is sent with its fields only when its List is
+  visible to the Member.
 
 ## Versions commit in order
 
@@ -153,7 +167,7 @@ auth.required` without one) tells open apps when to pull:
 ## Client
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
-  table (`member`, `child`, `child_field`, `list` so far), the Outbox (`++seq`) and the stored
+  table (`member`, `child`, `child_field`, `list`, `item`), the Outbox (`++seq`) and the stored
   Version. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives
   store upgrades.
@@ -169,7 +183,8 @@ auth.required` without one) tells open apps when to pull:
   the only sign of unsent changes.
 - **Applying a pull**: pulled rows replace local ones, tombstones delete them, then the Outbox
   operations still pending for those ids are applied again on top, so a pull never reverts an
-  unsent local edit. Pending upserts of a tombstoned row are not re-applied (delete wins).
+  unsent local edit. Pending upserts of a tombstoned row are not re-applied (delete wins). A
+  tombstoned List takes its local Items with it (deleted, or made Private by its Owner).
 - **Rejected operation**: dropped from the Outbox, listeners (`useSaveRejected`) show «Не удалось
   сохранить» once, and the next pull is a full one (`since=0`, replacing every local row and
   re-applying the Outbox), which restores the server's copy even of a row the pull since N would
@@ -183,6 +198,6 @@ auth.required` without one) tells open apps when to pull:
   meta) is wiped, so the next person on the device sees none of the Member's data. When the
   logout can't reach the server either, the store is wiped at once and the device stays logged
   out (no sync) until the server is told or someone logs in (`frontend.md`, "Pending logout").
-- Children, Child fields and Lists are on the store, and live updates (`changed` → pull) run.
-  The List screen has List settings (rename, Visibility, delete; #56); Items are the next M2
-  tickets.
+- Children, Child fields, Lists and Items are on the store, and live updates (`changed` → pull)
+  run. The List screen has its open Items (add, edit in place, delete; #57) and List settings
+  (rename, Visibility, delete; #56); Done is ticket #58.

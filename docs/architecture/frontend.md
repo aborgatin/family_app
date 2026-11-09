@@ -1,7 +1,7 @@
 # Frontend
 
-What exists in `/web` after Spec #1 (M0 + M1), the M1.5 UI foundation (spec #35) and the M2 sync
-core (spec #3, ticket #52). Rules:
+What exists in `/web` after Spec #1 (M0 + M1), the M1.5 UI foundation (spec #35) and M2 so far
+(spec #3: the sync core #52, Lists #55, #56, Items #57). Rules:
 [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md) (M3, I2, I3, S4, T1, U1). Look, tokens and
 component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](backend.md).
 
@@ -37,7 +37,8 @@ web/src/
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
     home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
     lists/              ListsSection («Списки» on Home), NewListSheet, ListPage (LIST_PATH),
-                        listTypes (kinds, Visibility, kind texts), useLists()
+                        ItemsSection (the List screen's Items), listTypes (kinds, Visibility,
+                        kind texts, Item), useLists(), useItems(listId)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
@@ -53,7 +54,7 @@ web/src/
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
-                        LoadingRow, EditableRow, SortableList (dnd-kit), SwipeToDelete,
+                        LoadingRow, EditableRow, AddRow, SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
   test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
@@ -163,7 +164,8 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`, `list`; `child_field` and `list` came with store version 2),
+  (`member`, `child`, `child_field`, `list`, `item`; `child_field` and `list` came with store
+  version 2, `item`, indexed by `listId`, with version 3),
   `outbox` (`++seq`) and `meta` (the stored Version and the owner: the Member whose data it holds).
   Internal to the folder, except `claimLocalStore(memberId)` (below).
   `wipeLocalStore()` clears every table Dexie knows (`localStore.tables`), so a table added later
@@ -225,14 +227,26 @@ Each data feature has one hook that is its only data access. Components never ca
   creates (all of `name`, `kind`, `visibility`) or sends only the fields that differ from the
   current local row. `ownerId` and `createdAt` are set by the server and absent locally until the
   pull after the create. `newListId()` makes the id once when «Новый список» opens. Used by
-  `ListsSection` (Home) and `ListPage`: title, the kind's empty state until Items arrive in #57,
-  then «Настройки списка» at the bottom (a `GroupedSection`: auto-saved «Название»; Visibility
+  `ListsSection` (Home) and `ListPage`: title, the Items (`ItemsSection`, below), then
+  «Настройки списка» at the bottom (a `GroupedSection`: auto-saved «Название»; Visibility
   «Личный» / «Общий» only when the Member is the Owner, or `ownerId` is still unset, and never for
   a Wish list) and «Удалить список» (`ConfirmRow`, «Удалить „{{name}}“ со всем содержимым?», then
   back to Home). A List that is unknown, or disappears while open (deleted, or made Private by its
   Owner: the pull's tombstone removes it), shows «Такого списка нет: возможно, его удалили.» with
   the back link to Home. Kind texts (segment,
-  Home subtitle, empty state) are in `KIND_TEXTS`.
+  Home subtitle, empty state, Items header, «Новый товар», «Товар «…»») are in `KIND_TEXTS`.
+- `useItems(listId)` → `{items, add(text), rename(item, text), remove(item), saveFailure}` on the
+  local store, like `useLists()`: `items` is `undefined` until the first local read, then the
+  List's open Items (not Done) in the order added: by the server's `createdAt`, ties by id; an
+  Item not pulled back yet has no `createdAt` and goes after them, ordered by its id, which
+  `newItemId()` makes time-ordered (UUID v7). `add` creates (`listId`, `text`), `rename` sends
+  only `text`, `remove` deletes; all resolve at once, offline too. `ItemsSection` on the List
+  screen: a `GroupedSection` headed «Товары» / «Задачи» / «Желания» with edit mode («Изменить»)
+  while it has Items; each Item an `EditableRow` whose text is renamed in place
+  (`useAutoSaveText`, required, named «Товар «Молоко»»), deleted from edit mode, a swipe or
+  right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая задача» /
+  «Новое желание» (Enter adds and keeps the focus). Footer: «Товаров пока нет» (by kind) with no
+  Items, «Не удалось сохранить» after a rejection (a rejected new Item leaves the List).
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`.
 
@@ -446,8 +460,9 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
 - Every `renderApp` test must mock `GET /api/auth/session` (`sessionHandler({...}).handler`; its
   `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`
   and `/api/invites`.
-- Lists tests (`lists/lists.test.tsx`) build their rows inline and seed them with
-  `syncServer.seed('list', …)`; the fake server doesn't filter by Visibility (a backend concern).
+- Lists and Items tests (`lists/lists.test.tsx`, `lists/items.test.tsx`) build their rows inline
+  and seed them with `syncServer.seed('list' | 'item', …)`; `items.test.tsx` also guards the store
+  upgrade to version 3 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,

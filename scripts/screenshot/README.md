@@ -32,9 +32,10 @@ Ctrl-C). Then it seeds through the real API:
 - Children **Маша** (coral, born 2019-04-12), **Петя** (blue, no birthday), **Соня** (green,
   2022-09-01). Child fields: the Defaults (Вес, Рост) plus «Размер обуви» (text) and «Последний
   визит к врачу» (date).
-- Lists: Анна's «Супермаркет», «Аптека» (Покупки), «Ремонт» (TODO, Private), «Дела по дому»
-  (TODO), «Желания Маши» (Желания); Борис's «Гараж» (TODO) and his Private «Подарок Анне», which
-  Анна never sees.
+- Lists: Анна's «Супермаркет» (Покупки, five Items), «Аптека» (Покупки), «Ремонт» (TODO,
+  Private), «Дела по дому» (TODO, two Items), «Желания Маши» (Желания); Борис's «Гараж» (TODO) and
+  his Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty
+  states.
 - One active Invite.
 
 Browser context: installed Google Chrome (`SHOOT_CHANNEL` to override), locale `ru-RU`,

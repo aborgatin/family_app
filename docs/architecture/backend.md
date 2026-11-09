@@ -1,7 +1,7 @@
 # Backend
 
 What exists in `/backend` after Spec #1 (M0 + M1), the M2 sync core (spec #3, tickets #52 and
-#53), live updates (#54) and Lists (#55, #56). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
+#53), live updates (#54), Lists (#55, #56) and Items (#57). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
 Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`sync.md`](sync.md).
 
 ## Stack
@@ -165,8 +165,7 @@ of its Spring Session id (`SessionRepository.findById`). `LiveUpdates` (not web-
 
 ### `lists`
 
-Lists (and, from ticket #57, Items): written only by the push, read only by the pull, no REST
-endpoints. `lists.list`: `ListEntity` (named so it doesn't shadow `java.util.List`), `ListKind`
+Lists and Items: written only by the push, read only by the pull, no REST endpoints. `lists.list`: `ListEntity` (named so it doesn't shadow `java.util.List`), `ListKind`
 (`SHOPPING`, `TODO`, `WISH`) and `Visibility` (`PRIVATE`, `SHARED`), both code (S7);
 `ListRepository`; `ListRequest` (merged fields → `validate()`: name 1–100 code points after trim,
 the Child name limits; known kind and Visibility) → `ListDetails`; `ListService`, the `list`
@@ -177,11 +176,31 @@ the Child name limits; known kind and Visibility) → `ListDetails`; `ListServic
   `list.kind_immutable` if the kind changed, `list.owner_only` if a Member other than the Owner
   changed the Visibility (the same value is no change), and `list.wish_shared_only` for a Private
   Wish list.
-  A create sets the Owner (`operation.memberId()`) and `createdAt`; neither ever changes.
+  A create sets the Owner (`operation.memberId()`) and `createdAt`; neither ever changes. A
+  Visibility change also gives the List's Items a new Version (`ItemRepository.bumpVersionsInList`,
+  a no-op UPDATE the trigger stamps), so the pull sends them again with or without their fields.
+  A delete soft-deletes the List and its Items (`ItemRepository.markDeletedInList`). Both are bulk
+  JPQL updates that flush and clear the persistence context, so later operations of the same push
+  see them.
 - `changesSince`: `name`, `kind`, `visibility`, `ownerId`, `createdAt`; a tombstone for a deleted
   List and for another Member's Private List (`ListEntity.visibleTo(memberId)`).
-- Not yet: Items (#57), and with them a Visibility change bumping the List's Items and a List
-  delete soft-deleting them.
+
+Items are in the same package (an Item belongs to its List): `ItemEntity` (`list_id`, `text`,
+`note`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`), `ItemRepository`,
+`ItemRequest` (text 1–1000 code points after trim, note ≤ 10000 or blank = none) → `ItemDetails`;
+`ItemService`, the `item` `SyncableTable`:
+
+- `apply`: a known Item: deleted → `IGNORED`; its List not visible to the Member →
+  `list.not_found`; upsert merges `text` / `note` over the stored ones and validates (`listId`
+  naming another List → `validation.failed`), delete soft-deletes. An unknown Item: delete →
+  `IGNORED`; upsert needs `listId` (`required` / `value.invalid`), whose List must exist and be
+  visible (`list.not_found`, `params.listId`), deleted List → `IGNORED`; then `text` required. A
+  create sets the Creator (`operation.memberId()`) and `createdAt`.
+- `changesSince`: `listId`, `text`, `note`, `done`, `doneById`, `doneAt`, `creatorId`,
+  `createdAt`; a tombstone for a deleted Item and for one whose List the Member may not see (the
+  Lists are loaded with `findAllById`).
+- Done (`done`, done by, done at) is ticket #58: the columns exist and are pulled, no operation
+  writes them yet.
 
 ### `command`
 
@@ -285,8 +304,9 @@ Push results (not HTTP statuses: the push answers `200` with one result per oper
 same `{code, params}`: `validation.failed`, `sync.table_unknown` (`params.table`), `sync.read_only`,
 `request.invalid` (no valid id or `op`), and per table `child_field.value_type_immutable` (an
 upsert changing an existing Child field's `valueType`) and for Lists `list.not_found`
-(`params.listId`), `list.kind_immutable`, `list.wish_shared_only`, `list.owner_only`. An operation on a deleted
-Child, Child field or List is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
+(`params.listId`; also for an Item of such a List, or in an unknown one), `list.kind_immutable`,
+`list.wish_shared_only`, `list.owner_only`. An operation on a deleted Child, Child field, List or
+Item, and creating an Item in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 
 Rows marked "added" are not in spec #5's error catalogue. They cover failures Spring raises before
 or outside an endpoint's own checks (a body that isn't JSON, an unknown path, a wrong method, an
@@ -381,6 +401,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V3__child.sql`                 | `child`                                                                                            |
 | `V4__child_field.sql`           | `child_field` + Default Child fields «Вес», «Рост» (`TEXT`, positions 1.0, 2.0)                    |
 | `V5__list.sql`                  | `list` (Owner → `member`)                                                                          |
+| `V6__item.sql`                  | `item` (→ `list`; Creator and done by → `member`), index on `list_id`                              |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -435,7 +456,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest` and `lists.ListsSyncTest` do.
+   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `lists.ListsSyncTest` and `lists.ItemsSyncTest` do.
 
 ## Testing
 
@@ -451,7 +472,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `putJson`, `patchJson`, `delete`. Login-limit counters live for the whole cached context, so
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
-    (cascading to Invites, resets and Lists) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
+    (cascading to Invites, resets, Lists and Items) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
     `addMember(jdbc, email, password, name, gender)`.
   - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),
