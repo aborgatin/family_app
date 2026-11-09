@@ -6,7 +6,12 @@
 }
 
 {$DOMAIN} {
-	encode zstd gzip
+	# Everything is compressed except the live-update stream (GET /api/sync/events): each SSE
+	# event must reach the phone as soon as it is written, not when a compressor block fills.
+	# reverse_proxy itself flushes text/event-stream responses immediately and has no read
+	# timeout, so the stream stays open between the app's heartbeats.
+	@compressible not path /api/sync/events
+	encode @compressible zstd gzip
 
 	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 

@@ -153,6 +153,12 @@ code that touches IndexedDB or the sync API:
   (`member`, `child`), `outbox` (`++seq`) and `meta` (the stored Version). Internal to the folder.
 - `engine.ts`: `startSync()` / `stopSync()` / `requestSync()`, `onRejection(listener)`. `AuthGuard`
   starts it while a Member is logged in (keyed on the Member id) and stops it otherwise.
+- `liveUpdates.ts`: `openLiveUpdates(onNewerVersion)`, opened by `startSync` and closed by
+  `stopSync`. One `EventSource` on `/api/sync/events`; a `changed` event whose Version is above
+  the stored one calls `requestSync()`, any other causes no pull. When the browser gives up on the
+  stream (`readyState` `CLOSED` after an error: an error answer such as `401` or `502`), it is
+  reopened with backoff (1 s doubling to 30 s), and at once on `online`, on the server becoming
+  reachable, or on the app returning to the foreground. Internal to the folder.
 - `rows.ts`, what features use:
   - `useRows(table)`: every local row, live (Dexie `liveQuery`), `undefined` until the first read;
     unordered, untyped (`Row`): the feature sorts and casts (`as Child[]`);
@@ -388,7 +394,10 @@ fields | 'deleted')` (the other Member's change), `row(table, id)` (the server's
   engine and empties the store after each test. Rendering the app twice in one test is an app
   restart: the second render reads what the first left in the store.
 - `FakeEventSource` (`@/test/eventSource`) is the global `EventSource` in every test:
-  `FakeEventSource.latest()`, `.open()`, `.emit(type, data)`, `.fail()`, `.closed`.
+  `FakeEventSource.latest()`, `.instances`, `.open()`, `.emit(type, data)`, `.fail()`, `.closed`.
+  A live update is `sse.emit('changed', JSON.stringify({ version: syncServer.latestVersion }))`
+  after changing the fake server; a drop the browser gives up on is `sse.readyState =
+FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx`.
 - Every `renderApp` test must mock `GET /api/auth/session` (`sessionHandler({...}).handler`; its
   `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`,
   `/api/child-fields` and `/api/invites`.
