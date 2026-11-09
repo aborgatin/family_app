@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { useSession } from '@/features/auth';
@@ -15,7 +15,13 @@ import {
   useAutoSaveText,
 } from '@/shared/ui';
 import { ItemsSection } from './ItemsSection';
-import { type List, type ListDetails, type Visibility } from './listTypes';
+import {
+  hasVisibility,
+  type List,
+  type ListDetails,
+  type Visibility,
+  VISIBILITY_CHOICES,
+} from './listTypes';
 import { useLists } from './useLists';
 
 /** Route of the List screen, opened from «Списки» on Home. */
@@ -65,13 +71,9 @@ export function ListPage({ homePath }: ListPageProps) {
   );
 }
 
-function detailsOf({ name, kind, visibility }: List): ListDetails {
-  return { name, kind, visibility };
-}
-
 interface ListSettingsProps {
   list: List;
-  save: (id: string, details: ListDetails) => Promise<void>;
+  save: (id: string, fields: Partial<ListDetails>) => Promise<void>;
   remove: (id: string) => Promise<void>;
   homePath: string;
 }
@@ -89,25 +91,15 @@ function ListSettings({ list, save, remove, homePath }: ListSettingsProps) {
   // Until the pull after creating it, a List has no Owner yet: only its creator has it.
   const owned = list.ownerId === undefined || list.ownerId === session.member?.id;
 
-  // Each row sends its change on top of the List as shown now; `save` sends only what differs.
-  const shown = useRef(detailsOf(list));
-  useEffect(() => {
-    shown.current = detailsOf(list);
-  }, [list]);
-  const saveChange = useCallback(
-    (change: Partial<ListDetails>) => save(id, { ...shown.current, ...change }),
-    [id, save],
-  );
-
   const name = useAutoSaveText({
     name: 'name',
     saved: list.name,
     save: useCallback(
       async (value: string) => {
-        await saveChange({ name: value.trim() });
+        await save(id, { name: value.trim() });
         return value.trim();
       },
-      [saveChange],
+      [id, save],
     ),
     required: true,
   });
@@ -116,17 +108,14 @@ function ListSettings({ list, save, remove, homePath }: ListSettingsProps) {
     saved: list.visibility,
     save: useCallback(
       async (value: Visibility) => {
-        await saveChange({ visibility: value });
+        await save(id, { visibility: value });
         return value;
       },
-      [saveChange],
+      [id, save],
     ),
   });
 
-  const visibilities = [
-    { value: 'PRIVATE' as const, label: t('lists.visibility.private') },
-    { value: 'SHARED' as const, label: t('lists.visibility.shared') },
-  ];
+  const visibilities = VISIBILITY_CHOICES.map(({ value, label }) => ({ value, label: t(label) }));
 
   return (
     <>
@@ -135,7 +124,7 @@ function ListSettings({ list, save, remove, homePath }: ListSettingsProps) {
         messages={autoSaveMessages([name.failure, visibility.failure])}
       >
         <InputRow label={t('lists.name')} autoComplete="off" {...name.input} />
-        {owned && list.kind !== 'WISH' && (
+        {owned && hasVisibility(list.kind) && (
           <SegmentedControl
             label={t('lists.visibility.label')}
             options={visibilities}

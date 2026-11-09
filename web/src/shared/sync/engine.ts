@@ -59,7 +59,8 @@ let started = false;
 /** Bumped by start and stop: a run from an older generation stops writing. */
 let generation = 0;
 let running = false;
-let again = false;
+/** Counts `requestSync` calls; a run goes round again when one came in while it was busy. */
+let requests = 0;
 /** After a rejection, the next pull fetches everything to restore the server's copy. */
 let fullPullNeeded = false;
 let retryDelay = 0;
@@ -98,7 +99,6 @@ export function stopSync(): void {
   started = false;
   generation += 1;
   running = false;
-  again = false;
   clearTimeout(retryTimer);
   unsubscribe?.();
   unsubscribe = undefined;
@@ -107,10 +107,8 @@ export function stopSync(): void {
 /** Pushes and pulls as soon as possible (now, or right after the run in progress). */
 export function requestSync(): void {
   if (!started) return;
-  if (running) {
-    again = true;
-    return;
-  }
+  requests += 1;
+  if (running) return;
   clearTimeout(retryTimer);
   void run(generation);
 }
@@ -171,12 +169,13 @@ async function run(runGeneration: number) {
   running = true;
   const current = () => runGeneration === generation;
   try {
+    let handled;
     do {
-      again = false;
+      handled = requests;
       await pushOutbox(current);
       if (!current()) return;
       await pull(current);
-    } while (requestedMeanwhile() && current());
+    } while (requests !== handled && current());
     retryDelay = 0;
   } catch (failure: unknown) {
     if (!current()) return;
@@ -190,11 +189,6 @@ async function run(runGeneration: number) {
   } finally {
     if (current()) running = false;
   }
-}
-
-/** Whether `requestSync` was called while this run was busy (set from outside the loop). */
-function requestedMeanwhile() {
-  return again;
 }
 
 function scheduleRetry() {

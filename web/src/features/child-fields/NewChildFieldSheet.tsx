@@ -7,7 +7,7 @@ import {
   type FieldMessages,
 } from '@/shared/api';
 import { GroupedSection, InputRow, SegmentedControl, Sheet, useFooterLines } from '@/shared/ui';
-import type { ValueType } from './childFieldsApi';
+import type { ValueType } from './childFieldTypes';
 import { VALUE_TYPE_KEYS } from './valueTypes';
 
 type Field = 'name' | 'valueType';

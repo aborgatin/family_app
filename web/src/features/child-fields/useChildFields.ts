@@ -1,9 +1,8 @@
-import { useCallback, useMemo } from 'react';
-import type { Load } from '@/shared/load';
-import { deleteRow, upsertRow, useRows } from '@/shared/sync';
-import type { ChildField, ValueType } from './childFieldsApi';
+import { useCallback } from 'react';
+import { useSyncedRows, type LocalLoad } from '@/shared/sync';
+import type { ChildField, ValueType } from './childFieldTypes';
 
-export type ChildFieldsLoad = Load<ChildField[]>;
+export type ChildFieldsLoad = LocalLoad<ChildField>;
 
 /** Display order: by position, ties broken by id. */
 function inOrder(fields: ChildField[]): ChildField[] {
@@ -42,51 +41,38 @@ export function newChildFieldId(): string {
  * The Family's Child fields and every change to them: the only data access of this feature. It
  * reads the local store and writes through the Outbox (S4), so it works the same offline; the sync
  * engine sends the changes and pulls the other Member's. Each write sends only what it changes
- * (Last write wins per field): a rename the name, a move the position. `saveFailure` is «Не
- * удалось сохранить» after the server rejected a change; the next pull has already put the
- * server's copy back.
+ * (Last write wins per field): a rename the name, a move the position.
  */
 export function useChildFields() {
-  const rows = useRows('child_field') as ChildField[] | undefined;
-
-  const load = useMemo<ChildFieldsLoad>(
-    () => (rows === undefined ? { status: 'loading' } : { status: 'ready', value: inOrder(rows) }),
-    [rows],
-  );
+  const { load, save, remove: removeRow } = useSyncedRows<ChildField>('child_field', inOrder);
   const fields = load.status === 'ready' ? load.value : [];
 
   /** Adds a field at the end, with an id from `newChildFieldId()`. */
   async function add(id: string, name: string, valueType: ValueType): Promise<ChildField> {
     const last = fields.at(-1);
     const field = { id, name, valueType, position: last === undefined ? 1 : last.position + 1 };
-    await upsertRow('child_field', id, { name, valueType, position: field.position });
+    await save(id, { name, valueType, position: field.position });
     return field;
   }
 
-  const rename = useCallback(async (field: ChildField, name: string): Promise<ChildField> => {
-    await upsertRow('child_field', field.id, field.name === name ? {} : { name });
-    return { ...field, name };
-  }, []);
+  const rename = useCallback(
+    async (field: ChildField, name: string): Promise<ChildField> => {
+      await save(field.id, { name });
+      return { ...field, name };
+    },
+    [save],
+  );
 
   /** Moves a field to index `to` of the list. */
   async function move(field: ChildField, to: number) {
     const position = positionAfterMove(fields, field.id, to);
     if (position === undefined) return;
-    await upsertRow('child_field', field.id, { position });
+    await save(field.id, { position });
   }
 
   async function remove(field: ChildField) {
-    await deleteRow('child_field', field.id);
+    await removeRow(field.id);
   }
 
-  const retry = useCallback(() => undefined, []);
-
-  return {
-    load,
-    retry,
-    add,
-    rename,
-    move,
-    remove,
-  };
+  return { load, add, rename, move, remove };
 }

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { errorMessage } from '@/shared/api';
 import {
   autoSaveMessages,
   EditableRow,
@@ -14,7 +13,7 @@ import {
   type SaveFailure,
   type SortableRow,
 } from '@/shared/ui';
-import type { ChildField } from './childFieldsApi';
+import type { ChildField } from './childFieldTypes';
 import { NewChildFieldSheet } from './NewChildFieldSheet';
 import { newChildFieldId, useChildFields } from './useChildFields';
 import { VALUE_TYPE_KEYS } from './valueTypes';
@@ -29,7 +28,7 @@ import { VALUE_TYPE_KEYS } from './valueTypes';
 export function ChildFieldsSettings() {
   const { t } = useTranslation();
   const lines = useFooterLines();
-  const { load, retry, add, rename, move, remove } = useChildFields();
+  const { load, add, rename, move, remove } = useChildFields();
   const list = useEditableList();
   const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
   // The id of the field being added, made once when the sheet opens, so a retried save repeats
@@ -60,7 +59,6 @@ export function ChildFieldsSettings() {
         header={t('settings.childFields')}
         {...(fields.length > 0 && { edit: list.edit })}
         messages={[
-          load.status === 'failed' && lines.failure(errorMessage(load.error), retry),
           ...autoSaveMessages(fields.map((field) => failures[field.id])),
           lines.failure(list.error),
           load.status === 'ready' && fields.length === 0 && { text: t('childFields.empty') },
@@ -69,15 +67,13 @@ export function ChildFieldsSettings() {
           load.status === 'loading' ? (
             <LoadingRow />
           ) : (
-            load.status === 'ready' && (
-              <ListRow
-                accent
-                title={t('childFields.add')}
-                onClick={() => {
-                  setAddingId(newChildFieldId());
-                }}
-              />
-            )
+            <ListRow
+              accent
+              title={t('childFields.add')}
+              onClick={() => {
+                setAddingId(newChildFieldId());
+              }}
+            />
           )
         }
       >
