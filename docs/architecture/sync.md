@@ -112,6 +112,30 @@ one is still in flight. Tests: `PullNeverSkipsASlowerWriteTest` (a push stalled 
 Version, a second push, a pull in between; fails without the lock) and
 `MemberWritesTakeTheFamilyLockTest`. A new write path to a syncable table must take the lock too.
 
+## Live updates: SSE
+
+`GET /api/sync/events` (`text/event-stream`, needs a session like any other API call: `401
+auth.required` without one) tells open apps when to pull:
+
+- Its only event is `changed`, with data `{"version": N}`: the last Version handed out
+  (`version_seq`'s `last_value`, as the push answers). It never carries rows.
+- It is sent once when the connection opens, and to every open connection after the commit of
+  every transaction that wrote a syncable row: the push and every online-only Member write. The
+  hook is `FamilyLock`, which every such transaction takes first ("Versions commit in order"):
+  taking it publishes `SyncableWriteStarted`, and `sync` registers one after-commit callback per
+  transaction (a rolled-back write sends nothing). A new write path that takes the lock gets live
+  updates for free.
+- A heartbeat comment (`:`) every 25 s keeps an idle connection open through Caddy and iOS. Each
+  heartbeat also checks the connection's session; the first one after the session ended (logout,
+  expiry, password reset) ends the stream. A write that fails (the client went away) drops the
+  connection silently.
+- The Version can be above anything the client will pull (a rolled-back transaction used it, or
+  the row is hidden from this Member): the client then pulls once per event and finds nothing,
+  which is harmless.
+- The client pulls on a `changed` whose Version is above its stored one, when the app returns to
+  the foreground, when the server becomes reachable again, and right after each push.
+- Tests: `LiveUpdatesTest` (real port), web `features/children/liveUpdates.test.tsx`.
+
 ## Client
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
@@ -123,7 +147,8 @@ Version, a second push, a pull in between; fails without the lock) and
 - **Sync engine** (`engine.ts`): pushes the Outbox in order (batches of 100), drops what the server
   answered, then pulls. It runs at start, when the app returns to the foreground
   (`visibilitychange`), when the server becomes reachable again (any API answer, or the browser's
-  `online` event), after each local change, and pulls right after each push. A failure retries
+  `online` event), after each local change, on a live-update `changed` event above the stored
+  Version (`liveUpdates.ts`, see "Live updates" above), and pulls right after each push. A failure retries
   with backoff (1 s doubling to 30 s); a `401` stops it until the next trigger and keeps the store
   and the Outbox. Its requests go through `api`, so `serverReachable` (the offline indicator) stays
   the only sign of unsent changes.
@@ -141,5 +166,5 @@ Version, a second push, a pull in between; fails without the lock) and
   pushes the Outbox first; when it can't be sent the Member is warned that the unsent changes will
   be lost (confirm or cancel); after the server's logout every table of the store (rows, Outbox,
   meta) is wiped, so the next person on the device sees none of the Member's data.
-- Children and Child fields are on the store. Lists and Items and SSE (`changed` → pull) are the
-  next M2 tickets.
+- Children and Child fields are on the store, and live updates (`changed` → pull) run. Lists and
+  Items are the next M2 ticket.

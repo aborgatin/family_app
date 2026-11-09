@@ -1,6 +1,6 @@
 # Backend
 
-What exists in `/backend` after Spec #1 (M0 + M1) and the M2 sync core (spec #3, ticket #52). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
+What exists in `/backend` after Spec #1 (M0 + M1), the M2 sync core (spec #3, ticket #52) and live updates (#54). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
 Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`sync.md`](sync.md).
 
 ## Stack
@@ -39,13 +39,13 @@ The application package is `io.github.aborgatin.familyapp` (main class `FamilyAp
 Each top-level sub-package is a Spring Modulith module; its root package is its public API and its
 sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify()`.
 
-| Module    | Public API (root package)                                      | Internal                                                            |
-| --------- | -------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`     | `family.auth`, `family.member`, `family.child`, `family.childfield` |
-| `sync`    | `SyncableTable`, `Operation`, `Outcome`, `SyncRow`, `SyncLock` | `sync.internal` (`SyncController`, `SyncService`)                   |
-| `error`   | `ApiException`, `ApiError`, `FieldErrors`                      | `error.internal.ApiExceptionHandler`                                |
-| `command` | `Commands` (called from `FamilyAppApplication.main`)           | `PasswordResetCommand` (package-private)                            |
-| `webapp`  | none                                                           | `WebBundleConfig`                                                   |
+| Module    | Public API (root package)                                                              | Internal                                                                                  |
+| --------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`                             | `family.auth`, `family.member`, `family.child`, `family.childfield`                       |
+| `sync`    | `SyncableTable`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
+| `error`   | `ApiException`, `ApiError`, `FieldErrors`                                              | `error.internal.ApiExceptionHandler`                                                      |
+| `command` | `Commands` (called from `FamilyAppApplication.main`)                                   | `PasswordResetCommand` (package-private)                                                  |
+| `webapp`  | none                                                                                   | `WebBundleConfig`                                                                         |
 
 Dependencies: `family → error`, `family → sync`, `sync → error`, `command → family`. The Version
 sequence and trigger are database objects from `V1`; `sync` only reads `version_seq` for the push
@@ -108,7 +108,8 @@ Shared patterns inside `family`:
   first** (the push, bootstrap, Invite acceptance, `MemberService.updateProfile` and
   `changePassword`, `PasswordResets.complete`), so Versions commit
   in Version order (sync.md "Versions commit in order") and check-then-insert races run one after
-  another.
+  another. Taking it publishes `sync.SyncableWriteStarted`, which is what sends live updates after
+  the commit (see `sync` below).
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.
 - **Validation** collects every bad field in a `FieldErrors` and throws once. Body records read
@@ -132,6 +133,8 @@ The push and the pull ([`sync.md`](sync.md) has the semantics). Public API:
   `value.invalid`) read the raw JSON fields.
 - `SyncLock`: the lock the push takes; `family.FamilyLock` implements it, so `sync` doesn't depend
   on `family`.
+- `SyncableWriteStarted`: the event the lock publishes inside every transaction that writes a
+  syncable row; `sync` answers it with live updates after the commit.
 
 `sync.internal.SyncService.push` runs in one transaction: `SyncLock.lock()`, then each operation
 inside `SAVEPOINT sync_operation` (Hibernate's JPA dialect has no savepoints, so it is plain SQL
@@ -141,6 +144,20 @@ and flush each write (`saveAndFlush`), and don't annotate it `@Transactional` (a
 transaction that throws marks the whole push rollback-only). `pull` is
 `@Transactional(readOnly = true, isolation = REPEATABLE_READ)`. `SyncController` takes the Member
 id from the session principal's name (`AuthenticatedMember` is named by the Member id).
+
+Live updates ([`sync.md`](sync.md#live-updates-sse)): `LiveUpdatesController`
+(`GET /api/sync/events`, web-only) opens an `SseEmitter` (no timeout) in `LiveUpdates` with a check
+of its Spring Session id (`SessionRepository.findById`). `LiveUpdates` (not web-only, so the
+`command` context starts without it failing) keeps the open connections:
+
+- `changed` with `SyncService.latestVersion()` on open, and after commit: its listener for
+  `SyncableWriteStarted` registers one `TransactionSynchronization.afterCommit` per transaction
+  (a marker resource keeps it to one however often the transaction takes the lock).
+- A heartbeat thread (`sync.heartbeat`, default `25s`; a code default, only tests change it, so it
+  is not an environment variable) sends a comment, or ends a connection whose session is gone.
+- A failed write just forgets the connection (Spring MVC ends the request); `ApiExceptionHandler`
+  ignores `AsyncRequestNotUsableException` (client gone) instead of logging an error.
+- On `ContextClosedEvent` it ends every connection, so graceful shutdown doesn't wait for them.
 
 ### `command`
 
@@ -193,6 +210,7 @@ there):
 | `POST /api/members/me/password`                                | `204`; other sessions stay                                                         |
 | `POST /api/sync/push`                                          | `{operations}` → `{results, version}`; see [`sync.md`](sync.md)                    |
 | `GET /api/sync/pull?since=N`                                   | `{changes, version}`; see [`sync.md`](sync.md)                                     |
+| `GET /api/sync/events`                                         | SSE: `changed` `{version}` on connect and after each syncable commit; heartbeats   |
 | `GET /api/password-resets/by-token/{token}` (public)           | `{expiresAt}` or the reset's state error                                           |
 | `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions (same transaction), then logs in      |
 | `GET /actuator/health` (public)                                | container healthcheck                                                              |
@@ -419,6 +437,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 - **Restart tests**: `HttpDevice` (real port, cookies survive restarts) with
   `HttpDevice.startApp(postgres)` against a test-owned static container; see
   `SessionSurvivesRestartTest` and `ChildFieldDefaultsTest`.
+- **Real-port tests**: `HttpDevice` (public) also works in a `RANDOM_PORT` `@SpringBootTest` via
+  `new HttpDevice().at(context)`; `openLines(path)` streams a long response line
+  by line. `sync.LiveUpdatesTest` reads `/api/sync/events` that way (heartbeat set to `200ms`).
 - Other: `ModularityTest` (Modulith verify), `WebBundleServingTest` (RANDOM_PORT +
   `TestRestTemplate`; test bundle in `src/test/resources/static/`), `ForwardedHeadersTest`
   (`TRUSTED_PROXIES=127\.0\.0\.1` + `X-Forwarded-For`), `PasswordResetCommandTest` (runs the command
