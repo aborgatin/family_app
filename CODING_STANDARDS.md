@@ -77,7 +77,8 @@ concatenation.
 
 **I3 — Error codes are mapped, not echoed.** The client maps each API error code to an i18n key; an
 unknown code falls back to a generic message key. Displaying `error.code` or a server message raw is a
-finding.
+finding. `scripts/check-error-codes.sh` (CI and `scripts/check.sh`) fails when a server code has no
+client mapping or the client maps a code the server no longer sends.
 
 ## UI (ADR-0008)
 

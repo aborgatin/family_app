@@ -69,6 +69,10 @@ jobs:
           # PRs: against the target branch. Push to main: against the commit before the push.
           BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
         run: scripts/check-migrations.sh "$BASE"
+      - name: Error-code guard self-test
+        run: scripts/check-error-codes-test.sh
+      - name: Every server error code has a client message (I3)
+        run: scripts/check-error-codes.sh
 
   backend:
     name: backend

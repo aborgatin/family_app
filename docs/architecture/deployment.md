@@ -37,7 +37,9 @@ check would let the PR merge untested.
 
 - **migrations**: `scripts/check-migrations-test.sh` (the guard's self-test), then
   `scripts/check-migrations.sh` against the PR's target branch, or on push to `main` against the
-  commit before the push (S5).
+  commit before the push (S5); then `scripts/check-error-codes-test.sh` and
+  `scripts/check-error-codes.sh` (every server error code has a client message, I3). The job always
+  runs, since a new code can come from either folder.
 - **backend**: `spotlessCheck`, `compileJava compileTestJava` (Error Prone, `-Werror`), `test`
   (Testcontainers, Modulith).
 - **web**: `npm ci`, `format:check`, `lint`, `typecheck`, `test`, `build`.
