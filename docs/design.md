@@ -370,7 +370,11 @@ shows the spinner, and its `name` links it to the footer messages. It looks like
 a fine pointer the focused field gets the accent outline. In edit mode the row shows `title`.
 
 Children use it for delete only (`to` their screen), Child fields with `input` and `sortable`,
-Items with `input`, Invites plain.
+Items with `input` and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
+Invites plain.
+
+`muted` (on `ListRow` and `EditableRow`) shows the title in `secondary-label`: something set
+aside, like a Done Item.
 
 ### AddRow
 
@@ -381,6 +385,16 @@ the focus for the next entry; leaving the field with text in it adds it too; bla
 nothing; Esc empties the field. Goes in a `GroupedSection`'s `after`, under an edit-mode list.
 Touch: 44px row, the caret is the focus sign; fine pointer: 36px row, accent outline when focused.
 Same on narrow and wide windows.
+
+### DoneToggle
+
+The circle at the left of a row that ticks it off, as in iOS Reminders; goes in a row's
+`leading`. Open: an empty ring, 1.5px `secondary-label` (3:1 or more on `cell`, so it reads as a
+control); Done: a filled `accent-fill` circle with an `on-accent` check. A checkbox
+(`role="checkbox"`, `aria-checked`) whose accessible name is the translated `label`, saying what
+it marks («Куплено «Молоко»»); `onChange(done)` gets the new state. Tap, click, Space or Enter
+toggles it; focus shows the accent outline. Touch: 44×44 target around a 22px circle; fine
+pointer: 28×28 around 20px. Same on narrow and wide windows. Used by the List screen's Items.
 
 ### SortableList
 

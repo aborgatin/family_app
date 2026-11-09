@@ -87,11 +87,14 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   `list.not_found` (any operation on another Member's Private List), and the Child name limits on
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
   is `ignored` (delete wins). Deleting a List soft-deletes its Items in the same operation.
-- **Items** (`item`, ticket #57): an upsert carries `listId` (create only; a later upsert naming
-  another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code points after
-  trim) and `note` (optional, ≤ 10000, no UI yet); the pull also sends `done`, `doneById`,
-  `doneAt` (Done is ticket #58) and the server-set `creatorId` (the Member who pushed the create)
-  and `createdAt`. Rules: an Item of another Member's Private List, or in an unknown List, is
+- **Items** (`item`, tickets #57, #58): an upsert carries `listId` (create only; a later upsert
+  naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
+  points after trim), `note` (optional, ≤ 10000, no UI yet) and `done` (`true` / `false`; another
+  type is `value.invalid`, `null` is `required`); the pull also sends the server-set `doneById`,
+  `doneAt`, `creatorId` (the Member who pushed the create) and `createdAt`. When `done` turns
+  true the server sets `doneById` to the pushing Member and `doneAt` to now; when it turns false
+  it clears both; setting it to its current value changes nothing, not even the Version (S3).
+  Done on one device and a text edit on the other are both kept (different fields). Rules: an Item of another Member's Private List, or in an unknown List, is
   `list.not_found` (`params.listId`) for every operation; creating an Item in a deleted List, and
   anything on a deleted Item, is `ignored` (delete wins).
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
@@ -172,7 +175,11 @@ auth.required` without one) tells open apps when to pull:
   dropped, so the Outbox survives
   store upgrades.
 - **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
-  appended to the Outbox in the same transaction, then the engine is asked to sync.
+  appended to the Outbox in the same transaction, then the engine is asked to sync. An upsert may
+  also carry `local` fields: written to the local row and kept with the operation (so a pull
+  while it is pending applies them again), never pushed; the server's copy replaces them. Used for
+  when an Item was ticked off on this device, which orders it among the Done Items until the
+  server's `doneAt` arrives (no client timestamp is ever sent).
 - **Sync engine** (`engine.ts`): pushes the Outbox in order (batches of 100), drops what the server
   answered, then pulls. It runs at start, when the app returns to the foreground
   (`visibilitychange`), when the server becomes reachable again (any API answer, or the browser's
@@ -205,5 +212,6 @@ auth.required` without one) tells open apps when to pull:
   starts for the same Member, or the app goes to `/login` (store and Outbox kept for the same
   Member) or `/setup` (`frontend.md`, "Offline cold start").
 - Children, Child fields, Lists and Items are on the store, and live updates (`changed` → pull)
-  run. The List screen has its open Items (add, edit in place, delete; #57) and List settings
-  (rename, Visibility, delete; #56); Done is ticket #58.
+  run. The List screen has its open Items (add, edit in place, delete; #57), Done and its Done
+  group (#58) and List settings (rename, Visibility, delete; #56); Home shows each List's open
+  Items count (#58).

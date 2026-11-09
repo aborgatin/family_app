@@ -310,7 +310,13 @@ export const SEED = {
         name: 'Супермаркет',
         kind: 'SHOPPING',
         visibility: 'SHARED',
-        items: ['Молоко 3,2%', 'Хлеб бородинский', 'Яйца, десяток', 'Помидоры черри', 'Сыр'],
+        items: [
+          'Молоко 3,2%',
+          'Хлеб бородинский',
+          'Яйца, десяток',
+          { text: 'Помидоры черри', done: true },
+          { text: 'Сыр', done: true },
+        ],
       },
       { name: 'Аптека', kind: 'SHOPPING', visibility: 'SHARED' },
       { name: 'Ремонт', kind: 'TODO', visibility: 'PRIVATE' },
@@ -318,9 +324,19 @@ export const SEED = {
         name: 'Дела по дому',
         kind: 'TODO',
         visibility: 'SHARED',
-        items: ['Поменять лампочку в коридоре', 'Записать Машу к стоматологу'],
+        items: [
+          'Поменять лампочку в коридоре',
+          'Записать Машу к стоматологу',
+          { text: 'Оплатить интернет', done: true },
+        ],
       },
-      { name: 'Желания Маши', kind: 'WISH', visibility: 'SHARED' },
+      {
+        name: 'Желания Маши',
+        kind: 'WISH',
+        visibility: 'SHARED',
+        items: ['Самокат', { text: 'Набор фломастеров', done: true }],
+      },
+      { name: 'Желания Пети', kind: 'WISH', visibility: 'SHARED' },
     ],
     secondMember: [
       { name: 'Гараж', kind: 'TODO', visibility: 'SHARED' },
@@ -350,13 +366,18 @@ async function api(page, method, url, body) {
   );
 }
 
-/** Creates Lists, and their `items` in that order, through the sync push as the Member logged in on `page`. */
+/**
+ * Creates Lists, and their `items` in that order, through the sync push as the Member logged in on
+ * `page`. An Item is its text, or `{text, done: true}` for a Done one (ticked in the same order).
+ */
 async function pushLists(page, lists) {
   const operations = lists.flatMap(({ items = [], ...fields }) => {
     const listId = crypto.randomUUID();
+    const added = items.map((item) => ({ id: crypto.randomUUID(), ...(typeof item === 'string' ? { text: item } : item) }));
     return [
       { table: 'list', id: listId, op: 'upsert', fields },
-      ...items.map((text) => ({ table: 'item', id: crypto.randomUUID(), op: 'upsert', fields: { listId, text } })),
+      ...added.map(({ id, text }) => ({ table: 'item', id, op: 'upsert', fields: { listId, text } })),
+      ...added.filter((item) => item.done).map(({ id }) => ({ table: 'item', id, op: 'upsert', fields: { done: true } })),
     ];
   });
   const pushed = await api(page, 'POST', '/api/sync/push', { operations });
