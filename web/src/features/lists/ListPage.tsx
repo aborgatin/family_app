@@ -16,7 +16,8 @@ import {
   useAutoSaveText,
   useFooterLines,
 } from '@/shared/ui';
-import { KIND_TEXTS, type List, type ListDetails, type Visibility } from './listTypes';
+import { ItemsSection } from './ItemsSection';
+import { type List, type ListDetails, type Visibility } from './listTypes';
 import { useLists } from './useLists';
 
 /** Route of the List screen, opened from «Списки» on Home. */
@@ -33,8 +34,8 @@ interface ListPageProps {
 }
 
 /**
- * The List screen (`/lists/:id`): the List's name as the large title, the Items (ticket #57; until
- * then the kind's empty state), and List settings at the bottom. A List that disappears while open
+ * The List screen (`/lists/:id`): the List's name as the large title, its open Items
+ * (`ItemsSection`), and List settings at the bottom. A List that disappears while open
  * (deleted, or made Private by its Owner) says so. Data only through `useLists()`.
  */
 export function ListPage({ homePath }: ListPageProps) {
@@ -48,7 +49,7 @@ export function ListPage({ homePath }: ListPageProps) {
     return (
       <Page title={list.name} back={back}>
         <Sections>
-          <EmptyState>{t(KIND_TEXTS[list.kind].noItems)}</EmptyState>
+          <ItemsSection list={list} />
           <ListSettings
             key={list.id}
             list={list}

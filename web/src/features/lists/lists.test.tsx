@@ -235,7 +235,7 @@ describe('The List screen', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Мой список' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(empty)).toBeInTheDocument();
+    expect(await screen.findByText(empty)).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Семья' }));
     expect(app.location()).toBe('/');
   });

@@ -1,7 +1,7 @@
 import type { ParseKeys } from 'i18next';
 
-// A List's shapes. Lists are read from the local store and written through the Outbox by
-// `useLists()` only (S4); there are no REST calls for them.
+// The shapes of Lists and Items. They are read from the local store and written through the
+// Outbox by `useLists()` and `useItems()` only (S4); there are no REST calls for them.
 
 /** A List's kind (GLOSSARY: Shopping list, Todo list, Wish list); fixed once created. */
 export type ListKind = 'SHOPPING' | 'TODO' | 'WISH';
@@ -28,6 +28,22 @@ export interface ListDetails {
   visibility: Visibility;
 }
 
+/** An Item as the local store keeps it (the fields the sync pull sends). */
+export interface Item {
+  id: string;
+  listId: string;
+  text: string;
+  note: string | null;
+  /** Done, and who marked it Done and when (set by the server); ticket #58 shows them. */
+  done: boolean;
+  doneById?: string | null;
+  doneAt?: string | null;
+  /** The Creator's Member id. Set by the server: absent until the pull after adding the Item. */
+  creatorId?: string;
+  /** ISO-8601. Set by the server: absent until the pull after adding the Item. */
+  createdAt?: string;
+}
+
 export const LIST_KINDS: readonly ListKind[] = ['SHOPPING', 'TODO', 'WISH'];
 
 /** The texts that depend on a List's kind. */
@@ -40,13 +56,36 @@ export const KIND_TEXTS: Record<
     name: ParseKeys;
     /** The List screen while the List has no Items. */
     noItems: ParseKeys;
+    /** The header of the List screen's Items. */
+    items: ParseKeys;
+    /** An Item's text field, «Товар «{{text}}»». */
+    itemText: ParseKeys;
+    /** The last row, which adds an Item. */
+    newItem: ParseKeys;
   }
 > = {
   SHOPPING: {
     choice: 'lists.kind.shopping',
     name: 'lists.kindName.shopping',
     noItems: 'lists.noItems.shopping',
+    items: 'lists.items.shopping',
+    itemText: 'lists.itemText.shopping',
+    newItem: 'lists.newItem.shopping',
   },
-  TODO: { choice: 'lists.kind.todo', name: 'lists.kindName.todo', noItems: 'lists.noItems.todo' },
-  WISH: { choice: 'lists.kind.wish', name: 'lists.kindName.wish', noItems: 'lists.noItems.wish' },
+  TODO: {
+    choice: 'lists.kind.todo',
+    name: 'lists.kindName.todo',
+    noItems: 'lists.noItems.todo',
+    items: 'lists.items.todo',
+    itemText: 'lists.itemText.todo',
+    newItem: 'lists.newItem.todo',
+  },
+  WISH: {
+    choice: 'lists.kind.wish',
+    name: 'lists.kindName.wish',
+    noItems: 'lists.noItems.wish',
+    items: 'lists.items.wish',
+    itemText: 'lists.itemText.wish',
+    newItem: 'lists.newItem.wish',
+  },
 };
