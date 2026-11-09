@@ -17,14 +17,19 @@ export const noLists = `
   };
 `;
 
-/** Init script: the server rejects every pushed operation with `code` (the rejection Toast). */
+/**
+ * Init script: the server rejects every pushed operation with `code` (the rejection Toast). The
+ * operations never reach the server (an empty push fetches the Version), so the server's value
+ * comes back on the next pull, as after a real rejection.
+ */
 export const rejectPushes = (code) => `
   const f = window.fetch;
   window.fetch = async (i, o) => {
-    const r = await f(i, o);
-    if (!String(i && i.url ? i.url : i).includes('/api/sync/push')) return r;
+    if (!String(i && i.url ? i.url : i).includes('/api/sync/push')) return f(i, o);
+    const ops = JSON.parse(o.body).operations;
+    const r = await f(i, { ...o, body: JSON.stringify({ operations: [] }) });
     const body = await r.json();
-    body.results = body.results.map(() => ({ status: 'rejected', code: '${code}', params: {} }));
+    body.results = ops.map(() => ({ status: 'rejected', code: '${code}', params: {} }));
     return new Response(JSON.stringify(body), { status: r.status, headers: r.headers });
   };
 `;
