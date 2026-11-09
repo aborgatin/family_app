@@ -109,7 +109,9 @@ describe('The «Новый список» sheet', () => {
 
     renderApp('/');
     const sheet = await openSheet(user);
-    expect(within(sheet).getByRole('radio', { name: 'Общий' })).toBeChecked();
+    // The Visibility row shows no label, but screen readers still hear its name.
+    const visibility = within(sheet).getByRole('radiogroup', { name: 'Видимость' });
+    expect(within(visibility).getByRole('radio', { name: 'Общий' })).toBeChecked();
     await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), '  Аптека ');
     await user.click(within(sheet).getByRole('radio', { name: 'Покупки' }));
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
