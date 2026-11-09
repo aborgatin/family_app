@@ -142,6 +142,14 @@ Version, a second push, a pull in between; fails without the lock) and
   сохранить» once, and the next pull is a full one (`since=0`, replacing every local row and
   re-applying the Outbox), which restores the server's copy even of a row the pull since N would
   not send again.
+- **Owner and logout**: the store records the Member whose data it holds. At login (and at start
+  with a session) `AuthGuard` claims it for the Member before the engine starts: kept when it is
+  theirs or nobody's, wiped first when it is another Member's, so their Outbox is never sent under
+  this session. A `401` during sync therefore keeps unsent changes for the same Member. Logout
+  pushes the Outbox first; when it can't be sent the Member is warned that the unsent changes will
+  be lost (confirm or cancel); after the server's logout every table of the store (rows, Outbox,
+  meta) is wiped, so the next person on the device sees none of the Member's data.
 - Children are on the store. Child fields still use REST until their ticket moves them
   (`PUT/DELETE /api/child-fields/{id}`: idempotent full upserts under `FamilyLock`, `409
-child_field.deleted` on a deleted id). Lists are on the store (ticket #55); Items, SSE (`changed` → pull) and logout with a pending Outbox are the next M2 tickets.
+child_field.deleted` on a deleted id). Lists are on the store (ticket #55); Items and SSE (`changed` →
+  pull) are the next M2 tickets.

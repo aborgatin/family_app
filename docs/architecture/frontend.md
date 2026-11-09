@@ -153,9 +153,17 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `list`; `list` added in store version 2), `outbox` (`++seq`) and `meta` (the stored Version). Internal to the folder.
+  (`member`, `child`, `list`; `list` added in store version 2), `outbox` (`++seq`) and `meta` (the stored Version and the owner: the Member
+  whose data it holds). Internal to the folder, except `claimLocalStore(memberId)` (below).
+  `wipeLocalStore()` clears every table Dexie knows (`localStore.tables`), so a table added later
+  is wiped without changes there.
 - `engine.ts`: `startSync()` / `stopSync()` / `requestSync()`, `onRejection(listener)`. `AuthGuard`
-  starts it while a Member is logged in (keyed on the Member id) and stops it otherwise.
+  first calls `claimLocalStore(memberId)` (keeps the store when it is that Member's or nobody's,
+  wipes it when it is another Member's), shows «Загрузка…» until it is done, then starts the
+  engine while the Member is logged in (keyed on the Member id) and stops it otherwise.
+- Logout (`LogoutSection`): `flushOutbox()` sends the whole Outbox now (pausing the engine
+  meanwhile) and rejects with the `ApiError` when it can't; after the server's logout,
+  `stopSyncAndWipe()` stops the engine and wipes the store.
 - `rows.ts`, what features use:
   - `useRows(table)`: every local row, live (Dexie `liveQuery`), `undefined` until the first read;
     unordered, untyped (`Row`): the feature sorts and casts (`as Child[]`);
@@ -287,7 +295,12 @@ row per Member: initial, name, email, «(вы)» on the own one; not tappable; t
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
 Members list; then the «Изменить пароль» chevron row), «Дети» (below), «Поля профиля» (below),
 «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, a `ConfirmRow`;
-after logging out the guard shows `/login`). `app/routes.tsx` passes `HOME_PATH` in as
+after logging out the guard shows `/login`). Logout sends the Outbox first; when that fails
+(other than `401`) a second `ActionSheet` warns «Нет соединения с сервером. Несохранённые
+изменения будут потеряны» with a red «Выйти» (log out, wipe) and «Отменить» (keep everything). A
+`401` there means the session already ended: the guard shows `/login` and the store stays for the
+same Member. Logout itself stays online-only: when `POST /api/auth/logout` can't reach the server
+nothing is wiped and the footer says so. `app/routes.tsx` passes `HOME_PATH` in as
 `homePath`, since `home` already imports `settings`. Auto-save and its failure footer are
 the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessages` (see
 `design.md`). Other footer lines come from `useFooterLines()`: `failure(error, retry?)` for a

@@ -202,6 +202,25 @@ export default {
       fullPage: false,
       steps: [{ click: 'role=button[name="Выйти"]' }, { waitFor: 'role=dialog' }, { wait: 400 }],
     },
+    {
+      // Logout with an unsent change (a Child renamed offline): the warning that it will be lost.
+      name: 'settings-logout-unsent',
+      path: '/settings',
+      offline: 'afterLoad',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Маша/]' },
+        { waitFor: 'role=radiogroup[name="Цвет"]' },
+        { fill: 'role=textbox[name="Имя"]', value: 'Мария' },
+        { press: 'Enter' },
+        { wait: 300 },
+        async (page) => page.goBack(),
+        { click: 'role=button[name="Выйти"]' },
+        { click: 'role=dialog >> role=button[name="Выйти"]' },
+        { waitFor: 'role=dialog[name^="Нет соединения"]' },
+        { wait: 400 },
+      ],
+    },
 
     // Password
     { name: 'password-empty', path: '/settings/password' },
