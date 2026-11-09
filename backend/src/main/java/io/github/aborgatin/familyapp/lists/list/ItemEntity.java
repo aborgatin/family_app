@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.lists.list;
 
+import io.github.aborgatin.familyapp.sync.SyncedRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -18,7 +19,7 @@ import org.springframework.lang.Nullable;
  */
 @Entity
 @Table(name = "item")
-class ItemEntity {
+class ItemEntity implements SyncedRecord {
 
   @Id private UUID id;
 
@@ -88,7 +89,8 @@ class ItemEntity {
     this.deleted = true;
   }
 
-  UUID id() {
+  @Override
+  public UUID id() {
     return id;
   }
 
@@ -127,11 +129,13 @@ class ItemEntity {
     return createdAt;
   }
 
-  long version() {
+  @Override
+  public long version() {
     return version;
   }
 
-  boolean deleted() {
+  @Override
+  public boolean deleted() {
     return deleted;
   }
 }

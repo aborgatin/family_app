@@ -40,14 +40,14 @@ The application package is `io.github.aborgatin.familyapp` (main class `FamilyAp
 Each top-level sub-package is a Spring Modulith module; its root package is its public API and its
 sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify()`.
 
-| Module    | Public API (root package)                                                              | Internal                                                                                  |
-| --------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`                             | `family.auth`, `family.member`, `family.child`, `family.childfield`                       |
-| `sync`    | `SyncableTable`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
-| `lists`   | none                                                                                   | `lists.list`                                                                              |
-| `error`   | `ApiException`, `ApiError`, `FieldErrors`                                              | `error.internal.ApiExceptionHandler`                                                      |
-| `command` | `Commands` (called from `FamilyAppApplication.main`)                                   | `PasswordResetCommand` (package-private)                                                  |
-| `webapp`  | none                                                                                   | `WebBundleConfig`                                                                         |
+| Module    | Public API (root package)                                                                              | Internal                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`, `Family`                                   | `family.auth`, `family.member`, `family.child`, `family.childfield`                       |
+| `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
+| `lists`   | none                                                                                                   | `lists.list`                                                                              |
+| `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
+| `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
+| `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `sync → error`,
 `command → family`. (`lists` reaches Members only through `Operation.memberId()` so far; the spec
@@ -106,9 +106,10 @@ Controllers inside `family` still take the Member id from
 
 Shared patterns inside `family`:
 
-- **`FamilyLock`** (public, so `lists` can use it): `lockFamily()` runs
-  `SELECT id FROM family FOR UPDATE` and returns the Family id; `lock()` is the same as the
-  `sync.SyncLock`. It needs a surrounding transaction. **Every write to a syncable table takes it
+- **`FamilyLock`** (public, so `lists` can use it): one method, `lock()` (the `sync.SyncLock`),
+  runs `SELECT id FROM family FOR UPDATE`. It needs a surrounding transaction. Code that needs the
+  Family's id (a new Member, Child or Child field stores it) reads it from **`Family.id()`**
+  (public; no lock). **Every write to a syncable table takes it
   first** (the push, bootstrap, Invite acceptance, `MemberService.updateProfile` and
   `changePassword`, `PasswordResets.complete`), so Versions commit
   in Version order (sync.md "Versions commit in order") and check-then-insert races run one after
@@ -132,6 +133,15 @@ The push and the pull ([`sync.md`](sync.md) has the semantics). Public API:
   `changesSince(version, memberId)` → `List<SyncRow>` (deleted rows as `SyncRow.tombstone`, rows
   the Member may not see as tombstones or left out). `SyncService` collects every bean; two with
   the same name fail start-up.
+- `SyncedRecord` (`id()`, `version()`, `deleted()`): implemented by every syncable entity, so the
+  two helpers every table uses work on any of them:
+  - `Outcome.deleteWins(operation, existing, upsert, delete)`: the `apply` skeleton. A deleted
+    record → `IGNORED`; a delete of an unknown one → `IGNORED`; else `delete(record)` or
+    `upsert(operation, Optional<record>)` (empty: create it). Checks that come first, such as A1,
+    run before it.
+  - `SyncRow.changes(records, visible?, (record, fields) -> fields.put(…))`: the `changesSince`
+    rows, a tombstone for a deleted record or one `visible` refuses, else the fields in the order
+    put.
 - `Operation(memberId, id, type, fields)`: `type` `UPSERT` / `DELETE`; `has(field)`,
   `text(field)` and `number(field)` (a value of another JSON type is `validation.failed` /
   `value.invalid`) read the raw JSON fields.
@@ -171,8 +181,8 @@ Lists and Items: written only by the push, read only by the pull, no REST endpoi
 the Child name limits; known kind and Visibility) → `ListDetails`; `ListService`, the `list`
 `SyncableTable`:
 
-- `apply`: deleted → `IGNORED` (delete wins); another Member's Private List →
-  `list.not_found` (A1); upsert merges the carried fields over the stored ones, validates, then
+- `apply`: another Member's Private List (not deleted) → `list.not_found` (A1,
+  `ListEntity.notFound(listId)`, the one factory `ItemService` uses too); then `Outcome.deleteWins`; upsert merges the carried fields over the stored ones, validates, then
   `list.kind_immutable` if the kind changed, `list.owner_only` if a Member other than the Owner
   changed the Visibility (the same value is no change), and `list.wish_shared_only` for a Private
   Wish list.
@@ -444,16 +454,20 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
    "new") and `findByVersionGreaterThan(long)` for the pull. No delete methods (S2).
 4. Push: implement `sync.SyncableTable` in the owning module (a bean, not `@Transactional`):
    - `name()`: the table name the client uses;
-   - `apply(operation)`: find the row; deleted → `Outcome.IGNORED` (delete wins). `DELETE` of an
-     unknown row → `IGNORED`, else `markDeleted()`. `UPSERT`: merge the carried fields
-     (`operation.has/text`) over the stored ones, validate everything (unknown id: every required
-     field must be there), throw `FieldErrors`/`ApiException` to reject, then create or change and
-     `saveAndFlush` → `APPLIED`. Server-set fields (Owner, Creator…) come from
-     `operation.memberId()`, never from `fields`. The push already holds `FamilyLock`;
-     `FamilyLock.lockFamily()` again is harmless if you need the Family id.
-5. Pull: `changesSince(version, memberId)`: `SyncRow.of(id, version, fields)` with what the client
-   stores (no secrets; nullable values allowed), `SyncRow.tombstone(id, version)` for deleted rows
-   and for rows this Member may not see (A1).
+   - `apply(operation)`: `return Outcome.deleteWins(operation, repository.findById(id),
+     this::upsert, this::delete)` (the entity implements `sync.SyncedRecord`). It answers
+     `IGNORED` for a deleted row and for deleting an unknown one (delete wins). `delete(entity)`:
+     `markDeleted()`, `saveAndFlush` → `APPLIED`. `upsert(operation, existing)`: merge the carried
+     fields (`operation.has/text`) over the stored ones, validate everything (unknown id: every
+     required field must be there), throw `FieldErrors`/`ApiException` to reject, then create or
+     change and `saveAndFlush` → `APPLIED`. Server-set fields (Owner, Creator…) come from
+     `operation.memberId()`, never from `fields`; times from a `Clock` field
+     (`Clock.systemUTC()`). The push already holds `FamilyLock`; the Family id is
+     `Family.id()`.
+5. Pull: `changesSince(version, memberId)`: `SyncRow.changes(repository.findByVersionGreaterThan(version),
+   visible, (row, fields) -> …)` putting what the client stores (no secrets; nullable values
+   allowed); it sends a tombstone for deleted rows and for rows `visible` refuses for this Member
+   (A1; leave `visible` out when every Member sees every row).
 6. No REST write endpoint. A REST read endpoint only if something other than the client's local
    store needs it.
 7. Any other code path writing the table takes `FamilyLock` first.
@@ -483,8 +497,11 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `fields(device, table, id)` (as a first pull returns them), `version(result)`, and the two
     devices most sync tests start from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.
 - Concurrency (`PullNeverSkipsASlowerWriteTest`, `MemberWritesTakeTheFamilyLockTest`): a raw JDBC
-  connection holds a row lock, a request runs on another thread, and the test waits on
-  `pg_stat_activity` (`wait_event_type = 'Lock'`) before going on.
+  connection holds a row lock, a request runs on another thread, and the test waits until it is
+  blocked (`LockWaits.transactionsWaitingOnALock(jdbc)` reads `pg_stat_activity`,
+  `wait_event_type = 'Lock'`; `LockWaits.waitUntil`). **The one exception to "through HTTP only"
+  (T1)**: no HTTP answer can tell a request blocked on the Family lock from a slow one, so the
+  ordering guarantee is proven by watching the database. Use `LockWaits` for any new such test.
 - **Restart tests**: `HttpDevice` (real port, cookies survive restarts) with
   `HttpDevice.startApp(postgres)` against a test-owned static container; see
   `SessionSurvivesRestartTest` and `ChildFieldDefaultsTest`.

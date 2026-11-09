@@ -163,6 +163,12 @@ auth.required` without one) tells open apps when to pull:
 - The Version can be above anything the client will pull (a rolled-back transaction used it, or
   the row is hidden from this Member): the client then pulls once per event and finds nothing,
   which is harmless.
+- A transaction that takes the lock but then writes nothing (a push whose every operation is
+  `ignored` or `rejected`) still sends `changed`. Kept on purpose: the lock is taken before the
+  operations run, and telling "wrote a row" apart would mean tracking writes in every table. It is
+  harmless: when no Version was taken, a client that is up to date sees no Version above its own
+  and doesn't pull; when a rejected operation's rolled-back savepoint used one, it pulls once and
+  finds nothing.
 - The client pulls on a `changed` whose Version is above its stored one, when the app returns to
   the foreground, when the server becomes reachable again, and right after each push.
 - Tests: `LiveUpdatesTest` (real port), web `features/children/liveUpdates.test.tsx`.

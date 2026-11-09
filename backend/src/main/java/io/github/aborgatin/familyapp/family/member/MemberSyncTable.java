@@ -2,9 +2,7 @@ package io.github.aborgatin.familyapp.family.member;
 
 import io.github.aborgatin.familyapp.sync.SyncRow;
 import io.github.aborgatin.familyapp.sync.SyncableTable;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -30,17 +28,11 @@ class MemberSyncTable implements SyncableTable {
 
   @Override
   public List<SyncRow> changesSince(long version, UUID memberId) {
-    return members.findByVersionGreaterThan(version).stream()
-        .map(
-            member -> {
-              if (member.deleted()) {
-                return SyncRow.tombstone(member.id(), member.version());
-              }
-              Map<String, Object> fields = new LinkedHashMap<>();
-              fields.put("displayName", member.displayName());
-              fields.put("grammaticalGender", member.grammaticalGender().name());
-              return SyncRow.of(member.id(), member.version(), fields);
-            })
-        .toList();
+    return SyncRow.changes(
+        members.findByVersionGreaterThan(version),
+        (member, fields) -> {
+          fields.put("displayName", member.displayName());
+          fields.put("grammaticalGender", member.grammaticalGender().name());
+        });
   }
 }

@@ -1,9 +1,9 @@
 package io.github.aborgatin.familyapp.family.member;
 
 import io.github.aborgatin.familyapp.error.ApiException;
+import io.github.aborgatin.familyapp.family.Family;
 import io.github.aborgatin.familyapp.family.FamilyLock;
 import io.github.aborgatin.familyapp.family.member.RegistrationRequest.Registration;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -14,12 +14,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class BootstrapService {
 
   private final FamilyLock familyLock;
+  private final Family family;
   private final MemberRepository members;
   private final PasswordEncoder passwordEncoder;
 
   BootstrapService(
-      FamilyLock familyLock, MemberRepository members, PasswordEncoder passwordEncoder) {
+      FamilyLock familyLock,
+      Family family,
+      MemberRepository members,
+      PasswordEncoder passwordEncoder) {
     this.familyLock = familyLock;
+    this.family = family;
     this.members = members;
     this.passwordEncoder = passwordEncoder;
   }
@@ -31,13 +36,13 @@ public class BootstrapService {
    */
   @Transactional
   public Member bootstrap(Registration registration) {
-    UUID familyId = familyLock.lockFamily();
+    familyLock.lock();
     if (members.existsBy()) {
       throw new ApiException(HttpStatus.CONFLICT, "auth.bootstrap_closed");
     }
     return members.saveAndFlush(
         new Member(
-            familyId,
+            family.id(),
             registration.email(),
             passwordEncoder.encode(registration.password()),
             registration.displayName(),

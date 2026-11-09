@@ -1,14 +1,12 @@
 package io.github.aborgatin.familyapp.family.childfield;
 
 import io.github.aborgatin.familyapp.error.ApiException;
-import io.github.aborgatin.familyapp.family.FamilyLock;
+import io.github.aborgatin.familyapp.family.Family;
 import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
 import io.github.aborgatin.familyapp.sync.SyncRow;
 import io.github.aborgatin.familyapp.sync.SyncableTable;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -24,11 +22,11 @@ import org.springframework.stereotype.Service;
 class ChildFieldService implements SyncableTable {
 
   private final ChildFieldRepository childFields;
-  private final FamilyLock familyLock;
+  private final Family family;
 
-  ChildFieldService(ChildFieldRepository childFields, FamilyLock familyLock) {
+  ChildFieldService(ChildFieldRepository childFields, Family family) {
     this.childFields = childFields;
-    this.familyLock = familyLock;
+    this.family = family;
   }
 
   @Override
@@ -44,25 +42,17 @@ class ChildFieldService implements SyncableTable {
    */
   @Override
   public Outcome apply(Operation operation) {
-    Optional<ChildField> existing = childFields.findById(operation.id());
-    if (existing.isPresent() && existing.get().deleted()) {
-      return Outcome.IGNORED;
-    }
-    return switch (operation.type()) {
-      case UPSERT -> upsert(operation, existing);
-      case DELETE -> delete(existing);
-    };
+    return Outcome.deleteWins(
+        operation, childFields.findById(operation.id()), this::upsert, this::delete);
   }
 
   private Outcome upsert(Operation operation, Optional<ChildField> existing) {
     ChildFieldRequest.Valid valid = changed(operation, existing).validate();
-    // Inside the push the lock is already held; this only reads the Family id.
-    UUID familyId = familyLock.lockFamily();
     ChildField field;
     if (existing.isEmpty()) {
       field =
           new ChildField(
-              operation.id(), familyId, valid.name(), valid.valueType(), valid.position());
+              operation.id(), family.id(), valid.name(), valid.valueType(), valid.position());
     } else {
       field = existing.get();
       if (field.valueType() != valid.valueType()) {
@@ -88,11 +78,7 @@ class ChildFieldService implements SyncableTable {
             : existing.map(ChildField::position).orElse(null));
   }
 
-  private Outcome delete(Optional<ChildField> existing) {
-    if (existing.isEmpty()) {
-      return Outcome.IGNORED;
-    }
-    ChildField field = existing.get();
+  private Outcome delete(ChildField field) {
     field.markDeleted();
     childFields.saveAndFlush(field);
     return Outcome.APPLIED;
@@ -100,18 +86,12 @@ class ChildFieldService implements SyncableTable {
 
   @Override
   public List<SyncRow> changesSince(long version, UUID memberId) {
-    return childFields.findByVersionGreaterThan(version).stream()
-        .map(
-            field -> {
-              if (field.deleted()) {
-                return SyncRow.tombstone(field.id(), field.version());
-              }
-              Map<String, Object> fields = new LinkedHashMap<>();
-              fields.put("name", field.name());
-              fields.put("valueType", field.valueType().name());
-              fields.put("position", field.position());
-              return SyncRow.of(field.id(), field.version(), fields);
-            })
-        .toList();
+    return SyncRow.changes(
+        childFields.findByVersionGreaterThan(version),
+        (field, fields) -> {
+          fields.put("name", field.name());
+          fields.put("valueType", field.valueType().name());
+          fields.put("position", field.position());
+        });
   }
 }

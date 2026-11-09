@@ -1,6 +1,7 @@
 package io.github.aborgatin.familyapp.family.member;
 
 import io.github.aborgatin.familyapp.error.ApiException;
+import io.github.aborgatin.familyapp.family.Family;
 import io.github.aborgatin.familyapp.family.FamilyLock;
 import io.github.aborgatin.familyapp.family.member.RegistrationRequest.Registration;
 import java.time.Clock;
@@ -25,6 +26,7 @@ public class InviteService {
 
   private final Clock clock = Clock.systemUTC();
   private final FamilyLock familyLock;
+  private final Family family;
   private final MemberRepository members;
   private final InviteRepository invites;
   private final PasswordEncoder passwordEncoder;
@@ -33,12 +35,14 @@ public class InviteService {
 
   InviteService(
       FamilyLock familyLock,
+      Family family,
       MemberRepository members,
       InviteRepository invites,
       PasswordEncoder passwordEncoder,
       @Value("${INVITE_TTL:7d}") Duration ttl,
       @Value("${DOMAIN:localhost}") String domain) {
     this.familyLock = familyLock;
+    this.family = family;
     this.members = members;
     this.invites = invites;
     this.passwordEncoder = passwordEncoder;
@@ -90,7 +94,7 @@ public class InviteService {
   @Transactional
   public Member accept(String token, RegistrationRequest body) {
     // Family lock first: concurrent registrations with the same email run one after another.
-    UUID familyId = familyLock.lockFamily();
+    familyLock.lock();
     Invite invite =
         invites
             .findForUpdateByTokenHash(OneTimeTokens.hash(token))
@@ -105,7 +109,7 @@ public class InviteService {
     Member member =
         members.saveAndFlush(
             new Member(
-                familyId,
+                family.id(),
                 registration.email(),
                 passwordEncoder.encode(registration.password()),
                 registration.displayName(),
