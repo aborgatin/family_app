@@ -79,8 +79,9 @@ Members are the principals. Sub-packages:
   `OneTimeTokens`; `PasswordEncoderConfig`; `MemberSyncTable` (the `member` table of the pull).
 - `family.child`: `Child`, `ChildService` (the `child` `SyncableTable`), `ChildRequest`,
   `ChildColorPalette`. No REST endpoint: Children are written by the push and read by the pull.
-- `family.childfield`: `ChildField`, `ChildFieldService`, `ChildFieldRequest`, `ValueType`
-  (`TEXT`, `DATE`), `ChildFieldsController` (`/api/child-fields`).
+- `family.childfield`: `ChildField`, `ChildFieldService` (the `child_field` `SyncableTable`),
+  `ChildFieldRequest`, `ValueType` (`TEXT`, `DATE`). No REST endpoint: Child fields are written by
+  the push and read by the pull.
 
 The public API (root package) is what spec #5 asks for, plus password resets:
 
@@ -105,7 +106,7 @@ Shared patterns inside `family`:
   `SELECT id FROM family FOR UPDATE` and returns the Family id; `lock()` is the same as the
   `sync.SyncLock`. It needs a surrounding transaction. **Every write to a syncable table takes it
   first** (the push, bootstrap, Invite acceptance, `MemberService.updateProfile` and
-  `changePassword`, `PasswordResets.complete`, `ChildFieldService.put/delete`), so Versions commit
+  `changePassword`, `PasswordResets.complete`), so Versions commit
   in Version order (sync.md "Versions commit in order") and check-then-insert races run one after
   another.
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
@@ -126,9 +127,9 @@ The push and the pull ([`sync.md`](sync.md) has the semantics). Public API:
   `changesSince(version, memberId)` → `List<SyncRow>` (deleted rows as `SyncRow.tombstone`, rows
   the Member may not see as tombstones or left out). `SyncService` collects every bean; two with
   the same name fail start-up.
-- `Operation(memberId, id, type, fields)`: `type` `UPSERT` / `DELETE`; `has(field)` and
-  `text(field)` (a non-string value is `validation.failed` / `value.invalid`) read the raw JSON
-  fields.
+- `Operation(memberId, id, type, fields)`: `type` `UPSERT` / `DELETE`; `has(field)`,
+  `text(field)` and `number(field)` (a value of another JSON type is `validation.failed` /
+  `value.invalid`) read the raw JSON fields.
 - `SyncLock`: the lock the push takes; `family.FamilyLock` implements it, so `sync` doesn't depend
   on `family`.
 
@@ -172,14 +173,11 @@ there):
 ## API conventions
 
 - JSON under `/api`, camelCase fields, timestamps ISO-8601 UTC, dates `YYYY-MM-DD`, ids UUID strings.
-- Syncable resources (`Member`, `Child`, `ChildField`) always carry `id`, `version`, `updatedAt`
-  in REST answers. List endpoints return non-deleted rows only.
+- Syncable resources in REST answers (`Member`) always carry `id`, `version`, `updatedAt`. List
+  endpoints return non-deleted rows only.
 - Syncable tables are written through `POST /api/sync/push` and read by the client through
-  `GET /api/sync/pull` ([`sync.md`](sync.md)). Children have no REST endpoint any more.
-- Writes to Child fields (until they move onto the push) are idempotent upserts by client UUID: `PUT /…/{id}` creates
-  or fully replaces, `DELETE /…/{id}` soft-deletes and returns `204` even for an unknown or already
-  deleted id, and a `PUT` to a soft-deleted id returns `409 <entity>.deleted` without bringing it
-  back. Details in [`sync.md`](sync.md).
+  `GET /api/sync/pull` ([`sync.md`](sync.md)). Children and Child fields have no REST endpoint any
+  more.
 - Endpoints (all need a session unless marked public):
 
 | Endpoint                                                       | Notes                                                                              |
@@ -195,14 +193,14 @@ there):
 | `POST /api/members/me/password`                                | `204`; other sessions stay                                                         |
 | `POST /api/sync/push`                                          | `{operations}` → `{results, version}`; see [`sync.md`](sync.md)                    |
 | `GET /api/sync/pull?since=N`                                   | `{changes, version}`; see [`sync.md`](sync.md)                                     |
-| `GET /api/child-fields`, `PUT/DELETE /api/child-fields/{id}`   | ordered by `position`, then id                                                     |
 | `GET /api/password-resets/by-token/{token}` (public)           | `{expiresAt}` or the reset's state error                                           |
 | `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions (same transaction), then logs in      |
 | `GET /actuator/health` (public)                                | container healthcheck                                                              |
 
 The pull sends Children in Version order; the web app orders them (`useChildren`: oldest first, no
 birthday last, then by name with `Intl.Collator('ru')`, «ё» with «е», then id), checked in
-`children.test.tsx`.
+`children.test.tsx`. Child fields likewise: `useChildFields` orders them by `position`, then id
+(`childFields.test.tsx`).
 
 ## Errors
 
@@ -236,8 +234,6 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 | 405    | `method.not_allowed`                              | added: wrong HTTP method                                                      |
 | 409    | `auth.bootstrap_closed`                           | bootstrap after the first Member exists                                       |
 | 409    | `member.email_taken`                              | Invite acceptance with an email any Member row has (removed ones included)    |
-| 409    | `child_field.deleted`                             | `PUT` to a soft-deleted Child field                                           |
-| 409    | `child_field.value_type_immutable`                | `PUT` changing an existing Child field's `valueType`                          |
 | 410    | `invite.used`, `invite.revoked`, `invite.expired` | Invite link no longer works (checked in that order)                           |
 | 410    | `password_reset.used`, `password_reset.expired`   | reset link no longer works                                                    |
 | 429    | `auth.too_many_attempts`                          | login limits; `params.retryAfterSeconds`, also `Retry-After` header           |
@@ -245,8 +241,9 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 
 Push results (not HTTP statuses: the push answers `200` with one result per operation) carry the
 same `{code, params}`: `validation.failed`, `sync.table_unknown` (`params.table`), `sync.read_only`,
-`request.invalid` (no valid id or `op`). An operation on a deleted Child is `ignored`, not
-`409 child.deleted` any more.
+`request.invalid` (no valid id or `op`), and per table `child_field.value_type_immutable` (an
+upsert changing an existing Child field's `valueType`). An operation on a deleted Child or Child
+field is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 
 Rows marked "added" are not in spec #5's error catalogue. They cover failures Spring raises before
 or outside an endpoint's own checks (a body that isn't JSON, an unknown path, a wrong method, an

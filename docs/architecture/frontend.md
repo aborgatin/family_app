@@ -150,8 +150,9 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`), `outbox` (`++seq`) and `meta` (the stored Version and the owner: the Member
-  whose data it holds). Internal to the folder, except `claimLocalStore(memberId)` (below).
+  (`member`, `child`, `child_field`; `child_field` came with store version 2), `outbox` (`++seq`)
+  and `meta` (the stored Version and the owner: the Member whose data it holds). Internal to the
+  folder, except `claimLocalStore(memberId)` (below).
   `wipeLocalStore()` clears every table Dexie knows (`localStore.tables`), so a table added later
   is wiped without changes there.
 - `engine.ts`: `startSync()` / `stopSync()` / `requestSync()`, `onRejection(listener)`. `AuthGuard`
@@ -191,22 +192,23 @@ Each data feature has one hook that is its only data access. Components never ca
   «Новый ребёнок» sheet gets its id once when it opens. `saveFailure` is the «Не удалось
   сохранить» message after a rejection.
 - `useChildFields()` → `{load, retry, add(id, name, valueType), rename(field, name),
-move(field, to), remove(field)}` (still online REST until its ticket); `newChildFieldId()` makes
-  the id once when the «Новое поле» sheet opens, so a retried save repeats the same `PUT`. `move`
-  takes the field's index after the move; `positionAfterMove(fields, id, to)` gives it the midpoint
-  between its new neighbours, or one past either end, and only that field is written. A new field
-  goes one past the last. Ordering is `position`, then id, as on the server.
+  move(field, to), remove(field), saveFailure}` on the local store and the Outbox, like
+  `useChildren()`: every write resolves at once, offline too, and sends only what it changes
+  (`rename` the name, `move` the position, `add` all three fields). `newChildFieldId()` makes the
+  id once when the «Новое поле» sheet opens. `move` takes the field's index after the move;
+  `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or one past
+  either end, so a reorder is a single-record change. A new field goes one past the last.
+  Ordering is `position`, then id. `saveFailure` is «Не удалось сохранить» after a rejection.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`.
 
 The load / failed / retry part of REST-backed data is shared: `useLoad(fetch, key?)` from
 `@/shared/load` returns `{load, retry, update}`. It fetches on mount and when `key` changes, drops
 answers that arrive after unmounting, and `update(change)` edits the loaded value after a write.
-`useMembers`, `useChildFields`, `InvitesSettings` and `AuthGuard` use it, and
+`useMembers`, `InvitesSettings` and `AuthGuard` use it, and
 `features/auth/useLinkCheck` builds the Invite and password reset link check on it.
 
-Auth, Invites and Member account changes stay online-only REST permanently (S4 exception); Child
-fields move onto the local store in their own M2 ticket.
+Auth, Invites and Member account changes stay online-only REST permanently (S4 exception).
 
 `crypto.randomUUID()` needs a secure context: HTTPS, or `localhost` in development.
 
@@ -322,13 +324,13 @@ list).
 «Вес»»; empty is refused without a request) that renames the field in place on blur or Enter,
 with the value type («Текст» / «Дата») on the right; it can't be changed (ADR-0007). Each row
 reports its save failure up to the section's footer (`autoSaveMessages`). Edit mode shows ⊖ and a
-drag handle: dragging (mouse, touch or keyboard) calls `move(field, to)`, which `PUT`s only that
-field; `SortableList` shows the new order until the save settles, so a failed move puts the rows
-back and the footer shows the error. A swipe and right-click delete too; every delete asks
-(«Удалить поле „Вес“?»), and a failed one leaves the list as it was with the error in the footer.
+drag handle: dragging (mouse, touch or keyboard) calls `move(field, to)`, which writes only that
+field's position. A swipe and right-click delete too; every delete asks («Удалить поле „Вес“?»).
 «Добавить поле» opens `NewChildFieldSheet`: a `Sheet` «Новое поле» with «Название» (`InputRow`)
-and «Тип» (`SegmentedControl` «Текст» / «Дата», «Текст» chosen), saved only with «Готово»; the
-field goes to the end. With no fields the footer says «Полей пока нет».
+and «Тип» (`SegmentedControl` «Текст» / «Дата», «Текст» chosen), saved only with «Готово» (at
+once, also offline); the field goes to the end. Every change shows at once and goes out through
+the Outbox. With no fields the footer says «Полей пока нет»; a rejected change shows «Не удалось
+сохранить» there (a rejected new field leaves the list).
 
 The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_PATH`; `app/routes.tsx` passes
 `settingsPath` as for the password screen) is a `Page` titled with the Child's name, back to
@@ -403,11 +405,12 @@ fields | 'deleted')` (the other Member's change), `row(table, id)` (the server's
 - `FakeEventSource` (`@/test/eventSource`) is the global `EventSource` in every test:
   `FakeEventSource.latest()`, `.open()`, `.emit(type, data)`, `.fail()`, `.closed`.
 - Every `renderApp` test must mock `GET /api/auth/session` (`sessionHandler({...}).handler`; its
-  `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`,
-  `/api/child-fields` and `/api/invites`.
+  `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`
+  and `/api/invites`.
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
-  `syncServer.seed('child', …)`); Child fields `weight`, `height`; handlers `membersHandler`,
-  `childFieldsHandler`, `invitesHandler`, `sessionHandler`.
+  `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
+  `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,
+  `sessionHandler`.
 - Query by role and label; assert on the Russian text the user sees (T1). Set
   `document.cookie = 'XSRF-TOKEN=…'` to check the CSRF header.
 - To test copying, stub `ClipboardItem` (`vi.stubGlobal`) and `navigator.clipboard` (`write`,

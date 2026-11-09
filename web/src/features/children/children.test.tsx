@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   anna,
   boris,
-  childFieldsHandler,
   invitesHandler,
   masha,
   membersHandler,
@@ -58,7 +57,7 @@ beforeEach(() => {
   document.cookie = 'XSRF-TOKEN=token-from-server';
   server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
   server.use(membersHandler([anna, boris]));
-  server.use(invitesHandler([]), childFieldsHandler([]));
+  server.use(invitesHandler([]));
 });
 afterEach(() => {
   vi.useRealTimers();

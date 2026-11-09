@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   anna,
   boris,
-  childFieldsHandler,
   invitesHandler,
   masha,
   membersHandler,
@@ -82,7 +81,7 @@ function reconnect() {
 beforeEach(() => {
   document.cookie = 'XSRF-TOKEN=token-from-server';
   server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
-  server.use(membersHandler([anna, boris]), childFieldsHandler([]), invitesHandler([]));
+  server.use(membersHandler([anna, boris]), invitesHandler([]));
   syncServer.seed('child', [masha, petya]);
 });
 afterEach(() => {

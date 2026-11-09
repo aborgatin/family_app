@@ -10,9 +10,9 @@ interface ChildFieldRepository extends Repository<ChildField, UUID> {
 
   ChildField saveAndFlush(ChildField childField);
 
-  /** Including soft-deleted ones, so a {@code PUT} can tell "deleted" from "new". */
+  /** Including soft-deleted ones, so an upsert can tell "deleted" from "new". */
   Optional<ChildField> findById(UUID id);
 
-  /** In display order: by position, ties broken by id. */
-  List<ChildField> findByDeletedFalseOrderByPositionAscIdAsc();
+  /** Every Child field written after this Version, deleted ones included (for the pull). */
+  List<ChildField> findByVersionGreaterThan(long version);
 }

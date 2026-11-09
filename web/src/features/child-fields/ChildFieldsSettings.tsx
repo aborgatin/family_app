@@ -24,17 +24,17 @@ import { VALUE_TYPE_KEYS } from './valueTypes';
  * and its value type on the right, which can't change after creation (ADR-0007). Edit mode
  * deletes (⊖) and reorders (drag handle); a swipe or right-click deletes too, always after the
  * action sheet. «Добавить поле» opens the «Новое поле» sheet. All data access goes through
- * `useChildFields()`, so M2 can move it onto the local store + Outbox without touching this
- * component.
+ * `useChildFields()` (the local store + Outbox); the footer says «Не удалось сохранить» when the
+ * server rejected a change.
  */
 export function ChildFieldsSettings() {
   const { t } = useTranslation();
   const lines = useFooterLines();
-  const { load, retry, add, rename, move, remove } = useChildFields();
+  const { load, retry, add, rename, move, remove, saveFailure } = useChildFields();
   const list = useEditableList();
   const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
   // The id of the field being added, made once when the sheet opens, so a retried save repeats
-  // the same idempotent PUT instead of creating a second field (S3).
+  // the same idempotent upsert instead of creating a second field (S3).
   const [addingId, setAddingId] = useState<string>();
 
   const reportFailure = useCallback((id: string, failure: SaveFailure | undefined) => {
@@ -64,6 +64,7 @@ export function ChildFieldsSettings() {
           load.status === 'failed' && lines.failure(errorMessage(load.error), retry),
           ...autoSaveMessages(fields.map((field) => failures[field.id])),
           lines.failure(list.error),
+          lines.failure(saveFailure),
           load.status === 'ready' && fields.length === 0 && { text: t('childFields.empty') },
         ]}
         after={
