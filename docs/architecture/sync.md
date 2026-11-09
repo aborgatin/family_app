@@ -180,7 +180,9 @@ auth.required` without one) tells open apps when to pull:
   this session. A `401` during sync therefore keeps unsent changes for the same Member. Logout
   pushes the Outbox first; when it can't be sent the Member is warned that the unsent changes will
   be lost (confirm or cancel); after the server's logout every table of the store (rows, Outbox,
-  meta) is wiped, so the next person on the device sees none of the Member's data.
+  meta) is wiped, so the next person on the device sees none of the Member's data. When the
+  logout can't reach the server either, the store is wiped at once and the device stays logged
+  out (no sync) until the server is told or someone logs in (`frontend.md`, "Pending logout").
 - Children, Child fields and Lists are on the store, and live updates (`changed` → pull) run.
   The List screen has List settings (rename, Visibility, delete; #56); Items are the next M2
   tickets.

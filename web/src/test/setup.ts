@@ -25,6 +25,8 @@ afterEach(async () => {
   await localStore.transaction('rw', localStore.tables, () =>
     Promise.all(localStore.tables.map((table) => table.clear())),
   );
+  // Device state outside the store too (a pending logout, the theme).
+  localStorage.clear();
   server.resetHandlers();
   syncServer.reset();
   FakeEventSource.reset();

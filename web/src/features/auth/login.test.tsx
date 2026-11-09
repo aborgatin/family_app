@@ -293,16 +293,5 @@ describe('Logout', () => {
     expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
   });
 
-  it('stays logged in and says so when the server cannot be reached', async () => {
-    server.use(http.post('/api/auth/logout', () => HttpResponse.error()));
-    const user = userEvent.setup();
-
-    const app = renderApp('/settings');
-    await logOut(user);
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
-    );
-    expect(app.location()).toBe('/settings');
-  });
+  // Logging out while the server can't be reached: logout.test.tsx.
 });

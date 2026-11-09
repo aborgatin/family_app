@@ -109,6 +109,16 @@ It provides `SessionContext`; screens read it with `useSession()` (`@/features/a
 `loggedIn()` and does not navigate itself. `ResetPasswordPage` and `InvitePage` navigate to `/`
 after `loggedIn()`. `/setup` and `/invite/:token` share `RegistrationForm`.
 
+**Pending logout** (`features/auth/logoutApi.ts`): logging out while the server can't be reached
+logs the device out at once and sets a flag in `localStorage` (`family-app.logout-pending`).
+While it is set the guard treats the session as having no Member, whatever the server answers (the
+cookie may still be valid there), so sync never starts. The guard sends `POST /api/auth/logout`
+at start, whenever the server becomes reachable and on the browser's `online` event, and clears
+the flag on `204` or `auth.required`. Every way of logging in (`authApi.ts`: bootstrap, login,
+Invite, password reset) goes through `loggingIn()`: it sends a pending logout first, holds it off
+while the login request is under way (the login's answer makes the server reachable, which would
+otherwise send it with the new session's cookie), and clears the flag once logged in.
+
 The four auth screens are `CenteredPage`s (app icon, large title, no nav bar): one
 `GroupedSection` of `InputRow`s (registration adds «Пол» as a `SegmentedControl`) inside a
 `Form`, field and form errors in the group footer, and the full-width primary `Button`. The
@@ -163,7 +173,8 @@ code that touches IndexedDB or the sync API:
   wipes it when it is another Member's), shows «Загрузка…» until it is done, then starts the
   engine while the Member is logged in (keyed on the Member id) and stops it otherwise.
 - Logout (`LogoutSection`): `flushOutbox()` sends the whole Outbox now (pausing the engine
-  meanwhile) and rejects with the `ApiError` when it can't; after the server's logout,
+  meanwhile) and rejects with the `ApiError` when it can't; after the server's logout, or when the
+  logout itself can't reach the server (then a pending logout, see the auth guard),
   `stopSyncAndWipe()` stops the engine and wipes the store.
 - `liveUpdates.ts`: `openLiveUpdates(onNewerVersion)`, opened by `startSync` and closed by
   `stopSync`. One `EventSource` on `/api/sync/events`; a `changed` event whose Version is above
@@ -231,7 +242,8 @@ answers that arrive after unmounting, and `update(change)` edits the loaded valu
 `useMembers`, `InvitesSettings` and `AuthGuard` use it, and
 `features/auth/useLinkCheck` builds the Invite and password reset link check on it.
 
-Auth, Invites and Member account changes stay online-only REST permanently (S4 exception).
+Auth, Invites and Member account changes stay online-only REST permanently (S4 exception; logout
+also works offline through a pending logout, see the auth guard).
 
 `crypto.randomUUID()` needs a secure context: HTTPS, or `localhost` in development.
 
@@ -312,8 +324,9 @@ after logging out the guard shows `/login`). Logout sends the Outbox first; when
 (other than `401`) a second `ActionSheet` warns «Нет соединения с сервером. Несохранённые
 изменения будут потеряны» with a red «Выйти» (log out, wipe) and «Отменить» (keep everything). A
 `401` there means the session already ended: the guard shows `/login` and the store stays for the
-same Member. Logout itself stays online-only: when `POST /api/auth/logout` can't reach the server
-nothing is wiped and the footer says so. `app/routes.tsx` passes `HOME_PATH` in as
+same Member. When `POST /api/auth/logout` can't reach the server either, the device logs out on
+its own (wipe, `/login`) and tells the server later (pending logout, see the auth guard); any
+other failure of it keeps the device logged in and the footer says so. `app/routes.tsx` passes `HOME_PATH` in as
 `homePath`, since `home` already imports `settings`. Auto-save and its failure footer are
 the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessages` (see
 `design.md`). Other footer lines come from `useFooterLines()`: `failure(error, retry?)` for a

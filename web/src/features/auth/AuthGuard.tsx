@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
-import { errorMessageKey } from '@/shared/api';
+import { errorMessageKey, subscribeServerReachable } from '@/shared/api';
 import { useLoad } from '@/shared/load';
 import { claimLocalStore, startSync } from '@/shared/sync';
 import { Button, StatusScreen } from '@/shared/ui';
 import { fetchSession, type Member, type Session } from './authApi';
+import { isLogoutPending, sendPendingLogout } from './logoutApi';
 import { SessionContext, type SessionState } from './session';
 
 export const SETUP_PATH = '/setup';
@@ -16,6 +17,15 @@ export const INVITE_PATH = '/invite/:token';
 /** Screens a logged-out device may open: reset and Invite links work without logging in. */
 function isPublic(pathname: string): boolean {
   return pathname.startsWith('/reset-password/') || pathname.startsWith('/invite/');
+}
+
+/**
+ * The server's session, except that a device with a pending logout stays logged out: its session
+ * may still be valid on the server, but the device has already wiped the Member's data.
+ */
+async function sessionOnThisDevice(): Promise<Session> {
+  const session = await fetchSession();
+  return isLogoutPending() ? { ...session, member: null } : session;
 }
 
 /** What the guard remembers in the `/login` history entry: where the visit was going. */
@@ -45,7 +55,7 @@ export function AuthGuard() {
   const { t } = useTranslation();
   const location = useLocation();
   const { pathname } = location;
-  const { load, retry, update } = useLoad(fetchSession);
+  const { load, retry, update } = useLoad(sessionOnThisDevice);
   // Logging out on purpose isn't "sent to login from here": logging in again opens Home.
   const [loggedOutHere, setLoggedOutHere] = useState(false);
 
@@ -69,6 +79,20 @@ export function AuthGuard() {
         : null,
     [load, update],
   );
+
+  // A logout the server hasn't heard of is sent at start and whenever the server is reachable.
+  useEffect(() => {
+    const send = () => void sendPendingLogout();
+    send();
+    const unsubscribe = subscribeServerReachable((reachable) => {
+      if (reachable) send();
+    });
+    window.addEventListener('online', send);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('online', send);
+    };
+  }, []);
 
   // Sync runs while a Member is logged in on this device (spec #3 "Client").
   // First the store is made this Member's (wiped if another Member's data is in it), so neither
