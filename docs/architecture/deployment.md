@@ -31,7 +31,9 @@ every job runs. On a pull request a **changes** job (`dorny/paths-filter`) decid
 
 `migrations` always runs. Never filter with workflow-level `paths:`: a skipped workflow leaves
 required checks pending forever, while a skipped job counts as passed (#17). When a job starts
-reading a file outside its folder, add that path to its filter.
+reading a file outside its folder, add that path to its filter. The `if:` conditions fail open: if
+**changes** itself fails, `backend`, `web` and `image` run rather than skip, since a skipped required
+check would let the PR merge untested.
 
 - **migrations**: `scripts/check-migrations-test.sh` (the guard's self-test), then
   `scripts/check-migrations.sh` against the PR's target branch, or on push to `main` against the

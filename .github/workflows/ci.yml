@@ -15,7 +15,8 @@ concurrency:
 jobs:
   # Decides which jobs a pull request needs. Jobs are skipped with `if:`, never with workflow-level
   # `paths:`: a skipped workflow leaves required checks pending forever, while a skipped job counts
-  # as passed (#17). Pushes to `main` run every job regardless.
+  # as passed (#17). Pushes to `main` run every job regardless. The jobs below fail open: if this job
+  # fails, its outputs are empty and they run, so a broken filter can't skip a required check.
   changes:
     name: changes
     runs-on: ubuntu-latest
@@ -72,7 +73,7 @@ jobs:
   backend:
     name: backend
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.backend == 'true'
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.changes.outputs.backend != 'false') }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -100,7 +101,7 @@ jobs:
   web:
     name: web
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.changes.outputs.web != 'false') }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -127,7 +128,7 @@ jobs:
   image:
     name: image
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.image == 'true'
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.changes.outputs.image != 'false') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
