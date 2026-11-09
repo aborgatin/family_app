@@ -97,7 +97,9 @@ stops every running agent at once. The skill:
 
 - runs `caffeinate` so the Mac doesn't sleep while unattended;
 - checks usage with `.claude/skills/implement-spec/usage.sh` before every agent it starts (it
-  reads the Claude Code OAuth token from the macOS Keychain; macOS only, never prints the token);
+  reads the Claude Code OAuth token from the macOS Keychain; macOS only, never prints the token).
+  The endpoint is rate-limited, so the reading is cached for 5 minutes in
+  `~/.cache/family-app/usage` and the watcher is what refreshes it;
 - runs `watch-usage.sh 70` in the background; at 70% it starts nothing new, lets running agents
   finish, posts a resume note on the draft PR, waits for the reset, then continues stopped
   agents with SendMessage.
