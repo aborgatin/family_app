@@ -17,15 +17,12 @@ const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
 export function useChildren() {
   const rows = useRows('child') as Child[] | undefined;
   const { rejected, clear } = useSaveRejected('child');
-  // The screens pass the whole Child to `save`, built on what they showed first and saved since.
-  // Comparing with the same (each Child as this hook first saw it, then as last saved) sends only
-  // what the Member changed, so a change from the other Member that arrived meanwhile stays (Last
-  // write wins per field).
-  const baseline = useRef(new Map<string, ChildDetails>());
+  // The screens pass the whole Child, built on the one they show (from these same rows). Comparing
+  // with the current local row sends only what the Member changed, so a change from the other
+  // Member that a pull brought stays (Last write wins per field).
+  const current = useRef(new Map<string, ChildDetails>());
   useEffect(() => {
-    for (const child of rows ?? []) {
-      if (!baseline.current.has(child.id)) baseline.current.set(child.id, child);
-    }
+    current.current = new Map((rows ?? []).map((child) => [child.id, child]));
   }, [rows]);
 
   const load = useMemo<ChildrenLoad>(
@@ -37,13 +34,12 @@ export function useChildren() {
   const save = useCallback(
     async (id: string, details: ChildDetails): Promise<Child> => {
       clear();
-      const before = baseline.current.get(id);
+      const before = current.current.get(id);
       await upsertRow(
         'child',
         id,
         before === undefined ? { ...details } : changed(before, details),
       );
-      baseline.current.set(id, details);
       return { id, ...details };
     },
     [clear],

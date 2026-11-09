@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
@@ -97,14 +97,13 @@ function ChildEditor({ child, save, remove, saveFailure, settingsPath }: ChildEd
   const navigate = useNavigate();
   const { id } = child;
 
-  // PUT replaces the whole Child: each row sends its change on top of what was saved last.
-  const latest = useRef(detailsOf(child));
+  // Each row sends its change on top of the Child as shown now; `save` sends only what differs.
+  const shown = useRef(detailsOf(child));
+  useEffect(() => {
+    shown.current = detailsOf(child);
+  }, [child]);
   const saveChange = useCallback(
-    async (change: Partial<ChildDetails>) => {
-      const saved = await save(id, { ...latest.current, ...change });
-      latest.current = detailsOf(saved);
-      return saved;
-    },
+    (change: Partial<ChildDetails>) => save(id, { ...shown.current, ...change }),
     [id, save],
   );
 

@@ -338,6 +338,30 @@ describe('The Child screen', () => {
     });
   });
 
+  it('sends a colour changed back after the other Member changed it', async () => {
+    syncServer.seed('child', [masha]);
+    const user = userEvent.setup();
+
+    renderApp(`/settings/children/${masha.id}`);
+    await screen.findByRole('heading', { level: 1, name: 'Маша' });
+    await user.click(screen.getByRole('radio', { name: 'Синий' }));
+    await waitFor(() => {
+      expect(syncServer.row('child', masha.id)).toEqual({ ...masha, color: 'blue' });
+    });
+    // Boris makes her teal; Anna sees it and picks blue again.
+    syncServer.change('child', masha.id, { color: 'teal' });
+    bringToForeground();
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: 'Бирюзовый' })).toBeChecked();
+    });
+    await user.click(screen.getByRole('radio', { name: 'Синий' }));
+
+    await waitFor(() => {
+      expect(syncServer.row('child', masha.id)).toEqual({ ...masha, color: 'blue' });
+    });
+    expect(screen.getByRole('radio', { name: 'Синий' })).toBeChecked();
+  });
+
   it('keeps an edit not sent yet when a pull brings the other Member’s change', async () => {
     syncServer.seed('child', [masha]);
     const user = userEvent.setup();
