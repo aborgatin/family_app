@@ -227,7 +227,8 @@ async function pushOutbox(current: () => boolean) {
  * Pulls the changes since the stored Version and applies them: pulled rows replace local ones,
  * then the Outbox operations still pending for those ids are applied again on top, so a pull never
  * reverts an unsent local edit. A full pull (first sync, or after a rejection) replaces every row.
- * A deleted row stays deleted: pending upserts for it are not applied again (delete wins).
+ * A deleted row stays deleted: pending upserts for it are not applied again (delete wins), and a
+ * deleted List's Items go with it.
  */
 async function pull(current: () => boolean) {
   const full = fullPullNeeded || (await storedVersion()) === 0;
@@ -260,6 +261,13 @@ async function pull(current: () => boolean) {
         if ((full || touched.has(key)) && !deleted.has(key)) {
           await applyLocally(operation);
         }
+      }
+      // A tombstoned List (deleted, or made Private by its Owner) takes its local Items with it.
+      const goneLists = response.changes
+        .filter((change) => change.table === 'list' && change.deleted)
+        .map((change) => change.id);
+      if (goneLists.length > 0) {
+        await localStore.rows('item').where('listId').anyOf(goneLists).delete();
       }
       await storeVersion(response.version);
     },

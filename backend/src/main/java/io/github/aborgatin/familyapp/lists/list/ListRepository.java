@@ -13,6 +13,9 @@ interface ListRepository extends Repository<ListEntity, UUID> {
   /** The List with this id, deleted or not, so an operation can tell "deleted" from "new". */
   Optional<ListEntity> findById(UUID id);
 
+  /** The Lists with these ids, deleted or not (the Lists of the Items a pull sends). */
+  List<ListEntity> findAllById(Iterable<UUID> ids);
+
   /** Every List written after this Version, deleted ones included (the sync pull). */
   List<ListEntity> findByVersionGreaterThan(long version);
 }

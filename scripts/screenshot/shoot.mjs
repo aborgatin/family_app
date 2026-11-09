@@ -306,10 +306,20 @@ export const SEED = {
   // Lists by Member: Борис's Private one never reaches Анна, whom every route is logged in as.
   lists: {
     member: [
-      { name: 'Супермаркет', kind: 'SHOPPING', visibility: 'SHARED' },
+      {
+        name: 'Супермаркет',
+        kind: 'SHOPPING',
+        visibility: 'SHARED',
+        items: ['Молоко 3,2%', 'Хлеб бородинский', 'Яйца, десяток', 'Помидоры черри', 'Сыр'],
+      },
       { name: 'Аптека', kind: 'SHOPPING', visibility: 'SHARED' },
       { name: 'Ремонт', kind: 'TODO', visibility: 'PRIVATE' },
-      { name: 'Дела по дому', kind: 'TODO', visibility: 'SHARED' },
+      {
+        name: 'Дела по дому',
+        kind: 'TODO',
+        visibility: 'SHARED',
+        items: ['Поменять лампочку в коридоре', 'Записать Машу к стоматологу'],
+      },
       { name: 'Желания Маши', kind: 'WISH', visibility: 'SHARED' },
     ],
     secondMember: [
@@ -340,9 +350,15 @@ async function api(page, method, url, body) {
   );
 }
 
-/** Creates Lists through the sync push as the Member logged in on `page`. */
+/** Creates Lists, and their `items` in that order, through the sync push as the Member logged in on `page`. */
 async function pushLists(page, lists) {
-  const operations = lists.map((fields) => ({ table: 'list', id: crypto.randomUUID(), op: 'upsert', fields }));
+  const operations = lists.flatMap(({ items = [], ...fields }) => {
+    const listId = crypto.randomUUID();
+    return [
+      { table: 'list', id: listId, op: 'upsert', fields },
+      ...items.map((text) => ({ table: 'item', id: crypto.randomUUID(), op: 'upsert', fields: { listId, text } })),
+    ];
+  });
   const pushed = await api(page, 'POST', '/api/sync/push', { operations });
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed lists: ${JSON.stringify(pushed.results)}`);
 }

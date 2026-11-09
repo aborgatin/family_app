@@ -22,9 +22,11 @@ import org.springframework.stereotype.Service;
 class ListService implements SyncableTable {
 
   private final ListRepository lists;
+  private final ItemRepository items;
 
-  ListService(ListRepository lists) {
+  ListService(ListRepository lists, ItemRepository items) {
     this.lists = lists;
+    this.items = items;
   }
 
   @Override
@@ -35,9 +37,9 @@ class ListService implements SyncableTable {
   /**
    * An upsert creates the List (name, kind and Visibility required; the pushing Member becomes the
    * Owner) or changes only the fields it carries; only the Owner changes Visibility ({@code
-   * list.owner_only}). A delete soft-deletes. Delete wins: anything on a deleted List, and deleting
-   * an unknown one, is ignored. Another Member's Private List is treated as unknown: {@code
-   * list.not_found} (A1).
+   * list.owner_only}). A delete soft-deletes the List and its Items. Delete wins: anything on a
+   * deleted List, and deleting an unknown one, is ignored. Another Member's Private List is treated
+   * as unknown: {@code list.not_found} (A1).
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -68,6 +70,8 @@ class ListService implements SyncableTable {
     if (details.kind() == ListKind.WISH && details.visibility() == Visibility.PRIVATE) {
       throw new ApiException(HttpStatus.BAD_REQUEST, "list.wish_shared_only");
     }
+    boolean visibilityChanged =
+        existing.isPresent() && existing.get().visibility() != details.visibility();
     ListEntity list =
         existing
             .map(
@@ -78,6 +82,11 @@ class ListService implements SyncableTable {
             .orElseGet(
                 () -> new ListEntity(operation.id(), operation.memberId(), Instant.now(), details));
     lists.saveAndFlush(list);
+    if (visibilityChanged) {
+      // The pull sends the Items again: with their fields to a Member who may now see the List,
+      // as tombstones to one who no longer may.
+      items.bumpVersionsInList(list.id());
+    }
     return Outcome.APPLIED;
   }
 
@@ -88,6 +97,7 @@ class ListService implements SyncableTable {
     ListEntity list = existing.get();
     list.markDeleted();
     lists.saveAndFlush(list);
+    items.markDeletedInList(list.id());
     return Outcome.APPLIED;
   }
 

@@ -3,6 +3,7 @@
 import { editIn, failClipboard, hang, noLists, rowActions, section, toSection } from './helpers.mjs';
 
 const INVITE = 'role=button[name="Пригласить взрослого…"]';
+const ITEM = 'role=textbox[name="Товар «Молоко 3,2%»"]';
 const showInvites = async (page) => {
   await page.locator(INVITE).scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, 200));
@@ -108,12 +109,89 @@ export default {
     {
       name: 'list-shopping',
       path: '/',
-      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: 'text=Товаров пока нет' }],
+      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: ITEM }],
+    },
+    {
+      name: 'list-shopping-empty',
+      path: '/',
+      steps: [{ click: 'role=link[name=/Аптека/]' }, { waitFor: 'text=Товаров пока нет' }],
     },
     {
       name: 'list-todo',
       path: '/',
+      steps: [{ click: 'role=link[name=/Дела по дому/]' }, { waitFor: 'role=textbox[name^="Задача"]' }],
+    },
+    {
+      name: 'list-todo-empty',
+      path: '/',
       steps: [{ click: 'role=link[name=/Ремонт/]' }, { waitFor: 'text=Задач пока нет' }],
+    },
+    {
+      // Enter added «Масло» and keeps the focus in «Новый товар» for the next Item.
+      name: 'list-item-adding',
+      path: '/',
+      isolate: true,
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: 'role=textbox[name="Новый товар"]' },
+        { fill: 'role=textbox[name="Новый товар"]', value: 'Масло' },
+        { press: 'Enter' },
+        { fill: 'role=textbox[name="Новый товар"]', value: 'Ке' },
+        toSection('Товары', 120),
+        { wait: 300 },
+      ],
+    },
+    {
+      name: 'list-item-empty-text',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { fill: ITEM, value: '' },
+        { press: 'Enter' },
+        { waitFor: 'text=Заполните это поле' },
+      ],
+    },
+    {
+      name: 'list-items-edit',
+      path: '/',
+      fullPage: false,
+      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: ITEM }, editIn('Товары'), toSection('Товары', 0)],
+    },
+    {
+      // Touch: the first Item swiped left; mouse: its context menu.
+      name: 'list-item-actions',
+      path: '/',
+      fullPage: false,
+      steps: [{ click: 'role=link[name=/Супермаркет/]' }, rowActions('Товары')],
+    },
+    {
+      name: 'list-item-delete-confirm',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        editIn('Товары'),
+        { click: 'role=button[name="Удалить «Молоко 3,2%»"]' },
+        { waitFor: 'role=dialog' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // Added offline: shown at once, with the offline indicator as the only sign.
+      name: 'list-items-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { fill: 'role=textbox[name="Новый товар"]', value: 'Кефир' },
+        { press: 'Enter' },
+        { waitFor: 'role=textbox[name="Товар «Кефир»"]' },
+      ],
     },
     {
       name: 'list-wish',
