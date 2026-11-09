@@ -8,18 +8,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
+import io.github.aborgatin.familyapp.LockWaits;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
 import io.github.aborgatin.familyapp.SyncRequests;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.BooleanSupplier;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,8 +42,6 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @Import(PostgresTestcontainer.class)
 class PullNeverSkipsASlowerWriteTest {
-
-  private static final Duration PATIENCE = Duration.ofSeconds(10);
 
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
@@ -97,7 +93,7 @@ class PullNeverSkipsASlowerWriteTest {
                       anna,
                       SyncRequests.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"),
                       SyncRequests.upsert("child", masha, "{\"name\":\"Мария\"}")));
-      waitUntil(() -> transactionsWaitingOnALock() == 1);
+      LockWaits.waitUntil(() -> LockWaits.transactionsWaitingOnALock(jdbc) == 1);
 
       fast =
           CompletableFuture.runAsync(
@@ -107,7 +103,7 @@ class PullNeverSkipsASlowerWriteTest {
                       SyncRequests.upsert(
                           "child", sonya, "{\"name\":\"Соня\",\"color\":\"pink\"}")));
       // Boris's push either finishes at once (nothing orders it after Anna's) or waits too.
-      waitUntil(() -> fast.isDone() || transactionsWaitingOnALock() == 2);
+      LockWaits.waitUntil(() -> fast.isDone() || LockWaits.transactionsWaitingOnALock(jdbc) == 2);
 
       String first =
           SyncRequests.pull(annasTablet, start).andReturn().getResponse().getContentAsString();
@@ -134,27 +130,6 @@ class PullNeverSkipsASlowerWriteTest {
       SyncRequests.push(device, operations).andExpect(status().isOk());
     } catch (Exception e) {
       throw new IllegalStateException(e);
-    }
-  }
-
-  private int transactionsWaitingOnALock() {
-    Integer waiting =
-        jdbc.queryForObject(
-            """
-            SELECT count(*) FROM pg_stat_activity
-            WHERE datname = current_database() AND wait_event_type = 'Lock'
-            """,
-            Integer.class);
-    return waiting == null ? 0 : waiting;
-  }
-
-  private static void waitUntil(BooleanSupplier condition) throws InterruptedException {
-    Instant deadline = Instant.now().plus(PATIENCE);
-    while (!condition.getAsBoolean()) {
-      if (Instant.now().isAfter(deadline)) {
-        throw new AssertionError("timed out waiting for the concurrent pushes");
-      }
-      Thread.sleep(20);
     }
   }
 }
