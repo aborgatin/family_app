@@ -13,6 +13,7 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -107,6 +108,40 @@ class LiveUpdatesTest {
   }
 
   @Test
+  void aPushOfSeveralOperationsSendsChangedOnce() throws Exception {
+    borisEvents = EventStream.open(boris, EVENTS);
+    borisEvents.nextChanged();
+
+    long both = version(pushChildren(anna, "Маша", "Петя"));
+    long later = version(pushChild(anna, "Вера"));
+
+    assertThat(borisEvents.nextChanged()).isEqualTo("{\"version\":%d}".formatted(both));
+    assertThat(borisEvents.nextChanged()).isEqualTo("{\"version\":%d}".formatted(later));
+  }
+
+  @Test
+  void aWriteThatRollsBackSendsNothing() throws Exception {
+    borisEvents = EventStream.open(boris, EVENTS);
+    borisEvents.nextChanged();
+
+    // Invite acceptance takes the Family lock before it finds the token unknown and rolls back.
+    HttpDevice stranger = new HttpDevice().at(app);
+    stranger.send("GET", "/api/auth/session", null);
+    HttpResponse<String> refused =
+        stranger.send(
+            "POST",
+            "/api/invites/by-token/no-such-token/accept",
+            """
+            {"email":"vera@example.com","password":"secret123","displayName":"Вера",
+             "grammaticalGender":"FEMININE"}
+            """);
+    assertThat(refused.statusCode()).as(refused.body()).isEqualTo(404);
+    long pushed = version(pushChild(anna, "Маша"));
+
+    assertThat(borisEvents.nextChanged()).isEqualTo("{\"version\":%d}".formatted(pushed));
+  }
+
+  @Test
   void withoutASessionTheStreamIsRefusedLikeAnyOtherApiCall() throws Exception {
     HttpResponse<String> refused = new HttpDevice().at(app).send("GET", EVENTS, null);
 
@@ -154,6 +189,20 @@ class LiveUpdatesTest {
           "fields":{"name":"%s","color":"blue","birthday":null}}]}
         """
             .formatted(UUID.randomUUID(), name));
+  }
+
+  private static HttpResponse<String> pushChildren(HttpDevice device, String... names)
+      throws Exception {
+    String operations =
+        Stream.of(names)
+            .map(
+                name ->
+                    """
+                    {"table":"child","id":"%s","op":"upsert",
+                     "fields":{"name":"%s","color":"blue","birthday":null}}"""
+                        .formatted(UUID.randomUUID(), name))
+            .collect(Collectors.joining(","));
+    return device.send("POST", "/api/sync/push", "{\"operations\":[" + operations + "]}");
   }
 
   private static long version(HttpResponse<String> response) {
