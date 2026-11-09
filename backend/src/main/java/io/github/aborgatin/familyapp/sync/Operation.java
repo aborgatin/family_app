@@ -56,4 +56,18 @@ public record Operation(UUID memberId, UUID id, Type type, Map<String, Object> f
     new FieldErrors().add(field, FieldErrors.VALUE_INVALID).throwIfAny();
     return null;
   }
+
+  /**
+   * The field as a boolean, or {@code null} when it is absent or {@code null}. A value of another
+   * JSON type is {@code 400 validation.failed} with {@code value.invalid} for the field.
+   */
+  @Nullable
+  public Boolean bool(String field) {
+    Object value = fields.get(field);
+    if (value == null || value instanceof Boolean) {
+      return (Boolean) value;
+    }
+    new FieldErrors().add(field, FieldErrors.VALUE_INVALID).throwIfAny();
+    return null;
+  }
 }

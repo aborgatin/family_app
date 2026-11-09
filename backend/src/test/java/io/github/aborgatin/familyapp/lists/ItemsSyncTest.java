@@ -289,6 +289,72 @@ class ItemsSyncTest {
     assertThat(SyncRequests.fields(boris, "item", milk)).isEqualTo(once);
   }
 
+  @Test
+  void doneSetsWhoMarkedItAndWhenAndUndoingClearsBoth() throws Exception {
+    UUID milk = UUID.randomUUID();
+    SyncRequests.push(anna, add(milk, groceries, "Молоко"));
+    Instant before = Instant.now();
+
+    SyncRequests.push(boris, done(milk, true))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    Map<String, Object> done = SyncRequests.fields(anna, "item", milk);
+    assertThat(done).containsEntry("done", true).containsEntry("doneById", memberId(boris));
+    assertThat(Instant.parse((String) done.get("doneAt"))).isAfter(before.minusSeconds(1));
+
+    SyncRequests.push(anna, done(milk, false))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    assertThat(SyncRequests.fields(boris, "item", milk))
+        .containsEntry("done", false)
+        .containsEntry("doneById", null)
+        .containsEntry("doneAt", null);
+  }
+
+  @Test
+  void markingAnItemDoneAgainChangesNothing() throws Exception {
+    UUID milk = UUID.randomUUID();
+    SyncRequests.push(anna, add(milk, groceries, "Молоко"), done(milk, true));
+    Map<String, Object> once = SyncRequests.fields(boris, "item", milk);
+    long since = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    SyncRequests.push(boris, done(milk, true), SyncRequests.upsert("item", milk, "{}"))
+        .andExpect(jsonPath("$.results[*].status", contains("applied", "applied")));
+
+    assertThat(SyncRequests.change(anna, since, "item", milk)).isNull();
+    assertThat(SyncRequests.fields(anna, "item", milk)).isEqualTo(once);
+  }
+
+  @Test
+  void doneOnOneDeviceAndATextEditOnTheOtherAreBothKept() throws Exception {
+    UUID milk = UUID.randomUUID();
+    SyncRequests.push(anna, add(milk, groceries, "Молоко"));
+
+    SyncRequests.push(boris, done(milk, true));
+    SyncRequests.push(anna, SyncRequests.upsert("item", milk, "{\"text\":\"Молоко 1,5%\"}"));
+
+    assertThat(SyncRequests.fields(boris, "item", milk))
+        .containsEntry("text", "Молоко 1,5%")
+        .containsEntry("done", true)
+        .containsEntry("doneById", memberId(boris));
+  }
+
+  @Test
+  void doneMustBeTrueOrFalse() throws Exception {
+    UUID milk = UUID.randomUUID();
+    SyncRequests.push(anna, add(milk, groceries, "Молоко"));
+
+    SyncRequests.push(
+            anna,
+            SyncRequests.upsert("item", milk, "{\"done\":\"yes\"}"),
+            SyncRequests.upsert("item", milk, "{\"done\":null}"))
+        .andExpect(jsonPath("$.results[*].status", contains("rejected", "rejected")))
+        .andExpect(
+            jsonPath("$.results[0].params.errors[?(@.field=='done')].code").value("value.invalid"))
+        .andExpect(
+            jsonPath("$.results[1].params.errors[?(@.field=='done')].code").value("required"));
+  }
+
   static String list(UUID id, String name, String visibility) {
     return SyncRequests.upsert(
         "list",
@@ -300,6 +366,10 @@ class ItemsSyncTest {
   static String add(UUID id, UUID listId, String text) {
     return SyncRequests.upsert(
         "item", id, "{\"listId\":\"%s\",\"text\":\"%s\"}".formatted(listId, text));
+  }
+
+  static String done(UUID id, boolean done) {
+    return SyncRequests.upsert("item", id, "{\"done\":%s}".formatted(done));
   }
 
   private static String memberId(Browser device) throws Exception {
