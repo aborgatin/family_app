@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { errorMessageKey } from '@/shared/api';
 import { useLoad } from '@/shared/load';
-import { startSync } from '@/shared/sync';
+import { claimLocalStore, startSync } from '@/shared/sync';
 import { Button, StatusScreen } from '@/shared/ui';
 import { fetchSession, type Member, type Session } from './authApi';
 import { SessionContext, type SessionState } from './session';
@@ -71,10 +71,26 @@ export function AuthGuard() {
   );
 
   // Sync runs while a Member is logged in on this device (spec #3 "Client").
+  // First the store is made this Member's (wiped if another Member's data is in it), so neither
+  // their screens nor the engine ever see the previous Member's rows or Outbox.
   const memberId = load.status === 'ready' ? load.value.member?.id : undefined;
-  useEffect(() => (memberId === undefined ? undefined : startSync()), [memberId]);
+  const [storeOwner, setStoreOwner] = useState<string>();
+  useEffect(() => {
+    if (memberId === undefined) return undefined;
+    let active = true;
+    let stop: (() => void) | undefined;
+    void claimLocalStore(memberId).then(() => {
+      if (!active) return;
+      setStoreOwner(memberId);
+      stop = startSync();
+    });
+    return () => {
+      active = false;
+      stop?.();
+    };
+  }, [memberId]);
 
-  if (load.status === 'loading') {
+  if (load.status === 'loading' || (memberId !== undefined && storeOwner !== memberId)) {
     return <StatusScreen role="status">{t('common.loading')}</StatusScreen>;
   }
   if (load.status === 'failed' || state === null) {
