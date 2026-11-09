@@ -63,13 +63,10 @@ export function useChildFields() {
     return field;
   }
 
-  const rename = useCallback(
-    async (field: ChildField, name: string): Promise<ChildField> => {
-      await upsertRow('child_field', field.id, field.name === name ? {} : { name });
-      return { ...field, name };
-    },
-    [],
-  );
+  const rename = useCallback(async (field: ChildField, name: string): Promise<ChildField> => {
+    await upsertRow('child_field', field.id, field.name === name ? {} : { name });
+    return { ...field, name };
+  }, []);
 
   /** Moves a field to index `to` of the list. */
   async function move(field: ChildField, to: number) {

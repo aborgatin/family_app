@@ -40,9 +40,7 @@ export function ListsSection() {
       )}
       <GroupedSection
         header={t('lists.title')}
-        messages={[
-          load.status === 'ready' && lists.length === 0 && { text: t('lists.empty') },
-        ]}
+        messages={[load.status === 'ready' && lists.length === 0 && { text: t('lists.empty') }]}
         after={
           load.status === 'loading' ? (
             <LoadingRow />

@@ -27,25 +27,15 @@ export function useChildren() {
   );
 
   /** Adds a new Child (`id` from `newChildId()`) or changes an existing one. */
-  const save = useCallback(
-    async (id: string, details: ChildDetails): Promise<Child> => {
-      const before = current.current.get(id);
-      await upsertRow(
-        'child',
-        id,
-        before === undefined ? { ...details } : changed(before, details),
-      );
-      return { id, ...details };
-    },
-    [],
-  );
+  const save = useCallback(async (id: string, details: ChildDetails): Promise<Child> => {
+    const before = current.current.get(id);
+    await upsertRow('child', id, before === undefined ? { ...details } : changed(before, details));
+    return { id, ...details };
+  }, []);
 
-  const remove = useCallback(
-    async (id: string) => {
-      await deleteRow('child', id);
-    },
-    [],
-  );
+  const remove = useCallback(async (id: string) => {
+    await deleteRow('child', id);
+  }, []);
 
   const retry = useCallback(() => undefined, []);
 

@@ -38,7 +38,21 @@ export interface Operation {
    * operation, so a pull while it is pending applies them again.
    */
   local?: Record<string, unknown>;
+  /**
+   * Set on an upsert written when the device had no row with this id: it creates the row. A full
+   * pull, which leaves deleted rows out, re-applies pending upserts of a row it didn't send only
+   * when one of them creates it (an unsent new row), never onto a row the server deleted or hid.
+   */
+  creates?: true;
 }
+
+/**
+ * Rows of one table that belong to a row of another (`key` holds the parent's id): when the
+ * parent goes (a tombstone, or the server ignoring a change to it because it is deleted), its
+ * local rows go with it. Declared with the tables, so the engine needs no table's name.
+ */
+export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTable; key: string }[] =
+  [{ parent: 'list', table: 'item', key: 'listId' }];
 
 interface Meta {
   key: string;
@@ -132,6 +146,22 @@ export async function ownerCopy(): Promise<unknown> {
       ? copy
       : undefined;
   });
+}
+
+/**
+ * Removes local rows of `table` that are gone on the server, and the rows that depend on them
+ * (`DEPENDENT_TABLES`). Needs a surrounding transaction over the synced tables.
+ */
+export async function removeLocally(table: SyncedTable, ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await localStore.rows(table).bulkDelete([...ids]);
+  for (const dependent of DEPENDENT_TABLES.filter(({ parent }) => parent === table)) {
+    const rows = await localStore.rows(dependent.table).where(dependent.key).anyOf(ids).toArray();
+    await removeLocally(
+      dependent.table,
+      rows.map(({ id }) => id),
+    );
+  }
 }
 
 /** Applies an operation to the local rows (not the Outbox): what the server will do with it. */

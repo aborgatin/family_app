@@ -58,8 +58,11 @@ async function write(operation: Operation) {
     'rw',
     [localStore.rows(operation.table), localStore.outbox],
     async () => {
+      const creates =
+        operation.op === 'upsert' &&
+        (await localStore.rows(operation.table).get(operation.id)) === undefined;
       await applyLocally(operation);
-      await localStore.outbox.add(operation);
+      await localStore.outbox.add(creates ? { ...operation, creates } : operation);
     },
   );
   requestSync();

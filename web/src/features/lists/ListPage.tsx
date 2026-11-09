@@ -48,13 +48,7 @@ export function ListPage({ homePath }: ListPageProps) {
       <Page title={list.name} back={back}>
         <Sections>
           <ItemsSection list={list} />
-          <ListSettings
-            key={list.id}
-            list={list}
-            save={save}
-            remove={remove}
-            homePath={homePath}
-          />
+          <ListSettings key={list.id} list={list} save={save} remove={remove} homePath={homePath} />
         </Sections>
       </Page>
     );

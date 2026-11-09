@@ -8,7 +8,13 @@ import {
   subscribeServerReachable,
 } from '@/shared/api';
 import { useLoad } from '@/shared/load';
-import { claimLocalStore, onSessionEnded, ownerCopy, saveOwnerCopy, startSync } from '@/shared/sync';
+import {
+  claimLocalStore,
+  onSessionEnded,
+  ownerCopy,
+  saveOwnerCopy,
+  startSync,
+} from '@/shared/sync';
 import { Button, StatusScreen } from '@/shared/ui';
 import { fetchSession, type Member, type Session } from './authApi';
 import { isLogoutPending, sendPendingLogout } from './logoutApi';

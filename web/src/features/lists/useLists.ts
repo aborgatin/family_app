@@ -26,21 +26,15 @@ export function useLists() {
   );
 
   /** Creates a List (`id` from `newListId()`) or changes an existing one. */
-  const save = useCallback(
-    async (id: string, details: ListDetails): Promise<void> => {
-      const before = current.current.get(id);
-      await upsertRow('list', id, before === undefined ? { ...details } : changed(before, details));
-    },
-    [],
-  );
+  const save = useCallback(async (id: string, details: ListDetails): Promise<void> => {
+    const before = current.current.get(id);
+    await upsertRow('list', id, before === undefined ? { ...details } : changed(before, details));
+  }, []);
 
   /** Deletes the List (the server deletes its Items with it); resolves at once, offline too. */
-  const remove = useCallback(
-    async (id: string): Promise<void> => {
-      await deleteRow('list', id);
-    },
-    [],
-  );
+  const remove = useCallback(async (id: string): Promise<void> => {
+    await deleteRow('list', id);
+  }, []);
 
   return { load, save, remove };
 }

@@ -29,38 +29,29 @@ export function useItems(listId: string) {
   );
 
   /** Changes the Item's text, sending only the text; resolves with it as saved. */
-  const rename = useCallback(
-    async (item: Item, text: string): Promise<string> => {
-      await upsertRow('item', item.id, { text });
-      return text;
-    },
-    [],
-  );
+  const rename = useCallback(async (item: Item, text: string): Promise<string> => {
+    await upsertRow('item', item.id, { text });
+    return text;
+  }, []);
 
   /**
    * Ticks the Item off, or back on (`done` false); the server records who did it and when. Until
    * its copy arrives, the old done by / done at are cleared locally (never sent), so an Item ticked
    * back on and off again goes on top, not where it was last done.
    */
-  const setDone = useCallback(
-    async (item: Item, done: boolean): Promise<void> => {
-      await upsertRow(
-        'item',
-        item.id,
-        { done },
-        { doneById: null, doneAt: null, ...(done && { doneHereAt: tickTime() }) },
-      );
-    },
-    [],
-  );
+  const setDone = useCallback(async (item: Item, done: boolean): Promise<void> => {
+    await upsertRow(
+      'item',
+      item.id,
+      { done },
+      { doneById: null, doneAt: null, ...(done && { doneHereAt: tickTime() }) },
+    );
+  }, []);
 
   /** Deletes the Item; resolves at once, offline too. */
-  const remove = useCallback(
-    async (item: Item): Promise<void> => {
-      await deleteRow('item', item.id);
-    },
-    [],
-  );
+  const remove = useCallback(async (item: Item): Promise<void> => {
+    await deleteRow('item', item.id);
+  }, []);
 
   return {
     items,

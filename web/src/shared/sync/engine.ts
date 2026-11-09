@@ -3,6 +3,7 @@ import {
   applyLocally,
   isSyncedTable,
   localStore,
+  removeLocally,
   storedVersion,
   storeVersion,
   type Operation,
@@ -211,15 +212,27 @@ async function pushOutbox(current: () => boolean) {
       operations: operations.map(({ table, id, op, fields }) => ({ table, id, op, fields })),
     });
     if (!current()) return;
-    await localStore.outbox.bulkDelete(
-      operations.flatMap(({ seq }) => (seq === undefined ? [] : [seq])),
+    await localStore.transaction(
+      'rw',
+      [...localStore.syncedTables(), localStore.outbox],
+      async () => {
+        await localStore.outbox.bulkDelete(
+          operations.flatMap(({ seq }) => (seq === undefined ? [] : [seq])),
+        );
+        for (const [index, result] of response.results.entries()) {
+          const operation = operations[index];
+          if (operation === undefined) continue;
+          if (result.status === 'ignored') {
+            // Delete wins: the record is deleted on the server, so it goes here too (a pull may not
+            // send its tombstone again, e.g. after a full pull re-applied a change to it).
+            await removeLocally(operation.table, [operation.id]);
+          } else if (result.status === 'rejected') {
+            fullPullNeeded = true;
+            saveRejected(result.code ?? 'unknown');
+          }
+        }
+      },
     );
-    response.results.forEach((result, index) => {
-      const operation = operations[index];
-      if (result.status !== 'rejected' || operation === undefined) return;
-      fullPullNeeded = true;
-      saveRejected(result.code ?? 'unknown');
-    });
   }
 }
 
@@ -250,24 +263,24 @@ async function pull(current: () => boolean) {
         touched.add(key);
         if (change.deleted) {
           deleted.add(key);
-          await localStore.rows(change.table).delete(change.id);
+          // A tombstoned List (deleted, or made Private by its Owner) takes its Items with it.
+          await removeLocally(change.table, [change.id]);
         } else {
           await localStore.rows(change.table).put({ ...change.fields, id: change.id });
         }
       }
       const pending: Operation[] = await localStore.outbox.orderBy('seq').toArray();
+      // A full pull leaves deleted rows out: of the rows it didn't send, only unsent new ones
+      // (a pending create) come back, never a row the server deleted or hid.
+      const unsentCreates = new Set(
+        pending.filter((operation) => operation.creates).map((op) => rowKey(op.table, op.id)),
+      );
       for (const operation of pending) {
         const key = rowKey(operation.table, operation.id);
-        if ((full || touched.has(key)) && !deleted.has(key)) {
+        if (deleted.has(key)) continue;
+        if (touched.has(key) || (full && unsentCreates.has(key))) {
           await applyLocally(operation);
         }
-      }
-      // A tombstoned List (deleted, or made Private by its Owner) takes its local Items with it.
-      const goneLists = response.changes
-        .filter((change) => change.table === 'list' && change.deleted)
-        .map((change) => change.id);
-      if (goneLists.length > 0) {
-        await localStore.rows('item').where('listId').anyOf(goneLists).delete();
       }
       await storeVersion(response.version);
     },

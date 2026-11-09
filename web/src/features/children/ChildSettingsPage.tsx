@@ -148,9 +148,7 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
 
   return (
     <Sections>
-      <GroupedSection
-        messages={autoSaveMessages([name.failure, color.failure, birthday.failure])}
-      >
+      <GroupedSection messages={autoSaveMessages([name.failure, color.failure, birthday.failure])}>
         <ChildRows name={name.input} color={color.control} birthday={birthday.input} />
       </GroupedSection>
       <GroupedSection messages={[lines.failure(deleteError)]}>
