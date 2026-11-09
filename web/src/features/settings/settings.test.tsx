@@ -1,22 +1,13 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  anna,
-  boris,
-  childFieldsHandler,
-  childrenHandler,
-  invitesHandler,
-  membersHandler,
-  sessionHandler,
-} from '@/test/fixtures';
+import { anna, boris, invitesHandler, membersHandler, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
 describe('Settings', () => {
   beforeEach(() => {
     server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
-    server.use(childFieldsHandler([]), childrenHandler([]));
     server.use(membersHandler([anna, boris]), invitesHandler([]));
   });
 
@@ -54,7 +45,7 @@ describe('Settings', () => {
     const app = renderApp('/settings');
     await user.click(await screen.findByRole('link', { name: 'Семья' }));
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
     expect(app.location()).toBe('/');
   });
 });
@@ -63,7 +54,6 @@ describe('Оформление', () => {
   beforeEach(() => {
     localStorage.clear();
     server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
-    server.use(childFieldsHandler([]), childrenHandler([]));
     server.use(membersHandler([anna, boris]), invitesHandler([]));
   });
   afterEach(() => {

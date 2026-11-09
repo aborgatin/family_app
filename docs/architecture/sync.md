@@ -2,8 +2,10 @@
 
 The sync model is decided in [ADR-0003](../adr/0003-sync-model.md): a local store and an Outbox on
 the client, a global Version on the server, pull "changes since Version N", Last write wins, SSE to
-trigger pulls. This file records which parts exist after Spec #1 (M1) and which M2 adds. Terms:
-Outbox, Version, Last write wins in [`GLOSSARY.md`](../../GLOSSARY.md).
+trigger pulls. Spec #3 (M2) refines it: per-field Last write wins by server arrival, delete wins.
+This file records what is built. Terms: Outbox, Version, Last write wins in
+[`GLOSSARY.md`](../../GLOSSARY.md). Code: backend module `sync` ([`backend.md`](backend.md#sync)),
+web `shared/sync` ([`frontend.md`](frontend.md#local-store-and-sync)).
 
 ## Syncable tables
 
@@ -16,13 +18,15 @@ table adds it here.
 | `member`      | `V1__family_member_session.sql` | server, at registration (`Member` constructor) | M1    |
 | `child`       | `V3__child.sql`                 | client (`crypto.randomUUID()`)                 | M1    |
 | `child_field` | `V4__child_field.sql`           | client; Default rows by the migration          | M1    |
+| `list`        | `V5__list.sql`                  | client (`crypto.randomUUID()`)                 | M2    |
+| `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7) | M2    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
 shown), `invite`, `password_reset`, `spring_session`, `spring_session_attributes`,
 `flyway_schema_history`. Invites are seen through REST but never stored offline.
 
-## In place after M1
+## Sync columns, Versions, soft deletes
 
 **Sync columns.** Every syncable table has `id UUID PRIMARY KEY`, `version BIGINT NOT NULL`,
 `updated_at TIMESTAMPTZ NOT NULL` and `deleted BOOLEAN NOT NULL DEFAULT FALSE`.
@@ -37,72 +41,204 @@ shown), `invite`, `password_reset`, `spring_session`, `spring_session_attributes
   sets these columns: entities map them with `@Generated(event = {INSERT, UPDATE})`,
   `insertable = false, updatable = false`, and Hibernate reads them back after each write.
 - Default rows (the two Child fields in `V4`) get Versions from the trigger too.
-- Tested: `everyWriteGetsAHigherVersion…` in `ChildrenTest` and `ChildFieldsTest` (a soft delete
-  in between takes a Version as well).
+- Tested: `everyWriteGetsAHigherVersion…` in `ChildrenSyncTest`.
 
-**Soft deletes.** Removing a Child or Child field sets `deleted = true` (an UPDATE, so the Version
-advances). The repositories (`ChildRepository`, `ChildFieldRepository`) extend Spring Data's bare
-`Repository` and declare no delete methods. List endpoints and `GET /api/auth/session` return only
-non-deleted rows. No code path deletes a Member yet; `member.deleted` exists, and login, session
-and `MemberService` lookups ignore deleted Members. Email uniqueness counts deleted Members too
-(`MemberRepository.existsByEmail`, and the `UNIQUE` constraint).
+**Soft deletes.** Removing a row sets `deleted = true` (an UPDATE, so the Version advances). The
+repositories extend Spring Data's bare `Repository` and declare no delete methods. No code path
+deletes a Member yet; `member.deleted` exists, and login, session and `MemberService` lookups
+ignore deleted Members. Email uniqueness counts deleted Members too.
 
-**Client UUIDs** (S3). Children and Child fields are created with the id the client chose; the
-server never generates one for them. The web forms create the id once per new record, so a
-retried save repeats the same request.
+**Client UUIDs** (S3). Children, Child fields, Lists and Items are created with the id the client
+chose; the server never generates one for them. Item ids are UUID version 7 (the first 48 bits are
+the time), so Items added on one device and not yet pulled back keep the order they were added in. Members get theirs from the server at registration.
 
-**Idempotent upserts** (`ChildService.put/delete`, `ChildFieldService.put/delete`):
+**Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move is one upsert carrying
+only the moved field's `position` (midpoint between its new neighbours, computed by the client in
+`positionAfterMove`), so a reorder is a single-record change. The client sorts by position, ties
+by id (`useChildFields`); the pull sends rows in Version order. Children have no manual order (birthday, then name, then id).
 
-- `PUT /api/children/{id}`, `PUT /api/child-fields/{id}` create the row or replace every
-  client-editable field. Repeating the same body leaves the same state. In practice the Version
-  does not move either, because Hibernate issues no UPDATE for an unchanged entity.
-- `PUT` takes `FamilyLock.lock()` first, so two concurrent first `PUT`s of one id can't both
-  insert.
-- `PUT` to a soft-deleted id → `409 child.deleted` / `child_field.deleted`; the row stays deleted.
-- `DELETE` → `204` whether the row exists, is already deleted or is unknown.
-- `ChildField.valueType` is fixed at creation: `PUT` with another type →
-  `409 child_field.value_type_immutable` (ADR-0007).
-- These service methods take the id and a request record, with no HTTP types, so M2's push
-  endpoint can call them per Outbox operation.
+## Push: the only write path
 
-**Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move writes only the moved
-field (midpoint between its new neighbours, computed by the client in `positionAfterMove`), so a
-reorder is a single-record change. Ties sort by id. Children have no manual order (birthday, then
-name, then id).
+`POST /api/sync/push` with `{"operations": [{table, id, op, fields?}, …]}`:
 
-**Not in place.** No local store (Dexie), no Outbox, no push or pull endpoints, no SSE. In M1 the
-Settings screens read and write Children and Child fields through REST while online, behind
-`useChildren()` / `useChildFields()` (see [`frontend.md`](frontend.md#data-access)). Changes made
-by the other Member show up the next time Settings opens.
+- `op` is `upsert` (with only the fields the Member changed) or `delete`. An upsert of an unknown
+  id creates the record and must carry every required field; of a known id it changes only the
+  fields it carries.
+- **Last write wins per field, by server arrival.** Operations apply in arrival order; no client
+  timestamps are sent or used. Two operations changing different fields of one record both stay.
+- **Delete wins.** Any operation on a deleted record, and deleting an unknown or already deleted
+  id, is `ignored`.
+- The answer is `{"results": [...], "version": N}`: one result per operation, in order,
+  `{"status": "applied"}`, `{"status": "ignored"}` or
+  `{"status": "rejected", "code": …, "params": {…}}` (field validation is the usual
+  `validation.failed` shape), and the last Version handed out after the push.
+- The push is one transaction that takes the `SyncLock` (`FamilyLock`) first. Each operation runs
+  inside an SQL savepoint; a rejected one rolls back alone and the others still apply.
+- Repeating a whole push leaves the same state (S3).
+- Table rules: a Child field's `valueType` can't change after creation (ADR-0007): an upsert
+  carrying another one is rejected with `child_field.value_type_immutable`.
+- Codes of the push itself: `sync.table_unknown` (`params.table`), `sync.read_only` (a pull-only
+  table such as `member`), `request.invalid` (no valid id or `op`).
+- **Lists** (`list`, tickets #55, #56): an upsert carries `name`, `kind` (`SHOPPING` / `TODO` / `WISH`)
+  and `visibility` (`PRIVATE` / `SHARED`); the pull also sends the server-set `ownerId` (the
+  Member who pushed the create) and `createdAt`. Rules: `list.kind_immutable` (kind changed),
+  `list.wish_shared_only` (a Private Wish list, on create or later), `list.owner_only` (a Member
+  other than the Owner changing `visibility` or deleting the List; either Member may rename a
+  Shared List),
+  `list.not_found` (any operation on another Member's Private List), and the Child name limits on
+  `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
+  is `ignored` (delete wins). Deleting a List soft-deletes its Items in the same operation.
+- **Items** (`item`, tickets #57, #58): an upsert carries `listId` (create only; a later upsert
+  naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
+  points after trim), `note` (optional, ≤ 10000, no UI yet) and `done` (`true` / `false`; another
+  type is `value.invalid`, `null` is `required`); the pull also sends the server-set `doneById`,
+  `doneAt`, `creatorId` (the Member who pushed the create) and `createdAt`. When `done` turns
+  true the server sets `doneById` to the pushing Member and `doneAt` to now; when it turns false
+  it clears both; setting it to its current value changes nothing, not even the Version (S3).
+  Done on one device and a text edit on the other are both kept (different fields). Rules: an Item of another Member's Private List, or in an unknown List, is
+  `list.not_found` (`params.listId`) for every operation; creating an Item in a deleted List, and
+  anything on a deleted Item, is `ignored` (delete wins).
+- Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
+  reach other devices through the pull.
 
-## What M2 adds
+## Pull: the only read path
 
-- **Client local store** (IndexedDB via Dexie) holding the syncable tables, and an **Outbox** of
-  operations written by UI code (S4).
-- **Push endpoint**: applies Outbox operations idempotently by client UUID. For Children and Child
-  fields it reuses `ChildService` / `ChildFieldService`.
-- **Pull endpoint**: returns rows of every syncable table changed since the client's Version N,
-  deleted rows included.
-- **SSE**: notifies open clients to pull.
-- **Children and Child fields move onto the local store + Outbox**: M2 changes `useChildren()` and
-  `useChildFields()`, not the components. Auth, Invites and Member account changes stay online-only.
-- M2 may refine `PUT` on a deleted id (today `409`).
-- ADR-0003 says Last write wins **per field**. Today's `PUT` replaces the whole record, so M2's
-  Outbox operations decide whether a change carries all fields or only the edited ones.
+`GET /api/sync/pull?since=N` returns
+`{"changes": [{table, id, version, deleted, fields?}, …], "version": H}`:
 
-## Pitfall: Versions commit out of order
+- Rows of every syncable table with a Version above N, oldest Version first; `fields` holds what
+  the client stores (never secrets: a Member row is `displayName`, `grammaticalGender`).
+- With N = 0 (first sync) deleted rows are left out. Otherwise a deleted row comes as a tombstone:
+  `deleted: true` and no `fields`.
+- `H` is the highest Version among the rows read (deleted ones included), or N when nothing
+  changed. The client stores it and asks from there next time.
+- All tables are read in one `REPEATABLE READ` read-only transaction, so `H` covers exactly the
+  snapshot that was read.
+- **Privacy (A1).** Another Member's Private List is never sent with its fields: a change to it
+  comes as a tombstone (id only), so a List made Private disappears from the other Member's phone,
+  and a first sync leaves it out. Made Shared again, it is a new Version and arrives with its
+  fields. Operations on it are rejected with `list.not_found`, as if it
+  didn't exist.
+- **Visibility change.** Changing a List's Visibility gives all its Items a new Version (an UPDATE
+  that changes nothing; the trigger still runs), so the next pull sends them again: with their
+  fields to a Member who may now see the List (a List shared later arrives with its Items), as
+  tombstones to one who no longer may. An Item is sent with its fields only when its List is
+  visible to the Member.
 
-`nextval('version_seq')` is taken when a row is written, not when its transaction commits. Two
-concurrent transactions can commit in the opposite order of their Versions:
+## Versions commit in order
+
+`nextval('version_seq')` is taken when a row is written, not when its transaction commits. Without
+care, two concurrent transactions can commit in the opposite order of their Versions:
 
 1. Transaction A writes a row with Version 101 and is still running.
 2. Transaction B writes a row with Version 102 and commits.
 3. A client pulls "everything since 100", gets 102 and stores 102 as its new high-water mark.
 4. Transaction A commits. Its row has Version 101 < 102, so the client never pulls it.
 
-"Pull everything since Version N" therefore can skip a row from a slower concurrent transaction.
-M2 must solve this before relying on the pull. Options include capping each pull at a Version below
-which no transaction is still in flight (e.g. using `pg_snapshot_xmin(pg_current_snapshot())` with
-a stored transaction id per row), or serializing writes and Version assignment. M1's
-`FamilyLock` already serializes Child and Child field `PUT`s and Child deletes, but not Member
-writes or Child field deletes.
+M2 solves this by serializing every syncable write: **every** transaction that writes a syncable
+row takes `FamilyLock` (`SELECT … FROM family FOR UPDATE`) before writing. That is the push, and
+outside it registration (bootstrap), Invite acceptance, `PATCH /api/members/me`, the password
+change and the password reset. A transaction holding a Version therefore commits before any
+other can take a higher one, and a pull's snapshot never contains a higher Version while a lower
+one is still in flight. Tests: `PullNeverSkipsASlowerWriteTest` (a push stalled after taking a
+Version, a second push, a pull in between; fails without the lock) and
+`MemberWritesTakeTheFamilyLockTest`. A new write path to a syncable table must take the lock too.
+
+## Live updates: SSE
+
+`GET /api/sync/events` (`text/event-stream`, needs a session like any other API call: `401
+auth.required` without one) tells open apps when to pull:
+
+- Its only event is `changed`, with data `{"version": N}`: the last Version handed out
+  (`version_seq`'s `last_value`, as the push answers). It never carries rows.
+- It is sent once when the connection opens, and to every open connection after the commit of
+  every transaction that wrote a syncable row: the push and every online-only Member write. The
+  hook is `FamilyLock`, which every such transaction takes first ("Versions commit in order"):
+  taking it publishes `SyncableWriteStarted`, and `sync` registers one after-commit callback per
+  transaction (a rolled-back write sends nothing). A new write path that takes the lock gets live
+  updates for free.
+- A heartbeat comment (`:`) every 25 s keeps an idle connection open through Caddy and iOS. Each
+  heartbeat also checks the connection's session; the first one after the session ended (logout,
+  expiry, password reset) ends the stream. A write that fails (the client went away) drops the
+  connection silently.
+- The Version can be above anything the client will pull (a rolled-back transaction used it, or
+  the row is hidden from this Member): the client then pulls once per event and finds nothing,
+  which is harmless.
+- A transaction that takes the lock but then writes nothing (a push whose every operation is
+  `ignored` or `rejected`) still sends `changed`. Kept on purpose: the lock is taken before the
+  operations run, and telling "wrote a row" apart would mean tracking writes in every table. It is
+  harmless: when no Version was taken, a client that is up to date sees no Version above its own
+  and doesn't pull; when a rejected operation's rolled-back savepoint used one, it pulls once and
+  finds nothing.
+- The client pulls on a `changed` whose Version is above its stored one, when the app returns to
+  the foreground, when the server becomes reachable again, and right after each push.
+- Tests: `LiveUpdatesTest` (real port), web `features/children/liveUpdates.test.tsx`.
+
+## Client
+
+- **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
+  table (`member`, `child`, `child_field`, `list`, `item`), the Outbox (`++seq`) and the stored
+  Version. The app asks for persistent storage at start. Dexie upgrades keep every table not
+  dropped, so the Outbox survives
+  store upgrades.
+- **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
+  appended to the Outbox in the same transaction, then the engine is asked to sync. An upsert
+  carries only the fields that differ from the local row (none: nothing is written); one written
+  when the device had no row with that id is marked `creates` (see "Applying a pull"). An upsert may
+  also carry `local` fields: written to the local row and kept with the operation (so a pull
+  while it is pending applies them again), never pushed; the server's copy replaces them. Used for
+  when an Item was ticked off on this device, which orders it among the Done Items until the
+  server's `doneAt` arrives (no client timestamp is ever sent).
+- **Sync engine** (`engine.ts`): pushes the Outbox in order (batches of 100), drops what the server
+  answered, then pulls. It runs at start, when the app returns to the foreground
+  (`visibilitychange`), when the server becomes reachable again (any API answer, or the browser's
+  `online` event), after each local change, on a live-update `changed` event above the stored
+  Version (`liveUpdates.ts`, see "Live updates" above), and pulls right after each push. A failure retries
+  with backoff (1 s doubling to 30 s); a `401` (the session has ended) stops it, keeps the store
+  and the Outbox, and tells `onSessionEnded` listeners: the app shows `/login` from where the
+  Member is, and logging in as the same Member resumes ("Owner and logout"). Its requests go
+  through `api`, so `serverReachable` (the offline indicator) stays the only sign of unsent changes.
+- **Applying a pull**: pulled rows replace local ones, tombstones (a deleted or hidden row: id and
+  Version, no fields) delete them, then the Outbox operations still pending for those ids are
+  applied again on top, so a pull never reverts an unsent local edit. Pending upserts of a
+  tombstoned row are not re-applied (delete wins). A full pull (first sync, or after a rejection)
+  replaces every row and leaves deleted ones out without tombstones: of the rows it didn't send,
+  pending upserts come back only when the Outbox still holds the one that creates the row (an
+  unsent new row, marked `creates`), never onto a row the server deleted or hid, which would come
+  back with only the pending fields.
+- **Gone rows take their dependents**: a row removed locally because it is gone on the server (a
+  tombstone, or `ignored` below) takes the rows that belong to it, declared with the tables in
+  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items. So a tombstoned List (deleted, or made
+  Private by its Owner) takes its local Items, and the engine names no table.
+- **Ignored operation** (delete wins): dropped from the Outbox, and the local row is removed with
+  its dependents: the record is deleted on the server, and a pull may not send its tombstone
+  again (it was already pulled, or a full pull left it out).
+- **Rejected operation**: dropped from the Outbox; «Не удалось сохранить» shows once, app-wide,
+  wherever the Member is by then (`useSaveRejection`, a `Toast` placed by the app), with the
+  reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
+  `list.kind_immutable`, `list.wish_shared_only`, `child_field.value_type_immutable`,
+  `sync.read_only`; anything else plain), until closed or the Member's next change; and the next
+  pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
+  which restores the server's copy even of a row the pull since N would not send again.
+- **Owner and logout**: the store records the Member whose data it holds. At login (and at start
+  with a session) `AuthGuard` claims it for the Member before the engine starts: kept when it is
+  theirs or nobody's, wiped first when it is another Member's, so their Outbox is never sent under
+  this session. A `401` during sync therefore keeps unsent changes for the same Member, who is sent
+  to `/login`. An explicit logout always wipes: it pushes the Outbox first; when that can't be done
+  (the server can't be reached, or the push gets a `401` because the session has already ended)
+  the Member is warned that the unsent changes will be lost (confirm or cancel); after the
+  server's logout (a `401` there counts as logged out) every table of the store (rows, Outbox,
+  meta, so the owner and its copy too) is wiped, so the next person on the device sees none of the
+  Member's data and an offline start can't open as them. When the
+  logout can't reach the server either, the store is wiped at once and the device stays logged
+  out (no sync) until the server is told or someone logs in (`frontend.md`, "Pending logout").
+- **Start with no connection**: the store also keeps a copy of its owner as the server last
+  confirmed them. When the app opens and the session request can't reach the server, with no
+  pending logout and an owned store, it starts as that Member from the store (Outbox kept and
+  added to) without starting the engine; once the server answers the session again, the engine
+  starts for the same Member, or the app goes to `/login` (store and Outbox kept for the same
+  Member) or `/setup` (`frontend.md`, "Offline cold start").
+- Children, Child fields, Lists and Items are on the store, and live updates (`changed` → pull)
+  run. The List screen has its open Items (add, edit in place, delete; #57), Done and its Done
+  group (#58) and List settings (rename, Visibility, delete; #56); Home shows each List's open
+  Items count (#58).

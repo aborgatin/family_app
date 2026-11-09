@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.family.child;
 
+import io.github.aborgatin.familyapp.sync.SyncedRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -17,7 +18,7 @@ import org.springframework.lang.Nullable;
  */
 @Entity
 @Table(name = "child")
-class Child {
+class Child implements SyncedRecord {
 
   @Id private UUID id;
 
@@ -51,7 +52,7 @@ class Child {
     replace(details);
   }
 
-  /** Replaces every client-editable field: a {@code PUT} is a full replace. */
+  /** Sets every client-editable field (an upsert merges its fields over the stored ones first). */
   void replace(ChildDetails details) {
     this.name = details.name();
     this.color = details.color();
@@ -63,7 +64,8 @@ class Child {
     this.deleted = true;
   }
 
-  UUID id() {
+  @Override
+  public UUID id() {
     return id;
   }
 
@@ -80,7 +82,8 @@ class Child {
     return birthday;
   }
 
-  long version() {
+  @Override
+  public long version() {
     return version;
   }
 
@@ -88,7 +91,8 @@ class Child {
     return updatedAt;
   }
 
-  boolean deleted() {
+  @Override
+  public boolean deleted() {
     return deleted;
   }
 }

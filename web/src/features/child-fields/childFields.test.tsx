@@ -1,12 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   anna,
   boris,
-  childFieldsHandler,
-  childrenHandler,
   height,
   invitesHandler,
   membersHandler,
@@ -15,9 +12,13 @@ import {
 } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
+import { syncServer } from '@/test/syncServer';
 
-const NO_CONNECTION = 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.';
-const SAVE_FAILED = 'Не удалось сохранить. Проверьте соединение.';
+// Child fields live in the local store and reach the server through the Outbox (spec #3, ticket
+// #53): changes show at once, also offline, and are pushed when the server is reachable.
+
+const NOT_SAVED = 'Не удалось сохранить';
+const OFFLINE = 'Нет связи с сервером';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 const shoeSize: typeof weight = {
@@ -25,8 +26,6 @@ const shoeSize: typeof weight = {
   name: 'Размер обуви',
   valueType: 'TEXT',
   position: 3,
-  version: 5,
-  updatedAt: '2026-11-07T09:30:00Z',
 };
 
 async function section() {
@@ -48,38 +47,27 @@ async function names() {
   );
 }
 
+/** Waits until the list shows these names. */
+async function showing(expected: string[]) {
+  await waitFor(async () => {
+    expect(await names()).toEqual(expected);
+  });
+}
+
 async function nameField(name: string) {
   return within(await fieldList()).findByRole('textbox', { name: `Название поля «${name}»` });
 }
 
-/** Answers every `PUT /api/child-fields/:id` with `response` and records what was sent. */
-function putAnswers(response: (id: string, body: Record<string, unknown>) => Response) {
-  const received: { id: string; body: Record<string, unknown>; csrf: string | null }[] = [];
-  server.use(
-    http.put('/api/child-fields/:id', async ({ request, params }) => {
-      const body = (await request.json()) as Record<string, unknown>;
-      const id = String(params.id);
-      received.push({ id, body, csrf: request.headers.get('X-XSRF-TOKEN') });
-      return response(id, body);
-    }),
-  );
-  return received;
+/** The connection is back: the app notices (browser `online` event) and sends what is waiting. */
+function reconnect() {
+  syncServer.goOnline();
+  window.dispatchEvent(new Event('online'));
 }
 
-/** Echoes the body back as the saved Child field, the way the server answers. */
-function savedAsSent(id: string, body: Record<string, unknown>) {
-  return HttpResponse.json({ ...body, id, version: 10, updatedAt: '2026-11-07T11:00:00Z' });
-}
-
-function deleteAnswers(response: () => Response) {
-  const removed: string[] = [];
-  server.use(
-    http.delete('/api/child-fields/:id', ({ params }) => {
-      removed.push(String(params.id));
-      return response();
-    }),
-  );
-  return removed;
+/** The app comes back to the foreground (e.g. switching back to it on the phone). */
+function bringToForeground() {
+  Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  document.dispatchEvent(new Event('visibilitychange'));
 }
 
 async function startEditing(user: ReturnType<typeof userEvent.setup>) {
@@ -92,7 +80,7 @@ beforeEach(() => {
   document.cookie = 'XSRF-TOKEN=token-from-server';
   server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
   server.use(membersHandler([anna, boris]));
-  server.use(invitesHandler([]), childrenHandler([]));
+  server.use(invitesHandler([]));
 });
 afterEach(() => {
   document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
@@ -100,27 +88,35 @@ afterEach(() => {
 
 describe('Child fields list', () => {
   it('shows the Child fields in order, each with its value type on the right', async () => {
-    server.use(
-      childFieldsHandler([
-        weight,
-        height,
-        { ...shoeSize, name: 'Последний визит к врачу', valueType: 'DATE' },
-      ]),
-    );
+    syncServer.seed('child_field', [
+      { ...shoeSize, name: 'Последний визит к врачу', valueType: 'DATE' },
+      height,
+      weight,
+    ]);
 
     renderApp('/settings');
 
+    await showing(['Вес', 'Рост', 'Последний визит к врачу']);
     const items = await rows();
-    expect(items).toHaveLength(3);
-    expect(await names()).toEqual(['Вес', 'Рост', 'Последний визит к врачу']);
     expect(items[0]).toHaveTextContent('Текст');
     expect(items[1]).toHaveTextContent('Текст');
     expect(items[2]).toHaveTextContent('Дата');
   });
 
-  it('says so when there are no Child fields, still offering to add one', async () => {
-    server.use(childFieldsHandler([]));
+  it('breaks ties in position by id', async () => {
+    syncServer.seed('child_field', [
+      { ...shoeSize, position: 1 },
+      { ...height, position: 1 },
+      { ...weight, position: 2 },
+    ]);
 
+    renderApp('/settings');
+
+    // «Рост» (…02) before «Размер обуви» (…03): same position, lower id first.
+    await showing(['Рост', 'Размер обуви', 'Вес']);
+  });
+
+  it('says so when there are no Child fields, still offering to add one', async () => {
     renderApp('/settings');
 
     const fields = await section();
@@ -129,29 +125,35 @@ describe('Child fields list', () => {
     expect(within(fields).queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument();
   });
 
-  it('says so when the Child fields cannot be loaded, and loads them on retry', async () => {
-    let calls = 0;
-    server.use(
-      http.get('/api/child-fields', () => {
-        calls += 1;
-        return calls === 1 ? HttpResponse.error() : HttpResponse.json([weight, height]);
-      }),
-    );
-    const user = userEvent.setup();
+  it('keeps the Child fields on the device: after a restart they show without the server', async () => {
+    syncServer.seed('child_field', [weight, height]);
+    const first = renderApp('/settings');
+    expect(await nameField('Рост')).toBeInTheDocument();
+    first.unmount();
 
+    syncServer.goOffline();
     renderApp('/settings');
-    const fields = await section();
-    expect(await within(fields).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
-    await user.click(within(fields).getByRole('button', { name: 'Повторить' }));
 
     expect(await nameField('Рост')).toHaveValue('Рост');
+  });
+
+  it('shows the other Member’s changes once the app pulls', async () => {
+    syncServer.seed('child_field', [weight, height]);
+    renderApp('/settings');
+    await nameField('Рост');
+
+    syncServer.seed('child_field', [shoeSize]);
+    syncServer.change('child_field', weight.id, { name: 'Вес, кг' });
+    syncServer.change('child_field', height.id, 'deleted');
+    bringToForeground();
+
+    await showing(['Вес, кг', 'Размер обуви']);
   });
 });
 
 describe('Renaming a Child field', () => {
-  it('renames a field in place when the Member leaves it, keeping its value type and position', async () => {
-    server.use(childFieldsHandler([weight, height]));
-    const received = putAnswers(savedAsSent);
+  it('renames a field in place when the Member leaves it, sending only the name', async () => {
+    syncServer.seed('child_field', [weight, height]);
     const user = userEvent.setup();
 
     renderApp('/settings');
@@ -161,37 +163,33 @@ describe('Renaming a Child field', () => {
     await user.tab();
 
     await waitFor(() => {
-      expect(received).toEqual([
-        {
-          id: height.id,
-          body: { name: 'Рост, см', valueType: 'TEXT', position: 2 },
-          csrf: 'token-from-server',
-        },
+      expect(syncServer.operations('child_field')).toEqual([
+        { table: 'child_field', id: height.id, op: 'upsert', fields: { name: 'Рост, см' } },
       ]);
     });
+    expect(syncServer.pushes[0]?.csrf).toBe('token-from-server');
     expect(name).toHaveValue('Рост, см');
   });
 
-  it('saves on Enter, and Esc puts the saved name back without calling the server', async () => {
-    server.use(childFieldsHandler([weight]));
-    const received = putAnswers(savedAsSent);
+  it('saves on Enter, and Esc puts the saved name back without sending anything', async () => {
+    syncServer.seed('child_field', [weight]);
     const user = userEvent.setup();
 
     renderApp('/settings');
     const name = await nameField('Вес');
     await user.type(name, '!!!{Escape}');
     expect(name).toHaveValue('Вес');
-    expect(received).toEqual([]);
 
     await user.type(name, ', кг{Enter}');
     await waitFor(() => {
-      expect(received.map((r) => r.body.name)).toEqual(['Вес, кг']);
+      expect(syncServer.operations('child_field').map((op) => op.fields?.name)).toEqual([
+        'Вес, кг',
+      ]);
     });
   });
 
-  it('asks for a name without calling the server', async () => {
-    server.use(childFieldsHandler([weight]));
-    const received = putAnswers(savedAsSent);
+  it('asks for a name without sending anything', async () => {
+    syncServer.seed('child_field', [weight]);
     const user = userEvent.setup();
 
     renderApp('/settings');
@@ -201,54 +199,67 @@ describe('Renaming a Child field', () => {
 
     expect(name).toHaveAccessibleDescription('Заполните это поле');
     expect(name).toBeInvalid();
-    expect(received).toEqual([]);
+    expect(syncServer.operations('child_field')).toEqual([]);
   });
 
-  it('keeps the typed name when saving fails, and saves it with «Повторить»', async () => {
-    server.use(childFieldsHandler([weight]));
-    let fail = true;
-    const received = putAnswers((id, body) =>
-      fail ? HttpResponse.error() : savedAsSent(id, body),
-    );
+  it('renames offline at once and sends the new name when the server is back', async () => {
+    syncServer.seed('child_field', [weight]);
     const user = userEvent.setup();
 
     renderApp('/settings');
     const name = await nameField('Вес');
+    syncServer.goOffline();
     await user.type(name, ', кг');
     await user.tab();
 
-    const fields = await section();
-    expect(await within(fields).findByRole('alert')).toHaveTextContent(SAVE_FAILED);
+    expect(await screen.findByRole('button', { name: OFFLINE })).toBeInTheDocument();
     expect(name).toHaveValue('Вес, кг');
-    fail = false;
-    await user.click(within(fields).getByRole('button', { name: 'Повторить' }));
+    expect(syncServer.row('child_field', weight.id)).toEqual(weight);
+
+    reconnect();
 
     await waitFor(() => {
-      expect(within(fields).queryByRole('alert')).not.toBeInTheDocument();
+      expect(syncServer.row('child_field', weight.id)).toEqual({ ...weight, name: 'Вес, кг' });
     });
-    expect(received.map((r) => r.body.name)).toEqual(['Вес, кг', 'Вес, кг']);
+    expect(within(await section()).queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('tells the Member when the field was removed on another device', async () => {
-    server.use(childFieldsHandler([weight]));
-    putAnswers(() =>
-      HttpResponse.json({ code: 'child_field.deleted', params: {} }, { status: 409 }),
-    );
+  it('lets the delete win quietly when the other Member removed the field meanwhile', async () => {
+    syncServer.seed('child_field', [weight, height]);
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const name = await nameField('Вес');
+    syncServer.change('child_field', weight.id, 'deleted');
+    await user.type(name, ', кг{Enter}');
+
+    await showing(['Рост']);
+    expect(syncServer.row('child_field', weight.id)).toBeUndefined();
+    expect(within(await section()).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('says «Не удалось сохранить» once when the server rejects it, and shows its name', async () => {
+    syncServer.seed('child_field', [weight]);
+    syncServer.rejectWhen((op) => op.fields?.name === 'Вес, кг');
     const user = userEvent.setup();
 
     renderApp('/settings');
     await user.type(await nameField('Вес'), ', кг{Enter}');
 
-    expect(await within(await section()).findByRole('alert')).toHaveTextContent(
-      'Это поле уже удалено.',
-    );
+    await section();
+    expect(await screen.findByText(NOT_SAVED)).toBeInTheDocument();
+    await waitFor(async () => {
+      expect(await nameField('Вес')).toHaveValue('Вес');
+    });
+    expect(screen.getAllByText(NOT_SAVED)).toHaveLength(1);
   });
 
   it('never offers to change the value type of an existing field', async () => {
-    server.use(childFieldsHandler([weight]));
+    syncServer.seed('child_field', [weight]);
 
     renderApp('/settings');
 
+    await nameField('Вес');
     const row = (await rows())[0];
     expect(row).toHaveTextContent('Текст');
     expect(within(row as HTMLElement).queryByRole('radio')).not.toBeInTheDocument();
@@ -263,11 +274,11 @@ describe('The «Новое поле» sheet', () => {
   }
 
   it('adds a field of the chosen value type at the end, with an id made on the device', async () => {
-    server.use(childFieldsHandler([weight, height]));
-    const received = putAnswers(savedAsSent);
+    syncServer.seed('child_field', [weight, height]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Рост');
     const sheet = await openSheet(user);
     await user.type(
       within(sheet).getByRole('textbox', { name: 'Название' }),
@@ -279,24 +290,26 @@ describe('The «Новое поле» sheet', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Новое поле' })).not.toBeInTheDocument();
     });
-    expect(await names()).toEqual(['Вес', 'Рост', 'Последний визит к врачу']);
+    await showing(['Вес', 'Рост', 'Последний визит к врачу']);
     expect((await rows())[2]).toHaveTextContent('Дата');
-    expect(received).toHaveLength(1);
-    expect(received[0]?.id).toMatch(UUID);
-    expect(received[0]?.body).toEqual({
+    await waitFor(() => {
+      expect(syncServer.operations('child_field')).toHaveLength(1);
+    });
+    const [added] = syncServer.operations('child_field');
+    expect(added?.id).toMatch(UUID);
+    expect(added?.op).toBe('upsert');
+    expect(added?.fields).toEqual({
       name: 'Последний визит к врачу',
       valueType: 'DATE',
       position: 3,
     });
-    expect(received[0]?.csrf).toBe('token-from-server');
   });
 
   it('offers «Текст» unless the Member picks «Дата», and Enter is «Готово»', async () => {
-    server.use(childFieldsHandler([]));
-    const received = putAnswers(savedAsSent);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await within(await section()).findByText('Полей пока нет');
     const sheet = await openSheet(user);
     expect(within(sheet).getByRole('radio', { name: 'Текст' })).toBeChecked();
     await user.type(
@@ -305,77 +318,91 @@ describe('The «Новое поле» sheet', () => {
     );
 
     expect(await nameField('Размер обуви')).toBeInTheDocument();
-    expect(received[0]?.body).toEqual({ name: 'Размер обуви', valueType: 'TEXT', position: 1 });
+    await waitFor(() => {
+      expect(syncServer.operations('child_field')[0]?.fields).toEqual({
+        name: 'Размер обуви',
+        valueType: 'TEXT',
+        position: 1,
+      });
+    });
   });
 
-  it('asks for a name without calling the server', async () => {
-    server.use(childFieldsHandler([weight]));
-    const received = putAnswers(savedAsSent);
+  it('asks for a name without sending anything', async () => {
+    syncServer.seed('child_field', [weight]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Вес');
     const sheet = await openSheet(user);
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     expect(within(sheet).getByRole('textbox', { name: 'Название' })).toHaveAccessibleDescription(
       'Заполните это поле',
     );
-    expect(received).toEqual([]);
+    expect(syncServer.operations('child_field')).toEqual([]);
   });
 
-  it('shows the server’s field errors in Russian', async () => {
-    server.use(childFieldsHandler([]));
-    putAnswers(() =>
-      HttpResponse.json(
-        { code: 'validation.failed', params: { errors: [{ field: 'name', code: 'too_long' }] } },
-        { status: 400 },
-      ),
-    );
+  it('adds a field offline: it shows at once and is pushed on reconnect', async () => {
+    syncServer.seed('child_field', [weight]);
     const user = userEvent.setup();
 
     renderApp('/settings');
-    const sheet = await openSheet(user);
-    await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Я'.repeat(10));
-    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
-
-    expect(await within(sheet).findByText('Слишком длинно')).toBeInTheDocument();
-  });
-
-  it('stays open when offline, and «Готово» again repeats the same field', async () => {
-    server.use(childFieldsHandler([]));
-    let fail = true;
-    const received = putAnswers((id, body) =>
-      fail ? HttpResponse.error() : savedAsSent(id, body),
-    );
-    const user = userEvent.setup();
-
-    renderApp('/settings');
+    await nameField('Вес');
+    syncServer.goOffline();
     const sheet = await openSheet(user);
     await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Размер обуви');
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
-    expect(await within(sheet).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
-    fail = false;
-    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
-
     expect(await nameField('Размер обуви')).toBeInTheDocument();
-    expect(received).toHaveLength(2);
-    expect(received[1]?.id).toBe(received[0]?.id);
+    expect(screen.queryByRole('dialog', { name: 'Новое поле' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: OFFLINE })).toBeInTheDocument();
+    expect(syncServer.operations('child_field')).toEqual([]);
+
+    reconnect();
+
+    await waitFor(() => {
+      expect(syncServer.operations('child_field')).toHaveLength(1);
+    });
+    const [added] = syncServer.operations('child_field');
+    expect(syncServer.row('child_field', added?.id ?? '')).toEqual({
+      id: added?.id,
+      name: 'Размер обуви',
+      valueType: 'TEXT',
+      position: 2,
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: OFFLINE })).not.toBeInTheDocument();
+    });
   });
 
-  it('«Отмена» closes it without saving', async () => {
-    server.use(childFieldsHandler([weight]));
-    const received = putAnswers(savedAsSent);
+  it('says «Не удалось сохранить» when the server rejects a new field, which then goes', async () => {
+    syncServer.rejectWhen((op) => op.fields?.name === 'Я'.repeat(10));
     const user = userEvent.setup();
 
     renderApp('/settings');
+    const fields = await section();
+    await within(fields).findByText('Полей пока нет');
+    const sheet = await openSheet(user);
+    await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Я'.repeat(10));
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    expect(await screen.findByText(NOT_SAVED)).toBeInTheDocument();
+    expect(await within(fields).findByText('Полей пока нет')).toBeInTheDocument();
+  });
+
+  it('«Отмена» closes it without saving', async () => {
+    syncServer.seed('child_field', [weight]);
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    await nameField('Вес');
     const sheet = await openSheet(user);
     await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Рост');
     await user.click(within(sheet).getByRole('button', { name: 'Отмена' }));
 
     expect(screen.queryByRole('dialog', { name: 'Новое поле' })).not.toBeInTheDocument();
     expect(await rows()).toHaveLength(1);
-    expect(received).toEqual([]);
+    expect(syncServer.operations('child_field')).toEqual([]);
   });
 });
 
@@ -400,10 +427,11 @@ describe('Reordering Child fields', () => {
   });
 
   it('shows drag handles only in edit mode', async () => {
-    server.use(childFieldsHandler([weight, height]));
+    syncServer.seed('child_field', [weight, height]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Рост');
     const list = await fieldList();
     expect(within(list).queryByRole('button', { name: 'Переместить «Вес»' })).toBeNull();
     await startEditing(user);
@@ -412,104 +440,113 @@ describe('Reordering Child fields', () => {
     expect(within(list).getByRole('button', { name: 'Переместить «Рост»' })).toBeInTheDocument();
   });
 
-  it('moves a field up with the keyboard, between its new neighbours, sending only that field', async () => {
-    server.use(childFieldsHandler([weight, height, shoeSize]));
-    const received = putAnswers(savedAsSent);
+  it('moves a field up with the keyboard, between its new neighbours, sending only its position', async () => {
+    syncServer.seed('child_field', [weight, height, shoeSize]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Размер обуви');
     await startEditing(user);
     screen.getByRole('button', { name: 'Переместить «Размер обуви»' }).focus();
     await user.keyboard('[Space]');
     await user.keyboard('[ArrowUp]');
     await user.keyboard('[Space]');
 
-    await waitFor(async () => {
-      expect(await names()).toEqual(['Вес', 'Размер обуви', 'Рост']);
+    await showing(['Вес', 'Размер обуви', 'Рост']);
+    await waitFor(() => {
+      expect(syncServer.operations('child_field')).toEqual([
+        { table: 'child_field', id: shoeSize.id, op: 'upsert', fields: { position: 1.5 } },
+      ]);
     });
-    expect(received.map((r) => [r.id, r.body])).toEqual([
-      [shoeSize.id, { name: 'Размер обуви', valueType: 'TEXT', position: 1.5 }],
-    ]);
   });
 
   it('moves a field to the very top or bottom past the end neighbour', async () => {
-    server.use(childFieldsHandler([weight, height, shoeSize]));
-    const received = putAnswers(savedAsSent);
+    syncServer.seed('child_field', [weight, height, shoeSize]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Размер обуви');
     await startEditing(user);
     screen.getByRole('button', { name: 'Переместить «Рост»' }).focus();
     await user.keyboard('[Space][ArrowUp][Space]');
-    await waitFor(async () => {
-      expect(await names()).toEqual(['Рост', 'Вес', 'Размер обуви']);
-    });
+    await showing(['Рост', 'Вес', 'Размер обуви']);
     // Now «Рост» 0, «Вес» 1, «Размер обуви» 3.
     screen.getByRole('button', { name: 'Переместить «Вес»' }).focus();
     await user.keyboard('[Space][ArrowDown][Space]');
-    await waitFor(async () => {
-      expect(await names()).toEqual(['Рост', 'Размер обуви', 'Вес']);
-    });
+    await showing(['Рост', 'Размер обуви', 'Вес']);
 
     // To the top: one below the first position. To the bottom: one above the last.
-    expect(received.map((r) => r.body.position)).toEqual([0, 4]);
+    await waitFor(() => {
+      expect(syncServer.operations('child_field').map((op) => op.fields?.position)).toEqual([0, 4]);
+    });
   });
 
-  it('puts the field back on Esc without calling the server', async () => {
-    server.use(childFieldsHandler([weight, height]));
-    const received = putAnswers(savedAsSent);
+  it('puts the field back on Esc without sending anything', async () => {
+    syncServer.seed('child_field', [weight, height]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Рост');
     await startEditing(user);
     screen.getByRole('button', { name: 'Переместить «Рост»' }).focus();
     await user.keyboard('[Space][ArrowUp][Escape]');
 
     expect(await names()).toEqual(['Вес', 'Рост']);
-    expect(received).toEqual([]);
+    expect(syncServer.operations('child_field')).toEqual([]);
   });
 
-  it('leaves the order as it was and says why when the move fails', async () => {
-    server.use(childFieldsHandler([weight, height]));
-    const received = putAnswers(() => HttpResponse.error());
+  it('moves offline at once and sends the new position when the server is back', async () => {
+    syncServer.seed('child_field', [weight, height]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Рост');
+    syncServer.goOffline();
     await startEditing(user);
     screen.getByRole('button', { name: 'Переместить «Рост»' }).focus();
     await user.keyboard('[Space][ArrowUp][Space]');
 
-    expect(await within(await section()).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
-    expect(await names()).toEqual(['Вес', 'Рост']);
-    expect(received).toHaveLength(1);
+    await showing(['Рост', 'Вес']);
+    expect(await screen.findByRole('button', { name: OFFLINE })).toBeInTheDocument();
+    expect(within(await section()).queryByRole('alert')).not.toBeInTheDocument();
+
+    reconnect();
+
+    await waitFor(() => {
+      expect(syncServer.row('child_field', height.id)).toEqual({ ...height, position: 0 });
+    });
   });
 });
 
 describe('Deleting a Child field', () => {
   it('deletes from edit mode after the action sheet, leaving edit mode with the last one', async () => {
-    server.use(childFieldsHandler([weight]));
-    const removed = deleteAnswers(() => new HttpResponse(null, { status: 204 }));
+    syncServer.seed('child_field', [weight]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Вес');
     await startEditing(user);
     const fields = await section();
     await user.click(within(fields).getByRole('button', { name: 'Удалить «Вес»' }));
     const sheet = screen.getByRole('dialog', { name: 'Удалить поле „Вес“?' });
-    expect(removed).toEqual([]);
+    expect(syncServer.operations('child_field')).toEqual([]);
     await user.click(within(sheet).getByRole('button', { name: 'Удалить' }));
 
     expect(await within(fields).findByText('Полей пока нет')).toBeInTheDocument();
-    expect(removed).toEqual([weight.id]);
+    await waitFor(() => {
+      expect(syncServer.operations('child_field')).toEqual([
+        { table: 'child_field', id: weight.id, op: 'delete' },
+      ]);
+    });
     expect(within(fields).queryByRole('button', { name: 'Готово' })).not.toBeInTheDocument();
   });
 
   it('deletes with right-click → «Удалить», after the action sheet', async () => {
-    server.use(childFieldsHandler([weight, height]));
-    const removed = deleteAnswers(() => new HttpResponse(null, { status: 204 }));
+    syncServer.seed('child_field', [weight, height]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Рост');
     const row = (await rows())[1];
     await user.pointer({
       keys: '[MouseRight]',
@@ -519,18 +556,18 @@ describe('Deleting a Child field', () => {
     const sheet = await screen.findByRole('dialog', { name: 'Удалить поле „Рост“?' });
     await user.click(within(sheet).getByRole('button', { name: 'Удалить' }));
 
-    await waitFor(async () => {
-      expect(await names()).toEqual(['Вес']);
+    await showing(['Вес']);
+    await waitFor(() => {
+      expect(syncServer.row('child_field', height.id)).toBeUndefined();
     });
-    expect(removed).toEqual([height.id]);
   });
 
   it('keeps the field when the Member changes their mind', async () => {
-    server.use(childFieldsHandler([weight, height]));
-    const removed = deleteAnswers(() => new HttpResponse(null, { status: 204 }));
+    syncServer.seed('child_field', [weight, height]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Рост');
     await startEditing(user);
     await user.click(screen.getByRole('button', { name: 'Удалить «Вес»' }));
     const sheet = screen.getByRole('dialog', { name: 'Удалить поле „Вес“?' });
@@ -538,20 +575,28 @@ describe('Deleting a Child field', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(await rows()).toHaveLength(2);
-    expect(removed).toEqual([]);
+    expect(syncServer.operations('child_field')).toEqual([]);
   });
 
-  it('keeps the field and says why when deleting fails', async () => {
-    server.use(childFieldsHandler([weight]));
-    deleteAnswers(() => HttpResponse.error());
+  it('deletes offline at once and sends the delete when the server is back', async () => {
+    syncServer.seed('child_field', [weight, height]);
     const user = userEvent.setup();
 
     renderApp('/settings');
+    await nameField('Рост');
+    syncServer.goOffline();
     await startEditing(user);
     await user.click(screen.getByRole('button', { name: 'Удалить «Вес»' }));
     await user.click(screen.getByRole('button', { name: 'Удалить' }));
 
-    expect(await within(await section()).findByRole('alert')).toHaveTextContent(NO_CONNECTION);
-    expect(await names()).toEqual(['Вес']);
+    await showing(['Рост']);
+    expect(await screen.findByRole('button', { name: OFFLINE })).toBeInTheDocument();
+    expect(syncServer.row('child_field', weight.id)).toBeDefined();
+
+    reconnect();
+
+    await waitFor(() => {
+      expect(syncServer.row('child_field', weight.id)).toBeUndefined();
+    });
   });
 });

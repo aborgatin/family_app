@@ -1,6 +1,7 @@
 # Frontend
 
-What exists in `/web` after Spec #1 (M0 + M1) and the M1.5 UI foundation (spec #35). Rules:
+What exists in `/web` after Spec #1 (M0 + M1), the M1.5 UI foundation (spec #35) and M2 so far
+(spec #3: the sync core #52, Lists #55, #56, Items #57, Done #58). Rules:
 [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md) (M3, I2, I3, S4, T1, U1). Look, tokens and
 component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](backend.md).
 
@@ -11,7 +12,8 @@ React 19, TypeScript 6 (`strict`, `noUncheckedIndexedAccess`), Vite 8, `vite-plu
 (`@tailwindcss/vite`), Radix primitives (`@radix-ui/react-popover`, `-dialog`, `-context-menu`, only inside
 `shared/ui`),
 `lucide-react` (only inside `shared/ui/Icon.tsx`), Vitest 5 + Testing
-Library + MSW 3, ESLint 10 flat config, Prettier 3. Node 22 or newer.
+Library + MSW 3 + `fake-indexeddb`, Dexie 4 (local store), ESLint 10 flat config, Prettier 3.
+Node 22 or newer.
 
 Scripts (`web/package.json`): `dev`, `build` (does not typecheck), `typecheck` (`tsc --noEmit`),
 `lint` (`--max-warnings 0`), `format` / `format:check`, `test` (`vitest run`). CI job `web` runs
@@ -28,12 +30,16 @@ run the backend (see the header of that file), then `npm run dev`. Vite proxies 
 ```
 web/src/
   main.tsx              createBrowserRouter(routes) inside <AppProviders>; imports shared/ui/theme.css
-  app/                  routes.tsx, AppProviders.tsx (I18nextProvider)
+  app/                  routes.tsx, AppProviders.tsx (I18nextProvider), SaveRejectedToast
   features/
-    auth/               session, guard, setup (bootstrap), login, LogoutSection, Invite acceptance,
+    auth/               session, guard, setup (bootstrap), login, LogoutSection + useLogout, Invite acceptance,
                         password reset; LinkScreen (link-check states); GrammaticalGender (type)
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
-    home/               HomePage: Page «Семья», empty state, gear → Settings; HOME_PATH
+    home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
+    lists/              ListsSection («Списки» on Home), NewListSheet, ListPage, ListSettingsPage,
+                        listPaths (LIST_PATH, LIST_SETTINGS_PATH), ListMissing (gone / loading),
+                        ItemsSection (the List screen's Items), listTypes (kinds, Visibility,
+                        kind texts, Item), useLists(), useItems(listId)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
@@ -42,15 +48,17 @@ web/src/
     api/                API client, error-code mapping, form error helpers
     i18n/               i18next set-up, typed keys, locales/ru.json
     load/               useLoad(): load / failed / retry for anything fetched once
+    sync/               local store (Dexie), sync engine, useRows / useSyncedRows / upsertRow /
+                        deleteRow, useSaveRejection, startSync / stopSync / onSessionEnded
     palette/            Child color palette (childColors.json)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
-                        LoadingRow, EditableRow, SortableList (dnd-kit), SwipeToDelete,
-                        RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner,
+                        LoadingRow, EditableRow, AddRow, SortableList (dnd-kit), SwipeToDelete,
+                        RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
-  test/                 renderApp, MSW server, fixtures, setup
+  test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
 ```
 
 - Each feature's public surface is its `index.ts`. Other code imports a feature only as
@@ -83,11 +91,14 @@ frame around every screen and the place a sidebar goes later.
 | `/invite/:token`         | `InvitePage`        | always (public)                |
 | `/reset-password/:token` | `ResetPasswordPage` | always (public)                |
 | `/`                      | `HomePage`          | logged in                      |
+| `/lists/:id`             | `ListPage`          | logged in                      |
+| `/lists/:id/settings`    | `ListSettingsPage`  | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
 
-The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure;
+The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure,
+or after an offline cold start, below;
 meanwhile a `StatusScreen` shows «Загрузка…», or the failure with «Повторить»), then:
 
 1. `bootstrapRequired` and not on `/setup` → `/setup`. Not required and on `/setup` → `/`.
@@ -96,11 +107,35 @@ meanwhile a `StatusScreen` shows «Загрузка…», or the failure with «
 3. Member present and on `/login` → back to `state.from` (only same-app paths, never `/login`
    itself), else `/`.
 
+**Offline cold start** (`sessionAtStart`): when the session request fails because the server
+can't be reached (`network.unavailable`), there is no pending logout and the local store has an
+owner, the guard starts as that Member from the copy kept on the device (`ownerCopy()`, saved by
+`saveOwnerCopy(member)` whenever the server confirms the session or the Member changes; it is
+wiped with the store) instead of showing the start-up error. Screens work from the local store,
+writes go to the Outbox, and the offline indicator shows as usual. Such a session is marked
+`fromDevice`: the engine does not start, and the guard asks for the session again on the browser's
+`online` event, any API answer, the foreground, and with backoff (1 s doubling to 30 s) until the
+server answers. The answer replaces the session and the rules above apply: the same Member starts
+the engine (the answer has issued the CSRF cookie before any push), no Member → `/login` with the
+store and Outbox kept for the same Member, `bootstrapRequired` → `/setup`. The device copy carries
+the session's Member (with email) because the pulled `member` rows carry only id, display name and
+Grammatical gender. With a pending logout or an ownerless store the start-up error shows as before.
+
 It provides `SessionContext`; screens read it with `useSession()` (`@/features/auth`):
 `session` (`{bootstrapRequired, member}`), `loggedIn(member)`, `memberChanged(member)`,
 `loggedOut()`. Screens report what happened and let the guard redirect: `LoginPage` calls
 `loggedIn()` and does not navigate itself. `ResetPasswordPage` and `InvitePage` navigate to `/`
 after `loggedIn()`. `/setup` and `/invite/:token` share `RegistrationForm`.
+
+**Pending logout** (`features/auth/logoutApi.ts`): logging out while the server can't be reached
+logs the device out at once and sets a flag in `localStorage` (`family-app.logout-pending`).
+While it is set the guard treats the session as having no Member, whatever the server answers (the
+cookie may still be valid there), so sync never starts. The guard sends `POST /api/auth/logout`
+at start, whenever the server becomes reachable and on the browser's `online` event, and clears
+the flag on `204` or `auth.required`. Every way of logging in (`authApi.ts`: bootstrap, login,
+Invite, password reset) goes through `loggingIn()`: it sends a pending logout first, holds it off
+while the login request is under way (the login's answer makes the server reachable, which would
+otherwise send it with the new session's cookie), and clears the flag once logged in.
 
 The four auth screens are `CenteredPage`s (app icon, large title, no nav bar): one
 `GroupedSection` of `InputRow`s (registration adds «Пол» as a `SegmentedControl`) inside a
@@ -140,37 +175,150 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 - `failureMessages(error, fields, choiceFields)` splits a failed save into per-field messages for
   the form's own fields, or one form-level `ErrorMessage` when none applies.
 
+## Local store and sync
+
+`@/shared/sync` (`web/src/shared/sync/`; semantics in [`sync.md`](sync.md#client)) is the only
+code that touches IndexedDB or the sync API:
+
+- `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
+  (`member`, `child`, `child_field`, `list`, `item`; `child_field` and `list` came with store
+  version 2, `item`, indexed by `listId`, with version 3),
+  `outbox` (`++seq`) and `meta` (the stored Version, the owner: the Member whose data it holds,
+  and the owner copy the app starts from offline). Internal to the folder, except
+  `claimLocalStore(memberId)` (below) and `saveOwnerCopy(owner)` / `ownerCopy()` (see "Offline
+  cold start" above).
+  `wipeLocalStore()` clears every table Dexie knows (`localStore.tables`), so a table added later
+  is wiped without changes there.
+- `engine.ts`: `startSync()` / `stopSync()` / `requestSync()`, `onSessionEnded(listener)`. `AuthGuard`
+  first calls `claimLocalStore(memberId)` (keeps the store when it is that Member's or nobody's,
+  wipes it when it is another Member's), shows «Загрузка…» until it is done, then starts the
+  engine while the Member is logged in and the server has confirmed the session (keyed on the
+  Member id; not while started offline from the device) and stops it otherwise. When a push or
+  pull gets a `401` the engine stops and `onSessionEnded` listeners are told: `AuthGuard` then
+  sets the session's Member to none, so `/login` shows with `state.from` = where the Member was,
+  store and Outbox kept; logging in as the same Member goes back there and resumes.
+- Logout (`useLogout()` in `features/auth`, used by `LogoutSection`): `flushOutbox()` sends the
+  whole Outbox now (pausing the engine meanwhile; it resumes afterwards, except after a `401`) and
+  rejects with the `ApiError` when it can't. Any failure, an unreachable server or a `401` (the
+  session already gone), opens the unsent-changes warning; «Выйти» there goes on without them.
+  After the server's logout (`auth.required` counts as logged out), or when the logout itself
+  can't reach the server (then a pending logout, see the auth guard), `stopSyncAndWipe()` stops
+  the engine and wipes the store: an explicit logout always wipes, owner copy included.
+- `liveUpdates.ts`: `openLiveUpdates(onNewerVersion)`, opened by `startSync` and closed by
+  `stopSync`. One `EventSource` on `/api/sync/events`; a `changed` event whose Version is above
+  the stored one calls `requestSync()`, any other causes no pull. When the browser gives up on the
+  stream (`readyState` `CLOSED` after an error: an error answer such as `401` or `502`), it is
+  reopened with backoff (1 s doubling to 30 s), and at once on `online`, on the server becoming
+  reachable, or on the app returning to the foreground. Internal to the folder.
+- `rows.ts`, what features use:
+  - `useRows(table)`: every local row, live (Dexie `liveQuery`), `undefined` until the first read;
+    unordered, untyped (`Row`): the feature sorts and casts (`as Child[]`);
+  - `useSyncedRows(table, inOrder)` → `{load, save(id, fields), remove(id)}`: a feature's whole
+    table on the local store; `load` is a `LocalLoad` (`loading` until the first read, then
+    `ready` with the rows sorted by `inOrder`; it never fails); `save` is `upsertRow`, `remove`
+    `deleteRow`. `useChildren`, `useChildFields` and `useLists` are built on it;
+  - `upsertRow(table, id, fields, local?)`: create (all required fields) or set the given fields,
+    of which only those that differ from the local row are written and sent (read in the same
+    transaction; nothing differs, nothing written), so a screen passes just the changed field and
+    a change the other Member made meanwhile stays; `local` fields go only into the local row and the Outbox entry, never to the server,
+    until the server's copy replaces them (an Item's `doneHereAt`); `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
+    once, online or not;
+  - `useSaveRejection()` → `{message, dismiss}`: the message about the last operation the server
+    rejected (`saveRejection.ts`, I3: `list.not_found`, `list.owner_only`, `list.kind_immutable`,
+    `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only` map to
+    `sync.rejected.*`, «Не удалось сохранить: …» with the reason; any other code to
+    `sync.saveRejected`, plain «Не удалось сохранить»). It is recorded whatever screen is open and
+    cleared by the Member's next change, `dismiss()` or a logout. Its one user is
+    `app/SaveRejectedToast`, placed next to `AppShell` in `routes.tsx`, which shows it in a `Toast`
+    once, wherever the Member is (not in a screen's footer: the screen that made the change may
+    be gone).
+
+**Adding a syncable table** on the client: add the name to `SYNCED_TABLES` and declare it in a new
+`this.version(n).stores({...})` in `localStore.ts` (keep the older versions as they are, never drop
+`outbox`); the pull fills it, and the feature's hook reads and writes it with `useSyncedRows` (or
+`useRows` and `upsertRow` / `deleteRow`). Rows that belong to a row of another table (an Item to
+its List) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
+
 ## Data access
 
-Each data feature has one hook that is its only data access. Components never call `api` or the
-`*Api.ts` files:
+Each data feature has one hook that is its only data access. Components never call `api`, the
+`*Api.ts` files, Dexie or `@/shared/sync`'s writers directly:
 
-- `useChildren()` → `{load, retry, save(id, details), remove(id)}`; `newChildId()` uses
-  `crypto.randomUUID()`. The «Новый ребёнок» sheet gets its id once when it opens, so a retried save repeats the same
-  `PUT`. `save` replaces the whole Child (the API's `PUT`).
-- `useChildFields()` → `{load, retry, add(id, name, valueType), rename(field, name),
-move(field, to), remove(field)}`; `newChildFieldId()` makes the id once when the «Новое поле»
-  sheet opens, so a retried save repeats the same `PUT`. `move` takes the field's index after the
-  move; `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or
-  one past either end, and only that field is written. A new field goes one past the last.
-  Ordering is `position`, then id, as on the server.
-- `useMembers()` → `{load, retry, replaced}`.
-- `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`. Lists
-  load from the server each time Settings opens; meanwhile each section shows a `LoadingRow`. Writes reject with `ApiError` and leave the list
-  unchanged.
+- `useChildren()` → `{load, save(id, fields), remove(id)}` (`useSyncedRows('child', …)`): `load`
+  is `loading` until the first local read, then `ready` with the Children in order (birthday, then
+  name by `Intl.Collator('ru')`, then id); it never fails. `save` resolves at once, offline too:
+  the «Новый ребёнок» sheet passes every field, the Child screen only the field that changed, and
+  only fields that differ from the local row are sent, so a change the other Member made meanwhile
+  stays. `newChildId()` uses `crypto.randomUUID()`; the sheet gets its id once when it opens.
+- `useChildFields()` → `{load, add(id, name, valueType), rename(field, name),
+  move(field, to), remove(field)}` on the local store and the Outbox (`useSyncedRows`), like
+  `useChildren()`: every write resolves at once, offline too, and sends only what it changes
+  (`rename` the name, `move` the position, `add` all three fields). `newChildFieldId()` makes the
+  id once when the «Новое поле» sheet opens. `move` takes the field's index after the move;
+  `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or one past
+  either end, so a reorder is a single-record change. A new field goes one past the last.
+  Ordering is `position`, then id.
+- `useLists()` → `{load, save(id, fields), remove(id)}` (`useSyncedRows('list', …)`), like
+  `useChildren()`: `load` is `ready` with every List the pull brought (never the other Member's
+  Private ones: the server filters them), by name with `Intl.Collator('ru')`, then id. `save`
+  creates (all of `name`, `kind`, `visibility`) or sends only the given fields that differ from
+  the current local row (List settings pass only the changed one). `ownerId` and `createdAt` are set by the server and absent locally until the
+  pull after the create. `newListId()` makes the id once when «Новый список» opens. Used by
+  `ListsSection` (Home), `ListPage` and `ListSettingsPage`. The List screen (`ListPage`,
+  `/lists/:id`, back to «Семья») has the List's name as its title and only the Items
+  (`ItemsSection`, below); the gear in its nav bar (a `Link` with `icon="settings"`, named
+  «Настройки списка», as on Home) opens `ListSettingsPage` (`/lists/:id/settings`,
+  `listSettingsPath(id)`), a `Page` «Настройки списка» back to the List (the back button shows its
+  name): a `GroupedSection` with the auto-saved «Название» and Visibility
+  «Личный» / «Общий» only when the Member is the Owner, or `ownerId` is still unset, and never for
+  a Wish list: `hasVisibility(kind)`; the segments are `VISIBILITY_CHOICES`, both in
+  `listTypes.ts` and shared with «Новый список»), then, again only for the Owner (or while
+  `ownerId` is unset), «Удалить список» in its own `GroupedSection` (`DeleteListSection`, a `ConfirmRow`, «Удалить „{{name}}“ со всем
+  содержимым?», then back to Home). A List that is unknown, or disappears while either screen is
+  open (deleted, or made Private by its Owner: the pull's tombstone removes it), shows «Такого
+  списка нет: возможно, его удалили.» with the back link to Home (`ListMissing`). Kind texts (segment,
+  Home subtitle, empty state, Items header, «Новый товар», «Товар «…»», the Done label and the
+  Done toggle's name) are in `KIND_TEXTS`. Each Home row's value is the List's count of open
+  Items (`useOpenItemCounts()`, 0 included).
+- `useItems(listId)` → `{items, doneItems, add(text), rename(item, text), setDone(item, done),
+  remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
+  `undefined` until the first local read. `items` are the List's open Items in the order added:
+  by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
+  after them, ordered by its id, which `newItemId()` makes time-ordered (UUID v7); an Item ticked
+  back on returns to its place by the same rule. `doneItems` are the Done ones, most recently done
+  first: by the server's `doneAt` (fraction padded as for `createdAt`), ties by id; one ticked off
+  on this device and not pulled back yet has no `doneAt` and goes on top, the last ticked first,
+  by its device-only `doneHereAt` (a monotonic ms time written with `upsertRow`'s `local`, never
+  sent; `setDone` also clears the old `doneById` / `doneAt` locally the same way, so an Item ticked
+  back on and off again goes on top). Device and server times are never compared: pending ticks
+  are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
+  so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`),
+  `rename` sends only `text`, `setDone` only `done`, `remove` deletes; all resolve at once,
+  offline too. `ItemsSection` on the List screen: a `GroupedSection` headed «Товары» / «Задачи» /
+  «Желания» with edit mode («Изменить») while it has open Items; each Item an `EditableRow` with a
+  `DoneToggle` (named «Куплено «Молоко»» / «Выполнено «…»» / «Исполнено «…»») as `leading`, its
+  text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), deleted from edit
+  mode, a swipe or right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая
+  задача» / «Новое желание» (Enter adds and keeps the focus). Footer: «Товаров пока нет» (by
+  kind) with no open Items (a rejected new Item leaves the List; «Не удалось сохранить» shows
+  app-wide, see `useSaveRejection`). Under it, while there are Done Items, a second `GroupedSection` headed «Куплено» /
+  «Выполнено» / «Исполнено» with edit mode: each an `EditableRow`, `muted`, with its ticked
+  `DoneToggle` (untick puts it back among the open ones), deleted the same ways.
+- `useMembers()` → `{load, retry, replaced}` (online REST).
+- `useLogout()` → `{logOut({discardUnsent?}), pending, error, unsentWarning, dismissWarning}`:
+  the only data access of `LogoutSection` (Outbox flush, logout request, pending logout, wipe;
+  see "Local store and sync").
+- REST-backed `load` (`Load<T>`) is `{status: 'loading'} | {status: 'failed', error} |
+  {status: 'ready', value}`; a local-store `load` (`LocalLoad<T>`) has no `failed`.
 
-The load / failed / retry part is shared: `useLoad(fetch, key?)` from `@/shared/load` returns
-`{load, retry, update}`. It fetches on mount and when `key` changes, drops answers that arrive
-after unmounting, and `update(change)` edits the loaded value after a write. `useMembers`,
-`useChildren`, `useChildFields`, `InvitesSettings` and `AuthGuard` use it, and
-`features/auth/useLinkCheck` builds the Invite and password reset link check on it. Components of
-Children and Child fields still go only through `useChildren()` / `useChildFields()`; `useLoad` is
-an implementation detail of those hooks, so M2 can replace it there.
+The load / failed / retry part of REST-backed data is shared: `useLoad(fetch, key?)` from
+`@/shared/load` returns `{load, retry, update}`. It fetches on mount and when `key` changes, drops
+answers that arrive after unmounting, and `update(change)` edits the loaded value after a write.
+`useMembers`, `InvitesSettings` and `AuthGuard` use it, and
+`features/auth/useLinkCheck` builds the Invite and password reset link check on it.
 
-Children and Child fields are online-only REST in M1, a planned exception to S4. M2 swaps
-`useChildren()` / `useChildFields()` onto the local store + Outbox without touching components
-(see [`sync.md`](sync.md)). Auth, Invites and Member account changes stay online-only REST
-permanently (S4 exception).
+Auth, Invites and Member account changes stay online-only REST permanently (S4 exception; logout
+also works offline through a pending logout, see the auth guard).
 
 `crypto.randomUUID()` needs a secure context: HTTPS, or `localhost` in development.
 
@@ -233,7 +381,8 @@ Everything visual is specified in [`design.md`](../design.md). In short:
   with none (auth screens, the start-up error in `AuthGuard`) `AppShell` shows the globe in the
   same top-right spot. `AppShell` also holds the `role="status"` message announcing «Нет связи с
   сервером» / «Связь с сервером восстановлена». Nothing is disabled offline; saves fail with their
-  usual message. M2 changes its meaning to "changes will sync later".
+  usual message, except synced data (Children), which saves locally: there the globe is the only
+  sign that changes are waiting to be sent.
 - Settings «Оформление» (`features/settings/AppearanceSection`, `themeChoice.ts`) writes the
   choice to `localStorage` `theme` (removes it for «Авто») and dispatches
   `new StorageEvent('storage', {key: 'theme'})`, so the theme script applies it at once.
@@ -246,7 +395,13 @@ row per Member: initial, name, email, «(вы)» on the own one; not tappable; t
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
 Members list; then the «Изменить пароль» chevron row), «Дети» (below), «Поля профиля» (below),
 «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, a `ConfirmRow`;
-after logging out the guard shows `/login`). `app/routes.tsx` passes `HOME_PATH` in as
+after logging out the guard shows `/login`). Logout sends the Outbox first; when that fails
+(other than `401`) a second `ActionSheet` warns «Нет соединения с сервером. Несохранённые
+изменения будут потеряны» with a red «Выйти» (log out, wipe) and «Отменить» (keep everything). A
+`401` there means the session already ended: the guard shows `/login` and the store stays for the
+same Member. When `POST /api/auth/logout` can't reach the server either, the device logs out on
+its own (wipe, `/login`) and tells the server later (pending logout, see the auth guard); any
+other failure of it keeps the device logged in and the footer says so. `app/routes.tsx` passes `HOME_PATH` in as
 `homePath`, since `home` already imports `settings`. Auto-save and its failure footer are
 the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessages` (see
 `design.md`). Other footer lines come from `useFooterLines()`: `failure(error, retry?)` for a
@@ -270,31 +425,33 @@ or before it; `i18n` plurals `children.age.years_*` / `months_*`, computed from 
 date) and a chevron to `/settings/children/:id` (`childSettingsPath(id)`). Edit mode deletes only
 (Children have no order); a swipe and right-click delete too; each asks first. «Добавить ребёнка»
 (the section's `after` row) opens `NewChildSheet`: a `Sheet` «Новый ребёнок» with the same rows
-as the Child screen (`ChildRows`), name and colour required, saved only with «Готово»; on success
-the Child appears in the list in the API's order. With no Children the footer says «Детей пока
-нет».
+as the Child screen (`ChildRows`), name and colour required, saved only with «Готово» (at once, also offline);
+the Child appears in the list in order. With no Children the footer says «Детей пока нет». A
+rejected new Child leaves the list (and «Не удалось сохранить» shows app-wide, as for every
+rejected change).
 
 «Поля профиля» (`ChildFieldsSettings`) is an edit-mode list of `EditableRow`s inside a
 `SortableList`: each row's name is a text field (`input`, `useAutoSaveText`, named «Название поля
 «Вес»»; empty is refused without a request) that renames the field in place on blur or Enter,
 with the value type («Текст» / «Дата») on the right; it can't be changed (ADR-0007). Each row
 reports its save failure up to the section's footer (`autoSaveMessages`). Edit mode shows ⊖ and a
-drag handle: dragging (mouse, touch or keyboard) calls `move(field, to)`, which `PUT`s only that
-field; `SortableList` shows the new order until the save settles, so a failed move puts the rows
-back and the footer shows the error. A swipe and right-click delete too; every delete asks
-(«Удалить поле „Вес“?»), and a failed one leaves the list as it was with the error in the footer.
+drag handle: dragging (mouse, touch or keyboard) calls `move(field, to)`, which writes only that
+field's position. A swipe and right-click delete too; every delete asks («Удалить поле „Вес“?»).
 «Добавить поле» opens `NewChildFieldSheet`: a `Sheet` «Новое поле» with «Название» (`InputRow`)
-and «Тип» (`SegmentedControl` «Текст» / «Дата», «Текст» chosen), saved only with «Готово»; the
-field goes to the end. With no fields the footer says «Полей пока нет».
+and «Тип» (`SegmentedControl` «Текст» / «Дата», «Текст» chosen), saved only with «Готово» (at
+once, also offline); the field goes to the end. Every change shows at once and goes out through
+the Outbox. With no fields the footer says «Полей пока нет»; a rejected change shows «Не удалось
+сохранить» app-wide (a rejected new field leaves the list).
 
 The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_PATH`; `app/routes.tsx` passes
 `settingsPath` as for the password screen) is a `Page` titled with the Child's name, back to
 «Настройки». It loads through `useChildren()` like the list (so a deep link works) and shows
 `ChildRows`: Имя (`InputRow`, `useAutoSaveText`; empty is refused without a request), Цвет
 (`ColorChoice`, `useAutoSaveChoice`), День рождения (`DateRow`, `useAutoSaveText` with `''` for
-none). Each change `PUT`s the whole Child on top of what was last saved. Then a red «Удалить
-ребёнка» `ConfirmRow`: the `ActionSheet` «Удалить „Маша“?», then back to Settings (replacing the history
-entry); a failure stays and shows in that group's footer. An unknown id shows «Такого ребёнка
+none). Each change saves only that field through `useChildren().save` (local store + Outbox), so
+it shows at once offline too; after a rejection («Не удалось сохранить» app-wide) the rows show
+the server's value again. Then a red «Удалить ребёнка» `ConfirmRow`: the `ActionSheet`
+«Удалить „Маша“?», then back to Settings (replacing the history entry). An unknown id shows «Такого ребёнка
 нет: возможно, его удалили.».
 
 ## PWA
@@ -345,12 +502,32 @@ a Vite native-config-loader warning).
 - The API is mocked at the network layer by MSW: `server` from `@/test/server`, handlers added per
   test with `server.use(...)`. `src/test/setup.ts` starts it with `onUnhandledFrame: 'error'`
   (MSW 3's name for `onUnhandledRequest`), so any request without a handler fails the test.
+- The sync API is always answered by the fake sync server `syncServer` (`@/test/syncServer`,
+  installed in `server.ts`, emptied after each test). It behaves like the real one (Versions,
+  per-field Last write wins, delete wins, tombstones): `seed(table, rows)`, `change(table, id,
+fields | 'deleted')` (the other Member's change), `row(table, id)` (the server's copy),
+  `operations(table)` / `pushes` (with `csrf`) / `pulls`, `goOffline()` / `goOnline()` (MSW network
+  error), `rejectWhen(op => …)`, `holdPulls()` (returns `release`). Tests trigger a reconnect with
+  `window.dispatchEvent(new Event('online'))` and the foreground with a `visibilitychange`
+  (after setting `document.visibilityState` to `visible`: jsdom says `prerender`).
+- `fake-indexeddb/auto` gives jsdom IndexedDB, so the real Dexie store runs; `setup.ts` stops the
+  engine and empties the store after each test. Rendering the app twice in one test is an app
+  restart: the second render reads what the first left in the store.
+- `FakeEventSource` (`@/test/eventSource`) is the global `EventSource` in every test:
+  `FakeEventSource.latest()`, `.instances`, `.open()`, `.emit(type, data)`, `.fail()`, `.closed`.
+  A live update is `sse.emit('changed', JSON.stringify({ version: syncServer.latestVersion }))`
+  after changing the fake server; a drop the browser gives up on is `sse.readyState =
+FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx`.
 - Every `renderApp` test must mock `GET /api/auth/session` (`sessionHandler({...}).handler`; its
-  `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`,
-  `/api/children`, `/api/child-fields` and `/api/invites`.
-- Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya`; Child fields
-  `weight`, `height`; handlers `membersHandler`, `childrenHandler`, `childFieldsHandler`,
-  `invitesHandler`, `sessionHandler`.
+  `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`
+  and `/api/invites`.
+- Lists and Items tests (`lists/lists.test.tsx`, `lists/items.test.tsx`) build their rows inline
+  and seed them with `syncServer.seed('list' | 'item', …)`; `items.test.tsx` also guards the store
+  upgrade to version 3 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).
+- Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
+  `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
+  `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,
+  `sessionHandler`.
 - Query by role and label; assert on the Russian text the user sees (T1). Set
   `document.cookie = 'XSRF-TOKEN=…'` to check the CSRF header.
 - To test copying, stub `ClipboardItem` (`vi.stubGlobal`) and `navigator.clipboard` (`write`,

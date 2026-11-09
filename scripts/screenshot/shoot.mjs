@@ -303,6 +303,46 @@ export const SEED = {
     { name: 'Петя', color: 'blue', birthday: null },
     { name: 'Соня', color: 'green', birthday: '2022-09-01' },
   ],
+  // Lists by Member: Борис's Private one never reaches Анна, whom every route is logged in as.
+  lists: {
+    member: [
+      {
+        name: 'Супермаркет',
+        kind: 'SHOPPING',
+        visibility: 'SHARED',
+        items: [
+          'Молоко 3,2%',
+          'Хлеб бородинский',
+          'Яйца, десяток',
+          { text: 'Помидоры черри', done: true },
+          { text: 'Сыр', done: true },
+        ],
+      },
+      { name: 'Аптека', kind: 'SHOPPING', visibility: 'SHARED' },
+      { name: 'Ремонт', kind: 'TODO', visibility: 'PRIVATE' },
+      {
+        name: 'Дела по дому',
+        kind: 'TODO',
+        visibility: 'SHARED',
+        items: [
+          'Поменять лампочку в коридоре',
+          'Записать Машу к стоматологу',
+          { text: 'Оплатить интернет', done: true },
+        ],
+      },
+      {
+        name: 'Подарки',
+        kind: 'WISH',
+        visibility: 'SHARED',
+        items: ['Самокат', { text: 'Набор фломастеров', done: true }],
+      },
+      { name: 'Книги', kind: 'WISH', visibility: 'SHARED' },
+    ],
+    secondMember: [
+      { name: 'Гараж', kind: 'TODO', visibility: 'SHARED' },
+      { name: 'Подарок Анне', kind: 'TODO', visibility: 'PRIVATE' },
+    ],
+  },
   extraChildFields: [{ name: 'Размер обуви', valueType: 'TEXT', position: 3 }, { name: 'Последний визит к врачу', valueType: 'DATE', position: 4 }],
 };
 
@@ -326,8 +366,26 @@ async function api(page, method, url, body) {
   );
 }
 
+/**
+ * Creates Lists, and their `items` in that order, through the sync push as the Member logged in on
+ * `page`. An Item is its text, or `{text, done: true}` for a Done one (ticked in the same order).
+ */
+async function pushLists(page, lists) {
+  const operations = lists.flatMap(({ items = [], ...fields }) => {
+    const listId = crypto.randomUUID();
+    const added = items.map((item) => ({ id: crypto.randomUUID(), ...(typeof item === 'string' ? { text: item } : item) }));
+    return [
+      { table: 'list', id: listId, op: 'upsert', fields },
+      ...added.map(({ id, text }) => ({ table: 'item', id, op: 'upsert', fields: { listId, text } })),
+      ...added.filter((item) => item.done).map(({ id }) => ({ table: 'item', id, op: 'upsert', fields: { done: true } })),
+    ];
+  });
+  const pushed = await api(page, 'POST', '/api/sync/push', { operations });
+  if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed lists: ${JSON.stringify(pushed.results)}`);
+}
+
 async function seed(browser, baseUrl) {
-  log('seed: bootstrap Member, second Member via Invite, Children, Child fields, active Invite');
+  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, active Invite');
   const ctx = await browser.newContext({ baseURL: baseUrl });
   const page = await ctx.newPage();
   await page.goto('/api/auth/session');
@@ -340,10 +398,17 @@ async function seed(browser, baseUrl) {
   const p2 = await ctx2.newPage();
   await p2.goto('/api/auth/session');
   await api(p2, 'POST', `/api/invites/by-token/${token1}/accept`, SEED.secondMember);
+  await pushLists(p2, SEED.lists.secondMember);
   await ctx2.close();
+  await pushLists(page, SEED.lists.member);
 
-  for (const c of SEED.children) await api(page, 'PUT', `/api/children/${crypto.randomUUID()}`, c);
-  for (const f of SEED.extraChildFields) await api(page, 'PUT', `/api/child-fields/${crypto.randomUUID()}`, f);
+  // Children and Child fields are written only through the sync push (spec #3).
+  const operations = [
+    ...SEED.children.map((fields) => ({ table: 'child', id: crypto.randomUUID(), op: 'upsert', fields })),
+    ...SEED.extraChildFields.map((fields) => ({ table: 'child_field', id: crypto.randomUUID(), op: 'upsert', fields })),
+  ];
+  const pushed = await api(page, 'POST', '/api/sync/push', { operations });
+  if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed: ${JSON.stringify(pushed.results)}`);
   const inv2 = await api(page, 'POST', '/api/invites'); // stays active: shows in Settings, used as {inviteToken}
   const storageState = await ctx.storageState();
   await ctx.close();

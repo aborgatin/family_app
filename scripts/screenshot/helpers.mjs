@@ -5,6 +5,35 @@
 export const hang = (part) =>
   `const f = window.fetch; window.fetch = (i, o) => String(i && i.url ? i.url : i).includes('${part}') ? new Promise(() => {}) : f(i, o);`;
 
+/** Init script: every sync pull answers without Lists, as if the Family had none yet. */
+export const noLists = `
+  const f = window.fetch;
+  window.fetch = async (i, o) => {
+    const r = await f(i, o);
+    if (!String(i && i.url ? i.url : i).includes('/api/sync/pull')) return r;
+    const body = await r.json();
+    body.changes = body.changes.filter((c) => c.table !== 'list');
+    return new Response(JSON.stringify(body), { status: r.status, headers: r.headers });
+  };
+`;
+
+/**
+ * Init script: the server rejects every pushed operation with `code` (the rejection Toast). The
+ * operations never reach the server (an empty push fetches the Version), so the server's value
+ * comes back on the next pull, as after a real rejection.
+ */
+export const rejectPushes = (code) => `
+  const f = window.fetch;
+  window.fetch = async (i, o) => {
+    if (!String(i && i.url ? i.url : i).includes('/api/sync/push')) return f(i, o);
+    const ops = JSON.parse(o.body).operations;
+    const r = await f(i, { ...o, body: JSON.stringify({ operations: [] }) });
+    const body = await r.json();
+    body.results = ops.map(() => ({ status: 'rejected', code: '${code}', params: {} }));
+    return new Response(JSON.stringify(body), { status: r.status, headers: r.headers });
+  };
+`;
+
 /** Init script: the clipboard refuses every write (the copy-failed fallback). */
 export const failClipboard = `
   Object.defineProperty(Navigator.prototype, 'clipboard', { configurable: true, get() { return {

@@ -35,18 +35,9 @@ die() {
 docker info >/dev/null 2>&1 ||
   die "Docker is not running (backend tests and --image need it). Start Docker Desktop / the daemon and retry."
 
-node_major() { "$1" -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0; }
-if ! command -v node >/dev/null || (($(node_major node) < 22)); then
-  for d in /opt/homebrew/opt/node@22/bin /usr/local/opt/node@22/bin; do
-    if [[ -x "$d/node" ]] && (($(node_major "$d/node") >= 22)); then
-      PATH="$d:$PATH"
-      break
-    fi
-  done
-fi
-command -v node >/dev/null && (($(node_major node) >= 22)) ||
-  die "Node 22+ not found on PATH or in /opt/homebrew/opt/node@22/bin (brew install node@22)."
-export PATH
+source "$root/scripts/lib/toolchain.sh"
+use_node22 || die "Node 22+ not found on PATH or in /opt/homebrew/opt/node@22/bin (brew install node@22)."
+use_jdk21 || die "JDK 21 not found: set JAVA_HOME or brew install openjdk@21."
 
 # --- steps ----------------------------------------------------------------------------------------
 current=""

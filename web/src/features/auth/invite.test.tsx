@@ -69,7 +69,7 @@ describe('Invite link', () => {
     await fillIn(user);
     await join(user);
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
     expect(app.location()).toBe('/');
     expect(received).toEqual({
       body: {

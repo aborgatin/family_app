@@ -20,4 +20,7 @@ public interface MemberRepository extends Repository<Member, UUID> {
   boolean existsByEmail(String email);
 
   List<Member> findByDeletedFalseOrderByDisplayNameAscEmailAsc();
+
+  /** Every Member written after this Version, removed ones included (the sync pull). */
+  List<Member> findByVersionGreaterThan(long version);
 }

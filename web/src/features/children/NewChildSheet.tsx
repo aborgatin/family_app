@@ -8,7 +8,7 @@ import {
 } from '@/shared/api';
 import { GroupedSection, Sheet, useFooterLines } from '@/shared/ui';
 import { ChildRows } from './ChildRows';
-import type { ChildDetails } from './childrenApi';
+import type { ChildDetails } from './childTypes';
 
 type Field = 'name' | 'color' | 'birthday';
 const FIELDS: readonly Field[] = ['name', 'color', 'birthday'];

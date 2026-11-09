@@ -7,14 +7,14 @@ import {
   type FieldMessages,
 } from '@/shared/api';
 import { GroupedSection, InputRow, SegmentedControl, Sheet, useFooterLines } from '@/shared/ui';
-import type { ValueType } from './childFieldsApi';
+import type { ValueType } from './childFieldTypes';
 import { VALUE_TYPE_KEYS } from './valueTypes';
 
 type Field = 'name' | 'valueType';
 const FIELDS: readonly Field[] = ['name', 'valueType'];
 
 interface NewChildFieldSheetProps {
-  /** The new field's id, made once when the sheet opened, so a retried save repeats the same PUT. */
+  /** The new field's id, made once when the sheet opened, so a retried save repeats the same upsert. */
   id: string;
   /** Adds the field at the end; rejects with the API error when the save failed. */
   add: (id: string, name: string, valueType: ValueType) => Promise<unknown>;

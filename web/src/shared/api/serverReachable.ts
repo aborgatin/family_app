@@ -8,6 +8,7 @@ import { useSyncExternalStore } from 'react';
  */
 let reachable = true;
 const listeners = new Set<() => void>();
+const changeListeners = new Set<(reachable: boolean) => void>();
 
 export function reportServerReachable(value: boolean) {
   if (value === reachable) {
@@ -17,6 +18,17 @@ export function reportServerReachable(value: boolean) {
   listeners.forEach((listener) => {
     listener();
   });
+  changeListeners.forEach((listener) => {
+    listener(value);
+  });
+}
+
+/** Calls `listener` whenever reachability changes (the sync engine retries on `true`). */
+export function subscribeServerReachable(listener: (reachable: boolean) => void): () => void {
+  changeListeners.add(listener);
+  return () => {
+    changeListeners.delete(listener);
+  };
 }
 
 function subscribe(listener: () => void) {

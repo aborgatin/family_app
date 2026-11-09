@@ -5,8 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   anna,
   boris,
-  childFieldsHandler,
-  childrenHandler,
   invitesHandler,
   membersHandler,
   sessionHandler,
@@ -119,7 +117,6 @@ beforeEach(() => {
   document.cookie = 'XSRF-TOKEN=token-from-server';
   server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
   server.use(membersHandler([anna, boris]));
-  server.use(childFieldsHandler([]), childrenHandler([]));
 });
 afterEach(() => {
   document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';

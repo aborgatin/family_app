@@ -38,6 +38,7 @@ public class PasswordResets {
   private final MemberRepository members;
   private final PasswordResetRepository resets;
   private final PasswordEncoder passwordEncoder;
+  private final FamilyLock familyLock;
   private final Duration ttl;
   private final String domain;
 
@@ -45,11 +46,13 @@ public class PasswordResets {
       MemberRepository members,
       PasswordResetRepository resets,
       PasswordEncoder passwordEncoder,
+      FamilyLock familyLock,
       @Value("${PASSWORD_RESET_TTL:1h}") Duration ttl,
       @Value("${DOMAIN:localhost}") String domain) {
     this.members = members;
     this.resets = resets;
     this.passwordEncoder = passwordEncoder;
+    this.familyLock = familyLock;
     this.ttl = ttl;
     this.domain = domain;
   }
@@ -94,6 +97,8 @@ public class PasswordResets {
    */
   @Transactional
   public MemberSummary complete(String token, @Nullable String newPassword) {
+    // Writes the Member, a syncable row: Versions must commit in order (spec #3).
+    familyLock.lock();
     PasswordReset reset =
         resets.findForUpdateByTokenHash(hash(token)).orElseThrow(PasswordResets::notFound);
     Instant now = clock.instant();

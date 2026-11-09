@@ -1,39 +1,18 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
-import { ConfirmRow, GroupedSection, useFooterLines } from '@/shared/ui';
-import { logout } from './authApi';
-import { useSession } from './session';
+import { ActionSheet, ConfirmRow, GroupedSection, useFooterLines } from '@/shared/ui';
+import { useLogout } from './useLogout';
 
 /**
  * The red «Выйти» row at the bottom of Settings, confirmed with an action sheet. Logs this device
- * out (the Member's other devices stay logged in). Online-only (S4 exception): when the server
- * can't be reached the device stays logged in and the section footer says so.
+ * out (the Member's other devices stay logged in) and wipes the local store (`useLogout`).
+ *
+ * When unsent changes can't be sent first, a second action sheet warns that they will be lost:
+ * «Выйти» goes on without them, «Отменить» keeps everything.
  */
 export function LogoutSection() {
   const { t } = useTranslation();
   const lines = useFooterLines();
-  const { loggedOut } = useSession();
-  const [error, setError] = useState<ErrorMessage>();
-  const [pending, setPending] = useState(false);
-
-  async function logOut() {
-    setError(undefined);
-    setPending(true);
-    try {
-      await logout();
-      loggedOut();
-    } catch (failure: unknown) {
-      const apiError = asApiError(failure);
-      if (apiError.code === 'auth.required') {
-        // The session had already ended (e.g. expired): this device is logged out either way.
-        loggedOut();
-        return;
-      }
-      setPending(false);
-      setError(errorMessage(apiError));
-    }
-  }
+  const { logOut, pending, error, unsentWarning, dismissWarning } = useLogout();
 
   return (
     <GroupedSection messages={[lines.failure(error)]}>
@@ -44,6 +23,22 @@ export function LogoutSection() {
         onConfirm={() => {
           void logOut();
         }}
+      />
+      <ActionSheet
+        open={unsentWarning}
+        onOpenChange={(open) => {
+          if (!open) dismissWarning();
+        }}
+        title={t('logout.unsentWarning')}
+        actions={[
+          {
+            label: t('logout.action'),
+            destructive: true,
+            onSelect: () => {
+              void logOut({ discardUnsent: true });
+            },
+          },
+        ]}
       />
     </GroupedSection>
   );

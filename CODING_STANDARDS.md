@@ -114,8 +114,8 @@ an outbox operation; it never calls a mutating REST endpoint directly. Reads ren
 store, refreshed by the sync pull (triggered by SSE).
 _Exception_: auth, Invites and Member account changes (bootstrap, login, logout, creating/revoking/accepting
 an Invite, display name, password) call their REST endpoints directly and are online-only by design,
-because they need the server's answer immediately. Before M2 ships the outbox, Children and Child fields
-also call REST directly (Spec #1); M2 moves them onto the outbox.
+because they need the server's answer immediately. Logout alone also works offline: the device logs
+out at once and tells the server when it can (pending logout, `frontend.md`).
 
 **S5 — Migrations are append-only.** A change to a Flyway migration file already merged to `main` is a
 finding; the fix is a new migration. A migration that exists only on an unmerged branch (e.g. an

@@ -11,6 +11,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
@@ -38,6 +39,15 @@ class ApiExceptionHandler {
   @ExceptionHandler(MethodArgumentTypeMismatchException.class)
   ResponseEntity<ApiError> mismatch(MethodArgumentTypeMismatchException ex) {
     return ResponseEntity.badRequest().body(ApiError.of("request.invalid"));
+  }
+
+  /**
+   * The client went away from a long-lived response (a live-update stream): nothing to answer and
+   * nothing to log, as Spring MVC's own resolver would do.
+   */
+  @ExceptionHandler(AsyncRequestNotUsableException.class)
+  void clientGone(AsyncRequestNotUsableException ex) {
+    // No response: the connection is gone.
   }
 
   @ExceptionHandler(Exception.class)

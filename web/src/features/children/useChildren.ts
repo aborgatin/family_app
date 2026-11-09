@@ -1,36 +1,18 @@
-import { useCallback } from 'react';
-import { useLoad, type Load } from '@/shared/load';
-import { deleteChild, fetchChildren, putChild, type Child, type ChildDetails } from './childrenApi';
+import { useSyncedRows, type LocalLoad } from '@/shared/sync';
+import type { Child } from './childTypes';
 
-export type ChildrenLoad = Load<Child[]>;
+export type ChildrenLoad = LocalLoad<Child>;
 
 /**
- * The Family's Children and the ways to change them: the only data access of this feature.
- * In M1 it loads from the server each time Settings opens and writes through REST (S4, planned
- * exception); M2 swaps this hook onto the local store + Outbox without touching the components.
+ * The Family's Children and the ways to change them: the only data access of this feature. It
+ * reads the local store and writes through the Outbox (S4), so it works the same offline; the sync
+ * engine sends the changes and pulls the other Member's. `load` is `loading` until the first local
+ * read, then the Children in order. `save(id, fields)` creates a Child (`id` from `newChildId()`,
+ * every field) or sets the given fields, sending only those that differ from the local row, so a
+ * change from the other Member stays (Last write wins per field). `remove(id)` deletes.
  */
 export function useChildren() {
-  const { load, retry, update } = useLoad(fetchChildren);
-
-  /** Adds a new Child (`id` from `newChildId()`) or replaces an existing one. */
-  const save = useCallback(
-    async (id: string, details: ChildDetails) => {
-      const saved = await putChild(id, details);
-      update((children) => inOrder([...children.filter((c) => c.id !== id), saved]));
-      return saved;
-    },
-    [update],
-  );
-
-  const remove = useCallback(
-    async (id: string) => {
-      await deleteChild(id);
-      update((children) => children.filter((c) => c.id !== id));
-    },
-    [update],
-  );
-
-  return { load, retry, save, remove };
+  return useSyncedRows<Child>('child', inOrder);
 }
 
 /** Children are created with an id the client generates (S3). */
@@ -38,13 +20,10 @@ export function newChildId(): string {
   return crypto.randomUUID();
 }
 
-/**
- * Names compare by ICU's Russian collation, the one the server names in its query (`ru-x-icu`), so
- * a Child placed here lands where the next load from the server puts it («ё» sorts with «е»).
- */
+/** Names compare the Russian way («ё» sorts with «е»). */
 const byName = new Intl.Collator('ru');
 
-/** The API's order: oldest first, no birthday last, then by name, then id (spec #5, Ordering). */
+/** Oldest first, no birthday last, then by name, then id (spec #5, Ordering). */
 function inOrder(children: Child[]): Child[] {
   return [...children].sort((a, b) => {
     if (a.birthday !== b.birthday) {

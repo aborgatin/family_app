@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.family.childfield;
 
+import io.github.aborgatin.familyapp.sync.SyncedRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -18,7 +19,7 @@ import org.hibernate.generator.EventType;
  */
 @Entity
 @Table(name = "child_field")
-class ChildField {
+class ChildField implements SyncedRecord {
 
   @Id private UUID id;
 
@@ -66,7 +67,8 @@ class ChildField {
     this.deleted = true;
   }
 
-  UUID id() {
+  @Override
+  public UUID id() {
     return id;
   }
 
@@ -82,7 +84,8 @@ class ChildField {
     return position;
   }
 
-  long version() {
+  @Override
+  public long version() {
     return version;
   }
 
@@ -90,7 +93,8 @@ class ChildField {
     return updatedAt;
   }
 
-  boolean deleted() {
+  @Override
+  public boolean deleted() {
     return deleted;
   }
 }

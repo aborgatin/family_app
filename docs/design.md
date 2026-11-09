@@ -96,10 +96,13 @@ spacing `n`).
 ## Saving and deleting
 
 - **Auto-save** for editing what exists: text saves on blur or Enter, a choice saves on tap. Esc
-  puts the saved value back. A spinner appears at the right of the row only after ~400 ms. No
+  puts the saved value back. When the saved value changes from elsewhere (a pull, or the server's
+  copy after a rejected change), a row the Member isn't editing shows it. A spinner appears at the right of the row only after ~400 ms. No
   success toast or checkmark.
 - **On failure** the typed value stays; a red message goes in the group footer under the row
-  («Не удалось сохранить. Проверьте соединение.») with «Повторить». A validation error (an empty
+  («Не удалось сохранить. Проверьте соединение.») with «Повторить». A change the server rejected later,
+  after the sync push, is not a footer line: the screen may be gone by then, so a `Toast` says
+  «Не удалось сохранить» once, wherever the Member is. A validation error (an empty
   name, with `required` on `useAutoSaveText()`) shows there and sends nothing. A failed choice goes back to the previous value with the
   same message. Messages come from `errorMessage()` (I3).
 - How: `useAutoSaveText()` / `useAutoSaveChoice()` from `shared/ui` hold all of this. A screen
@@ -321,7 +324,10 @@ One of two or three choices, as an iOS segmented control in a row of a `GroupedS
 Touch: 32px segments drawn in a 48px row, each segment's target reaching the row's top and
 bottom edges (48px tall). Fine pointer: 24px segments. Its `name` links it to footer messages like an `InputRow`.
 Auto-saved (`useAutoSaveChoice()`): each choice saves at once, so arrow keys save on every move;
-`busy` shows the `Spinner` after the label.
+`busy` shows the `Spinner` after the label. `labelHidden` keeps the label for screen readers only
+and gives the segments the whole row, for a choice whose options say it all (Visibility
+«Личный» / «Общий» in «Новый список», named «Видимость»); not for auto-saved rows yet, since the
+spinner sits with the label.
 
 ### ListRow
 
@@ -366,7 +372,31 @@ shows the spinner, and its `name` links it to the footer messages. It looks like
 a fine pointer the focused field gets the accent outline. In edit mode the row shows `title`.
 
 Children use it for delete only (`to` their screen), Child fields with `input` and `sortable`,
+Items with `input` and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
 Invites plain.
+
+`muted` (on `ListRow` and `EditableRow`) shows the title in `secondary-label`: something set
+aside, like a Done Item.
+
+### AddRow
+
+The last row of a list that adds an entry by typing, as on paper (a List's «Новый товар»): an
+empty text field showing `label` as its placeholder (secondary colour), which is also its
+accessible name. Enter calls `onAdd(text)` with the trimmed text and empties the field, keeping
+the focus for the next entry; leaving the field with text in it adds it too; blank text adds
+nothing; Esc empties the field. Goes in a `GroupedSection`'s `after`, under an edit-mode list.
+Touch: 44px row, the caret is the focus sign; fine pointer: 36px row, accent outline when focused.
+Same on narrow and wide windows.
+
+### DoneToggle
+
+The circle at the left of a row that ticks it off, as in iOS Reminders; goes in a row's
+`leading`. Open: an empty ring, 1.5px `secondary-label` (3:1 or more on `cell`, so it reads as a
+control); Done: a filled `accent-fill` circle with an `on-accent` check. A checkbox
+(`role="checkbox"`, `aria-checked`) whose accessible name is the translated `label`, saying what
+it marks («Куплено «Молоко»»); `onChange(done)` gets the new state. Tap, click, Space or Enter
+toggles it; focus shows the accent outline. Touch: 44×44 target around a 22px circle; fine
+pointer: 28×28 around 20px. Same on narrow and wide windows. Used by the List screen's Items.
 
 ### SortableList
 
@@ -421,6 +451,16 @@ Asks before something that can't be undone: `title` (the question), optional `me
 iOS action sheet sliding up from the bottom, «Отменить» in its own block. Wide windows: a centred
 dialog, «Отменить» its last line. Built on Radix Dialog: focus moves in and back to the trigger,
 Esc or a tap outside cancels.
+
+### Toast
+
+A short message about something that happened away from the screen the Member is on, floating
+above the bottom of the window in the 640px column (16px margins on a phone, above the home
+indicator): `cell` with a hairline border and shadow, the text in `destructive`, and an ⓧ
+(`clear` icon, named «Закрыть») that closes it. Announced as an `alert`; it disables nothing.
+Placed once by the app (`app/SaveRejectedToast`), never by a screen. Its only use: «Не удалось
+сохранить» (with the reason) after the server rejected a change, shown once, until closed or the
+Member's next change.
 
 ### Spinner
 
