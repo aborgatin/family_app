@@ -1,6 +1,6 @@
 // Every screen and state of the web app, as shot for review (README.md has the format). When a
 // change adds or alters a screen, add or update its route here, so the next change shoots it too.
-import { editIn, failClipboard, hang, noLists, rowActions, section, toSection } from './helpers.mjs';
+import { editIn, failClipboard, hang, noLists, rejectPushes, rowActions, section, toSection } from './helpers.mjs';
 
 const INVITE = 'role=button[name="Пригласить взрослого…"]';
 const ITEM = 'role=textbox[name="Товар «Молоко 3,2%»"]';
@@ -204,6 +204,20 @@ export default {
         { waitFor: ITEM },
         { click: 'role=checkbox[name="Куплено «Яйца, десяток»"]' },
         { waitFor: 'role=checkbox[name="Куплено «Яйца, десяток»"][checked]' },
+      ],
+    },
+    {
+      // The server rejects the change: the app-wide Toast with the reason, the server's value back.
+      name: 'list-save-rejected',
+      path: '/',
+      isolate: true,
+      initScript: rejectPushes('list.owner_only'),
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: 'role=radiogroup[name="Видимость"] >> text=Личный' },
+        { waitFor: 'role=alert' },
+        { wait: 300 },
       ],
     },
     {

@@ -17,6 +17,18 @@ export const noLists = `
   };
 `;
 
+/** Init script: the server rejects every pushed operation with `code` (the rejection Toast). */
+export const rejectPushes = (code) => `
+  const f = window.fetch;
+  window.fetch = async (i, o) => {
+    const r = await f(i, o);
+    if (!String(i && i.url ? i.url : i).includes('/api/sync/push')) return r;
+    const body = await r.json();
+    body.results = body.results.map(() => ({ status: 'rejected', code: '${code}', params: {} }));
+    return new Response(JSON.stringify(body), { status: r.status, headers: r.headers });
+  };
+`;
+
 /** Init script: the clipboard refuses every write (the copy-failed fallback). */
 export const failClipboard = `
   Object.defineProperty(Navigator.prototype, 'clipboard', { configurable: true, get() { return {
