@@ -265,8 +265,10 @@ Each data feature has one hook that is its only data access. Components never ca
   first: by the server's `doneAt` (fraction padded as for `createdAt`), ties by id; one ticked off
   on this device and not pulled back yet has no `doneAt` and goes on top, the last ticked first,
   by its device-only `doneHereAt` (a monotonic ms time written with `upsertRow`'s `local`, never
-  sent). The server sets `doneAt` when the tick arrives, after every `doneAt` the device already
-  has, so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`),
+  sent; `setDone` also clears the old `doneById` / `doneAt` locally the same way, so an Item ticked
+  back on and off again goes on top). Device and server times are never compared: pending ticks
+  are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
+  so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`),
   `rename` sends only `text`, `setDone` only `done`, `remove` deletes; all resolve at once,
   offline too. `ItemsSection` on the List screen: a `GroupedSection` headed «Товары» / «Задачи» /
   «Желания» with edit mode («Изменить») while it has open Items; each Item an `EditableRow` with a

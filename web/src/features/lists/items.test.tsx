@@ -416,6 +416,30 @@ describe('Done', () => {
     expect(await doneTexts()).toEqual(['Хлеб', 'Молоко', 'Сыр', 'Яйца']);
   });
 
+  it('puts an Item ticked back on and off again offline on top, not where its old done at was', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item', [
+      doneItem(1, 'Хлеб', '2026-11-02T09:00:00Z'),
+      doneItem(2, 'Сыр', '2026-11-03T09:00:00Z'),
+    ]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    await waitFor(async () => {
+      expect(await doneTexts()).toEqual(['Сыр', 'Хлеб']);
+    });
+    syncServer.goOffline();
+    await user.click(await screen.findByRole('checkbox', { name: 'Куплено «Хлеб»' }));
+    await waitFor(async () => {
+      expect(await itemTexts()).toEqual(['Хлеб']);
+    });
+    await user.click(await screen.findByRole('checkbox', { name: 'Куплено «Хлеб»' }));
+
+    await waitFor(async () => {
+      expect(await doneTexts()).toEqual(['Хлеб', 'Сыр']);
+    });
+  });
+
   it('ticks a Done Item back on offline: it returns to its place among the open ones', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.seed('item', [

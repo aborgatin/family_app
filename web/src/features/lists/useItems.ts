@@ -43,11 +43,20 @@ export function useItems(listId: string) {
     [clear],
   );
 
-  /** Ticks the Item off, or back on (`done` false); the server records who did it and when. */
+  /**
+   * Ticks the Item off, or back on (`done` false); the server records who did it and when. Until
+   * its copy arrives, the old done by / done at are cleared locally (never sent), so an Item ticked
+   * back on and off again goes on top, not where it was last done.
+   */
   const setDone = useCallback(
     async (item: Item, done: boolean): Promise<void> => {
       clear();
-      await upsertRow('item', item.id, { done }, done ? { doneHereAt: tickTime() } : undefined);
+      await upsertRow(
+        'item',
+        item.id,
+        { done },
+        { doneById: null, doneAt: null, ...(done && { doneHereAt: tickTime() }) },
+      );
     },
     [clear],
   );
