@@ -2,13 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  anna,
-  childFieldsHandler,
-  invitesHandler,
-  membersHandler,
-  sessionHandler,
-} from '@/test/fixtures';
+import { anna, invitesHandler, membersHandler, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -200,7 +194,7 @@ describe('Logout', () => {
   beforeEach(() => {
     document.cookie = 'XSRF-TOKEN=token-from-server';
     server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
-    server.use(membersHandler([anna]), childFieldsHandler([]), invitesHandler([]));
+    server.use(membersHandler([anna]), invitesHandler([]));
   });
   afterEach(() => {
     document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
