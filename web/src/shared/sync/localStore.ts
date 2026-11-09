@@ -71,6 +71,35 @@ export async function storeVersion(version: number): Promise<void> {
   await localStore.meta.put({ key: VERSION_KEY, value: version });
 }
 
+/** The Member whose data the store holds (set when they log in on this device). */
+const OWNER_KEY = 'owner';
+
+/**
+ * Empties every table of the store, whatever tables it has: rows, the Outbox and the meta (stored
+ * Version, owner). Logging out leaves nothing of the Member's data on the device.
+ */
+export async function wipeLocalStore(): Promise<void> {
+  await localStore.transaction('rw', localStore.tables, () =>
+    Promise.all(localStore.tables.map((table) => table.clear())),
+  );
+}
+
+/**
+ * Makes the store `memberId`'s before sync starts: kept when it already is theirs (a session that
+ * ended keeps unsent changes for the same Member) or nobody's yet, wiped first when it holds
+ * another Member's data, so their Outbox is never sent under this session.
+ */
+export async function claimLocalStore(memberId: string): Promise<void> {
+  await localStore.transaction('rw', localStore.tables, async () => {
+    const owner = (await localStore.meta.get(OWNER_KEY))?.value;
+    if (owner === memberId) return;
+    if (owner !== undefined) {
+      await Promise.all(localStore.tables.map((table) => table.clear()));
+    }
+    await localStore.meta.put({ key: OWNER_KEY, value: memberId });
+  });
+}
+
 /** Applies an operation to the local rows (not the Outbox): what the server will do with it. */
 export async function applyLocally(operation: Operation): Promise<void> {
   const rows = localStore.rows(operation.table);

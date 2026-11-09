@@ -7,6 +7,7 @@ import {
   storeVersion,
   type Operation,
   type SyncedTable,
+  wipeLocalStore,
 } from './localStore';
 import { openLiveUpdates } from './liveUpdates';
 
@@ -118,6 +119,30 @@ export function requestSync(): void {
   }
   clearTimeout(retryTimer);
   void run(generation);
+}
+
+/**
+ * Sends the whole Outbox now (logout sends unsent changes first). Resolves once it is empty;
+ * rejects with the `ApiError` when it can't be sent (server unreachable, `401`, …).
+ */
+export async function flushOutbox(): Promise<void> {
+  // The engine pauses meanwhile, so it doesn't send the same operations alongside.
+  const wasStarted = started;
+  stopSync();
+  try {
+    await pushOutbox(() => true);
+  } finally {
+    if (wasStarted) startSync();
+  }
+}
+
+/**
+ * Logout: stops syncing and wipes the local store, Outbox included, so the next person on the
+ * device sees none of this Member's data.
+ */
+export async function stopSyncAndWipe(): Promise<void> {
+  stopSync();
+  await wipeLocalStore();
 }
 
 /** Calls `listener` for every operation the server rejects; returns the unsubscribe. */
