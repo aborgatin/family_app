@@ -213,7 +213,6 @@ export default {
       ],
     },
     {
-    {
       // The server rejects the change: the app-wide Toast with the reason, the server's value back.
       name: 'list-save-rejected',
       path: '/',
