@@ -462,7 +462,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
      required field must be there), throw `FieldErrors`/`ApiException` to reject, then create or
      change and `saveAndFlush` → `APPLIED`. Server-set fields (Owner, Creator…) come from
      `operation.memberId()`, never from `fields`; times from a `Clock` field
-     (`Clock.systemUTC()`). The push already holds `FamilyLock`; the Family id is
+     (`Clock.systemUTC()`; `ClockTest` fails on a bare `Instant.now()` and the like). The push already holds `FamilyLock`; the Family id is
      `Family.id()`.
 5. Pull: `changesSince(version, memberId)`: `SyncRow.changes(repository.findByVersionGreaterThan(version),
    visible, (row, fields) -> …)` putting what the client stores (no secrets; nullable values
@@ -478,6 +478,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 
 ## Testing
 
+- **Time**: main code reads time from a `Clock` field (`private final Clock clock =
+  Clock.systemUTC()`), never a bare `Instant.now()`, `LocalDate.now()` and the like. `ClockTest`
+  (ArchUnit) enforces it.
 - **HTTP seam (T1)**: `@SpringBootTest @AutoConfigureMockMvc @Import(PostgresTestcontainer.class)`.
   `PostgresTestcontainer` provides PostgreSQL 18 through `@ServiceConnection`; Spring reuses one
   container per test context. Flyway runs as in production. Assertions go through HTTP only; JDBC is
