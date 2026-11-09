@@ -34,10 +34,15 @@ export interface Item {
   listId: string;
   text: string;
   note: string | null;
-  /** Done, and who marked it Done and when (set by the server); ticket #58 shows them. */
+  /** Done, and who marked it Done and when (set by the server when Done changes). */
   done: boolean;
   doneById?: string | null;
   doneAt?: string | null;
+  /**
+   * When this device ticked it off (ms), kept only until the server's copy with its done at
+   * arrives; never sent (the server sets done at itself).
+   */
+  doneHereAt?: number;
   /** The Creator's Member id. Set by the server: absent until the pull after adding the Item. */
   creatorId?: string;
   /** ISO-8601. Set by the server: absent until the pull after adding the Item. */
@@ -62,6 +67,10 @@ export const KIND_TEXTS: Record<
     itemText: ParseKeys;
     /** The last row, which adds an Item. */
     newItem: ParseKeys;
+    /** The kind's Done label, heading the Done Items. */
+    done: ParseKeys;
+    /** An Item's Done toggle, «Куплено «{{text}}»». */
+    doneToggle: ParseKeys;
   }
 > = {
   SHOPPING: {
@@ -71,6 +80,8 @@ export const KIND_TEXTS: Record<
     items: 'lists.items.shopping',
     itemText: 'lists.itemText.shopping',
     newItem: 'lists.newItem.shopping',
+    done: 'lists.done.shopping',
+    doneToggle: 'lists.doneToggle.shopping',
   },
   TODO: {
     choice: 'lists.kind.todo',
@@ -79,6 +90,8 @@ export const KIND_TEXTS: Record<
     items: 'lists.items.todo',
     itemText: 'lists.itemText.todo',
     newItem: 'lists.newItem.todo',
+    done: 'lists.done.todo',
+    doneToggle: 'lists.doneToggle.todo',
   },
   WISH: {
     choice: 'lists.kind.wish',
@@ -87,5 +100,7 @@ export const KIND_TEXTS: Record<
     items: 'lists.items.wish',
     itemText: 'lists.itemText.wish',
     newItem: 'lists.newItem.wish',
+    done: 'lists.done.wish',
+    doneToggle: 'lists.doneToggle.wish',
   },
 };

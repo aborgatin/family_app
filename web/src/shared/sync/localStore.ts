@@ -32,6 +32,12 @@ export interface Operation {
   op: 'upsert' | 'delete';
   /** An upsert carries only the fields that changed (all of them when it creates the row). */
   fields?: Record<string, unknown>;
+  /**
+   * Fields written to the local row with the upsert but never sent: what the device knows only
+   * until the server's copy arrives (e.g. when an Item was ticked off here). Kept with the
+   * operation, so a pull while it is pending applies them again.
+   */
+  local?: Record<string, unknown>;
 }
 
 interface Meta {
@@ -136,5 +142,5 @@ export async function applyLocally(operation: Operation): Promise<void> {
     return;
   }
   const existing = await rows.get(operation.id);
-  await rows.put({ ...existing, ...operation.fields, id: operation.id });
+  await rows.put({ ...existing, ...operation.fields, ...operation.local, id: operation.id });
 }

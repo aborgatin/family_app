@@ -31,6 +31,21 @@ function list(
 
 const groceries = list(1, 'Супермаркет', 'SHOPPING');
 
+/** An open Item row as the pull sends it. */
+function openItem(n: number, text: string, listId: string) {
+  return {
+    id: `17e40000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`,
+    listId,
+    text,
+    note: null,
+    done: false,
+    doneById: null,
+    doneAt: null,
+    creatorId: boris.id,
+    createdAt: '2026-11-01T09:00:00Z',
+  };
+}
+
 /** The connection is back: the app notices (browser `online` event) and sends what is waiting. */
 function reconnect() {
   syncServer.goOnline();
@@ -68,13 +83,39 @@ describe('«Списки» on Home', () => {
 
     await waitFor(async () => {
       expect(await listRows()).toEqual([
-        'АптекаПокупки',
-        'ДелаПокупки',
-        'ДелаTODO-список · Личный',
-        'ЕленаЖелания',
-        'ЁлкаTODO-список',
-        'ПодаркиЖелания',
+        'АптекаПокупки0',
+        'ДелаПокупки0',
+        'ДелаTODO-список · Личный0',
+        'ЕленаЖелания0',
+        'ЁлкаTODO-список0',
+        'ПодаркиЖелания0',
       ]);
+    });
+  });
+
+  it('shows each List’s count of open Items, following the Items as they change', async () => {
+    const pharmacy = list(2, 'Аптека', 'SHOPPING');
+    syncServer.seed('list', [groceries, pharmacy]);
+    syncServer.seed('item', [
+      openItem(1, 'Молоко', groceries.id),
+      openItem(2, 'Хлеб', groceries.id),
+      { ...openItem(3, 'Сыр', groceries.id), done: true, doneById: boris.id },
+      openItem(4, 'Аспирин', pharmacy.id),
+    ]);
+
+    renderApp('/');
+
+    await waitFor(async () => {
+      expect(await listRows()).toEqual(['АптекаПокупки1', 'СупермаркетПокупки2']);
+    });
+
+    // Boris ticks Хлеб off and adds Йод to the pharmacy List.
+    syncServer.change('item', openItem(2, '', '').id, { done: true, doneById: boris.id });
+    syncServer.seed('item', [openItem(5, 'Йод', pharmacy.id)]);
+    window.dispatchEvent(new Event('online'));
+
+    await waitFor(async () => {
+      expect(await listRows()).toEqual(['АптекаПокупки2', 'СупермаркетПокупки1']);
     });
   });
 
@@ -118,7 +159,7 @@ describe('The «Новый список» sheet', () => {
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['АптекаПокупки']);
+      expect(await listRows()).toEqual(['АптекаПокупки0']);
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await waitFor(() => {
@@ -144,7 +185,7 @@ describe('The «Новый список» sheet', () => {
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['РемонтTODO-список · Личный']);
+      expect(await listRows()).toEqual(['РемонтTODO-список · Личный0']);
     });
     expect(syncServer.pushes).toEqual([]);
 
@@ -324,7 +365,7 @@ describe('List settings', () => {
       expect(app.location()).toBe('/');
     });
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['АптекаПокупки']);
+      expect(await listRows()).toEqual(['АптекаПокупки0']);
     });
     await waitFor(() => {
       expect(syncServer.operations('list')).toEqual([

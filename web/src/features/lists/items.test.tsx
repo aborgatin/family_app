@@ -331,6 +331,144 @@ describe('Deleting an Item', () => {
   });
 });
 
+/** The text of each Done Item row, top to bottom. */
+async function doneTexts(name = 'Куплено') {
+  const rows = within(await screen.findByRole('region', { name })).queryAllByRole('listitem');
+  return rows.map((row) => row.textContent);
+}
+
+/** An Item row as the pull sends it, Done by Boris at `doneAt`. */
+function doneItem(n: number, text: string, doneAt: string, listId = groceries.id) {
+  return {
+    ...item(n, text, '2026-11-01T09:00:00Z', listId),
+    done: true,
+    doneById: boris.id,
+    doneAt,
+  };
+}
+
+describe('Done', () => {
+  it('ticks an Item off offline at once, under «Куплено», and sends only Done on reconnect', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item', [
+      item(1, 'Молоко', '2026-11-01T09:00:00Z'),
+      item(2, 'Хлеб', '2026-11-01T10:00:00Z'),
+    ]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    const toggle = await screen.findByRole('checkbox', { name: 'Куплено «Молоко»' });
+    expect(toggle).not.toBeChecked();
+    syncServer.goOffline();
+    await user.click(toggle);
+
+    await waitFor(async () => {
+      expect(await doneTexts()).toEqual(['Молоко']);
+    });
+    expect(await itemTexts()).toEqual(['Хлеб']);
+    expect(screen.getByRole('checkbox', { name: 'Куплено «Молоко»' })).toBeChecked();
+    expect(syncServer.pushes).toEqual([]);
+
+    reconnect();
+
+    await waitFor(() => {
+      expect(syncServer.operations('item')).toEqual([
+        { table: 'item', id: itemId(1), op: 'upsert', fields: { done: true } },
+      ]);
+    });
+  });
+
+  it('lists Done Items most recently done first, ticked offline ones on top in the order ticked, and keeps that order when the server’s copy arrives', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item', [
+      item(1, 'Молоко', '2026-11-01T09:00:00Z'),
+      item(2, 'Хлеб', '2026-11-01T10:00:00Z'),
+      doneItem(3, 'Сыр', '2026-11-02T09:00:00.5Z'),
+      doneItem(4, 'Яйца', '2026-11-02T09:00:00.25Z'),
+    ]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    await waitFor(async () => {
+      expect(await doneTexts()).toEqual(['Сыр', 'Яйца']);
+    });
+    syncServer.goOffline();
+    await user.click(await screen.findByRole('checkbox', { name: 'Куплено «Молоко»' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Куплено «Хлеб»' }));
+
+    await waitFor(async () => {
+      expect(await doneTexts()).toEqual(['Хлеб', 'Молоко', 'Сыр', 'Яйца']);
+    });
+
+    // The server sets done at in the order the ticks arrive, after every earlier one.
+    reconnect();
+    await waitFor(() => {
+      expect(syncServer.operations('item')).toHaveLength(2);
+    });
+    const pulls = syncServer.pulls.length;
+    syncServer.change('item', itemId(1), { doneById: anna.id, doneAt: '2026-11-09T10:00:00Z' });
+    syncServer.change('item', itemId(2), { doneById: anna.id, doneAt: '2026-11-09T10:00:01Z' });
+    window.dispatchEvent(new Event('online'));
+    await waitFor(() => {
+      expect(syncServer.pulls.length).toBeGreaterThan(pulls);
+    });
+    expect(syncServer.row('item', itemId(1))).toMatchObject({ done: true });
+    expect(await doneTexts()).toEqual(['Хлеб', 'Молоко', 'Сыр', 'Яйца']);
+  });
+
+  it('ticks a Done Item back on offline: it returns to its place among the open ones', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item', [
+      item(1, 'Молоко', '2026-11-01T09:00:00Z'),
+      doneItem(2, 'Хлеб', '2026-11-02T09:00:00Z'),
+      item(3, 'Яйца', '2026-11-01T11:00:00Z'),
+    ]);
+    // Хлеб was added between Молоко and Яйца.
+    syncServer.change('item', itemId(2), { createdAt: '2026-11-01T10:00:00Z' });
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    const toggle = await screen.findByRole('checkbox', { name: 'Куплено «Хлеб»' });
+    expect(toggle).toBeChecked();
+    syncServer.goOffline();
+    await user.click(toggle);
+
+    await waitFor(async () => {
+      expect(await itemTexts()).toEqual(['Молоко', 'Хлеб', 'Яйца']);
+    });
+    expect(screen.queryByRole('region', { name: 'Куплено' })).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Куплено «Хлеб»' })).not.toBeChecked();
+
+    reconnect();
+
+    await waitFor(() => {
+      expect(syncServer.operations('item')).toEqual([
+        { table: 'item', id: itemId(2), op: 'upsert', fields: { done: false } },
+      ]);
+    });
+  });
+
+  it.each([
+    ['SHOPPING', 'Куплено', 'Товары'],
+    ['TODO', 'Выполнено', 'Задачи'],
+    ['WISH', 'Исполнено', 'Желания'],
+  ] as const)('a %s List’s Done Items are headed «%s»', async (kind, done, header) => {
+    const shown = list(5, 'Мой список', kind);
+    syncServer.seed('list', [shown]);
+    syncServer.seed('item', [
+      item(1, 'Первое', '2026-11-01T09:00:00Z', shown.id),
+      doneItem(2, 'Второе', '2026-11-02T09:00:00Z', shown.id),
+    ]);
+
+    renderApp(`/lists/${shown.id}`);
+
+    expect(await doneTexts(done)).toEqual(['Второе']);
+    expect(await itemTexts(header)).toEqual(['Первое']);
+    expect(screen.getByRole('checkbox', { name: `${done} «Второе»` })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: `${done} «Первое»` })).not.toBeChecked();
+  });
+});
+
 describe('A List that leaves the phone', () => {
   it('takes its Items with it: shared again, only the Items the pull brings come back', async () => {
     syncServer.seed('list', [groceries]);

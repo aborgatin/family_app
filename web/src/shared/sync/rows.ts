@@ -31,15 +31,18 @@ export function useRows(table: SyncedTable): Row[] | undefined {
 /**
  * Creates the row or changes the given fields of it, locally and in the Outbox. For a new row pass
  * every required field; for an existing one only the fields that changed (Last write wins per
- * field). Nothing to change → nothing is written.
+ * field). Nothing to change → nothing is written. `local` fields go only into the local row, until
+ * the server's copy replaces it: they are never sent (e.g. when an Item was ticked off here, which
+ * the server records itself).
  */
 export async function upsertRow(
   table: SyncedTable,
   id: string,
   fields: Record<string, unknown>,
+  local?: Record<string, unknown>,
 ): Promise<void> {
   if (Object.keys(fields).length === 0) return;
-  await write({ table, id, op: 'upsert', fields });
+  await write({ table, id, op: 'upsert', fields, ...(local !== undefined && { local }) });
 }
 
 /** Deletes the row, locally and in the Outbox. */
