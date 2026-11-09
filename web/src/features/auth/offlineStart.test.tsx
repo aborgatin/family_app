@@ -71,12 +71,14 @@ async function childrenSection() {
   return screen.findByRole('region', { name: 'Дети' });
 }
 
-/** Анна uses the app once with the server there, so the device holds her data; then it closes. */
-async function usedOnline(auth: ReturnType<typeof authServer>) {
+/**
+ * Анна uses the app once with the server there, so the device holds her data; then it closes.
+ * The next `renderApp(path, { offline: true })` is her restart with no signal.
+ */
+async function usedOnline() {
   const app = renderApp('/');
   await within(await listsSection()).findByText('Супермаркет');
   app.unmount();
-  auth.goOffline();
   // A restart: the session's CSRF cookie may be gone with it.
   clearCsrfCookie();
 }
@@ -105,11 +107,11 @@ afterEach(() => {
 
 describe('Opening the app with no connection', () => {
   it('starts as the Member from the device: Lists, Children and the offline indicator', async () => {
-    const auth = authServer();
+    authServer();
     const user = userEvent.setup();
-    await usedOnline(auth);
+    await usedOnline();
 
-    renderApp('/');
+    renderApp('/', { offline: true });
 
     expect(await within(await listsSection()).findByText('Супермаркет')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: OFFLINE })).toBeInTheDocument();
@@ -122,10 +124,10 @@ describe('Opening the app with no connection', () => {
   it('keeps a change made then and pushes it once the server answers, after the session', async () => {
     const auth = authServer();
     const user = userEvent.setup();
-    await usedOnline(auth);
+    await usedOnline();
     const sessionRequestsBefore = auth.state.sessionRequests;
 
-    renderApp('/');
+    renderApp('/', { offline: true });
     await addList(user, 'Аптека');
     expect(syncServer.operations('list')).toEqual([]);
 
@@ -144,9 +146,9 @@ describe('Opening the app with no connection', () => {
   it('finds out by itself when the server is back, without the browser saying so', async () => {
     const auth = authServer();
     const user = userEvent.setup();
-    await usedOnline(auth);
+    await usedOnline();
 
-    renderApp('/');
+    renderApp('/', { offline: true });
     await addList(user, 'Аптека');
     auth.goOnline();
 
@@ -162,9 +164,9 @@ describe('Opening the app with no connection', () => {
     const auth = authServer();
     const user = userEvent.setup();
     server.use(http.post('/api/auth/login', () => HttpResponse.json(anna)));
-    await usedOnline(auth);
+    await usedOnline();
 
-    const app = renderApp('/');
+    const app = renderApp('/', { offline: true });
     await addList(user, 'Аптека');
     auth.state.session = { bootstrapRequired: false, member: null };
     auth.reconnect();
@@ -186,9 +188,9 @@ describe('Opening the app with no connection', () => {
   it('drops the device’s Member when the server answers with another one', async () => {
     const auth = authServer();
     const user = userEvent.setup();
-    await usedOnline(auth);
+    await usedOnline();
 
-    renderApp('/');
+    renderApp('/', { offline: true });
     await addList(user, 'Аптека');
     // The server has no List now, so «Супермаркет» could only come from Анна's local rows.
     syncServer.change('list', groceries.id, 'deleted');
@@ -208,9 +210,9 @@ describe('Opening the app with no connection', () => {
 
   it('opens the setup screen when the server turns out to need setup', async () => {
     const auth = authServer();
-    await usedOnline(auth);
+    await usedOnline();
 
-    const app = renderApp('/');
+    const app = renderApp('/', { offline: true });
     await within(await listsSection()).findByText('Супермаркет');
     auth.state.session = { bootstrapRequired: true, member: null };
     auth.reconnect();
@@ -236,7 +238,7 @@ describe('Opening the app with no connection, as before', () => {
     await screen.findByRole('heading', { name: 'Вход' });
     first.unmount();
 
-    renderApp('/');
+    renderApp('/', { offline: true });
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
@@ -244,9 +246,9 @@ describe('Opening the app with no connection, as before', () => {
   });
 
   it('shows the start-up error when the device holds no Member’s data', async () => {
-    authServer().goOffline();
+    authServer();
 
-    renderApp('/');
+    renderApp('/', { offline: true });
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
