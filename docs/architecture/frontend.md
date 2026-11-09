@@ -219,14 +219,19 @@ Each data feature has one hook that is its only data access. Components never ca
   `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or one past
   either end, so a reorder is a single-record change. A new field goes one past the last.
   Ordering is `position`, then id. `saveFailure` is «Не удалось сохранить» after a rejection.
-- `useLists()` → `{load, save(id, details), saveFailure}` on the local store, like
+- `useLists()` → `{load, save(id, details), remove(id), saveFailure}` on the local store, like
   `useChildren()`: `load` is `ready` with every List the pull brought (never the other Member's
   Private ones: the server filters them), by name with `Intl.Collator('ru')`, then id. `save`
   creates (all of `name`, `kind`, `visibility`) or sends only the fields that differ from the
   current local row. `ownerId` and `createdAt` are set by the server and absent locally until the
   pull after the create. `newListId()` makes the id once when «Новый список» opens. Used by
-  `ListsSection` (Home) and `ListPage` (title and the kind's empty state until Items arrive in
-  #57; «Такого списка нет: возможно, его удалили.» for an unknown id). Kind texts (segment,
+  `ListsSection` (Home) and `ListPage`: title, the kind's empty state until Items arrive in #57,
+  then «Настройки списка» at the bottom (a `GroupedSection`: auto-saved «Название»; Visibility
+  «Личный» / «Общий» only when the Member is the Owner, or `ownerId` is still unset, and never for
+  a Wish list) and «Удалить список» (`ConfirmRow`, «Удалить „{{name}}“ со всем содержимым?», then
+  back to Home). A List that is unknown, or disappears while open (deleted, or made Private by its
+  Owner: the pull's tombstone removes it), shows «Такого списка нет: возможно, его удалили.» with
+  the back link to Home. Kind texts (segment,
   Home subtitle, empty state) are in `KIND_TEXTS`.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`.

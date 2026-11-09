@@ -77,12 +77,14 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   carrying another one is rejected with `child_field.value_type_immutable`.
 - Codes of the push itself: `sync.table_unknown` (`params.table`), `sync.read_only` (a pull-only
   table such as `member`), `request.invalid` (no valid id or `op`).
-- **Lists** (`list`, ticket #55): an upsert carries `name`, `kind` (`SHOPPING` / `TODO` / `WISH`)
+- **Lists** (`list`, tickets #55, #56): an upsert carries `name`, `kind` (`SHOPPING` / `TODO` / `WISH`)
   and `visibility` (`PRIVATE` / `SHARED`); the pull also sends the server-set `ownerId` (the
   Member who pushed the create) and `createdAt`. Rules: `list.kind_immutable` (kind changed),
-  `list.wish_shared_only` (a Private Wish list, on create or later), `list.not_found` (any
-  operation on another Member's Private List), and the Child name limits on `name`
-  (`validation.failed`).
+  `list.wish_shared_only` (a Private Wish list, on create or later), `list.owner_only` (a Member
+  other than the Owner changing `visibility`; either Member may rename or delete a Shared List),
+  `list.not_found` (any operation on another Member's Private List), and the Child name limits on
+  `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
+  is `ignored` (delete wins).
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
   reach other devices through the pull.
 
@@ -101,7 +103,8 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   snapshot that was read.
 - **Privacy (A1).** Another Member's Private List is never sent with its fields: a change to it
   comes as a tombstone (id only), so a List made Private disappears from the other Member's phone,
-  and a first sync leaves it out. Operations on it are rejected with `list.not_found`, as if it
+  and a first sync leaves it out. Made Shared again, it is a new Version and arrives with its
+  fields. Operations on it are rejected with `list.not_found`, as if it
   didn't exist.
 
 ## Versions commit in order
@@ -181,4 +184,5 @@ auth.required` without one) tells open apps when to pull:
   logout can't reach the server either, the store is wiped at once and the device stays logged
   out (no sync) until the server is told or someone logs in (`frontend.md`, "Pending logout").
 - Children, Child fields and Lists are on the store, and live updates (`changed` → pull) run.
-  Items and the List screen are the next M2 tickets.
+  The List screen has List settings (rename, Visibility, delete; #56); Items are the next M2
+  tickets.

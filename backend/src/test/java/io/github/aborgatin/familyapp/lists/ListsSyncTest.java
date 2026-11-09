@@ -109,6 +109,50 @@ class ListsSyncTest {
   }
 
   @Test
+  void onlyTheOwnerChangesAListsVisibility() throws Exception {
+    UUID groceries = UUID.randomUUID();
+    SyncRequests.push(anna, create(groceries, "Супермаркет", "SHOPPING", "SHARED"));
+
+    SyncRequests.push(
+            boris,
+            SyncRequests.upsert("list", groceries, "{\"visibility\":\"PRIVATE\",\"name\":\"Моё\"}"),
+            SyncRequests.upsert("list", groceries, "{\"visibility\":\"SHARED\"}"))
+        .andExpect(jsonPath("$.results[*].status", contains("rejected", "applied")))
+        .andExpect(jsonPath("$.results[0].code").value("list.owner_only"));
+
+    assertThat(SyncRequests.fields(anna, "list", groceries))
+        .containsEntry("visibility", "SHARED")
+        .containsEntry("name", "Супермаркет");
+  }
+
+  @Test
+  void aListItsOwnerMakesPrivateLeavesTheOtherPhoneAndComesBackWhenSharedAgain() throws Exception {
+    UUID gifts = UUID.randomUUID();
+    SyncRequests.push(anna, create(gifts, "Подарки", "TODO", "SHARED"));
+    long shared = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    SyncRequests.push(anna, SyncRequests.upsert("list", gifts, "{\"visibility\":\"PRIVATE\"}"))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+    long hidden = SyncRequests.version(SyncRequests.pull(boris, shared));
+
+    assertThat(SyncRequests.change(boris, shared, "list", gifts))
+        .containsEntry("deleted", true)
+        .doesNotContainKey("fields");
+    assertThat(SyncRequests.fields(anna, "list", gifts)).containsEntry("visibility", "PRIVATE");
+
+    SyncRequests.push(
+            anna,
+            SyncRequests.upsert(
+                "list", gifts, "{\"visibility\":\"SHARED\",\"name\":\"Подарки Маше\"}"))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    assertThat(SyncRequests.change(boris, hidden, "list", gifts)).containsEntry("deleted", false);
+    assertThat(SyncRequests.fields(boris, "list", gifts))
+        .containsEntry("name", "Подарки Маше")
+        .containsEntry("visibility", "SHARED");
+  }
+
+  @Test
   void aListNeedsANameOfAtMost100CharactersAKnownKindAndAVisibility() throws Exception {
     UUID nameless = UUID.randomUUID();
     UUID tooLong = UUID.randomUUID();

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ErrorMessage } from '@/shared/api';
 import type { Load } from '@/shared/load';
-import { upsertRow, useRows, useSaveRejected } from '@/shared/sync';
+import { deleteRow, upsertRow, useRows, useSaveRejected } from '@/shared/sync';
 import type { List, ListDetails } from './listTypes';
 
 export type ListsLoad = Load<List[]>;
@@ -39,7 +39,16 @@ export function useLists() {
     [clear],
   );
 
-  return { load, save, saveFailure: rejected ? SAVE_REJECTED : undefined };
+  /** Deletes the List (the server deletes its Items with it); resolves at once, offline too. */
+  const remove = useCallback(
+    async (id: string): Promise<void> => {
+      clear();
+      await deleteRow('list', id);
+    },
+    [clear],
+  );
+
+  return { load, save, remove, saveFailure: rejected ? SAVE_REJECTED : undefined };
 }
 
 /** The fields of `after` that differ from `before`. */

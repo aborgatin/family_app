@@ -1,7 +1,7 @@
 # Backend
 
 What exists in `/backend` after Spec #1 (M0 + M1), the M2 sync core (spec #3, tickets #52 and
-#53), live updates (#54) and Lists (#55). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
+#53), live updates (#54) and Lists (#55, #56). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
 Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`sync.md`](sync.md).
 
 ## Stack
@@ -174,11 +174,14 @@ the Child name limits; known kind and Visibility) → `ListDetails`; `ListServic
 
 - `apply`: deleted → `IGNORED` (delete wins); another Member's Private List →
   `list.not_found` (A1); upsert merges the carried fields over the stored ones, validates, then
-  `list.kind_immutable` if the kind changed and `list.wish_shared_only` for a Private Wish list.
+  `list.kind_immutable` if the kind changed, `list.owner_only` if a Member other than the Owner
+  changed the Visibility (the same value is no change), and `list.wish_shared_only` for a Private
+  Wish list.
   A create sets the Owner (`operation.memberId()`) and `createdAt`; neither ever changes.
 - `changesSince`: `name`, `kind`, `visibility`, `ownerId`, `createdAt`; a tombstone for a deleted
   List and for another Member's Private List (`ListEntity.visibleTo(memberId)`).
-- Not yet: the Owner-only Visibility change (`list.owner_only`, ticket #56) and Items (#57).
+- Not yet: Items (#57), and with them a Visibility change bumping the List's Items and a List
+  delete soft-deleting them.
 
 ### `command`
 
@@ -282,7 +285,7 @@ Push results (not HTTP statuses: the push answers `200` with one result per oper
 same `{code, params}`: `validation.failed`, `sync.table_unknown` (`params.table`), `sync.read_only`,
 `request.invalid` (no valid id or `op`), and per table `child_field.value_type_immutable` (an
 upsert changing an existing Child field's `valueType`) and for Lists `list.not_found`
-(`params.listId`), `list.kind_immutable`, `list.wish_shared_only`. An operation on a deleted
+(`params.listId`), `list.kind_immutable`, `list.wish_shared_only`, `list.owner_only`. An operation on a deleted
 Child, Child field or List is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 
 Rows marked "added" are not in spec #5's error catalogue. They cover failures Spring raises before
