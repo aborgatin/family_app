@@ -393,7 +393,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 7. Any other code path writing the table takes `FamilyLock` first.
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
-9. Tests through HTTP with two `Browser`s and the helpers in `Sync` (`push`, `upsert`, `delete`,
+9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
    `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest` does.
 
 ## Testing
@@ -412,7 +412,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
     (cascading to Invites and resets) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
     `addMember(jdbc, email, password, name, gender)`.
-  - `Sync`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
+  - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),
     `fields(device, table, id)` (as a first pull returns them), `version(result)`, and the two
     devices most sync tests start from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.

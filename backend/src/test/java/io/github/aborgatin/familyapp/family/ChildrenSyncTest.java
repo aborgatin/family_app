@@ -10,7 +10,7 @@ import com.jayway.jsonpath.JsonPath;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
-import io.github.aborgatin.familyapp.Sync;
+import io.github.aborgatin.familyapp.SyncRequests;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,17 +41,17 @@ class ChildrenSyncTest {
   @BeforeEach
   void annaAndBorisAreLoggedIn() throws Exception {
     FreshInstallation.reset(jdbc);
-    anna = Sync.bootstrapAnna(mvc);
-    boris = Sync.loginBoris(mvc, jdbc);
+    anna = SyncRequests.bootstrapAnna(mvc);
+    boris = SyncRequests.loginBoris(mvc, jdbc);
   }
 
   @Test
   void aChildPushedByOneDeviceArrivesThroughTheOthersPull() throws Exception {
     UUID masha = UUID.randomUUID();
 
-    Sync.push(
+    SyncRequests.push(
             anna,
-            Sync.upsert(
+            SyncRequests.upsert(
                 "child",
                 masha,
                 "{\"name\":\"  Маша  \",\"color\":\"coral\",\"birthday\":\"2019-04-12\"}"))
@@ -59,7 +59,7 @@ class ChildrenSyncTest {
         .andExpect(jsonPath("$.results[*].status", contains("applied")))
         .andExpect(jsonPath("$.version").isNumber());
 
-    Sync.pull(boris, 0)
+    SyncRequests.pull(boris, 0)
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.version").isNumber())
         .andExpect(jsonPath("$.changes[?(@.table=='child')].id", contains(masha.toString())))
@@ -74,10 +74,10 @@ class ChildrenSyncTest {
   void anUpsertOfAKnownChildChangesOnlyTheFieldsItCarries() throws Exception {
     UUID masha = addMasha();
 
-    Sync.push(boris, Sync.upsert("child", masha, "{\"color\":\"teal\"}"))
+    SyncRequests.push(boris, SyncRequests.upsert("child", masha, "{\"color\":\"teal\"}"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
 
-    assertThat(Sync.fields(anna, "child", masha))
+    assertThat(SyncRequests.fields(anna, "child", masha))
         .containsEntry("name", "Маша")
         .containsEntry("color", "teal")
         .containsEntry("birthday", "2019-04-12");
@@ -87,20 +87,20 @@ class ChildrenSyncTest {
   void theSameFieldChangedOnTwoDevicesKeepsTheChangeTheServerReceivedLater() throws Exception {
     UUID masha = addMasha();
 
-    Sync.push(boris, Sync.upsert("child", masha, "{\"name\":\"Мария\"}"));
-    Sync.push(anna, Sync.upsert("child", masha, "{\"name\":\"Маруся\"}"));
+    SyncRequests.push(boris, SyncRequests.upsert("child", masha, "{\"name\":\"Мария\"}"));
+    SyncRequests.push(anna, SyncRequests.upsert("child", masha, "{\"name\":\"Маруся\"}"));
 
-    assertThat(Sync.fields(boris, "child", masha)).containsEntry("name", "Маруся");
+    assertThat(SyncRequests.fields(boris, "child", masha)).containsEntry("name", "Маруся");
   }
 
   @Test
   void differentFieldsChangedOnTwoDevicesAreBothKept() throws Exception {
     UUID masha = addMasha();
 
-    Sync.push(boris, Sync.upsert("child", masha, "{\"name\":\"Мария\"}"));
-    Sync.push(anna, Sync.upsert("child", masha, "{\"birthday\":null}"));
+    SyncRequests.push(boris, SyncRequests.upsert("child", masha, "{\"name\":\"Мария\"}"));
+    SyncRequests.push(anna, SyncRequests.upsert("child", masha, "{\"birthday\":null}"));
 
-    Map<String, Object> fields = Sync.fields(boris, "child", masha);
+    Map<String, Object> fields = SyncRequests.fields(boris, "child", masha);
     assertThat(fields).containsEntry("name", "Мария").containsEntry("color", "coral");
     assertThat(fields.get("birthday")).isNull();
   }
@@ -108,22 +108,22 @@ class ChildrenSyncTest {
   @Test
   void deleteWinsOverALaterChangeAndADeleteOfNothingIsIgnored() throws Exception {
     UUID masha = addMasha();
-    long before = Sync.version(Sync.pull(boris, 0));
+    long before = SyncRequests.version(SyncRequests.pull(boris, 0));
 
-    Sync.push(
+    SyncRequests.push(
             anna,
-            Sync.delete("child", masha),
-            Sync.upsert("child", masha, "{\"name\":\"Мария\"}"),
-            Sync.delete("child", masha),
-            Sync.delete("child", UUID.randomUUID()))
+            SyncRequests.delete("child", masha),
+            SyncRequests.upsert("child", masha, "{\"name\":\"Мария\"}"),
+            SyncRequests.delete("child", masha),
+            SyncRequests.delete("child", UUID.randomUUID()))
         .andExpect(
             jsonPath("$.results[*].status", contains("applied", "ignored", "ignored", "ignored")));
 
     // Changes since a Version: the deleted Child comes as a tombstone, without its fields.
-    Map<String, Object> tombstone = Sync.change(boris, before, "child", masha);
+    Map<String, Object> tombstone = SyncRequests.change(boris, before, "child", masha);
     assertThat(tombstone).containsEntry("deleted", true).doesNotContainKey("fields");
     // A first sync leaves deleted rows out.
-    assertThat(Sync.change(boris, 0, "child", masha)).isNull();
+    assertThat(SyncRequests.change(boris, 0, "child", masha)).isNull();
   }
 
   @Test
@@ -132,11 +132,11 @@ class ChildrenSyncTest {
     UUID petya = UUID.randomUUID();
     UUID masha = addMasha();
 
-    Sync.push(
+    SyncRequests.push(
             anna,
-            Sync.upsert("child", nameless, "{\"name\":\"   \"}"),
-            Sync.upsert("child", masha, "{\"color\":\"#ff0000\",\"name\":\"Мария\"}"),
-            Sync.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"))
+            SyncRequests.upsert("child", nameless, "{\"name\":\"   \"}"),
+            SyncRequests.upsert("child", masha, "{\"color\":\"#ff0000\",\"name\":\"Мария\"}"),
+            SyncRequests.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.results[*].status", contains("rejected", "rejected", "applied")))
         .andExpect(jsonPath("$.results[0].code").value("validation.failed"))
@@ -148,12 +148,12 @@ class ChildrenSyncTest {
             jsonPath("$.results[1].params.errors[?(@.field=='color')].code").value("color.invalid"))
         .andExpect(jsonPath("$.results[2].code").doesNotExist());
 
-    assertThat(Sync.fields(boris, "child", nameless)).isNull();
+    assertThat(SyncRequests.fields(boris, "child", nameless)).isNull();
     // The rejected operation changed nothing, not even the valid name it carried.
-    assertThat(Sync.fields(boris, "child", masha))
+    assertThat(SyncRequests.fields(boris, "child", masha))
         .containsEntry("name", "Маша")
         .containsEntry("color", "coral");
-    assertThat(Sync.fields(boris, "child", petya)).containsEntry("name", "Петя");
+    assertThat(SyncRequests.fields(boris, "child", petya)).containsEntry("name", "Петя");
   }
 
   @Test
@@ -161,27 +161,27 @@ class ChildrenSyncTest {
     UUID masha = UUID.randomUUID();
     UUID petya = UUID.randomUUID();
     String[] push = {
-      Sync.upsert("child", masha, "{\"name\":\"Маша\",\"color\":\"coral\"}"),
-      Sync.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"),
-      Sync.upsert("child", masha, "{\"birthday\":\"2019-04-12\"}"),
-      Sync.delete("child", petya)
+      SyncRequests.upsert("child", masha, "{\"name\":\"Маша\",\"color\":\"coral\"}"),
+      SyncRequests.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"),
+      SyncRequests.upsert("child", masha, "{\"birthday\":\"2019-04-12\"}"),
+      SyncRequests.delete("child", petya)
     };
 
-    Sync.push(anna, push)
+    SyncRequests.push(anna, push)
         .andExpect(
             jsonPath("$.results[*].status", contains("applied", "applied", "applied", "applied")));
-    String first = Sync.pull(boris, 0).andReturn().getResponse().getContentAsString();
-    Sync.push(anna, push)
+    String first = SyncRequests.pull(boris, 0).andReturn().getResponse().getContentAsString();
+    SyncRequests.push(anna, push)
         .andExpect(
             jsonPath("$.results[*].status", contains("applied", "ignored", "applied", "ignored")));
-    String second = Sync.pull(boris, 0).andReturn().getResponse().getContentAsString();
+    String second = SyncRequests.pull(boris, 0).andReturn().getResponse().getContentAsString();
 
     assertThat(JsonPath.<List<Object>>read(second, "$.changes[?(@.table=='child')].fields"))
         .isEqualTo(JsonPath.<List<Object>>read(first, "$.changes[?(@.table=='child')].fields"));
-    assertThat(Sync.fields(boris, "child", masha))
+    assertThat(SyncRequests.fields(boris, "child", masha))
         .containsEntry("name", "Маша")
         .containsEntry("birthday", "2019-04-12");
-    assertThat(Sync.fields(boris, "child", petya)).isNull();
+    assertThat(SyncRequests.fields(boris, "child", petya)).isNull();
   }
 
   @Test
@@ -190,39 +190,43 @@ class ChildrenSyncTest {
     UUID petya = UUID.randomUUID();
 
     long created =
-        pushVersion(Sync.upsert("child", masha, "{\"name\":\"Маша\",\"color\":\"coral\"}"));
-    long other = pushVersion(Sync.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"));
-    long edited = pushVersion(Sync.upsert("child", masha, "{\"name\":\"Мария\"}"));
-    long deleted = pushVersion(Sync.delete("child", petya));
+        pushVersion(SyncRequests.upsert("child", masha, "{\"name\":\"Маша\",\"color\":\"coral\"}"));
+    long other =
+        pushVersion(SyncRequests.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"));
+    long edited = pushVersion(SyncRequests.upsert("child", masha, "{\"name\":\"Мария\"}"));
+    long deleted = pushVersion(SyncRequests.delete("child", petya));
 
     assertThat(other).isGreaterThan(created);
     assertThat(edited).isGreaterThan(other);
     assertThat(deleted).isGreaterThan(edited);
-    assertThat(Sync.change(boris, 0, "child", masha)).containsEntry("version", (int) edited);
-    assertThat(Sync.change(boris, edited, "child", petya)).containsEntry("version", (int) deleted);
+    assertThat(SyncRequests.change(boris, 0, "child", masha))
+        .containsEntry("version", (int) edited);
+    assertThat(SyncRequests.change(boris, edited, "child", petya))
+        .containsEntry("version", (int) deleted);
   }
 
   @Test
   void aPullSinceTheLastHighWaterVersionReturnsOnlyNewerChanges() throws Exception {
     UUID masha = addMasha();
-    long highWater = Sync.version(Sync.pull(boris, 0));
+    long highWater = SyncRequests.version(SyncRequests.pull(boris, 0));
     UUID petya = UUID.randomUUID();
-    Sync.push(anna, Sync.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"));
+    SyncRequests.push(
+        anna, SyncRequests.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"));
 
-    Sync.pull(boris, highWater)
+    SyncRequests.pull(boris, highWater)
         .andExpect(jsonPath("$.changes[*].id", contains(petya.toString())))
         .andExpect(jsonPath("$.version").value(greaterThan((int) highWater)));
-    assertThat(Sync.change(boris, highWater, "child", masha)).isNull();
-    Sync.pull(boris, Sync.version(Sync.pull(boris, highWater)))
+    assertThat(SyncRequests.change(boris, highWater, "child", masha)).isNull();
+    SyncRequests.pull(boris, SyncRequests.version(SyncRequests.pull(boris, highWater)))
         .andExpect(jsonPath("$.changes").isEmpty());
   }
 
   @Test
   void operationsOnUnknownTablesAndOnMembersAreRejected() throws Exception {
-    Sync.push(
+    SyncRequests.push(
             anna,
-            Sync.upsert("shop", UUID.randomUUID(), "{}"),
-            Sync.upsert("member", UUID.randomUUID(), "{\"displayName\":\"Аня\"}"),
+            SyncRequests.upsert("shop", UUID.randomUUID(), "{}"),
+            SyncRequests.upsert("member", UUID.randomUUID(), "{\"displayName\":\"Аня\"}"),
             "{\"table\":\"child\",\"id\":\"not-a-uuid\",\"op\":\"upsert\",\"fields\":{}}",
             "{\"table\":\"child\",\"id\":\"%s\",\"op\":\"merge\"}".formatted(UUID.randomUUID()))
         .andExpect(
@@ -248,19 +252,19 @@ class ChildrenSyncTest {
     Browser stranger = new Browser(mvc);
     stranger.openApp();
 
-    Sync.pull(stranger, 0)
+    SyncRequests.pull(stranger, 0)
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("auth.required"));
-    Sync.push(stranger, Sync.delete("child", UUID.randomUUID()))
+    SyncRequests.push(stranger, SyncRequests.delete("child", UUID.randomUUID()))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("auth.required"));
   }
 
   private UUID addMasha() throws Exception {
     UUID masha = UUID.randomUUID();
-    Sync.push(
+    SyncRequests.push(
             anna,
-            Sync.upsert(
+            SyncRequests.upsert(
                 "child",
                 masha,
                 "{\"name\":\"Маша\",\"color\":\"coral\",\"birthday\":\"2019-04-12\"}"))
@@ -269,7 +273,8 @@ class ChildrenSyncTest {
   }
 
   private long pushVersion(String operation) throws Exception {
-    return Sync.version(
-        Sync.push(anna, operation).andExpect(jsonPath("$.results[*].status", contains("applied"))));
+    return SyncRequests.version(
+        SyncRequests.push(anna, operation)
+            .andExpect(jsonPath("$.results[*].status", contains("applied"))));
   }
 }

@@ -16,9 +16,9 @@ import org.springframework.test.web.servlet.ResultActions;
  * /api/sync/push} and {@code GET /api/sync/pull}, and the two logged-in devices most sync tests
  * start from.
  */
-public final class Sync {
+public final class SyncRequests {
 
-  private Sync() {}
+  private SyncRequests() {}
 
   /** An {@code upsert} operation carrying {@code fieldsJson} (a JSON object). */
   public static String upsert(String table, UUID id, String fieldsJson) {

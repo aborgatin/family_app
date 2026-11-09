@@ -9,7 +9,7 @@ import com.jayway.jsonpath.JsonPath;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
-import io.github.aborgatin.familyapp.Sync;
+import io.github.aborgatin.familyapp.SyncRequests;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.time.Duration;
@@ -58,8 +58,8 @@ class PullNeverSkipsASlowerWriteTest {
   @BeforeEach
   void threeDevices() throws Exception {
     FreshInstallation.reset(jdbc);
-    anna = Sync.bootstrapAnna(mvc);
-    boris = Sync.loginBoris(mvc, jdbc);
+    anna = SyncRequests.bootstrapAnna(mvc);
+    boris = SyncRequests.loginBoris(mvc, jdbc);
     annasTablet = new Browser(mvc);
     annasTablet.openApp();
     annasTablet
@@ -72,9 +72,10 @@ class PullNeverSkipsASlowerWriteTest {
     UUID masha = UUID.randomUUID();
     UUID petya = UUID.randomUUID();
     UUID sonya = UUID.randomUUID();
-    Sync.push(anna, Sync.upsert("child", masha, "{\"name\":\"Маша\",\"color\":\"coral\"}"))
+    SyncRequests.push(
+            anna, SyncRequests.upsert("child", masha, "{\"name\":\"Маша\",\"color\":\"coral\"}"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
-    long start = Sync.version(Sync.pull(annasTablet, 0));
+    long start = SyncRequests.version(SyncRequests.pull(annasTablet, 0));
 
     CompletableFuture<Void> slow;
     CompletableFuture<Void> fast;
@@ -94,8 +95,8 @@ class PullNeverSkipsASlowerWriteTest {
               () ->
                   push(
                       anna,
-                      Sync.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"),
-                      Sync.upsert("child", masha, "{\"name\":\"Мария\"}")));
+                      SyncRequests.upsert("child", petya, "{\"name\":\"Петя\",\"color\":\"blue\"}"),
+                      SyncRequests.upsert("child", masha, "{\"name\":\"Мария\"}")));
       waitUntil(() -> transactionsWaitingOnALock() == 1);
 
       fast =
@@ -103,11 +104,13 @@ class PullNeverSkipsASlowerWriteTest {
               () ->
                   push(
                       boris,
-                      Sync.upsert("child", sonya, "{\"name\":\"Соня\",\"color\":\"pink\"}")));
+                      SyncRequests.upsert(
+                          "child", sonya, "{\"name\":\"Соня\",\"color\":\"pink\"}")));
       // Boris's push either finishes at once (nothing orders it after Anna's) or waits too.
       waitUntil(() -> fast.isDone() || transactionsWaitingOnALock() == 2);
 
-      String first = Sync.pull(annasTablet, start).andReturn().getResponse().getContentAsString();
+      String first =
+          SyncRequests.pull(annasTablet, start).andReturn().getResponse().getContentAsString();
       seen.addAll(JsonPath.<List<String>>read(first, "$.changes[*].id"));
       firstHighWater = JsonPath.<Number>read(first, "$.version").longValue();
 
@@ -117,7 +120,10 @@ class PullNeverSkipsASlowerWriteTest {
     fast.get();
 
     String second =
-        Sync.pull(annasTablet, firstHighWater).andReturn().getResponse().getContentAsString();
+        SyncRequests.pull(annasTablet, firstHighWater)
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
     seen.addAll(JsonPath.<List<String>>read(second, "$.changes[*].id"));
 
     assertThat(seen).contains(masha.toString(), petya.toString(), sonya.toString());
@@ -125,7 +131,7 @@ class PullNeverSkipsASlowerWriteTest {
 
   private static void push(Browser device, String... operations) {
     try {
-      Sync.push(device, operations).andExpect(status().isOk());
+      SyncRequests.push(device, operations).andExpect(status().isOk());
     } catch (Exception e) {
       throw new IllegalStateException(e);
     }

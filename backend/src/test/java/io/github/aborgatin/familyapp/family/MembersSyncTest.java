@@ -9,7 +9,7 @@ import com.jayway.jsonpath.JsonPath;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
-import io.github.aborgatin.familyapp.Sync;
+import io.github.aborgatin.familyapp.SyncRequests;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,13 +41,13 @@ class MembersSyncTest {
   @BeforeEach
   void annaAndBorisAreLoggedIn() throws Exception {
     FreshInstallation.reset(jdbc);
-    anna = Sync.bootstrapAnna(mvc);
-    boris = Sync.loginBoris(mvc, jdbc);
+    anna = SyncRequests.bootstrapAnna(mvc);
+    boris = SyncRequests.loginBoris(mvc, jdbc);
   }
 
   @Test
   void aFirstPullHasEveryMemberWithOnlyIdDisplayNameAndGrammaticalGender() throws Exception {
-    String body = Sync.pull(anna, 0).andReturn().getResponse().getContentAsString();
+    String body = SyncRequests.pull(anna, 0).andReturn().getResponse().getContentAsString();
 
     List<Map<String, Object>> members = JsonPath.read(body, "$.changes[?(@.table=='member')]");
     assertThat(members).hasSize(2);
@@ -64,25 +64,26 @@ class MembersSyncTest {
 
   @Test
   void aProfileChangeReachesTheOtherDeviceThroughThePull() throws Exception {
-    long highWater = Sync.version(Sync.pull(boris, 0));
+    long highWater = SyncRequests.version(SyncRequests.pull(boris, 0));
 
     anna.patchJson("/api/members/me", "{\"displayName\":\"Аня\"}").andExpect(status().isOk());
 
-    Sync.pull(boris, highWater)
+    SyncRequests.pull(boris, highWater)
         .andExpect(jsonPath("$.changes[*].table", containsInAnyOrder("member")))
         .andExpect(jsonPath("$.changes[0].fields.displayName").value("Аня"));
   }
 
   @Test
   void aPasswordChangeTakesAVersionButSendsNoSecret() throws Exception {
-    long highWater = Sync.version(Sync.pull(boris, 0));
+    long highWater = SyncRequests.version(SyncRequests.pull(boris, 0));
 
     anna.postJson(
             "/api/members/me/password",
             "{\"currentPassword\":\"secret123\",\"newPassword\":\"new-secret-456\"}")
         .andExpect(status().isNoContent());
 
-    String body = Sync.pull(boris, highWater).andReturn().getResponse().getContentAsString();
+    String body =
+        SyncRequests.pull(boris, highWater).andReturn().getResponse().getContentAsString();
     assertThat(JsonPath.<List<String>>read(body, "$.changes[*].fields.displayName"))
         .containsExactly("Анна");
     assertThat(body).doesNotContain("password", "{bcrypt}");
@@ -90,10 +91,10 @@ class MembersSyncTest {
 
   @Test
   void membersArePullOnly() throws Exception {
-    Sync.push(
+    SyncRequests.push(
             anna,
-            Sync.upsert("member", UUID.randomUUID(), "{\"displayName\":\"Аня\"}"),
-            Sync.delete("member", UUID.randomUUID()))
+            SyncRequests.upsert("member", UUID.randomUUID(), "{\"displayName\":\"Аня\"}"),
+            SyncRequests.delete("member", UUID.randomUUID()))
         .andExpect(jsonPath("$.results[0].code").value("sync.read_only"))
         .andExpect(jsonPath("$.results[1].code").value("sync.read_only"));
   }

@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
-import io.github.aborgatin.familyapp.Sync;
+import io.github.aborgatin.familyapp.SyncRequests;
 import java.sql.Connection;
 import java.time.Duration;
 import java.time.Instant;
@@ -47,7 +47,7 @@ class MemberWritesTakeTheFamilyLockTest {
   @BeforeEach
   void annaIsLoggedIn() throws Exception {
     FreshInstallation.reset(jdbc);
-    anna = Sync.bootstrapAnna(mvc);
+    anna = SyncRequests.bootstrapAnna(mvc);
   }
 
   @Test

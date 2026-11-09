@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
-import io.github.aborgatin.familyapp.Sync;
+import io.github.aborgatin.familyapp.SyncRequests;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,9 +51,9 @@ class ChildrenTest {
 
   @Test
   void badValuesAreRefusedWithTheirFieldCodes() throws Exception {
-    Sync.push(
+    SyncRequests.push(
             anna,
-            Sync.upsert(
+            SyncRequests.upsert(
                 "child",
                 UUID.randomUUID(),
                 """
@@ -86,9 +86,9 @@ class ChildrenTest {
   }
 
   private void put(UUID id, String name, String color, @Nullable String birthday) throws Exception {
-    Sync.push(
+    SyncRequests.push(
             anna,
-            Sync.upsert(
+            SyncRequests.upsert(
                 "child",
                 id,
                 """
