@@ -19,7 +19,21 @@ excludes `.git`, `node_modules`, build output and `docs`.
 
 ## CI/CD
 
-`.github/workflows/ci.yml` runs on every pull request and on push to `main`:
+`.github/workflows/ci.yml` runs on every pull request and on push to `main`. On a push to `main`
+every job runs. On a pull request a **changes** job (`dorny/paths-filter`) decides which of
+`backend`, `web` and `image` run, and each of them skips itself with `if:`:
+
+| Job       | Runs on a pull request when changed                                                                                                                                              |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backend` | `backend/**`, `web/src/shared/palette/**` (the backend build copies the Child color palette), or `ci.yml`                                                                        |
+| `web`     | `web/**` or `ci.yml`                                                                                                                                                             |
+| `image`   | `backend/**`, `web/**`, `Dockerfile`, `.dockerignore`, `deploy/**`, `scripts/image-smoke-test.sh`, `scripts/deploy-stack-test.sh`, `scripts/backup-restore-test.sh`, or `ci.yml` |
+
+`migrations` always runs. Never filter with workflow-level `paths:`: a skipped workflow leaves
+required checks pending forever, while a skipped job counts as passed (#17). When a job starts
+reading a file outside its folder, add that path to its filter. The `if:` conditions fail open: if
+**changes** itself fails, `backend`, `web` and `image` run rather than skip, since a skipped required
+check would let the PR merge untested.
 
 - **migrations**: `scripts/check-migrations-test.sh` (the guard's self-test), then
   `scripts/check-migrations.sh` against the PR's target branch, or on push to `main` against the

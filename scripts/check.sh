@@ -48,6 +48,17 @@ command -v node >/dev/null && (($(node_major node) >= 22)) ||
   die "Node 22+ not found on PATH or in /opt/homebrew/opt/node@22/bin (brew install node@22)."
 export PATH
 
+# Gradle needs a JDK 21: use JAVA_HOME, else the system one, else Homebrew's keg-only openjdk@21
+# (the temurin cask needs sudo; the formula doesn't).
+if [[ -z "${JAVA_HOME:-}" ]] && ! /usr/libexec/java_home -v 21 >/dev/null 2>&1; then
+  for d in /opt/homebrew/opt/openjdk@21 /usr/local/opt/openjdk@21; do
+    [[ -x "$d/bin/java" ]] && export JAVA_HOME="$d" && break
+  done
+fi
+java_bin="${JAVA_HOME:+$JAVA_HOME/bin/}java"
+"$java_bin" -version >/dev/null 2>&1 ||
+  die "JDK 21 not found: set JAVA_HOME or brew install openjdk@21."
+
 # --- steps ----------------------------------------------------------------------------------------
 current=""
 trap '[[ -n "$current" ]] && echo "check.sh: FAILED at: $current" >&2' EXIT
