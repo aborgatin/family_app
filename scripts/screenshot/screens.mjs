@@ -244,7 +244,7 @@ export default {
 
     // «Настройки списка», opened by the gear on the List screen
     { name: 'list-settings', path: '/', steps: listSettings('Супермаркет') },
-    // Борис's Shared List: Анна may rename and delete it, but sees no Visibility.
+    // Борис's Shared List: Анна may rename it, but sees no Visibility and no «Удалить список».
     { name: 'list-settings-not-owner', path: '/', steps: listSettings('Гараж') },
     // A Wish list is always Shared: no Visibility, even for its Owner.
     { name: 'list-settings-wish', path: '/', steps: listSettings('Подарки') },

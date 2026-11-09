@@ -8,7 +8,8 @@ import { syncServer } from '@/test/syncServer';
 
 // Lists live in the local store and reach the server through the Outbox (spec #3, tickets #55, #56):
 // Home lists them, «Новый список» creates one (offline too), a List opens its own screen, and its
-// «Настройки списка» screen (#63) renames it, changes its Visibility (Owner only) and deletes it.
+// «Настройки списка» screen (#63) renames it, changes its Visibility and deletes it (both Owner
+// only, #64).
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -368,6 +369,55 @@ describe('The «Настройки списка» screen', () => {
     expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue(shown.name);
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: 'Личный' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['shows', 'the Owner', groceries.ownerId, true],
+    ['hides', 'another Member', boris.id, false],
+  ])('%s «Удалить список» for %s', async (_, __, ownerId, shown) => {
+    syncServer.seed('list', [{ ...groceries, ownerId }]);
+
+    renderApp(settingsPath);
+
+    expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue('Супермаркет');
+    expect(screen.queryByRole('button', { name: 'Удалить список' }) !== null).toBe(shown);
+  });
+
+  it('counts a List created here as the Member’s own before the pull brings its Owner', async () => {
+    const user = userEvent.setup();
+
+    renderApp('/');
+    await within(await listsSection()).findByText('Списков пока нет');
+    syncServer.goOffline();
+    await user.click(
+      await within(await listsSection()).findByRole('button', { name: 'Добавить список' }),
+    );
+    const sheet = screen.getByRole('dialog', { name: 'Новый список' });
+    await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Ремонт');
+    await user.click(within(sheet).getByRole('radio', { name: 'TODO' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    await user.click(await within(await listsSection()).findByRole('link', { name: /Ремонт/ }));
+    await user.click(await screen.findByRole('link', { name: 'Настройки списка' }));
+
+    expect(await screen.findByRole('button', { name: 'Удалить список' })).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Видимость' })).toBeInTheDocument();
+  });
+
+  it('says only the Owner may do it when the server rejects deleting the List', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.rejectWhen((op) => op.op === 'delete' && { code: 'list.owner_only' });
+    const user = userEvent.setup();
+
+    renderApp(settingsPath);
+    await user.click(await screen.findByRole('button', { name: 'Удалить список' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить' }));
+
+    expect(
+      await screen.findByText('Не удалось сохранить: это может сделать только владелец списка'),
+    ).toBeInTheDocument();
+    await waitFor(async () => {
+      expect(await listRows()).toEqual(['СупермаркетПокупки0']);
+    });
   });
 
   it('deletes the List after the action sheet and goes back to Home', async () => {
