@@ -100,7 +100,9 @@ spacing `n`).
   copy after a rejected change), a row the Member isn't editing shows it. A spinner appears at the right of the row only after ~400 ms. No
   success toast or checkmark.
 - **On failure** the typed value stays; a red message goes in the group footer under the row
-  («Не удалось сохранить. Проверьте соединение.») with «Повторить». A validation error (an empty
+  («Не удалось сохранить. Проверьте соединение.») with «Повторить». A change the server rejected later,
+  after the sync push, is not a footer line: the screen may be gone by then, so a `Toast` says
+  «Не удалось сохранить» once, wherever the Member is. A validation error (an empty
   name, with `required` on `useAutoSaveText()`) shows there and sends nothing. A failed choice goes back to the previous value with the
   same message. Messages come from `errorMessage()` (I3).
 - How: `useAutoSaveText()` / `useAutoSaveChoice()` from `shared/ui` hold all of this. A screen
@@ -449,6 +451,16 @@ Asks before something that can't be undone: `title` (the question), optional `me
 iOS action sheet sliding up from the bottom, «Отменить» in its own block. Wide windows: a centred
 dialog, «Отменить» its last line. Built on Radix Dialog: focus moves in and back to the trigger,
 Esc or a tap outside cancels.
+
+### Toast
+
+A short message about something that happened away from the screen the Member is on, floating
+above the bottom of the window in the 640px column (16px margins on a phone, above the home
+indicator): `cell` with a hairline border and shadow, the text in `destructive`, and an ⓧ
+(`clear` icon, named «Закрыть») that closes it. Announced as an `alert`; it disables nothing.
+Placed once by the app (`app/SaveRejectedToast`), never by a screen. Its only use: «Не удалось
+сохранить» (with the reason) after the server rejected a change, shown once, until closed or the
+Member's next change.
 
 ### Spinner
 

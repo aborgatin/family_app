@@ -1,13 +1,11 @@
 package io.github.aborgatin.familyapp.family.child;
 
-import io.github.aborgatin.familyapp.family.FamilyLock;
+import io.github.aborgatin.familyapp.family.Family;
 import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
 import io.github.aborgatin.familyapp.sync.SyncRow;
 import io.github.aborgatin.familyapp.sync.SyncableTable;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -22,12 +20,12 @@ class ChildService implements SyncableTable {
 
   private final ChildRepository children;
   private final ChildColorPalette palette;
-  private final FamilyLock familyLock;
+  private final Family family;
 
-  ChildService(ChildRepository children, ChildColorPalette palette, FamilyLock familyLock) {
+  ChildService(ChildRepository children, ChildColorPalette palette, Family family) {
     this.children = children;
     this.palette = palette;
-    this.familyLock = familyLock;
+    this.family = family;
   }
 
   @Override
@@ -42,20 +40,12 @@ class ChildService implements SyncableTable {
    */
   @Override
   public Outcome apply(Operation operation) {
-    Optional<Child> existing = children.findById(operation.id());
-    if (existing.isPresent() && existing.get().deleted()) {
-      return Outcome.IGNORED;
-    }
-    return switch (operation.type()) {
-      case UPSERT -> upsert(operation, existing);
-      case DELETE -> delete(existing);
-    };
+    return Outcome.deleteWins(
+        operation, children.findById(operation.id()), this::upsert, this::delete);
   }
 
   private Outcome upsert(Operation operation, Optional<Child> existing) {
     ChildDetails details = changed(operation, existing).validate(palette);
-    // Inside the push the lock is already held; this only reads the Family id.
-    UUID familyId = familyLock.lockFamily();
     Child child =
         existing
             .map(
@@ -63,7 +53,7 @@ class ChildService implements SyncableTable {
                   found.replace(details);
                   return found;
                 })
-            .orElseGet(() -> new Child(operation.id(), familyId, details));
+            .orElseGet(() -> new Child(operation.id(), family.id(), details));
     children.saveAndFlush(child);
     return Outcome.APPLIED;
   }
@@ -79,11 +69,7 @@ class ChildService implements SyncableTable {
         operation.has("birthday") ? operation.text("birthday") : birthday);
   }
 
-  private Outcome delete(Optional<Child> existing) {
-    if (existing.isEmpty()) {
-      return Outcome.IGNORED;
-    }
-    Child child = existing.get();
+  private Outcome delete(Child child) {
     child.markDeleted();
     children.saveAndFlush(child);
     return Outcome.APPLIED;
@@ -91,18 +77,12 @@ class ChildService implements SyncableTable {
 
   @Override
   public List<SyncRow> changesSince(long version, UUID memberId) {
-    return children.findByVersionGreaterThan(version).stream()
-        .map(
-            child -> {
-              if (child.deleted()) {
-                return SyncRow.tombstone(child.id(), child.version());
-              }
-              Map<String, Object> fields = new LinkedHashMap<>();
-              fields.put("name", child.name());
-              fields.put("color", child.color());
-              fields.put("birthday", child.birthday());
-              return SyncRow.of(child.id(), child.version(), fields);
-            })
-        .toList();
+    return SyncRow.changes(
+        children.findByVersionGreaterThan(version),
+        (child, fields) -> {
+          fields.put("name", child.name());
+          fields.put("color", child.color());
+          fields.put("birthday", child.birthday());
+        });
   }
 }

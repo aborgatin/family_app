@@ -327,8 +327,7 @@ describe('A session that ended during sync', () => {
     expect(syncServer.row('child', petya.id)).toBeDefined();
   });
 
-  it('logging out then shows the login screen and keeps them for the same Member', async () => {
-    const logout = logoutAnswers();
+  it('shows the login screen at once and resumes when the same Member logs in', async () => {
     loginAnswers(anna);
     let refused = 0;
     server.use(
@@ -339,22 +338,66 @@ describe('A session that ended during sync', () => {
     );
     const user = userEvent.setup();
 
-    renderApp('/settings');
+    const app = renderApp('/settings');
     await deletePetya(user);
-    await waitFor(() => {
-      expect(refused).toBe(1);
-    });
-    await logOut(user);
 
     expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(logout.count).toBe(0);
+    expect(refused).toBe(1);
 
     server.use(...syncServer.handlers);
     await logIn(user, anna.email);
 
+    // Back where the session ended, and the delete made before it is sent.
     await waitFor(() => {
       expect(syncServer.row('child', petya.id)).toBeUndefined();
     });
+    expect(app.location()).toBe('/settings');
+    expect(within(await childrenSection()).queryByText('Петя')).not.toBeInTheDocument();
+  });
+
+  it('logging out with the session already gone warns, and «Выйти» wipes everything', async () => {
+    const logout = logoutAnswers();
+    loginAnswers(anna);
+    const user = userEvent.setup();
+
+    const first = renderApp('/settings');
+    await within(await childrenSection()).findByText('Петя');
+    syncServer.goOffline();
+    await deletePetya(user);
+    // The server is back, but the session has ended meanwhile; the app hasn't tried yet.
+    server.use(
+      http.post('/api/sync/push', () =>
+        HttpResponse.json({ code: 'auth.required', params: {} }, { status: 401 }),
+      ),
+      http.post('/api/auth/logout', () =>
+        HttpResponse.json({ code: 'auth.required', params: {} }, { status: 401 }),
+      ),
+    );
+    await logOut(user);
+    const warning = await screen.findByRole('dialog', { name: WARNING });
+    await user.click(within(warning).getByRole('button', { name: 'Выйти' }));
+
+    expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
+    expect(logout.count).toBe(0);
+    first.unmount();
+
+    // Opened again with no connection: nothing of Анна's is left to start from.
+    server.use(http.get('/api/auth/session', () => HttpResponse.error()));
+    const second = renderApp('/settings');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
+    );
+    second.unmount();
+
+    // Logging in again as Анна: the lost delete is never sent.
+    server.use(
+      sessionHandler({ bootstrapRequired: false, member: null }).handler,
+      ...syncServer.handlers,
+    );
+    syncServer.goOnline();
+    renderApp('/settings');
+    await logIn(user, anna.email);
+    expect(await within(await childrenSection()).findByText('Петя')).toBeInTheDocument();
+    expect(syncServer.operations('child')).toEqual([]);
   });
 });

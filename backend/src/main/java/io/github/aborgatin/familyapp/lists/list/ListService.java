@@ -5,10 +5,8 @@ import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
 import io.github.aborgatin.familyapp.sync.SyncRow;
 import io.github.aborgatin.familyapp.sync.SyncableTable;
-import java.time.Instant;
-import java.util.LinkedHashMap;
+import java.time.Clock;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -21,6 +19,7 @@ import org.springframework.stereotype.Service;
 @Service
 class ListService implements SyncableTable {
 
+  private final Clock clock = Clock.systemUTC();
   private final ListRepository lists;
   private final ItemRepository items;
 
@@ -44,17 +43,12 @@ class ListService implements SyncableTable {
   @Override
   public Outcome apply(Operation operation) {
     Optional<ListEntity> existing = lists.findById(operation.id());
-    if (existing.isPresent() && existing.get().deleted()) {
-      return Outcome.IGNORED;
+    if (existing.isPresent()
+        && !existing.get().deleted()
+        && !existing.get().visibleTo(operation.memberId())) {
+      throw ListEntity.notFound(operation.id());
     }
-    if (existing.isPresent() && !existing.get().visibleTo(operation.memberId())) {
-      throw new ApiException(
-          HttpStatus.NOT_FOUND, "list.not_found", Map.of("listId", operation.id().toString()));
-    }
-    return switch (operation.type()) {
-      case UPSERT -> upsert(operation, existing);
-      case DELETE -> delete(existing);
-    };
+    return Outcome.deleteWins(operation, existing, this::upsert, this::delete);
   }
 
   private Outcome upsert(Operation operation, Optional<ListEntity> existing) {
@@ -80,7 +74,8 @@ class ListService implements SyncableTable {
                   return found;
                 })
             .orElseGet(
-                () -> new ListEntity(operation.id(), operation.memberId(), Instant.now(), details));
+                () ->
+                    new ListEntity(operation.id(), operation.memberId(), clock.instant(), details));
     lists.saveAndFlush(list);
     if (visibilityChanged) {
       // The pull sends the Items again: with their fields to a Member who may now see the List,
@@ -90,11 +85,7 @@ class ListService implements SyncableTable {
     return Outcome.APPLIED;
   }
 
-  private Outcome delete(Optional<ListEntity> existing) {
-    if (existing.isEmpty()) {
-      return Outcome.IGNORED;
-    }
-    ListEntity list = existing.get();
+  private Outcome delete(ListEntity list) {
     list.markDeleted();
     lists.saveAndFlush(list);
     items.markDeletedInList(list.id());
@@ -119,20 +110,15 @@ class ListService implements SyncableTable {
    */
   @Override
   public List<SyncRow> changesSince(long version, UUID memberId) {
-    return lists.findByVersionGreaterThan(version).stream()
-        .map(
-            list -> {
-              if (list.deleted() || !list.visibleTo(memberId)) {
-                return SyncRow.tombstone(list.id(), list.version());
-              }
-              Map<String, Object> fields = new LinkedHashMap<>();
-              fields.put("name", list.name());
-              fields.put("kind", list.kind().name());
-              fields.put("visibility", list.visibility().name());
-              fields.put("ownerId", list.ownerId().toString());
-              fields.put("createdAt", list.createdAt().toString());
-              return SyncRow.of(list.id(), list.version(), fields);
-            })
-        .toList();
+    return SyncRow.changes(
+        lists.findByVersionGreaterThan(version),
+        list -> list.visibleTo(memberId),
+        (list, fields) -> {
+          fields.put("name", list.name());
+          fields.put("kind", list.kind().name());
+          fields.put("visibility", list.visibility().name());
+          fields.put("ownerId", list.ownerId().toString());
+          fields.put("createdAt", list.createdAt().toString());
+        });
   }
 }

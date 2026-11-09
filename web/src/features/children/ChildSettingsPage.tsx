@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
 import {
   autoSaveMessages,
-  Button,
   ConfirmRow,
   EmptyState,
   GroupedSection,
@@ -15,7 +14,7 @@ import {
   useFooterLines,
 } from '@/shared/ui';
 import { ChildRows } from './ChildRows';
-import type { Child, ChildDetails } from './childrenApi';
+import type { Child, ChildDetails } from './childTypes';
 import { useChildren } from './useChildren';
 
 /** Route of a Child's settings screen, opened from «Дети» in Settings. */
@@ -39,7 +38,7 @@ interface ChildSettingsPageProps {
 export function ChildSettingsPage({ settingsPath }: ChildSettingsPageProps) {
   const { t } = useTranslation();
   const { id } = useParams();
-  const { load, retry, save, remove, saveFailure } = useChildren();
+  const { load, save, remove } = useChildren();
   const back = { to: settingsPath, title: t('settings.title') };
 
   const child = load.status === 'ready' ? load.value.find((c) => c.id === id) : undefined;
@@ -51,7 +50,6 @@ export function ChildSettingsPage({ settingsPath }: ChildSettingsPageProps) {
           child={child}
           save={save}
           remove={remove}
-          saveFailure={saveFailure}
           settingsPath={settingsPath}
         />
       </Page>
@@ -61,13 +59,6 @@ export function ChildSettingsPage({ settingsPath }: ChildSettingsPageProps) {
   let state;
   if (load.status === 'loading') {
     state = <EmptyState role="status">{t('common.loading')}</EmptyState>;
-  } else if (load.status === 'failed') {
-    const message = errorMessage(load.error);
-    state = (
-      <EmptyState role="alert" action={<Button onClick={retry}>{t('common.retry')}</Button>}>
-        {t(message.key, message.values)}
-      </EmptyState>
-    );
   } else {
     state = <EmptyState role="alert">{t('children.notFound')}</EmptyState>;
   }
@@ -78,41 +69,28 @@ export function ChildSettingsPage({ settingsPath }: ChildSettingsPageProps) {
   );
 }
 
-function detailsOf({ name, color, birthday }: Child): ChildDetails {
-  return { name, color, birthday };
-}
-
 interface ChildEditorProps {
   child: Child;
-  save: (id: string, details: ChildDetails) => Promise<Child>;
+  save: (id: string, fields: Partial<ChildDetails>) => Promise<void>;
   remove: (id: string) => Promise<void>;
-  /** «Не удалось сохранить» after the server rejected a change. */
-  saveFailure: ErrorMessage | undefined;
   settingsPath: string;
 }
 
-function ChildEditor({ child, save, remove, saveFailure, settingsPath }: ChildEditorProps) {
+function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const navigate = useNavigate();
   const { id } = child;
 
-  // Each row sends its change on top of the Child as shown now; `save` sends only what differs.
-  const shown = useRef(detailsOf(child));
-  useEffect(() => {
-    shown.current = detailsOf(child);
-  }, [child]);
-  const saveChange = useCallback(
-    (change: Partial<ChildDetails>) => save(id, { ...shown.current, ...change }),
-    [id, save],
-  );
-
   const name = useAutoSaveText({
     name: 'name',
     saved: child.name,
     save: useCallback(
-      async (value: string) => (await saveChange({ name: value })).name,
-      [saveChange],
+      async (value: string) => {
+        await save(id, { name: value });
+        return value;
+      },
+      [id, save],
     ),
     required: true,
   });
@@ -120,17 +98,22 @@ function ChildEditor({ child, save, remove, saveFailure, settingsPath }: ChildEd
     name: 'color',
     saved: child.color,
     save: useCallback(
-      async (value: string) => (await saveChange({ color: value })).color,
-      [saveChange],
+      async (value: string) => {
+        await save(id, { color: value });
+        return value;
+      },
+      [id, save],
     ),
   });
   const birthday = useAutoSaveText({
     name: 'birthday',
     saved: child.birthday ?? '',
     save: useCallback(
-      async (value: string) =>
-        (await saveChange({ birthday: value === '' ? null : value })).birthday ?? '',
-      [saveChange],
+      async (value: string) => {
+        await save(id, { birthday: value === '' ? null : value });
+        return value;
+      },
+      [id, save],
     ),
   });
 
@@ -151,12 +134,7 @@ function ChildEditor({ child, save, remove, saveFailure, settingsPath }: ChildEd
 
   return (
     <Sections>
-      <GroupedSection
-        messages={[
-          ...autoSaveMessages([name.failure, color.failure, birthday.failure]),
-          lines.failure(saveFailure),
-        ]}
-      >
+      <GroupedSection messages={autoSaveMessages([name.failure, color.failure, birthday.failure])}>
         <ChildRows name={name.input} color={color.control} birthday={birthday.input} />
       </GroupedSection>
       <GroupedSection messages={[lines.failure(deleteError)]}>

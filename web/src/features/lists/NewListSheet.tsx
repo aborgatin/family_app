@@ -3,11 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { fieldMessageKey, type FieldMessages } from '@/shared/api';
 import { GroupedSection, InputRow, SegmentedControl, Sheet, useFooterLines } from '@/shared/ui';
 import {
+  hasVisibility,
   KIND_TEXTS,
   LIST_KINDS,
   type ListDetails,
   type ListKind,
   type Visibility,
+  VISIBILITY_CHOICES,
 } from './listTypes';
 
 type Field = 'name' | 'kind';
@@ -45,16 +47,13 @@ export function NewListSheet({ id, save, onClose }: NewListSheetProps) {
     await save(id, {
       name: name.trim(),
       kind,
-      visibility: kind === 'WISH' ? 'SHARED' : visibility,
+      visibility: hasVisibility(kind) ? visibility : 'SHARED',
     });
     onClose();
   }
 
   const kinds = LIST_KINDS.map((value) => ({ value, label: t(KIND_TEXTS[value].choice) }));
-  const visibilities = [
-    { value: 'PRIVATE' as const, label: t('lists.visibility.private') },
-    { value: 'SHARED' as const, label: t('lists.visibility.shared') },
-  ];
+  const visibilities = VISIBILITY_CHOICES.map(({ value, label }) => ({ value, label: t(label) }));
 
   return (
     <Sheet
@@ -80,7 +79,7 @@ export function NewListSheet({ id, save, onClose }: NewListSheetProps) {
           value={kind}
           onChange={setKind}
         />
-        {kind !== 'WISH' && (
+        {(kind === undefined || hasVisibility(kind)) && (
           <SegmentedControl
             label={t('lists.visibility.label')}
             labelHidden

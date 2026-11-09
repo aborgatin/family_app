@@ -34,7 +34,10 @@ class SyncController {
   record PushBody(@Nullable List<Incoming> operations) {}
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
-  record ResultBody(String status, @Nullable String code, @Nullable Map<String, Object> params) {}
+  record ResultBody(
+      SyncService.Result.Status status,
+      @Nullable String code,
+      @Nullable Map<String, Object> params) {}
 
   record PushResponse(List<ResultBody> results, long version) {}
 

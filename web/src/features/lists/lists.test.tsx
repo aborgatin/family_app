@@ -241,7 +241,7 @@ describe('The «Новый список» sheet', () => {
     expect(syncServer.operations('list')).toEqual([]);
   });
 
-  it('takes a rejected new List off Home and says «Не удалось сохранить»', async () => {
+  it('takes a rejected new List off Home and says why it wasn’t saved', async () => {
     syncServer.rejectWhen(() => ({ code: 'list.wish_shared_only' }));
     const user = userEvent.setup();
 
@@ -252,7 +252,9 @@ describe('The «Новый список» sheet', () => {
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     const section = await listsSection();
-    expect(await within(section).findByText('Не удалось сохранить')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Не удалось сохранить: список желаний всегда общий'),
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(within(section).queryByText('Аптека')).not.toBeInTheDocument();
     });
@@ -371,6 +373,41 @@ describe('List settings', () => {
       expect(syncServer.operations('list')).toEqual([
         { table: 'list', id: groceries.id, op: 'delete' },
       ]);
+    });
+  });
+
+  it('doesn’t bring back a List deleted on the server with a change made during a full pull', async () => {
+    syncServer.seed('list', [{ ...groceries, ownerId: boris.id }, list(2, 'Аптека', 'SHOPPING')]);
+    const user = userEvent.setup();
+
+    const app = renderApp(`/lists/${groceries.id}`);
+    await screen.findByRole('heading', { level: 1, name: 'Супермаркет' });
+    // Boris deletes it; this device hasn't pulled since.
+    syncServer.change('list', groceries.id, 'deleted');
+    // A rejected Item makes the next pull a full one, which leaves deleted Lists out; it waits.
+    syncServer.rejectWhen((op) => op.table === 'item');
+    const release = syncServer.holdPulls();
+    const pullsBefore = syncServer.pulls.length;
+    await user.type(await screen.findByRole('textbox', { name: 'Новый товар' }), 'Хлеб{Enter}');
+    await waitFor(() => {
+      expect(syncServer.pulls.slice(pullsBefore)).toContain(0);
+    });
+    // Renamed while that pull is under way: the rename is still in the Outbox when it lands.
+    const name = screen.getByRole('textbox', { name: 'Название' });
+    await user.clear(name);
+    await user.type(name, 'Ашан{Enter}');
+    release();
+
+    expect(
+      await screen.findByText('Такого списка нет: возможно, его удалили.'),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(syncServer.operations('list')).toHaveLength(1);
+    });
+    await user.click(screen.getByRole('link', { name: 'Семья' }));
+    expect(app.location()).toBe('/');
+    await waitFor(async () => {
+      expect(await listRows()).toEqual(['АптекаПокупки0']);
     });
   });
 

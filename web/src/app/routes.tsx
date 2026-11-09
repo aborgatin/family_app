@@ -14,11 +14,18 @@ import { LIST_PATH, ListPage } from '@/features/lists';
 import { PASSWORD_PATH, PasswordPage } from '@/features/members';
 import { SettingsPage, SETTINGS_PATH } from '@/features/settings';
 import { AppShell } from '@/shared/ui';
+import { SaveRejectedToast } from './SaveRejectedToast';
 
 export const routes: RouteObject[] = [
   {
-    // The frame around every screen (and, from M2, the sidebar).
-    element: <AppShell />,
+    // The frame around every screen (and, from M2, the sidebar), and the one place that says a
+    // change was rejected.
+    element: (
+      <>
+        <AppShell />
+        <SaveRejectedToast />
+      </>
+    ),
     children: [
       {
         // Asks the server for the session once, then redirects: to /setup on a fresh install, to

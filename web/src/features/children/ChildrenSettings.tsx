@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { errorMessage } from '@/shared/api';
+
 import { childColor } from '@/shared/palette';
 import {
   EditableRow,
@@ -25,7 +25,7 @@ import { newChildId, useChildren } from './useChildren';
 export function ChildrenSettings() {
   const { t } = useTranslation();
   const lines = useFooterLines();
-  const { load, retry, save, remove, saveFailure } = useChildren();
+  const { load, save, remove } = useChildren();
   const age = useAge();
   const list = useEditableList();
   // The id of the Child being added, made once when the sheet opens, so a retried save repeats
@@ -50,24 +50,20 @@ export function ChildrenSettings() {
         header={t('settings.children')}
         {...(children.length > 0 && { edit: list.edit })}
         messages={[
-          load.status === 'failed' && lines.failure(errorMessage(load.error), retry),
           lines.failure(list.error),
-          lines.failure(saveFailure),
           load.status === 'ready' && children.length === 0 && { text: t('children.empty') },
         ]}
         after={
           load.status === 'loading' ? (
             <LoadingRow />
           ) : (
-            load.status === 'ready' && (
-              <ListRow
-                accent
-                title={t('children.add')}
-                onClick={() => {
-                  setAddingId(newChildId());
-                }}
-              />
-            )
+            <ListRow
+              accent
+              title={t('children.add')}
+              onClick={() => {
+                setAddingId(newChildId());
+              }}
+            />
           )
         }
       >

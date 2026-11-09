@@ -5,11 +5,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
+import io.github.aborgatin.familyapp.LockWaits;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
 import io.github.aborgatin.familyapp.SyncRequests;
 import java.sql.Connection;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import javax.sql.DataSource;
@@ -34,8 +33,6 @@ import org.springframework.test.web.servlet.ResultActions;
 @AutoConfigureMockMvc
 @Import(PostgresTestcontainer.class)
 class MemberWritesTakeTheFamilyLockTest {
-
-  private static final Duration PATIENCE = Duration.ofSeconds(10);
 
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
@@ -97,24 +94,10 @@ class MemberWritesTakeTheFamilyLockTest {
                   throw new IllegalStateException(e);
                 }
               });
-      Instant deadline = Instant.now().plus(PATIENCE);
-      while (!running.isDone() && waitingOnALock() == 0 && Instant.now().isBefore(deadline)) {
-        Thread.sleep(20);
-      }
+      LockWaits.waitUntil(() -> running.isDone() || LockWaits.transactionsWaitingOnALock(jdbc) > 0);
       assertThat(running).as("the write went ahead without the Family lock").isNotDone();
       holder.rollback();
     }
     return running.get();
-  }
-
-  private int waitingOnALock() {
-    Integer waiting =
-        jdbc.queryForObject(
-            """
-            SELECT count(*) FROM pg_stat_activity
-            WHERE datname = current_database() AND wait_event_type = 'Lock'
-            """,
-            Integer.class);
-    return waiting == null ? 0 : waiting;
   }
 }

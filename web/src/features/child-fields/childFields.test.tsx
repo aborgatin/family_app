@@ -246,12 +246,12 @@ describe('Renaming a Child field', () => {
     renderApp('/settings');
     await user.type(await nameField('Вес'), ', кг{Enter}');
 
-    const fields = await section();
-    expect(await within(fields).findByText(NOT_SAVED)).toBeInTheDocument();
+    await section();
+    expect(await screen.findByText(NOT_SAVED)).toBeInTheDocument();
     await waitFor(async () => {
       expect(await nameField('Вес')).toHaveValue('Вес');
     });
-    expect(within(fields).getAllByText(NOT_SAVED)).toHaveLength(1);
+    expect(screen.getAllByText(NOT_SAVED)).toHaveLength(1);
   });
 
   it('never offers to change the value type of an existing field', async () => {
@@ -386,7 +386,7 @@ describe('The «Новое поле» sheet', () => {
     await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Я'.repeat(10));
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
-    expect(await within(fields).findByText(NOT_SAVED)).toBeInTheDocument();
+    expect(await screen.findByText(NOT_SAVED)).toBeInTheDocument();
     expect(await within(fields).findByText('Полей пока нет')).toBeInTheDocument();
   });
 

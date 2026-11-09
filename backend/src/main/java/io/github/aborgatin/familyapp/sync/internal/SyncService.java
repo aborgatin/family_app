@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.sync.internal;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import io.github.aborgatin.familyapp.error.ApiError;
 import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.sync.Operation;
@@ -53,9 +54,21 @@ class SyncService {
       @Nullable Map<String, Object> fields) {}
 
   /** One operation's result: {@code applied}, {@code ignored}, or {@code rejected} + error. */
-  record Result(String status, @Nullable ApiError error) {
-    static final Result APPLIED = new Result("applied", null);
-    static final Result IGNORED = new Result("ignored", null);
+  record Result(Status status, @Nullable ApiError error) {
+    static final Result APPLIED = new Result(Status.APPLIED, null);
+    static final Result IGNORED = new Result(Status.IGNORED, null);
+
+    /** What happened to the operation; the push answers it in lower case. */
+    enum Status {
+      APPLIED,
+      IGNORED,
+      REJECTED;
+
+      @JsonValue
+      String json() {
+        return name().toLowerCase(Locale.ROOT);
+      }
+    }
   }
 
   record Pushed(List<Result> results, long version) {}
@@ -89,7 +102,7 @@ class SyncService {
     } catch (ApiException rejected) {
       entityManager.clear();
       jdbc.execute("ROLLBACK TO SAVEPOINT sync_operation");
-      return new Result("rejected", rejected.error());
+      return new Result(Result.Status.REJECTED, rejected.error());
     }
   }
 

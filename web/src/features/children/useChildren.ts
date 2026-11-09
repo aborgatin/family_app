@@ -1,76 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { ErrorMessage } from '@/shared/api';
-import type { Load } from '@/shared/load';
-import { deleteRow, upsertRow, useRows, useSaveRejected } from '@/shared/sync';
-import type { Child, ChildDetails } from './childrenApi';
+import { useSyncedRows, type LocalLoad } from '@/shared/sync';
+import type { Child } from './childTypes';
 
-export type ChildrenLoad = Load<Child[]>;
-
-const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
+export type ChildrenLoad = LocalLoad<Child>;
 
 /**
  * The Family's Children and the ways to change them: the only data access of this feature. It
  * reads the local store and writes through the Outbox (S4), so it works the same offline; the sync
- * engine sends the changes and pulls the other Member's. `saveFailure` is «Не удалось сохранить»
- * after the server rejected a change; the next pull has already put the server's copy back.
+ * engine sends the changes and pulls the other Member's. `load` is `loading` until the first local
+ * read, then the Children in order. `save(id, fields)` creates a Child (`id` from `newChildId()`,
+ * every field) or sets the given fields, sending only those that differ from the local row, so a
+ * change from the other Member stays (Last write wins per field). `remove(id)` deletes.
  */
 export function useChildren() {
-  const rows = useRows('child') as Child[] | undefined;
-  const { rejected, clear } = useSaveRejected('child');
-  // The screens pass the whole Child, built on the one they show (from these same rows). Comparing
-  // with the current local row sends only what the Member changed, so a change from the other
-  // Member that a pull brought stays (Last write wins per field).
-  const current = useRef(new Map<string, ChildDetails>());
-  useEffect(() => {
-    current.current = new Map((rows ?? []).map((child) => [child.id, child]));
-  }, [rows]);
-
-  const load = useMemo<ChildrenLoad>(
-    () => (rows === undefined ? { status: 'loading' } : { status: 'ready', value: inOrder(rows) }),
-    [rows],
-  );
-
-  /** Adds a new Child (`id` from `newChildId()`) or changes an existing one. */
-  const save = useCallback(
-    async (id: string, details: ChildDetails): Promise<Child> => {
-      clear();
-      const before = current.current.get(id);
-      await upsertRow(
-        'child',
-        id,
-        before === undefined ? { ...details } : changed(before, details),
-      );
-      return { id, ...details };
-    },
-    [clear],
-  );
-
-  const remove = useCallback(
-    async (id: string) => {
-      clear();
-      await deleteRow('child', id);
-    },
-    [clear],
-  );
-
-  const retry = useCallback(() => undefined, []);
-
-  return {
-    load,
-    retry,
-    save,
-    remove,
-    saveFailure: rejected ? SAVE_REJECTED : undefined,
-  };
-}
-
-/** The fields of `after` that differ from `before`. */
-function changed(before: ChildDetails, after: ChildDetails): Partial<ChildDetails> {
-  return Object.fromEntries(
-    (Object.keys(after) as (keyof ChildDetails)[])
-      .filter((field) => before[field] !== after[field])
-      .map((field) => [field, after[field]]),
-  );
+  return useSyncedRows<Child>('child', inOrder);
 }
 
 /** Children are created with an id the client generates (S3). */
@@ -78,10 +20,7 @@ export function newChildId(): string {
   return crypto.randomUUID();
 }
 
-/**
- * Names compare by ICU's Russian collation, the one the server names in its query (`ru-x-icu`)
- * («ё» sorts with «е»).
- */
+/** Names compare the Russian way («ё» sorts with «е»). */
 const byName = new Intl.Collator('ru');
 
 /** Oldest first, no birthday last, then by name, then id (spec #5, Ordering). */

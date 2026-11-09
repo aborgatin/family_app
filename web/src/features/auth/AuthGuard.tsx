@@ -8,7 +8,13 @@ import {
   subscribeServerReachable,
 } from '@/shared/api';
 import { useLoad } from '@/shared/load';
-import { claimLocalStore, ownerCopy, saveOwnerCopy, startSync } from '@/shared/sync';
+import {
+  claimLocalStore,
+  onSessionEnded,
+  ownerCopy,
+  saveOwnerCopy,
+  startSync,
+} from '@/shared/sync';
 import { Button, StatusScreen } from '@/shared/ui';
 import { fetchSession, type Member, type Session } from './authApi';
 import { isLogoutPending, sendPendingLogout } from './logoutApi';
@@ -154,6 +160,16 @@ export function AuthGuard() {
       stop?.();
     };
   }, [memberId, confirmed]);
+
+  // A session that ends while syncing (expired, reset elsewhere) sends the Member to `/login` from
+  // where they are; the store and the Outbox stay, so logging in as the same Member resumes.
+  useEffect(
+    () =>
+      onSessionEnded(() => {
+        update((session): Session => ({ ...session, member: null }));
+      }),
+    [update],
+  );
 
   // Started from the device: the session is asked again whenever the server may be back (the
   // browser's `online`, any API answer, the foreground) and with backoff, until it answers.

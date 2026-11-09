@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.family.member;
 
+import io.github.aborgatin.familyapp.sync.SyncedRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -18,7 +19,7 @@ import org.hibernate.generator.EventType;
  */
 @Entity
 @Table(name = "member")
-public class Member {
+public class Member implements SyncedRecord {
 
   @Id private UUID id;
 
@@ -77,6 +78,7 @@ public class Member {
     this.grammaticalGender = grammaticalGender;
   }
 
+  @Override
   public UUID id() {
     return id;
   }
@@ -102,6 +104,7 @@ public class Member {
     this.passwordHash = passwordHash;
   }
 
+  @Override
   public long version() {
     return version;
   }
@@ -110,6 +113,7 @@ public class Member {
     return updatedAt;
   }
 
+  @Override
   public boolean deleted() {
     return deleted;
   }

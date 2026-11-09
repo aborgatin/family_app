@@ -1,9 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import type { ErrorMessage } from '@/shared/api';
-import { deleteRow, upsertRow, useRows, useSaveRejected } from '@/shared/sync';
+import { deleteRow, upsertRow, useRows } from '@/shared/sync';
 import type { Item } from './listTypes';
-
-const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
 
 /**
  * One List's open and Done Items and the ways to change them: the only data access for Items. It reads the
@@ -13,7 +10,6 @@ const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
  */
 export function useItems(listId: string) {
   const rows = useRows('item') as Item[] | undefined;
-  const { rejected, clear } = useSaveRejected('item');
 
   const items = useMemo(
     () => (rows === undefined ? undefined : openInOrder(rows, listId)),
@@ -27,48 +23,35 @@ export function useItems(listId: string) {
   /** Adds an Item with this text at the bottom. */
   const add = useCallback(
     async (text: string): Promise<void> => {
-      clear();
       await upsertRow('item', newItemId(), { listId, text });
     },
-    [clear, listId],
+    [listId],
   );
 
   /** Changes the Item's text, sending only the text; resolves with it as saved. */
-  const rename = useCallback(
-    async (item: Item, text: string): Promise<string> => {
-      clear();
-      await upsertRow('item', item.id, { text });
-      return text;
-    },
-    [clear],
-  );
+  const rename = useCallback(async (item: Item, text: string): Promise<string> => {
+    await upsertRow('item', item.id, { text });
+    return text;
+  }, []);
 
   /**
    * Ticks the Item off, or back on (`done` false); the server records who did it and when. Until
    * its copy arrives, the old done by / done at are cleared locally (never sent), so an Item ticked
    * back on and off again goes on top, not where it was last done.
    */
-  const setDone = useCallback(
-    async (item: Item, done: boolean): Promise<void> => {
-      clear();
-      await upsertRow(
-        'item',
-        item.id,
-        { done },
-        { doneById: null, doneAt: null, ...(done && { doneHereAt: tickTime() }) },
-      );
-    },
-    [clear],
-  );
+  const setDone = useCallback(async (item: Item, done: boolean): Promise<void> => {
+    await upsertRow(
+      'item',
+      item.id,
+      { done },
+      { doneById: null, doneAt: null, ...(done && { doneHereAt: tickTime() }) },
+    );
+  }, []);
 
   /** Deletes the Item; resolves at once, offline too. */
-  const remove = useCallback(
-    async (item: Item): Promise<void> => {
-      clear();
-      await deleteRow('item', item.id);
-    },
-    [clear],
-  );
+  const remove = useCallback(async (item: Item): Promise<void> => {
+    await deleteRow('item', item.id);
+  }, []);
 
   return {
     items,
@@ -77,7 +60,6 @@ export function useItems(listId: string) {
     rename,
     setDone,
     remove,
-    saveFailure: rejected ? SAVE_REJECTED : undefined,
   };
 }
 

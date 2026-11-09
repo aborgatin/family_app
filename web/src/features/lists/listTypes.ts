@@ -51,6 +51,17 @@ export interface Item {
 
 export const LIST_KINDS: readonly ListKind[] = ['SHOPPING', 'TODO', 'WISH'];
 
+/** Whether a List of this kind has a Visibility to choose: a Wish list is always Shared. */
+export function hasVisibility(kind: ListKind): boolean {
+  return kind !== 'WISH';
+}
+
+/** The «Личный» / «Общий» segments, wherever a List's Visibility is chosen. */
+export const VISIBILITY_CHOICES: readonly { value: Visibility; label: ParseKeys }[] = [
+  { value: 'PRIVATE', label: 'lists.visibility.private' },
+  { value: 'SHARED', label: 'lists.visibility.shared' },
+];
+
 /** The texts that depend on a List's kind. */
 export const KIND_TEXTS: Record<
   ListKind,

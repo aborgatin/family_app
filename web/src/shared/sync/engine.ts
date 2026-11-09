@@ -3,13 +3,14 @@ import {
   applyLocally,
   isSyncedTable,
   localStore,
+  removeLocally,
   storedVersion,
   storeVersion,
   type Operation,
-  type SyncedTable,
   wipeLocalStore,
 } from './localStore';
 import { openLiveUpdates } from './liveUpdates';
+import { dismissSaveRejection, saveRejected } from './saveRejection';
 
 /*
  * The sync engine (ADR-0003, spec #3 "Client"): the one place that talks to the sync API. It
@@ -18,8 +19,9 @@ import { openLiveUpdates } from './liveUpdates';
  * - at start, when the app comes back to the foreground, when the server becomes reachable again
  *   (any API answer, or the browser's `online` event), after every local change, and when the
  *   live-update stream (`liveUpdates.ts`) announces a Version above the stored one;
- * - after a failure it retries with backoff (1 s doubling to 30 s); a `401` stops it until the next
- *   trigger, keeping the store and the Outbox.
+ * - after a failure it retries with backoff (1 s doubling to 30 s); a `401` (the session has ended)
+ *   stops it, keeping the store and the Outbox, and tells `onSessionEnded` listeners, so the app
+ *   asks the Member to log in again.
  *
  * Its requests go through `api`, so they feed `serverReachable`, which stays the only sign of
  * unsent changes (the offline indicator).
@@ -53,25 +55,18 @@ interface PullResponse {
   version: number;
 }
 
-/** An Outbox operation the server refused (`rejected`), with its `{code, params}`. */
-export interface Rejection {
-  table: SyncedTable;
-  id: string;
-  code: string;
-  params: Record<string, unknown>;
-}
-
 let started = false;
 /** Bumped by start and stop: a run from an older generation stops writing. */
 let generation = 0;
 let running = false;
-let again = false;
+/** Counts `requestSync` calls; a run goes round again when one came in while it was busy. */
+let requests = 0;
 /** After a rejection, the next pull fetches everything to restore the server's copy. */
 let fullPullNeeded = false;
 let retryDelay = 0;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let unsubscribe: (() => void) | undefined;
-const rejectionListeners = new Set<(rejection: Rejection) => void>();
+const sessionEndedListeners = new Set<() => void>();
 
 /** Starts syncing for the logged-in Member; returns `stopSync`. Idempotent. */
 export function startSync(): () => void {
@@ -104,7 +99,6 @@ export function stopSync(): void {
   started = false;
   generation += 1;
   running = false;
-  again = false;
   clearTimeout(retryTimer);
   unsubscribe?.();
   unsubscribe = undefined;
@@ -113,10 +107,8 @@ export function stopSync(): void {
 /** Pushes and pulls as soon as possible (now, or right after the run in progress). */
 export function requestSync(): void {
   if (!started) return;
-  if (running) {
-    again = true;
-    return;
-  }
+  requests += 1;
+  if (running) return;
   clearTimeout(retryTimer);
   void run(generation);
 }
@@ -126,13 +118,18 @@ export function requestSync(): void {
  * rejects with the `ApiError` when it can't be sent (server unreachable, `401`, …).
  */
 export async function flushOutbox(): Promise<void> {
-  // The engine pauses meanwhile, so it doesn't send the same operations alongside.
+  // The engine pauses meanwhile, so it doesn't send the same operations alongside. It resumes
+  // afterwards, except after a `401`: the session is gone, and the caller decides what follows.
   const wasStarted = started;
   stopSync();
+  let sessionEnded = false;
   try {
     await pushOutbox(() => true);
+  } catch (failure: unknown) {
+    sessionEnded = asApiError(failure).status === 401;
+    throw failure;
   } finally {
-    if (wasStarted) startSync();
+    if (wasStarted && !sessionEnded) startSync();
   }
 }
 
@@ -142,14 +139,18 @@ export async function flushOutbox(): Promise<void> {
  */
 export async function stopSyncAndWipe(): Promise<void> {
   stopSync();
+  dismissSaveRejection();
   await wipeLocalStore();
 }
 
-/** Calls `listener` for every operation the server rejects; returns the unsubscribe. */
-export function onRejection(listener: (rejection: Rejection) => void): () => void {
-  rejectionListeners.add(listener);
+/**
+ * Calls `listener` when a push or pull finds the session ended (`401`); returns the unsubscribe.
+ * The engine has stopped trying by then; the store and the Outbox stay for the same Member.
+ */
+export function onSessionEnded(listener: () => void): () => void {
+  sessionEndedListeners.add(listener);
   return () => {
-    rejectionListeners.delete(listener);
+    sessionEndedListeners.delete(listener);
   };
 }
 
@@ -168,24 +169,26 @@ async function run(runGeneration: number) {
   running = true;
   const current = () => runGeneration === generation;
   try {
+    let handled;
     do {
-      again = false;
+      handled = requests;
       await pushOutbox(current);
       if (!current()) return;
       await pull(current);
-    } while (requestedMeanwhile() && current());
+    } while (requests !== handled && current());
     retryDelay = 0;
   } catch (failure: unknown) {
     if (!current()) return;
-    if (asApiError(failure).status !== 401) scheduleRetry();
+    if (asApiError(failure).status !== 401) {
+      scheduleRetry();
+      return;
+    }
+    sessionEndedListeners.forEach((listener) => {
+      listener();
+    });
   } finally {
     if (current()) running = false;
   }
-}
-
-/** Whether `requestSync` was called while this run was busy (set from outside the loop). */
-function requestedMeanwhile() {
-  return again;
 }
 
 function scheduleRetry() {
@@ -203,23 +206,27 @@ async function pushOutbox(current: () => boolean) {
       operations: operations.map(({ table, id, op, fields }) => ({ table, id, op, fields })),
     });
     if (!current()) return;
-    await localStore.outbox.bulkDelete(
-      operations.flatMap(({ seq }) => (seq === undefined ? [] : [seq])),
+    await localStore.transaction(
+      'rw',
+      [...localStore.syncedTables(), localStore.outbox],
+      async () => {
+        await localStore.outbox.bulkDelete(
+          operations.flatMap(({ seq }) => (seq === undefined ? [] : [seq])),
+        );
+        for (const [index, result] of response.results.entries()) {
+          const operation = operations[index];
+          if (operation === undefined) continue;
+          if (result.status === 'ignored') {
+            // Delete wins: the record is deleted on the server, so it goes here too (a pull may not
+            // send its tombstone again, e.g. after a full pull re-applied a change to it).
+            await removeLocally(operation.table, [operation.id]);
+          } else if (result.status === 'rejected') {
+            fullPullNeeded = true;
+            saveRejected(result.code ?? 'unknown');
+          }
+        }
+      },
     );
-    response.results.forEach((result, index) => {
-      const operation = operations[index];
-      if (result.status !== 'rejected' || operation === undefined) return;
-      fullPullNeeded = true;
-      const rejection = {
-        table: operation.table,
-        id: operation.id,
-        code: result.code ?? 'unknown',
-        params: result.params ?? {},
-      };
-      rejectionListeners.forEach((listener) => {
-        listener(rejection);
-      });
-    });
   }
 }
 
@@ -250,24 +257,24 @@ async function pull(current: () => boolean) {
         touched.add(key);
         if (change.deleted) {
           deleted.add(key);
-          await localStore.rows(change.table).delete(change.id);
+          // A tombstoned List (deleted, or made Private by its Owner) takes its Items with it.
+          await removeLocally(change.table, [change.id]);
         } else {
           await localStore.rows(change.table).put({ ...change.fields, id: change.id });
         }
       }
       const pending: Operation[] = await localStore.outbox.orderBy('seq').toArray();
+      // A full pull leaves deleted rows out: of the rows it didn't send, only unsent new ones
+      // (a pending create) come back, never a row the server deleted or hid.
+      const unsentCreates = new Set(
+        pending.filter((operation) => operation.creates).map((op) => rowKey(op.table, op.id)),
+      );
       for (const operation of pending) {
         const key = rowKey(operation.table, operation.id);
-        if ((full || touched.has(key)) && !deleted.has(key)) {
+        if (deleted.has(key)) continue;
+        if (touched.has(key) || (full && unsentCreates.has(key))) {
           await applyLocally(operation);
         }
-      }
-      // A tombstoned List (deleted, or made Private by its Owner) takes its local Items with it.
-      const goneLists = response.changes
-        .filter((change) => change.table === 'list' && change.deleted)
-        .map((change) => change.id);
-      if (goneLists.length > 0) {
-        await localStore.rows('item').where('listId').anyOf(goneLists).delete();
       }
       await storeVersion(response.version);
     },

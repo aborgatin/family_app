@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { GroupedSection, ListRow, LoadingRow, useFooterLines } from '@/shared/ui';
+import { GroupedSection, ListRow, LoadingRow } from '@/shared/ui';
 import { listPath } from './ListPage';
 import { KIND_TEXTS, type List } from './listTypes';
 import { NewListSheet } from './NewListSheet';
@@ -14,8 +14,7 @@ import { newListId, useLists } from './useLists';
  */
 export function ListsSection() {
   const { t } = useTranslation();
-  const lines = useFooterLines();
-  const { load, save, saveFailure } = useLists();
+  const { load, save } = useLists();
   const openCounts = useOpenItemCounts();
   // The id of the List being created, made once when the sheet opens (S3).
   const [addingId, setAddingId] = useState<string>();
@@ -41,10 +40,7 @@ export function ListsSection() {
       )}
       <GroupedSection
         header={t('lists.title')}
-        messages={[
-          lines.failure(saveFailure),
-          load.status === 'ready' && lists.length === 0 && { text: t('lists.empty') },
-        ]}
+        messages={[load.status === 'ready' && lists.length === 0 && { text: t('lists.empty') }]}
         after={
           load.status === 'loading' ? (
             <LoadingRow />

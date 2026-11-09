@@ -1,5 +1,5 @@
 import type { ParseKeys } from 'i18next';
-import type { ValueType } from './childFieldsApi';
+import type { ValueType } from './childFieldTypes';
 
 /** How each value type is named («Текст», «Дата»). */
 export const VALUE_TYPE_KEYS = {
