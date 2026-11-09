@@ -18,8 +18,9 @@ import { openLiveUpdates } from './liveUpdates';
  * - at start, when the app comes back to the foreground, when the server becomes reachable again
  *   (any API answer, or the browser's `online` event), after every local change, and when the
  *   live-update stream (`liveUpdates.ts`) announces a Version above the stored one;
- * - after a failure it retries with backoff (1 s doubling to 30 s); a `401` stops it until the next
- *   trigger, keeping the store and the Outbox.
+ * - after a failure it retries with backoff (1 s doubling to 30 s); a `401` (the session has ended)
+ *   stops it, keeping the store and the Outbox, and tells `onSessionEnded` listeners, so the app
+ *   asks the Member to log in again.
  *
  * Its requests go through `api`, so they feed `serverReachable`, which stays the only sign of
  * unsent changes (the offline indicator).
@@ -72,6 +73,7 @@ let retryDelay = 0;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let unsubscribe: (() => void) | undefined;
 const rejectionListeners = new Set<(rejection: Rejection) => void>();
+const sessionEndedListeners = new Set<() => void>();
 
 /** Starts syncing for the logged-in Member; returns `stopSync`. Idempotent. */
 export function startSync(): () => void {
@@ -126,13 +128,18 @@ export function requestSync(): void {
  * rejects with the `ApiError` when it can't be sent (server unreachable, `401`, …).
  */
 export async function flushOutbox(): Promise<void> {
-  // The engine pauses meanwhile, so it doesn't send the same operations alongside.
+  // The engine pauses meanwhile, so it doesn't send the same operations alongside. It resumes
+  // afterwards, except after a `401`: the session is gone, and the caller decides what follows.
   const wasStarted = started;
   stopSync();
+  let sessionEnded = false;
   try {
     await pushOutbox(() => true);
+  } catch (failure: unknown) {
+    sessionEnded = asApiError(failure).status === 401;
+    throw failure;
   } finally {
-    if (wasStarted) startSync();
+    if (wasStarted && !sessionEnded) startSync();
   }
 }
 
@@ -150,6 +157,17 @@ export function onRejection(listener: (rejection: Rejection) => void): () => voi
   rejectionListeners.add(listener);
   return () => {
     rejectionListeners.delete(listener);
+  };
+}
+
+/**
+ * Calls `listener` when a push or pull finds the session ended (`401`); returns the unsubscribe.
+ * The engine has stopped trying by then; the store and the Outbox stay for the same Member.
+ */
+export function onSessionEnded(listener: () => void): () => void {
+  sessionEndedListeners.add(listener);
+  return () => {
+    sessionEndedListeners.delete(listener);
   };
 }
 
@@ -177,7 +195,13 @@ async function run(runGeneration: number) {
     retryDelay = 0;
   } catch (failure: unknown) {
     if (!current()) return;
-    if (asApiError(failure).status !== 401) scheduleRetry();
+    if (asApiError(failure).status !== 401) {
+      scheduleRetry();
+      return;
+    }
+    sessionEndedListeners.forEach((listener) => {
+      listener();
+    });
   } finally {
     if (current()) running = false;
   }
