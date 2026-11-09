@@ -54,7 +54,7 @@ Whether a List is Private (seen only by its Owner) or Shared (seen by all Member
 _Avoid_: Family (as a visibility), public, personal, access
 
 **Owner** — «Владелец»:
-The Member a List belongs to; the only one who sees it when it is Private.
+The Member a List belongs to; the only one who sees it when it is Private, and the only one who changes its Visibility or deletes it. The other Member may still rename a Shared List and work with its Items.
 _Avoid_: Author, creator (for lists)
 
 **Creator** — «Добавил(а)»:

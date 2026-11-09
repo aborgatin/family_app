@@ -193,12 +193,12 @@ class ItemsSyncTest {
   @Test
   void anItemCreatedInADeletedListIsIgnored() throws Exception {
     UUID milk = UUID.randomUUID();
-    SyncRequests.push(boris, SyncRequests.delete("list", groceries));
+    SyncRequests.push(anna, SyncRequests.delete("list", groceries));
 
-    SyncRequests.push(anna, add(milk, groceries, "Молоко"))
+    SyncRequests.push(boris, add(milk, groceries, "Молоко"))
         .andExpect(jsonPath("$.results[*].status", contains("ignored")));
 
-    assertThat(SyncRequests.change(anna, 0, "item", milk)).isNull();
+    assertThat(SyncRequests.change(boris, 0, "item", milk)).isNull();
   }
 
   @Test

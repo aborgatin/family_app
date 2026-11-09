@@ -83,7 +83,8 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   and `visibility` (`PRIVATE` / `SHARED`); the pull also sends the server-set `ownerId` (the
   Member who pushed the create) and `createdAt`. Rules: `list.kind_immutable` (kind changed),
   `list.wish_shared_only` (a Private Wish list, on create or later), `list.owner_only` (a Member
-  other than the Owner changing `visibility`; either Member may rename or delete a Shared List),
+  other than the Owner changing `visibility` or deleting the List; either Member may rename a
+  Shared List),
   `list.not_found` (any operation on another Member's Private List), and the Child name limits on
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
   is `ignored` (delete wins). Deleting a List soft-deletes its Items in the same operation.

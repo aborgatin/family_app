@@ -35,10 +35,10 @@ class ListService implements SyncableTable {
 
   /**
    * An upsert creates the List (name, kind and Visibility required; the pushing Member becomes the
-   * Owner) or changes only the fields it carries; only the Owner changes Visibility ({@code
-   * list.owner_only}). A delete soft-deletes the List and its Items. Delete wins: anything on a
-   * deleted List, and deleting an unknown one, is ignored. Another Member's Private List is treated
-   * as unknown: {@code list.not_found} (A1).
+   * Owner) or changes only the fields it carries. Only the Owner changes Visibility or deletes the
+   * List ({@code list.owner_only}). A delete soft-deletes the List and its Items. Delete wins:
+   * anything on a deleted List, and deleting an unknown one, is ignored. Another Member's Private
+   * List is treated as unknown: {@code list.not_found} (A1).
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -48,7 +48,8 @@ class ListService implements SyncableTable {
         && !existing.get().visibleTo(operation.memberId())) {
       throw ListEntity.notFound(operation.id());
     }
-    return Outcome.deleteWins(operation, existing, this::upsert, this::delete);
+    return Outcome.deleteWins(
+        operation, existing, this::upsert, list -> delete(list, operation.memberId()));
   }
 
   private Outcome upsert(Operation operation, Optional<ListEntity> existing) {
@@ -59,7 +60,7 @@ class ListService implements SyncableTable {
     if (existing.isPresent()
         && existing.get().visibility() != details.visibility()
         && !existing.get().ownerId().equals(operation.memberId())) {
-      throw new ApiException(HttpStatus.FORBIDDEN, "list.owner_only");
+      throw ownerOnly();
     }
     if (details.kind() == ListKind.WISH && details.visibility() == Visibility.PRIVATE) {
       throw new ApiException(HttpStatus.BAD_REQUEST, "list.wish_shared_only");
@@ -85,11 +86,18 @@ class ListService implements SyncableTable {
     return Outcome.APPLIED;
   }
 
-  private Outcome delete(ListEntity list) {
+  private Outcome delete(ListEntity list, UUID memberId) {
+    if (!list.ownerId().equals(memberId)) {
+      throw ownerOnly();
+    }
     list.markDeleted();
     lists.saveAndFlush(list);
     items.markDeletedInList(list.id());
     return Outcome.APPLIED;
+  }
+
+  private static ApiException ownerOnly() {
+    return new ApiException(HttpStatus.FORBIDDEN, "list.owner_only");
   }
 
   /** The List's fields after the operation: the carried ones over what is stored. */
