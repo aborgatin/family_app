@@ -2,6 +2,6 @@
 // Features read and write synced data only through these; never Dexie or the sync API directly.
 export { startSync, stopSync, requestSync, type Rejection } from './engine';
 export { flushOutbox, stopSyncAndWipe } from './engine';
-export { claimLocalStore } from './localStore';
+export { claimLocalStore, ownerCopy, saveOwnerCopy } from './localStore';
 export { useRows, upsertRow, deleteRow, useSaveRejected } from './rows';
 export type { Row, SyncedTable } from './localStore';
