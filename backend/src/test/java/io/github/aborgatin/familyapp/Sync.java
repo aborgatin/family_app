@@ -1,4 +1,4 @@
-package io.github.aborgatin.familyapp.family;
+package io.github.aborgatin.familyapp;
 
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,12 +16,12 @@ import org.springframework.test.web.servlet.ResultActions;
  * /api/sync/push} and {@code GET /api/sync/pull}, and the two logged-in devices most sync tests
  * start from.
  */
-final class Sync {
+public final class Sync {
 
   private Sync() {}
 
   /** An {@code upsert} operation carrying {@code fieldsJson} (a JSON object). */
-  static String upsert(String table, UUID id, String fieldsJson) {
+  public static String upsert(String table, UUID id, String fieldsJson) {
     return """
         {"table":"%s","id":"%s","op":"upsert","fields":%s}
         """
@@ -29,7 +29,7 @@ final class Sync {
   }
 
   /** A {@code delete} operation. */
-  static String delete(String table, UUID id) {
+  public static String delete(String table, UUID id) {
     return """
         {"table":"%s","id":"%s","op":"delete"}
         """
@@ -37,18 +37,18 @@ final class Sync {
   }
 
   /** Pushes the operations, in this order, as one push. */
-  static ResultActions push(Browser device, String... operations) throws Exception {
+  public static ResultActions push(Browser device, String... operations) throws Exception {
     return device.postJson(
         "/api/sync/push", "{\"operations\":[" + String.join(",", operations) + "]}");
   }
 
   /** Pulls the changes since {@code version}. */
-  static ResultActions pull(Browser device, long version) throws Exception {
+  public static ResultActions pull(Browser device, long version) throws Exception {
     return device.get("/api/sync/pull?since=" + version);
   }
 
   /** The high-water Version a pull or push answered with. */
-  static long version(ResultActions result) throws Exception {
+  public static long version(ResultActions result) throws Exception {
     Number version =
         JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.version");
     return version.longValue();
@@ -59,7 +59,7 @@ final class Sync {
    * version}, {@code deleted}, {@code fields}), or {@code null} when it returns none.
    */
   @Nullable
-  static Map<String, Object> change(Browser device, long version, String table, UUID id)
+  public static Map<String, Object> change(Browser device, long version, String table, UUID id)
       throws Exception {
     String body = pull(device, version).andReturn().getResponse().getContentAsString();
     List<Map<String, Object>> found =
@@ -70,13 +70,13 @@ final class Sync {
   /** The fields of the row as a first pull (since 0) returns them; {@code null} when absent. */
   @Nullable
   @SuppressWarnings("unchecked") // JsonPath returns the JSON object as a Map.
-  static Map<String, Object> fields(Browser device, String table, UUID id) throws Exception {
+  public static Map<String, Object> fields(Browser device, String table, UUID id) throws Exception {
     Map<String, Object> change = change(device, 0, table, id);
     return change == null ? null : (Map<String, Object>) change.get("fields");
   }
 
   /** A device on which Anna has just set up a fresh installation (she is its first Member). */
-  static Browser bootstrapAnna(MockMvc mvc) throws Exception {
+  public static Browser bootstrapAnna(MockMvc mvc) throws Exception {
     Browser anna = new Browser(mvc);
     anna.openApp();
     anna.postJson(
@@ -90,12 +90,13 @@ final class Sync {
   }
 
   /** Adds Boris as a second Member and returns a device he is logged in on. */
-  static Browser loginBoris(MockMvc mvc, JdbcTemplate jdbc) throws Exception {
+  public static Browser loginBoris(MockMvc mvc, JdbcTemplate jdbc) throws Exception {
     FreshInstallation.addMember(jdbc, "boris@example.com", "boris-pass", "Борис", "MASCULINE");
     Browser boris = new Browser(mvc);
     boris.openApp();
     boris
-        .postJson("/api/auth/login", LoginTest.login("boris@example.com", "boris-pass"))
+        .postJson(
+            "/api/auth/login", "{\"email\":\"boris@example.com\",\"password\":\"boris-pass\"}")
         .andExpect(status().isOk());
     return boris;
   }

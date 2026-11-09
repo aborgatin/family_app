@@ -1,4 +1,4 @@
-package io.github.aborgatin.familyapp.family;
+package io.github.aborgatin.familyapp;
 
 import jakarta.servlet.http.Cookie;
 import java.util.LinkedHashMap;
@@ -17,7 +17,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
  * <p>Each device has its own client IP, so failed logins in one test never count towards another
  * test's per-IP login limit (the counters live in memory for the whole cached test context).
  */
-final class Browser {
+public final class Browser {
 
   private static final AtomicInteger nextDevice = new AtomicInteger(1);
 
@@ -25,56 +25,56 @@ final class Browser {
   private final String ip;
   private final Map<String, Cookie> cookies = new LinkedHashMap<>();
 
-  Browser(MockMvc mvc) {
+  public Browser(MockMvc mvc) {
     this(mvc, newDeviceIp());
   }
 
   /** A device at a given client IP, e.g. a second device on the same home network. */
-  Browser(MockMvc mvc, String ip) {
+  public Browser(MockMvc mvc, String ip) {
     this.mvc = mvc;
     this.ip = ip;
   }
 
   /** A client IP no other {@code Browser} in this JVM has had. */
-  static String newDeviceIp() {
+  public static String newDeviceIp() {
     int n = nextDevice.getAndIncrement();
     return "10." + ((n >> 16) & 0xff) + "." + ((n >> 8) & 0xff) + "." + (n & 0xff);
   }
 
-  String ip() {
+  public String ip() {
     return ip;
   }
 
   /** Opens the app: {@code GET /api/auth/session}, which issues the CSRF cookie. */
-  ResultActions openApp() throws Exception {
+  public ResultActions openApp() throws Exception {
     return get("/api/auth/session");
   }
 
-  ResultActions get(String path) throws Exception {
+  public ResultActions get(String path) throws Exception {
     return perform(MockMvcRequestBuilders.get(path));
   }
 
-  ResultActions postJson(String path, String json) throws Exception {
+  public ResultActions postJson(String path, String json) throws Exception {
     return write(
         MockMvcRequestBuilders.post(path).contentType(MediaType.APPLICATION_JSON).content(json));
   }
 
-  ResultActions patchJson(String path, String json) throws Exception {
+  public ResultActions patchJson(String path, String json) throws Exception {
     return write(
         MockMvcRequestBuilders.patch(path).contentType(MediaType.APPLICATION_JSON).content(json));
   }
 
-  ResultActions putJson(String path, String json) throws Exception {
+  public ResultActions putJson(String path, String json) throws Exception {
     return write(
         MockMvcRequestBuilders.put(path).contentType(MediaType.APPLICATION_JSON).content(json));
   }
 
-  ResultActions delete(String path) throws Exception {
+  public ResultActions delete(String path) throws Exception {
     return write(MockMvcRequestBuilders.delete(path));
   }
 
   /** A {@code POST} without a body. */
-  ResultActions post(String path) throws Exception {
+  public ResultActions post(String path) throws Exception {
     return write(MockMvcRequestBuilders.post(path));
   }
 
@@ -86,12 +86,12 @@ final class Browser {
     return perform(request);
   }
 
-  String cookie(String name) {
+  public String cookie(String name) {
     Cookie cookie = cookies.get(name);
     return cookie == null ? null : cookie.getValue();
   }
 
-  void setCookie(String name, String value) {
+  public void setCookie(String name, String value) {
     cookies.put(name, new Cookie(name, value));
   }
 

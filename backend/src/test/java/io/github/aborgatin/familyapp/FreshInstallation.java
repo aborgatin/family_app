@@ -1,4 +1,4 @@
-package io.github.aborgatin.familyapp.family;
+package io.github.aborgatin.familyapp;
 
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -9,18 +9,18 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
  * no sessions) so each test starts from the state a new Family sees. Only fixture set-up touches
  * tables directly; assertions go through the HTTP API (T1).
  */
-final class FreshInstallation {
+public final class FreshInstallation {
 
   private FreshInstallation() {}
 
-  static void reset(JdbcTemplate jdbc) {
+  public static void reset(JdbcTemplate jdbc) {
     jdbc.execute("TRUNCATE spring_session CASCADE");
     jdbc.execute("TRUNCATE child");
     removeMembersOnly(jdbc);
   }
 
   /** Removes every Member but leaves existing sessions in place. */
-  static void removeMembersOnly(JdbcTemplate jdbc) {
+  public static void removeMembersOnly(JdbcTemplate jdbc) {
     jdbc.execute("TRUNCATE member CASCADE");
   }
 
@@ -29,7 +29,7 @@ final class FreshInstallation {
    * needs. (The Defaults themselves are checked on a really fresh database by {@code
    * ChildFieldDefaultsTest}.)
    */
-  static void removeChildFields(JdbcTemplate jdbc) {
+  public static void removeChildFields(JdbcTemplate jdbc) {
     jdbc.execute("TRUNCATE child_field");
   }
 
@@ -37,7 +37,7 @@ final class FreshInstallation {
    * Adds a Member who can log in with {@code password}, for tests that need a second Member without
    * going through an Invite.
    */
-  static void addMember(
+  public static void addMember(
       JdbcTemplate jdbc,
       String email,
       String password,

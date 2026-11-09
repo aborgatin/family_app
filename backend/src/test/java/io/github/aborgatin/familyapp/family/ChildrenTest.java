@@ -5,7 +5,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.aborgatin.familyapp.Browser;
+import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
+import io.github.aborgatin.familyapp.Sync;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;

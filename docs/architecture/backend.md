@@ -402,7 +402,8 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   `PostgresTestcontainer` provides PostgreSQL 18 through `@ServiceConnection`; Spring reuses one
   container per test context. Flyway runs as in production. Assertions go through HTTP only; JDBC is
   used for fixture set-up.
-- Helpers in `src/test/java/io/github/aborgatin/familyapp/family/`:
+- Shared helpers, public, in the root test package `src/test/java/io/github/aborgatin/familyapp/`
+  (every module's tests import them):
   - `Browser`: one device on MockMvc. Keeps cookies, sends `X-XSRF-TOKEN` on writes, and has its own
     client IP (`new Browser(mvc)`; `new Browser(mvc, ip)` to share one; `Browser.newDeviceIp()`).
     Methods: `openApp()` (`GET /api/auth/session`), `get`, `post(path)` (no body), `postJson`,
@@ -411,10 +412,10 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
     (cascading to Invites and resets) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
     `addMember(jdbc, email, password, name, gender)`.
-- `Sync` (same folder): `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
-  `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),
-  `fields(device, table, id)` (as a first pull returns them), `version(result)`, and the two
-  devices most sync tests start from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.
+  - `Sync`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
+    `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),
+    `fields(device, table, id)` (as a first pull returns them), `version(result)`, and the two
+    devices most sync tests start from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.
 - Concurrency (`PullNeverSkipsASlowerWriteTest`, `MemberWritesTakeTheFamilyLockTest`): a raw JDBC
   connection holds a row lock, a request runs on another thread, and the test waits on
   `pg_stat_activity` (`wait_event_type = 'Lock'`) before going on.
