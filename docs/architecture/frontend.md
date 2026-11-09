@@ -1,6 +1,7 @@
 # Frontend
 
-What exists in `/web` after Spec #1 (M0 + M1) and the M1.5 UI foundation (spec #35). Rules:
+What exists in `/web` after Spec #1 (M0 + M1), the M1.5 UI foundation (spec #35) and the M2 sync
+core (spec #3, ticket #52). Rules:
 [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md) (M3, I2, I3, S4, T1, U1). Look, tokens and
 component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](backend.md).
 
@@ -11,7 +12,8 @@ React 19, TypeScript 6 (`strict`, `noUncheckedIndexedAccess`), Vite 8, `vite-plu
 (`@tailwindcss/vite`), Radix primitives (`@radix-ui/react-popover`, `-dialog`, `-context-menu`, only inside
 `shared/ui`),
 `lucide-react` (only inside `shared/ui/Icon.tsx`), Vitest 5 + Testing
-Library + MSW 3, ESLint 10 flat config, Prettier 3. Node 22 or newer.
+Library + MSW 3 + `fake-indexeddb`, Dexie 4 (local store), ESLint 10 flat config, Prettier 3.
+Node 22 or newer.
 
 Scripts (`web/package.json`): `dev`, `build` (does not typecheck), `typecheck` (`tsc --noEmit`),
 `lint` (`--max-warnings 0`), `format` / `format:check`, `test` (`vitest run`). CI job `web` runs
@@ -42,6 +44,8 @@ web/src/
     api/                API client, error-code mapping, form error helpers
     i18n/               i18next set-up, typed keys, locales/ru.json
     load/               useLoad(): load / failed / retry for anything fetched once
+    sync/               local store (Dexie), sync engine, useRows / upsertRow / deleteRow /
+                        useSaveRejected, startSync / stopSync
     palette/            Child color palette (childColors.json)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
@@ -50,7 +54,7 @@ web/src/
                         LoadingRow, EditableRow, SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
-  test/                 renderApp, MSW server, fixtures, setup
+  test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
 ```
 
 - Each feature's public surface is its `index.ts`. Other code imports a feature only as
@@ -140,37 +144,61 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 - `failureMessages(error, fields, choiceFields)` splits a failed save into per-field messages for
   the form's own fields, or one form-level `ErrorMessage` when none applies.
 
+## Local store and sync
+
+`@/shared/sync` (`web/src/shared/sync/`; semantics in [`sync.md`](sync.md#client)) is the only
+code that touches IndexedDB or the sync API:
+
+- `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
+  (`member`, `child`), `outbox` (`++seq`) and `meta` (the stored Version). Internal to the folder.
+- `engine.ts`: `startSync()` / `stopSync()` / `requestSync()`, `onRejection(listener)`. `AuthGuard`
+  starts it while a Member is logged in (keyed on the Member id) and stops it otherwise.
+- `rows.ts`, what features use:
+  - `useRows(table)`: every local row, live (Dexie `liveQuery`), `undefined` until the first read;
+    unordered, untyped (`Row`): the feature sorts and casts (`as Child[]`);
+  - `upsertRow(table, id, fields)`: create (all required fields) or change only the given fields;
+    `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
+    once, online or not;
+  - `useSaveRejected(table)` → `{rejected, clear}`: true after the server rejected an operation on
+    that table while the screen was open; the feature shows «Не удалось сохранить»
+    (`sync.saveRejected`) once, in the footer where it shows save failures, and clears it on the
+    Member's next change.
+
+**Adding a syncable table** on the client: add the name to `SYNCED_TABLES` and declare it in a new
+`this.version(n).stores({...})` in `localStore.ts` (keep the older versions as they are, never drop
+`outbox`); the pull fills it, and the feature's hook reads it with `useRows` and writes with
+`upsertRow` / `deleteRow`. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
+
 ## Data access
 
-Each data feature has one hook that is its only data access. Components never call `api` or the
-`*Api.ts` files:
+Each data feature has one hook that is its only data access. Components never call `api`, the
+`*Api.ts` files, Dexie or `@/shared/sync`'s writers directly:
 
-- `useChildren()` → `{load, retry, save(id, details), remove(id)}`; `newChildId()` uses
-  `crypto.randomUUID()`. The «Новый ребёнок» sheet gets its id once when it opens, so a retried save repeats the same
-  `PUT`. `save` replaces the whole Child (the API's `PUT`).
+- `useChildren()` → `{load, retry, save(id, details), remove(id), saveFailure}` on the local store:
+  `load` is `loading` until the first local read, then `ready` with the Children in order
+  (birthday, then name by `Intl.Collator('ru')`, then id); it never fails, and `retry` does
+  nothing. `save` resolves at once, offline too, and sends only the fields that differ from the
+  Child as this hook first saw it or last saved it (the screens pass the whole Child), so a change
+  the other Member made meanwhile stays. `newChildId()` uses `crypto.randomUUID()`; the
+  «Новый ребёнок» sheet gets its id once when it opens. `saveFailure` is the «Не удалось
+  сохранить» message after a rejection.
 - `useChildFields()` → `{load, retry, add(id, name, valueType), rename(field, name),
-move(field, to), remove(field)}`; `newChildFieldId()` makes the id once when the «Новое поле»
-  sheet opens, so a retried save repeats the same `PUT`. `move` takes the field's index after the
-  move; `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or
-  one past either end, and only that field is written. A new field goes one past the last.
-  Ordering is `position`, then id, as on the server.
-- `useMembers()` → `{load, retry, replaced}`.
-- `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`. Lists
-  load from the server each time Settings opens; meanwhile each section shows a `LoadingRow`. Writes reject with `ApiError` and leave the list
-  unchanged.
+move(field, to), remove(field)}` (still online REST until its ticket); `newChildFieldId()` makes
+  the id once when the «Новое поле» sheet opens, so a retried save repeats the same `PUT`. `move`
+  takes the field's index after the move; `positionAfterMove(fields, id, to)` gives it the midpoint
+  between its new neighbours, or one past either end, and only that field is written. A new field
+  goes one past the last. Ordering is `position`, then id, as on the server.
+- `useMembers()` → `{load, retry, replaced}` (online REST).
+- `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`.
 
-The load / failed / retry part is shared: `useLoad(fetch, key?)` from `@/shared/load` returns
-`{load, retry, update}`. It fetches on mount and when `key` changes, drops answers that arrive
-after unmounting, and `update(change)` edits the loaded value after a write. `useMembers`,
-`useChildren`, `useChildFields`, `InvitesSettings` and `AuthGuard` use it, and
-`features/auth/useLinkCheck` builds the Invite and password reset link check on it. Components of
-Children and Child fields still go only through `useChildren()` / `useChildFields()`; `useLoad` is
-an implementation detail of those hooks, so M2 can replace it there.
+The load / failed / retry part of REST-backed data is shared: `useLoad(fetch, key?)` from
+`@/shared/load` returns `{load, retry, update}`. It fetches on mount and when `key` changes, drops
+answers that arrive after unmounting, and `update(change)` edits the loaded value after a write.
+`useMembers`, `useChildFields`, `InvitesSettings` and `AuthGuard` use it, and
+`features/auth/useLinkCheck` builds the Invite and password reset link check on it.
 
-Children and Child fields are online-only REST in M1, a planned exception to S4. M2 swaps
-`useChildren()` / `useChildFields()` onto the local store + Outbox without touching components
-(see [`sync.md`](sync.md)). Auth, Invites and Member account changes stay online-only REST
-permanently (S4 exception).
+Auth, Invites and Member account changes stay online-only REST permanently (S4 exception); Child
+fields move onto the local store in their own M2 ticket.
 
 `crypto.randomUUID()` needs a secure context: HTTPS, or `localhost` in development.
 
@@ -233,7 +261,8 @@ Everything visual is specified in [`design.md`](../design.md). In short:
   with none (auth screens, the start-up error in `AuthGuard`) `AppShell` shows the globe in the
   same top-right spot. `AppShell` also holds the `role="status"` message announcing «Нет связи с
   сервером» / «Связь с сервером восстановлена». Nothing is disabled offline; saves fail with their
-  usual message. M2 changes its meaning to "changes will sync later".
+  usual message, except synced data (Children), which saves locally: there the globe is the only
+  sign that changes are waiting to be sent.
 - Settings «Оформление» (`features/settings/AppearanceSection`, `themeChoice.ts`) writes the
   choice to `localStorage` `theme` (removes it for «Авто») and dispatches
   `new StorageEvent('storage', {key: 'theme'})`, so the theme script applies it at once.
@@ -270,9 +299,10 @@ or before it; `i18n` plurals `children.age.years_*` / `months_*`, computed from 
 date) and a chevron to `/settings/children/:id` (`childSettingsPath(id)`). Edit mode deletes only
 (Children have no order); a swipe and right-click delete too; each asks first. «Добавить ребёнка»
 (the section's `after` row) opens `NewChildSheet`: a `Sheet` «Новый ребёнок» with the same rows
-as the Child screen (`ChildRows`), name and colour required, saved only with «Готово»; on success
-the Child appears in the list in the API's order. With no Children the footer says «Детей пока
-нет».
+as the Child screen (`ChildRows`), name and colour required, saved only with «Готово» (at once, also offline);
+the Child appears in the list in order. With no Children the footer says «Детей пока нет». A
+rejected change shows «Не удалось сохранить» in the «Дети» footer (a rejected new Child leaves the
+list).
 
 «Поля профиля» (`ChildFieldsSettings`) is an edit-mode list of `EditableRow`s inside a
 `SortableList`: each row's name is a text field (`input`, `useAutoSaveText`, named «Название поля
@@ -292,9 +322,10 @@ The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_
 «Настройки». It loads through `useChildren()` like the list (so a deep link works) and shows
 `ChildRows`: Имя (`InputRow`, `useAutoSaveText`; empty is refused without a request), Цвет
 (`ColorChoice`, `useAutoSaveChoice`), День рождения (`DateRow`, `useAutoSaveText` with `''` for
-none). Each change `PUT`s the whole Child on top of what was last saved. Then a red «Удалить
-ребёнка» `ConfirmRow`: the `ActionSheet` «Удалить „Маша“?», then back to Settings (replacing the history
-entry); a failure stays and shows in that group's footer. An unknown id shows «Такого ребёнка
+none). Each change saves only that field through `useChildren().save` (local store + Outbox), so
+it shows at once offline too; a rejection shows «Не удалось сохранить» in the rows' footer and the
+rows show the server's value again. Then a red «Удалить ребёнка» `ConfirmRow`: the `ActionSheet`
+«Удалить „Маша“?», then back to Settings (replacing the history entry). An unknown id shows «Такого ребёнка
 нет: возможно, его удалили.».
 
 ## PWA
@@ -345,12 +376,25 @@ a Vite native-config-loader warning).
 - The API is mocked at the network layer by MSW: `server` from `@/test/server`, handlers added per
   test with `server.use(...)`. `src/test/setup.ts` starts it with `onUnhandledFrame: 'error'`
   (MSW 3's name for `onUnhandledRequest`), so any request without a handler fails the test.
+- The sync API is always answered by the fake sync server `syncServer` (`@/test/syncServer`,
+  installed in `server.ts`, emptied after each test). It behaves like the real one (Versions,
+  per-field Last write wins, delete wins, tombstones): `seed(table, rows)`, `change(table, id,
+fields | 'deleted')` (the other Member's change), `row(table, id)` (the server's copy),
+  `operations(table)` / `pushes` (with `csrf`) / `pulls`, `goOffline()` / `goOnline()` (MSW network
+  error), `rejectWhen(op => …)`, `holdPulls()` (returns `release`). Tests trigger a reconnect with
+  `window.dispatchEvent(new Event('online'))` and the foreground with a `visibilitychange`
+  (after setting `document.visibilityState` to `visible`: jsdom says `prerender`).
+- `fake-indexeddb/auto` gives jsdom IndexedDB, so the real Dexie store runs; `setup.ts` stops the
+  engine and empties the store after each test. Rendering the app twice in one test is an app
+  restart: the second render reads what the first left in the store.
+- `FakeEventSource` (`@/test/eventSource`) is the global `EventSource` in every test:
+  `FakeEventSource.latest()`, `.open()`, `.emit(type, data)`, `.fail()`, `.closed`.
 - Every `renderApp` test must mock `GET /api/auth/session` (`sessionHandler({...}).handler`; its
   `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`,
-  `/api/children`, `/api/child-fields` and `/api/invites`.
-- Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya`; Child fields
-  `weight`, `height`; handlers `membersHandler`, `childrenHandler`, `childFieldsHandler`,
-  `invitesHandler`, `sessionHandler`.
+  `/api/child-fields` and `/api/invites`.
+- Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
+  `syncServer.seed('child', …)`); Child fields `weight`, `height`; handlers `membersHandler`,
+  `childFieldsHandler`, `invitesHandler`, `sessionHandler`.
 - Query by role and label; assert on the Russian text the user sees (T1). Set
   `document.cookie = 'XSRF-TOKEN=…'` to check the CSRF header.
 - To test copying, stub `ClipboardItem` (`vi.stubGlobal`) and `navigator.clipboard` (`write`,

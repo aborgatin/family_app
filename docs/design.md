@@ -96,7 +96,8 @@ spacing `n`).
 ## Saving and deleting
 
 - **Auto-save** for editing what exists: text saves on blur or Enter, a choice saves on tap. Esc
-  puts the saved value back. A spinner appears at the right of the row only after ~400 ms. No
+  puts the saved value back. When the saved value changes from elsewhere (a pull, or the server's
+  copy after a rejected change), a row the Member isn't editing shows it. A spinner appears at the right of the row only after ~400 ms. No
   success toast or checkmark.
 - **On failure** the typed value stays; a red message goes in the group footer under the row
   («Не удалось сохранить. Проверьте соединение.») with «Повторить». A validation error (an empty
