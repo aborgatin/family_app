@@ -34,9 +34,10 @@ class ListService implements SyncableTable {
 
   /**
    * An upsert creates the List (name, kind and Visibility required; the pushing Member becomes the
-   * Owner) or changes only the fields it carries; a delete soft-deletes. Delete wins: anything on a
-   * deleted List, and deleting an unknown one, is ignored. Another Member's Private List is treated
-   * as unknown: {@code list.not_found} (A1).
+   * Owner) or changes only the fields it carries; only the Owner changes Visibility ({@code
+   * list.owner_only}). A delete soft-deletes. Delete wins: anything on a deleted List, and deleting
+   * an unknown one, is ignored. Another Member's Private List is treated as unknown: {@code
+   * list.not_found} (A1).
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -58,6 +59,11 @@ class ListService implements SyncableTable {
     ListDetails details = changed(operation, existing).validate();
     if (existing.isPresent() && existing.get().kind() != details.kind()) {
       throw new ApiException(HttpStatus.CONFLICT, "list.kind_immutable");
+    }
+    if (existing.isPresent()
+        && existing.get().visibility() != details.visibility()
+        && !existing.get().ownerId().equals(operation.memberId())) {
+      throw new ApiException(HttpStatus.FORBIDDEN, "list.owner_only");
     }
     if (details.kind() == ListKind.WISH && details.visibility() == Visibility.PRIVATE) {
       throw new ApiException(HttpStatus.BAD_REQUEST, "list.wish_shared_only");
