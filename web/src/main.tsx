@@ -1,3 +1,4 @@
+// [temp] #51 CI path filter verification; do not merge.
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
