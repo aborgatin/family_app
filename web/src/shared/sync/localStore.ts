@@ -11,7 +11,7 @@ import Dexie, { type Table } from 'dexie';
  */
 
 /** The syncable tables the client keeps, named as the server's sync API names them. */
-export const SYNCED_TABLES = ['member', 'child', 'child_field'] as const;
+export const SYNCED_TABLES = ['member', 'child', 'child_field', 'list'] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 
 export function isSyncedTable(name: string): name is SyncedTable {
@@ -46,7 +46,7 @@ class LocalStore extends Dexie {
   constructor() {
     super('family-app');
     this.version(1).stores({ member: 'id', child: 'id', outbox: '++seq', meta: 'key' });
-    this.version(2).stores({ child_field: 'id' });
+    this.version(2).stores({ child_field: 'id', list: 'id' });
   }
 
   rows(table: SyncedTable): Table<Row, string> {

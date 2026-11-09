@@ -87,7 +87,7 @@ describe('First Member registration', () => {
     await fillForm(user);
     await user.type(screen.getByLabelText('Имя'), '{Enter}');
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
   });
 
   it('requires the «Пол» choice before sending', async () => {
@@ -124,7 +124,7 @@ describe('First Member registration', () => {
     await fillForm(user);
     await submit(user);
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
     expect(received).toEqual({
       body: {
         email: 'Anna@Example.com',
@@ -238,7 +238,7 @@ describe('Route guard', () => {
 
     renderApp('/setup');
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Регистрация первого взрослого' })).toBeNull();
   });
 
@@ -264,7 +264,7 @@ describe('Route guard', () => {
     await user.click(screen.getByRole('button', { name: 'Повторить' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Здесь пока пусто')).toBeInTheDocument();
+      expect(screen.getByText('Списков пока нет')).toBeInTheDocument();
     });
   });
 });

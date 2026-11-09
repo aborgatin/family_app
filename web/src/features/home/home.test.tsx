@@ -6,13 +6,13 @@ import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
 describe('Home', () => {
-  it('shows the large title «Семья» and the empty state', async () => {
+  it('shows the large title «Семья» and the Lists', async () => {
     server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
 
     renderApp('/');
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Семья' })).toBeInTheDocument();
-    expect(screen.getByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Списки' })).toBeInTheDocument();
   });
 
   it('opens Settings with the gear button in the nav bar', async () => {

@@ -35,7 +35,9 @@ web/src/
     auth/               session, guard, setup (bootstrap), login, LogoutSection, Invite acceptance,
                         password reset; LinkScreen (link-check states); GrammaticalGender (type)
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
-    home/               HomePage: Page «Семья», empty state, gear → Settings; HOME_PATH
+    home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
+    lists/              ListsSection («Списки» on Home), NewListSheet, ListPage (LIST_PATH),
+                        listTypes (kinds, Visibility, kind texts), useLists()
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
@@ -87,6 +89,7 @@ frame around every screen and the place a sidebar goes later.
 | `/invite/:token`         | `InvitePage`        | always (public)                |
 | `/reset-password/:token` | `ResetPasswordPage` | always (public)                |
 | `/`                      | `HomePage`          | logged in                      |
+| `/lists/:id`             | `ListPage`          | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
@@ -150,9 +153,9 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`; `child_field` came with store version 2), `outbox` (`++seq`)
-  and `meta` (the stored Version and the owner: the Member whose data it holds). Internal to the
-  folder, except `claimLocalStore(memberId)` (below).
+  (`member`, `child`, `child_field`, `list`; `child_field` and `list` came with store version 2),
+  `outbox` (`++seq`) and `meta` (the stored Version and the owner: the Member whose data it holds).
+  Internal to the folder, except `claimLocalStore(memberId)` (below).
   `wipeLocalStore()` clears every table Dexie knows (`localStore.tables`), so a table added later
   is wiped without changes there.
 - `engine.ts`: `startSync()` / `stopSync()` / `requestSync()`, `onRejection(listener)`. `AuthGuard`
@@ -205,6 +208,15 @@ Each data feature has one hook that is its only data access. Components never ca
   `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or one past
   either end, so a reorder is a single-record change. A new field goes one past the last.
   Ordering is `position`, then id. `saveFailure` is «Не удалось сохранить» after a rejection.
+- `useLists()` → `{load, save(id, details), saveFailure}` on the local store, like
+  `useChildren()`: `load` is `ready` with every List the pull brought (never the other Member's
+  Private ones: the server filters them), by name with `Intl.Collator('ru')`, then id. `save`
+  creates (all of `name`, `kind`, `visibility`) or sends only the fields that differ from the
+  current local row. `ownerId` and `createdAt` are set by the server and absent locally until the
+  pull after the create. `newListId()` makes the id once when «Новый список» opens. Used by
+  `ListsSection` (Home) and `ListPage` (title and the kind's empty state until Items arrive in
+  #57; «Такого списка нет: возможно, его удалили.» for an unknown id). Kind texts (segment,
+  Home subtitle, empty state) are in `KIND_TEXTS`.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`.
 
@@ -416,6 +428,8 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
 - Every `renderApp` test must mock `GET /api/auth/session` (`sessionHandler({...}).handler`; its
   `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`
   and `/api/invites`.
+- Lists tests (`lists/lists.test.tsx`) build their rows inline and seed them with
+  `syncServer.seed('list', …)`; the fake server doesn't filter by Visibility (a backend concern).
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,

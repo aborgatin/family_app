@@ -322,7 +322,10 @@ One of two or three choices, as an iOS segmented control in a row of a `GroupedS
 Touch: 32px segments drawn in a 48px row, each segment's target reaching the row's top and
 bottom edges (48px tall). Fine pointer: 24px segments. Its `name` links it to footer messages like an `InputRow`.
 Auto-saved (`useAutoSaveChoice()`): each choice saves at once, so arrow keys save on every move;
-`busy` shows the `Spinner` after the label.
+`busy` shows the `Spinner` after the label. `labelHidden` keeps the label for screen readers only
+and gives the segments the whole row, for a choice whose options say it all (Visibility
+«Личный» / «Общий» in «Новый список», named «Видимость»); not for auto-saved rows yet, since the
+spinner sits with the label.
 
 ### ListRow
 

@@ -18,6 +18,7 @@ table adds it here.
 | `member`      | `V1__family_member_session.sql` | server, at registration (`Member` constructor) | M1    |
 | `child`       | `V3__child.sql`                 | client (`crypto.randomUUID()`)                 | M1    |
 | `child_field` | `V4__child_field.sql`           | client; Default rows by the migration          | M1    |
+| `list`        | `V5__list.sql`                  | client (`crypto.randomUUID()`)                 | M2    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -46,7 +47,7 @@ repositories extend Spring Data's bare `Repository` and declare no delete method
 deletes a Member yet; `member.deleted` exists, and login, session and `MemberService` lookups
 ignore deleted Members. Email uniqueness counts deleted Members too.
 
-**Client UUIDs** (S3). Children and Child fields are created with the id the client chose; the
+**Client UUIDs** (S3). Children, Child fields and Lists are created with the id the client chose; the
 server never generates one for them. Members get theirs from the server at registration.
 
 **Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move is one upsert carrying
@@ -76,6 +77,12 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   carrying another one is rejected with `child_field.value_type_immutable`.
 - Codes of the push itself: `sync.table_unknown` (`params.table`), `sync.read_only` (a pull-only
   table such as `member`), `request.invalid` (no valid id or `op`).
+- **Lists** (`list`, ticket #55): an upsert carries `name`, `kind` (`SHOPPING` / `TODO` / `WISH`)
+  and `visibility` (`PRIVATE` / `SHARED`); the pull also sends the server-set `ownerId` (the
+  Member who pushed the create) and `createdAt`. Rules: `list.kind_immutable` (kind changed),
+  `list.wish_shared_only` (a Private Wish list, on create or later), `list.not_found` (any
+  operation on another Member's Private List), and the Child name limits on `name`
+  (`validation.failed`).
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
   reach other devices through the pull.
 
@@ -92,6 +99,10 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   changed. The client stores it and asks from there next time.
 - All tables are read in one `REPEATABLE READ` read-only transaction, so `H` covers exactly the
   snapshot that was read.
+- **Privacy (A1).** Another Member's Private List is never sent with its fields: a change to it
+  comes as a tombstone (id only), so a List made Private disappears from the other Member's phone,
+  and a first sync leaves it out. Operations on it are rejected with `list.not_found`, as if it
+  didn't exist.
 
 ## Versions commit in order
 
@@ -139,8 +150,9 @@ auth.required` without one) tells open apps when to pull:
 ## Client
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
-  table (`member`, `child`, `child_field` so far), the Outbox (`++seq`) and the stored Version.
-  The app asks for persistent storage at start. Dexie upgrades keep every table not dropped, so the Outbox survives
+  table (`member`, `child`, `child_field`, `list` so far), the Outbox (`++seq`) and the stored
+  Version. The app asks for persistent storage at start. Dexie upgrades keep every table not
+  dropped, so the Outbox survives
   store upgrades.
 - **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
   appended to the Outbox in the same transaction, then the engine is asked to sync.
@@ -166,5 +178,5 @@ auth.required` without one) tells open apps when to pull:
   pushes the Outbox first; when it can't be sent the Member is warned that the unsent changes will
   be lost (confirm or cancel); after the server's logout every table of the store (rows, Outbox,
   meta) is wiped, so the next person on the device sees none of the Member's data.
-- Children and Child fields are on the store, and live updates (`changed` → pull) run. Lists and
-  Items are the next M2 ticket.
+- Children, Child fields and Lists are on the store, and live updates (`changed` → pull) run.
+  Items and the List screen are the next M2 tickets.

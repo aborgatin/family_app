@@ -5,6 +5,18 @@
 export const hang = (part) =>
   `const f = window.fetch; window.fetch = (i, o) => String(i && i.url ? i.url : i).includes('${part}') ? new Promise(() => {}) : f(i, o);`;
 
+/** Init script: every sync pull answers without Lists, as if the Family had none yet. */
+export const noLists = `
+  const f = window.fetch;
+  window.fetch = async (i, o) => {
+    const r = await f(i, o);
+    if (!String(i && i.url ? i.url : i).includes('/api/sync/pull')) return r;
+    const body = await r.json();
+    body.changes = body.changes.filter((c) => c.table !== 'list');
+    return new Response(JSON.stringify(body), { status: r.status, headers: r.headers });
+  };
+`;
+
 /** Init script: the clipboard refuses every write (the copy-failed fallback). */
 export const failClipboard = `
   Object.defineProperty(Navigator.prototype, 'clipboard', { configurable: true, get() { return {
