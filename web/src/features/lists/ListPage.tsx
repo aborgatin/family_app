@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { useSession } from '@/features/auth';
-import type { ErrorMessage } from '@/shared/api';
 import {
   autoSaveMessages,
   ConfirmRow,
@@ -14,7 +13,6 @@ import {
   Sections,
   useAutoSaveChoice,
   useAutoSaveText,
-  useFooterLines,
 } from '@/shared/ui';
 import { ItemsSection } from './ItemsSection';
 import { type List, type ListDetails, type Visibility } from './listTypes';
@@ -41,7 +39,7 @@ interface ListPageProps {
 export function ListPage({ homePath }: ListPageProps) {
   const { t } = useTranslation();
   const { id } = useParams();
-  const { load, save, remove, saveFailure } = useLists();
+  const { load, save, remove } = useLists();
   const back = { to: homePath, title: t('app.name') };
 
   const list = load.status === 'ready' ? load.value.find((l) => l.id === id) : undefined;
@@ -55,7 +53,6 @@ export function ListPage({ homePath }: ListPageProps) {
             list={list}
             save={save}
             remove={remove}
-            saveFailure={saveFailure}
             homePath={homePath}
           />
         </Sections>
@@ -82,8 +79,6 @@ interface ListSettingsProps {
   list: List;
   save: (id: string, details: ListDetails) => Promise<void>;
   remove: (id: string) => Promise<void>;
-  /** «Не удалось сохранить» after the server rejected a change. */
-  saveFailure: ErrorMessage | undefined;
   homePath: string;
 }
 
@@ -92,9 +87,8 @@ interface ListSettingsProps {
  * Owner and never for a Wish list (the server enforces both), and «Удалить список», which asks
  * first and then goes back to Home.
  */
-function ListSettings({ list, save, remove, saveFailure, homePath }: ListSettingsProps) {
+function ListSettings({ list, save, remove, homePath }: ListSettingsProps) {
   const { t } = useTranslation();
-  const lines = useFooterLines();
   const navigate = useNavigate();
   const { session } = useSession();
   const { id } = list;
@@ -144,10 +138,7 @@ function ListSettings({ list, save, remove, saveFailure, homePath }: ListSetting
     <>
       <GroupedSection
         header={t('lists.settings')}
-        messages={[
-          ...autoSaveMessages([name.failure, visibility.failure]),
-          lines.failure(saveFailure),
-        ]}
+        messages={autoSaveMessages([name.failure, visibility.failure])}
       >
         <InputRow label={t('lists.name')} autoComplete="off" {...name.input} />
         {owned && list.kind !== 'WISH' && (

@@ -6,10 +6,10 @@ import {
   storedVersion,
   storeVersion,
   type Operation,
-  type SyncedTable,
   wipeLocalStore,
 } from './localStore';
 import { openLiveUpdates } from './liveUpdates';
+import { dismissSaveRejection, saveRejected } from './saveRejection';
 
 /*
  * The sync engine (ADR-0003, spec #3 "Client"): the one place that talks to the sync API. It
@@ -54,14 +54,6 @@ interface PullResponse {
   version: number;
 }
 
-/** An Outbox operation the server refused (`rejected`), with its `{code, params}`. */
-export interface Rejection {
-  table: SyncedTable;
-  id: string;
-  code: string;
-  params: Record<string, unknown>;
-}
-
 let started = false;
 /** Bumped by start and stop: a run from an older generation stops writing. */
 let generation = 0;
@@ -72,7 +64,6 @@ let fullPullNeeded = false;
 let retryDelay = 0;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let unsubscribe: (() => void) | undefined;
-const rejectionListeners = new Set<(rejection: Rejection) => void>();
 const sessionEndedListeners = new Set<() => void>();
 
 /** Starts syncing for the logged-in Member; returns `stopSync`. Idempotent. */
@@ -149,15 +140,8 @@ export async function flushOutbox(): Promise<void> {
  */
 export async function stopSyncAndWipe(): Promise<void> {
   stopSync();
+  dismissSaveRejection();
   await wipeLocalStore();
-}
-
-/** Calls `listener` for every operation the server rejects; returns the unsubscribe. */
-export function onRejection(listener: (rejection: Rejection) => void): () => void {
-  rejectionListeners.add(listener);
-  return () => {
-    rejectionListeners.delete(listener);
-  };
 }
 
 /**
@@ -234,15 +218,7 @@ async function pushOutbox(current: () => boolean) {
       const operation = operations[index];
       if (result.status !== 'rejected' || operation === undefined) return;
       fullPullNeeded = true;
-      const rejection = {
-        table: operation.table,
-        id: operation.id,
-        code: result.code ?? 'unknown',
-        params: result.params ?? {},
-      };
-      rejectionListeners.forEach((listener) => {
-        listener(rejection);
-      });
+      saveRejected(result.code ?? 'unknown');
     });
   }
 }

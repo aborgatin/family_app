@@ -241,7 +241,7 @@ describe('The «Новый список» sheet', () => {
     expect(syncServer.operations('list')).toEqual([]);
   });
 
-  it('takes a rejected new List off Home and says «Не удалось сохранить»', async () => {
+  it('takes a rejected new List off Home and says why it wasn’t saved', async () => {
     syncServer.rejectWhen(() => ({ code: 'list.wish_shared_only' }));
     const user = userEvent.setup();
 
@@ -252,7 +252,9 @@ describe('The «Новый список» sheet', () => {
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     const section = await listsSection();
-    expect(await within(section).findByText('Не удалось сохранить')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Не удалось сохранить: список желаний всегда общий'),
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(within(section).queryByText('Аптека')).not.toBeInTheDocument();
     });

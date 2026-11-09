@@ -1,9 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import type { ErrorMessage } from '@/shared/api';
-import { deleteRow, upsertRow, useRows, useSaveRejected } from '@/shared/sync';
+import { deleteRow, upsertRow, useRows } from '@/shared/sync';
 import type { Item } from './listTypes';
-
-const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
 
 /**
  * One List's open and Done Items and the ways to change them: the only data access for Items. It reads the
@@ -13,7 +10,6 @@ const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
  */
 export function useItems(listId: string) {
   const rows = useRows('item') as Item[] | undefined;
-  const { rejected, clear } = useSaveRejected('item');
 
   const items = useMemo(
     () => (rows === undefined ? undefined : openInOrder(rows, listId)),
@@ -27,20 +23,18 @@ export function useItems(listId: string) {
   /** Adds an Item with this text at the bottom. */
   const add = useCallback(
     async (text: string): Promise<void> => {
-      clear();
       await upsertRow('item', newItemId(), { listId, text });
     },
-    [clear, listId],
+    [listId],
   );
 
   /** Changes the Item's text, sending only the text; resolves with it as saved. */
   const rename = useCallback(
     async (item: Item, text: string): Promise<string> => {
-      clear();
       await upsertRow('item', item.id, { text });
       return text;
     },
-    [clear],
+    [],
   );
 
   /**
@@ -50,7 +44,6 @@ export function useItems(listId: string) {
    */
   const setDone = useCallback(
     async (item: Item, done: boolean): Promise<void> => {
-      clear();
       await upsertRow(
         'item',
         item.id,
@@ -58,16 +51,15 @@ export function useItems(listId: string) {
         { doneById: null, doneAt: null, ...(done && { doneHereAt: tickTime() }) },
       );
     },
-    [clear],
+    [],
   );
 
   /** Deletes the Item; resolves at once, offline too. */
   const remove = useCallback(
     async (item: Item): Promise<void> => {
-      clear();
       await deleteRow('item', item.id);
     },
-    [clear],
+    [],
   );
 
   return {
@@ -77,7 +69,6 @@ export function useItems(listId: string) {
     rename,
     setDone,
     remove,
-    saveFailure: rejected ? SAVE_REJECTED : undefined,
   };
 }
 

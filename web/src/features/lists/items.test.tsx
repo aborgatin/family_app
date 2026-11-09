@@ -194,7 +194,32 @@ describe('Adding an Item', () => {
     expect(await itemTexts()).toEqual(['Молоко', 'Хлеб', 'Яйца']);
   });
 
-  it('takes a rejected new Item off the List and says «Не удалось сохранить»', async () => {
+  it('says why a change was rejected once, on whatever screen the Member is by then', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.rejectWhen(() => ({ code: 'list.not_found', params: { listId: groceries.id } }));
+    const user = userEvent.setup();
+
+    const app = renderApp(`/lists/${groceries.id}`);
+    await screen.findByRole('textbox', { name: 'Новый товар' });
+    syncServer.goOffline();
+    await user.type(screen.getByRole('textbox', { name: 'Новый товар' }), 'Молоко{Enter}');
+    await user.click(screen.getByRole('link', { name: 'Семья' }));
+    await screen.findByRole('region', { name: 'Списки' });
+    expect(app.location()).toBe('/');
+
+    reconnect();
+
+    const notice = await screen.findByRole('alert');
+    expect(notice).toHaveTextContent(
+      'Не удалось сохранить: такого списка нет, возможно, его удалили',
+    );
+    expect(screen.getAllByText(/Не удалось сохранить/)).toHaveLength(1);
+
+    await user.click(within(notice).getByRole('button', { name: 'Закрыть' }));
+    expect(screen.queryByText(/Не удалось сохранить/)).not.toBeInTheDocument();
+  });
+
+  it('takes a rejected new Item off the List and says why it wasn’t saved', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.rejectWhen(() => ({ code: 'list.not_found' }));
     const user = userEvent.setup();
@@ -202,8 +227,9 @@ describe('Adding an Item', () => {
     renderApp(`/lists/${groceries.id}`);
     await user.type(await screen.findByRole('textbox', { name: 'Новый товар' }), 'Молоко{Enter}');
 
-    const section = await screen.findByRole('region', { name: 'Товары' });
-    expect(await within(section).findByText('Не удалось сохранить')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Не удалось сохранить: такого списка нет, возможно, его удалили'),
+    ).toBeInTheDocument();
     await waitFor(async () => {
       expect(await itemTexts()).toEqual([]);
     });

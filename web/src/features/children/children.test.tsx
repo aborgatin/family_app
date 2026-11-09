@@ -661,7 +661,7 @@ describe('The «Новый ребёнок» sheet', () => {
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     const section = await childrenSection();
-    expect(await within(section).findByText(NOT_SAVED)).toBeInTheDocument();
+    expect(await screen.findByText(NOT_SAVED)).toBeInTheDocument();
     await waitFor(() => {
       expect(within(section).queryByText('Ваня')).not.toBeInTheDocument();
     });

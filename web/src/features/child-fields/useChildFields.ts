@@ -1,12 +1,9 @@
 import { useCallback, useMemo } from 'react';
-import type { ErrorMessage } from '@/shared/api';
 import type { Load } from '@/shared/load';
-import { deleteRow, upsertRow, useRows, useSaveRejected } from '@/shared/sync';
+import { deleteRow, upsertRow, useRows } from '@/shared/sync';
 import type { ChildField, ValueType } from './childFieldsApi';
 
 export type ChildFieldsLoad = Load<ChildField[]>;
-
-const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
 
 /** Display order: by position, ties broken by id. */
 function inOrder(fields: ChildField[]): ChildField[] {
@@ -51,7 +48,6 @@ export function newChildFieldId(): string {
  */
 export function useChildFields() {
   const rows = useRows('child_field') as ChildField[] | undefined;
-  const { rejected, clear } = useSaveRejected('child_field');
 
   const load = useMemo<ChildFieldsLoad>(
     () => (rows === undefined ? { status: 'loading' } : { status: 'ready', value: inOrder(rows) }),
@@ -61,7 +57,6 @@ export function useChildFields() {
 
   /** Adds a field at the end, with an id from `newChildFieldId()`. */
   async function add(id: string, name: string, valueType: ValueType): Promise<ChildField> {
-    clear();
     const last = fields.at(-1);
     const field = { id, name, valueType, position: last === undefined ? 1 : last.position + 1 };
     await upsertRow('child_field', id, { name, valueType, position: field.position });
@@ -70,23 +65,20 @@ export function useChildFields() {
 
   const rename = useCallback(
     async (field: ChildField, name: string): Promise<ChildField> => {
-      clear();
       await upsertRow('child_field', field.id, field.name === name ? {} : { name });
       return { ...field, name };
     },
-    [clear],
+    [],
   );
 
   /** Moves a field to index `to` of the list. */
   async function move(field: ChildField, to: number) {
     const position = positionAfterMove(fields, field.id, to);
     if (position === undefined) return;
-    clear();
     await upsertRow('child_field', field.id, { position });
   }
 
   async function remove(field: ChildField) {
-    clear();
     await deleteRow('child_field', field.id);
   }
 
@@ -99,6 +91,5 @@ export function useChildFields() {
     rename,
     move,
     remove,
-    saveFailure: rejected ? SAVE_REJECTED : undefined,
   };
 }

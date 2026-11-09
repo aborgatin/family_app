@@ -1,6 +1,7 @@
 import { liveQuery } from 'dexie';
-import { useCallback, useEffect, useState } from 'react';
-import { requestSync, onRejection } from './engine';
+import { useEffect, useState } from 'react';
+import { requestSync } from './engine';
+import { dismissSaveRejection } from './saveRejection';
 import { applyLocally, localStore, type Operation, type Row, type SyncedTable } from './localStore';
 
 /*
@@ -51,6 +52,8 @@ export async function deleteRow(table: SyncedTable, id: string): Promise<void> {
 }
 
 async function write(operation: Operation) {
+  // The Member is making the next change: «Не удалось сохранить» about an earlier one goes.
+  dismissSaveRejection();
   await localStore.transaction(
     'rw',
     [localStore.rows(operation.table), localStore.outbox],
@@ -60,24 +63,4 @@ async function write(operation: Operation) {
     },
   );
   requestSync();
-}
-
-/**
- * Whether the server rejected a change to `table` while the screen was open, so the screen shows
- * «Не удалось сохранить» once, where it shows save failures. A pull restores the server's copy by
- * itself. `clear()` hides the message again, e.g. when the Member makes the next change.
- */
-export function useSaveRejected(table: SyncedTable): { rejected: boolean; clear: () => void } {
-  const [rejected, setRejected] = useState(false);
-  useEffect(
-    () =>
-      onRejection((rejection) => {
-        if (rejection.table === table) setRejected(true);
-      }),
-    [table],
-  );
-  const clear = useCallback(() => {
-    setRejected(false);
-  }, []);
-  return { rejected, clear };
 }

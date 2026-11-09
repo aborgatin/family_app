@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { ErrorMessage } from '@/shared/api';
 import type { Load } from '@/shared/load';
-import { deleteRow, upsertRow, useRows, useSaveRejected } from '@/shared/sync';
+import { deleteRow, upsertRow, useRows } from '@/shared/sync';
 import type { Child, ChildDetails } from './childrenApi';
 
 export type ChildrenLoad = Load<Child[]>;
-
-const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
 
 /**
  * The Family's Children and the ways to change them: the only data access of this feature. It
@@ -16,7 +13,6 @@ const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
  */
 export function useChildren() {
   const rows = useRows('child') as Child[] | undefined;
-  const { rejected, clear } = useSaveRejected('child');
   // The screens pass the whole Child, built on the one they show (from these same rows). Comparing
   // with the current local row sends only what the Member changed, so a change from the other
   // Member that a pull brought stays (Last write wins per field).
@@ -33,7 +29,6 @@ export function useChildren() {
   /** Adds a new Child (`id` from `newChildId()`) or changes an existing one. */
   const save = useCallback(
     async (id: string, details: ChildDetails): Promise<Child> => {
-      clear();
       const before = current.current.get(id);
       await upsertRow(
         'child',
@@ -42,15 +37,14 @@ export function useChildren() {
       );
       return { id, ...details };
     },
-    [clear],
+    [],
   );
 
   const remove = useCallback(
     async (id: string) => {
-      clear();
       await deleteRow('child', id);
     },
-    [clear],
+    [],
   );
 
   const retry = useCallback(() => undefined, []);
@@ -60,7 +54,6 @@ export function useChildren() {
     retry,
     save,
     remove,
-    saveFailure: rejected ? SAVE_REJECTED : undefined,
   };
 }
 

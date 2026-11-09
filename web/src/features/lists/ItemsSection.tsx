@@ -32,7 +32,7 @@ export function ItemsSection({ list }: ItemsSectionProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const texts = KIND_TEXTS[list.kind];
-  const { items, doneItems, add, rename, setDone, remove, saveFailure } = useItems(list.id);
+  const { items, doneItems, add, rename, setDone, remove } = useItems(list.id);
   const editable = useEditableList();
   const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
 
@@ -52,7 +52,6 @@ export function ItemsSection({ list }: ItemsSectionProps) {
         messages={[
           ...autoSaveMessages(shown.map((item) => failures[item.id])),
           lines.failure(editable.error),
-          lines.failure(saveFailure),
           items !== undefined && items.length === 0 && { text: t(texts.noItems) },
         ]}
         after={
