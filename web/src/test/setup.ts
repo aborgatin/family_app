@@ -6,6 +6,7 @@ import { reportServerReachable } from '@/shared/api/serverReachable';
 import { stopSync } from '@/shared/sync/engine';
 import { localStore } from '@/shared/sync/localStore';
 import { FakeEventSource } from './eventSource';
+import { installNetwork, network } from './network';
 import { server } from './server';
 import { syncServer } from './syncServer';
 
@@ -14,6 +15,8 @@ import { syncServer } from './syncServer';
 // Any request without a handler fails the test, so no test silently hits the network.
 beforeAll(() => {
   server.listen({ onUnhandledFrame: 'error' });
+  // After MSW has patched fetch: `network.goOffline()` fails every request (network.ts).
+  installNetwork();
 });
 beforeEach(() => {
   globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
@@ -29,6 +32,7 @@ afterEach(async () => {
   localStorage.clear();
   server.resetHandlers();
   syncServer.reset();
+  network.goOnline();
   FakeEventSource.reset();
   // Reachability is module state: a test that ended offline must not leave the next one offline.
   reportServerReachable(true);

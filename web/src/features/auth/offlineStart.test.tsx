@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { anna, boris, invitesHandler, masha, membersHandler, petya } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
+import { network } from '@/test/network';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
 
@@ -27,17 +28,15 @@ const groceries = {
 
 /**
  * The server's auth API: `GET /api/auth/session` answers with `session` and, like the real server,
- * issues the CSRF cookie; while offline it fails like a lost network, and the sync API with it.
+ * issues the CSRF cookie. Offline is the whole network (`network.goOffline()`).
  */
 function authServer() {
-  let offline = false;
   const state = {
     session: { bootstrapRequired: false, member: anna as typeof anna | null },
     sessionRequests: 0,
   };
   server.use(
     http.get('/api/auth/session', () => {
-      if (offline) return HttpResponse.error();
       state.sessionRequests += 1;
       document.cookie = `${CSRF}=token-from-server`;
       return HttpResponse.json(state.session);
@@ -46,13 +45,11 @@ function authServer() {
   return {
     state,
     goOffline() {
-      offline = true;
-      syncServer.goOffline();
+      network.goOffline();
     },
     /** The server answers again; the app notices on its next request. */
     goOnline() {
-      offline = false;
-      syncServer.goOnline();
+      network.goOnline();
     },
     /** The server answers again and the browser says so (`online`). */
     reconnect() {
