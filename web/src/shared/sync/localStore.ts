@@ -103,6 +103,31 @@ export async function claimLocalStore(memberId: string): Promise<void> {
   });
 }
 
+/** A copy of the owner as the app last knew them online (the session's Member). */
+const OWNER_COPY_KEY = 'ownerCopy';
+
+/**
+ * Keeps a copy of the store's owner on the device, so the app can start as them with no
+ * connection (`ownerCopy`). Ignored unless `owner` is the store's owner; wiped with the store.
+ */
+export async function saveOwnerCopy(owner: { id: string }): Promise<void> {
+  await localStore.transaction('rw', localStore.meta, async () => {
+    if ((await localStore.meta.get(OWNER_KEY))?.value !== owner.id) return;
+    await localStore.meta.put({ key: OWNER_COPY_KEY, value: owner });
+  });
+}
+
+/** The copy `saveOwnerCopy` kept of the store's owner; `undefined` when the store has none. */
+export async function ownerCopy(): Promise<unknown> {
+  return localStore.transaction('r', localStore.meta, async () => {
+    const owner = (await localStore.meta.get(OWNER_KEY))?.value;
+    const copy = (await localStore.meta.get(OWNER_COPY_KEY))?.value;
+    return owner !== undefined && (copy as { id?: unknown } | undefined)?.id === owner
+      ? copy
+      : undefined;
+  });
+}
+
 /** Applies an operation to the local rows (not the Outbox): what the server will do with it. */
 export async function applyLocally(operation: Operation): Promise<void> {
   const rows = localStore.rows(operation.table);
