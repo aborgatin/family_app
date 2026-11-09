@@ -1,7 +1,7 @@
 # Backend
 
 What exists in `/backend` after Spec #1 (M0 + M1), the M2 sync core (spec #3, tickets #52 and
-#53), live updates (#54), Lists (#55, #56) and Items (#57). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
+#53), live updates (#54), Lists (#55, #56) and Items (#57, Done #58). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
 Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`sync.md`](sync.md).
 
 ## Stack
@@ -192,15 +192,19 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
 
 - `apply`: a known Item: deleted → `IGNORED`; its List not visible to the Member →
   `list.not_found`; upsert merges `text` / `note` over the stored ones and validates (`listId`
-  naming another List → `validation.failed`), delete soft-deletes. An unknown Item: delete →
+  naming another List → `validation.failed`), then sets Done when it carries `done`
+  (`ItemEntity.markDone`), delete soft-deletes. An unknown Item: delete →
   `IGNORED`; upsert needs `listId` (`required` / `value.invalid`), whose List must exist and be
   visible (`list.not_found`, `params.listId`), deleted List → `IGNORED`; then `text` required. A
-  create sets the Creator (`operation.memberId()`) and `createdAt`.
+  create sets the Creator (`operation.memberId()`) and `createdAt`, and may carry `done`.
+- Done (`done`, read with `Operation.bool`: a non-boolean is `value.invalid`, `null` is
+  `required`): `ItemEntity.markDone(done, memberId, now)` sets `done_by_id` and `done_at` when it
+  turns true and clears them when it turns false; the same value changes nothing, so Hibernate
+  writes no UPDATE and the Version stays (S3). `done_by_id` / `done_at` are never written by an
+  operation.
 - `changesSince`: `listId`, `text`, `note`, `done`, `doneById`, `doneAt`, `creatorId`,
   `createdAt`; a tombstone for a deleted Item and for one whose List the Member may not see (the
   Lists are loaded with `findAllById`).
-- Done (`done`, done by, done at) is ticket #58: the columns exist and are pulled, no operation
-  writes them yet.
 
 ### `command`
 

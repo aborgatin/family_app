@@ -70,8 +70,11 @@ class ItemService implements SyncableTable {
     }
     ItemDetails details =
         new ItemRequest(operation.text("text"), operation.text("note")).validate();
-    items.saveAndFlush(
-        new ItemEntity(operation.id(), listId, operation.memberId(), Instant.now(), details));
+    boolean done = operation.has("done") && done(operation);
+    ItemEntity item =
+        new ItemEntity(operation.id(), listId, operation.memberId(), Instant.now(), details);
+    item.markDone(done, operation.memberId(), Instant.now());
+    items.saveAndFlush(item);
     return Outcome.APPLIED;
   }
 
@@ -84,7 +87,9 @@ class ItemService implements SyncableTable {
                 operation.has("text") ? operation.text("text") : item.text(),
                 operation.has("note") ? operation.text("note") : item.note())
             .validate();
+    boolean done = operation.has("done") ? done(operation) : item.done();
     item.replace(details);
+    item.markDone(done, operation.memberId(), Instant.now());
     items.saveAndFlush(item);
     return Outcome.APPLIED;
   }
@@ -93,6 +98,15 @@ class ItemService implements SyncableTable {
     item.markDeleted();
     items.saveAndFlush(item);
     return Outcome.APPLIED;
+  }
+
+  /** The operation's {@code done}: a boolean, never {@code null}. */
+  private static boolean done(Operation operation) {
+    Boolean done = operation.bool("done");
+    if (done == null) {
+      new FieldErrors().add("done", FieldErrors.REQUIRED).throwIfAny();
+    }
+    return Boolean.TRUE.equals(done);
   }
 
   /** The operation's {@code listId}: required, a UUID. */

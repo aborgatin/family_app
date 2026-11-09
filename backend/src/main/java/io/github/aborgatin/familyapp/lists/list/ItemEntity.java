@@ -13,8 +13,8 @@ import org.springframework.lang.Nullable;
 /**
  * An Item (GLOSSARY): one entry in a List. Syncable (S1): the client generates the id (S3), and
  * {@code version} and {@code updatedAt} are set by the database trigger on every INSERT and UPDATE
- * (S2). Its List, the Creator and created at are set once, by the server; Done, done by and done at
- * are ticket #58's.
+ * (S2). Its List, the Creator and created at are set once, by the server; Done by and done at are
+ * set by the server when Done changes.
  */
 @Entity
 @Table(name = "item")
@@ -68,6 +68,19 @@ class ItemEntity {
   void replace(ItemDetails details) {
     this.text = details.text();
     this.note = details.note();
+  }
+
+  /**
+   * Sets Done. When it turns true, {@code memberId} becomes done by and {@code at} done at; when it
+   * turns false both are cleared. Setting Done to its current value changes nothing (S3).
+   */
+  void markDone(boolean done, UUID memberId, Instant at) {
+    if (done == this.done) {
+      return;
+    }
+    this.done = done;
+    this.doneById = done ? memberId : null;
+    this.doneAt = done ? at : null;
   }
 
   /** Soft delete (S2): the row stays and its Version advances. */

@@ -1,7 +1,7 @@
 # Frontend
 
 What exists in `/web` after Spec #1 (M0 + M1), the M1.5 UI foundation (spec #35) and M2 so far
-(spec #3: the sync core #52, Lists #55, #56, Items #57). Rules:
+(spec #3: the sync core #52, Lists #55, #56, Items #57, Done #58). Rules:
 [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md) (M3, I2, I3, S4, T1, U1). Look, tokens and
 component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](backend.md).
 
@@ -205,8 +205,9 @@ code that touches IndexedDB or the sync API:
 - `rows.ts`, what features use:
   - `useRows(table)`: every local row, live (Dexie `liveQuery`), `undefined` until the first read;
     unordered, untyped (`Row`): the feature sorts and casts (`as Child[]`);
-  - `upsertRow(table, id, fields)`: create (all required fields) or change only the given fields;
-    `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
+  - `upsertRow(table, id, fields, local?)`: create (all required fields) or change only the given
+    fields; `local` fields go only into the local row and the Outbox entry, never to the server,
+    until the server's copy replaces them (an Item's `doneHereAt`); `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
     once, online or not;
   - `useSaveRejected(table)` → `{rejected, clear}`: true after the server rejected an operation on
     that table while the screen was open; the feature shows «Не удалось сохранить»
@@ -252,19 +253,31 @@ Each data feature has one hook that is its only data access. Components never ca
   back to Home). A List that is unknown, or disappears while open (deleted, or made Private by its
   Owner: the pull's tombstone removes it), shows «Такого списка нет: возможно, его удалили.» with
   the back link to Home. Kind texts (segment,
-  Home subtitle, empty state, Items header, «Новый товар», «Товар «…»») are in `KIND_TEXTS`.
-- `useItems(listId)` → `{items, add(text), rename(item, text), remove(item), saveFailure}` on the
-  local store, like `useLists()`: `items` is `undefined` until the first local read, then the
-  List's open Items (not Done) in the order added: by the server's `createdAt`, ties by id; an
-  Item not pulled back yet has no `createdAt` and goes after them, ordered by its id, which
-  `newItemId()` makes time-ordered (UUID v7). `add` creates (`listId`, `text`), `rename` sends
-  only `text`, `remove` deletes; all resolve at once, offline too. `ItemsSection` on the List
-  screen: a `GroupedSection` headed «Товары» / «Задачи» / «Желания» with edit mode («Изменить»)
-  while it has Items; each Item an `EditableRow` whose text is renamed in place
-  (`useAutoSaveText`, required, named «Товар «Молоко»»), deleted from edit mode, a swipe or
-  right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая задача» /
-  «Новое желание» (Enter adds and keeps the focus). Footer: «Товаров пока нет» (by kind) with no
-  Items, «Не удалось сохранить» after a rejection (a rejected new Item leaves the List).
+  Home subtitle, empty state, Items header, «Новый товар», «Товар «…»», the Done label and the
+  Done toggle's name) are in `KIND_TEXTS`. Each Home row's value is the List's count of open
+  Items (`useOpenItemCounts()`, 0 included).
+- `useItems(listId)` → `{items, doneItems, add(text), rename(item, text), setDone(item, done),
+  remove(item), saveFailure}` on the local store, like `useLists()`: `items` / `doneItems` are
+  `undefined` until the first local read. `items` are the List's open Items in the order added:
+  by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
+  after them, ordered by its id, which `newItemId()` makes time-ordered (UUID v7); an Item ticked
+  back on returns to its place by the same rule. `doneItems` are the Done ones, most recently done
+  first: by the server's `doneAt` (fraction padded as for `createdAt`), ties by id; one ticked off
+  on this device and not pulled back yet has no `doneAt` and goes on top, the last ticked first,
+  by its device-only `doneHereAt` (a monotonic ms time written with `upsertRow`'s `local`, never
+  sent). The server sets `doneAt` when the tick arrives, after every `doneAt` the device already
+  has, so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`),
+  `rename` sends only `text`, `setDone` only `done`, `remove` deletes; all resolve at once,
+  offline too. `ItemsSection` on the List screen: a `GroupedSection` headed «Товары» / «Задачи» /
+  «Желания» with edit mode («Изменить») while it has open Items; each Item an `EditableRow` with a
+  `DoneToggle` (named «Куплено «Молоко»» / «Выполнено «…»» / «Исполнено «…»») as `leading`, its
+  text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), deleted from edit
+  mode, a swipe or right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая
+  задача» / «Новое желание» (Enter adds and keeps the focus). Footer: «Товаров пока нет» (by
+  kind) with no open Items, «Не удалось сохранить» after a rejection (a rejected new Item leaves
+  the List). Under it, while there are Done Items, a second `GroupedSection` headed «Куплено» /
+  «Выполнено» / «Исполнено» with edit mode: each an `EditableRow`, `muted`, with its ticked
+  `DoneToggle` (untick puts it back among the open ones), deleted the same ways.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`.
 

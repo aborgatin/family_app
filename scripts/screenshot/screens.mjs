@@ -194,9 +194,33 @@ export default {
       ],
     },
     {
+      // Ticked off offline: under «Куплено» at once, on top, with the offline indicator.
+      name: 'list-item-done-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: 'role=checkbox[name="Куплено «Яйца, десяток»"]' },
+        { waitFor: 'role=checkbox[name="Куплено «Яйца, десяток»"][checked]' },
+      ],
+    },
+    {
+      name: 'list-done-edit',
+      path: '/',
+      fullPage: false,
+      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: ITEM }, editIn('Куплено'), toSection('Куплено', 0)],
+    },
+    {
       name: 'list-wish',
       path: '/',
-      steps: [{ click: 'role=link[name=/Желания Маши/]' }, { waitFor: 'text=Желаний пока нет' }],
+      steps: [{ click: 'role=link[name=/Желания Маши/]' }, { waitFor: 'text=Исполнено' }],
+    },
+    {
+      name: 'list-wish-empty',
+      path: '/',
+      steps: [{ click: 'role=link[name=/Желания Пети/]' }, { waitFor: 'text=Желаний пока нет' }],
     },
     {
       // Борис's Shared List: Анна may rename and delete it, but sees no Visibility.

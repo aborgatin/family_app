@@ -6,7 +6,7 @@ import type { Item } from './listTypes';
 const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
 
 /**
- * One List's open Items and the ways to change them: the only data access for Items. It reads the
+ * One List's open and Done Items and the ways to change them: the only data access for Items. It reads the
  * local store and writes through the Outbox (S4), so it works the same offline. `items` is
  * `undefined` until the first local read. `saveFailure` is «Не удалось сохранить» after the server
  * rejected a change; the next pull has already put the server's copy back.
@@ -17,6 +17,10 @@ export function useItems(listId: string) {
 
   const items = useMemo(
     () => (rows === undefined ? undefined : openInOrder(rows, listId)),
+    [rows, listId],
+  );
+  const doneItems = useMemo(
+    () => (rows === undefined ? undefined : doneInOrder(rows, listId)),
     [rows, listId],
   );
 
@@ -39,6 +43,15 @@ export function useItems(listId: string) {
     [clear],
   );
 
+  /** Ticks the Item off, or back on (`done` false); the server records who did it and when. */
+  const setDone = useCallback(
+    async (item: Item, done: boolean): Promise<void> => {
+      clear();
+      await upsertRow('item', item.id, { done }, done ? { doneHereAt: tickTime() } : undefined);
+    },
+    [clear],
+  );
+
   /** Deletes the Item; resolves at once, offline too. */
   const remove = useCallback(
     async (item: Item): Promise<void> => {
@@ -48,7 +61,31 @@ export function useItems(listId: string) {
     [clear],
   );
 
-  return { items, add, rename, remove, saveFailure: rejected ? SAVE_REJECTED : undefined };
+  return {
+    items,
+    doneItems,
+    add,
+    rename,
+    setDone,
+    remove,
+    saveFailure: rejected ? SAVE_REJECTED : undefined,
+  };
+}
+
+/**
+ * How many open Items each List has, by List id (a List with none is absent); `undefined` until
+ * the first local read. Follows local writes and pulls, like `useItems()`.
+ */
+export function useOpenItemCounts(): ReadonlyMap<string, number> | undefined {
+  const rows = useRows('item') as Item[] | undefined;
+  return useMemo(() => {
+    if (rows === undefined) return undefined;
+    const counts = new Map<string, number>();
+    for (const item of rows) {
+      if (!item.done) counts.set(item.listId, (counts.get(item.listId) ?? 0) + 1);
+    }
+    return counts;
+  }, [rows]);
 }
 
 /**
@@ -64,6 +101,36 @@ function openInOrder(rows: Item[], listId: string): Item[] {
       (a, b) =>
         compare(sortableTime(a.createdAt), sortableTime(b.createdAt)) || compare(a.id, b.id),
     );
+}
+
+/**
+ * The List's Done Items, most recently done first (spec #3, List screen): by the server's done at,
+ * ties by id. An Item ticked off on this device and not yet pulled back has no done at; it is more
+ * recent than every pulled one, since the server sets done at when the tick arrives, so it goes on
+ * top, the last ticked first. Its place doesn't change when the server's copy arrives.
+ */
+function doneInOrder(rows: Item[], listId: string): Item[] {
+  return rows
+    .filter((item) => item.listId === listId && item.done)
+    .sort(
+      (a, b) =>
+        doneHere(b) - doneHere(a) ||
+        compare(sortableTime(b.doneAt ?? undefined), sortableTime(a.doneAt ?? undefined)) ||
+        compare(a.id, b.id),
+    );
+}
+
+let lastTickTime = 0;
+
+/** Now in ms, at least a millisecond after the last tick, so two quick ticks keep their order. */
+function tickTime(): number {
+  lastTickTime = Math.max(Date.now(), lastTickTime + 1);
+  return lastTickTime;
+}
+
+/** When this device ticked the Item off (ms); 0 once the server's copy with done at is here. */
+function doneHere(item: Item): number {
+  return item.doneAt == null ? (item.doneHereAt ?? 0) : 0;
 }
 
 /**
