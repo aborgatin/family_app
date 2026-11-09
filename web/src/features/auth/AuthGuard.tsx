@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { errorMessageKey } from '@/shared/api';
 import { useLoad } from '@/shared/load';
+import { startSync } from '@/shared/sync';
 import { Button, StatusScreen } from '@/shared/ui';
 import { fetchSession, type Member, type Session } from './authApi';
 import { SessionContext, type SessionState } from './session';
@@ -68,6 +69,10 @@ export function AuthGuard() {
         : null,
     [load, update],
   );
+
+  // Sync runs while a Member is logged in on this device (spec #3 "Client").
+  const memberId = load.status === 'ready' ? load.value.member?.id : undefined;
+  useEffect(() => (memberId === undefined ? undefined : startSync()), [memberId]);
 
   if (load.status === 'loading') {
     return <StatusScreen role="status">{t('common.loading')}</StatusScreen>;

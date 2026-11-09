@@ -6,7 +6,6 @@ import {
   anna,
   boris,
   childFieldsHandler,
-  childrenHandler,
   invitesHandler,
   membersHandler,
   sessionHandler,
@@ -21,7 +20,6 @@ beforeEach(() => {
     membersHandler([anna, boris]),
     invitesHandler([]),
     childFieldsHandler([]),
-    childrenHandler([]),
   );
 });
 afterEach(() => {

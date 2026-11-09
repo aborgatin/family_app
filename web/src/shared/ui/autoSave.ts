@@ -61,7 +61,11 @@ export function autoSaveMessages(failures: readonly (SaveFailure | undefined)[])
 interface AutoSaveOptions<T> {
   /** The row's `name` in its `GroupedSection`, which links it to its footer message. */
   name: string;
-  /** The value as saved now (e.g. from the server). Read once, when the row first shows. */
+  /**
+   * The value as saved now (e.g. from the local store). When it changes from elsewhere (a pull
+   * brought the other Member's change, or the server's copy after a rejected change), the row
+   * shows it, unless the Member is editing that row.
+   */
   saved: T;
   /** Saves a value; resolves with the value as saved, rejects with an `ApiError`. */
   save: (value: T) => Promise<T>;
@@ -88,6 +92,12 @@ export function useAutoSaveText({ name, saved, save, required = false }: AutoSav
     draftRef.current = value;
     setDraftState(value);
   }, []);
+
+  useEffect(() => {
+    // Untouched since the last save: follow the saved value.
+    if (draftRef.current === savedRef.current && sending.current === undefined) setDraft(saved);
+    savedRef.current = saved;
+  }, [saved, setDraft]);
 
   const commit = useCallback(() => {
     const value = draftRef.current;
@@ -137,6 +147,13 @@ export function useAutoSaveChoice<T>({ name, saved, save }: AutoSaveOptions<T>) 
   const [value, setValue] = useState(saved);
   const savedRef = useRef(saved);
   const { busy, failure, clear, run } = useSaving(name);
+
+  useEffect(() => {
+    // Showing the last saved choice: follow the saved value.
+    const previous = savedRef.current;
+    savedRef.current = saved;
+    setValue((current) => (current === previous ? saved : current));
+  }, [saved]);
 
   const choose = useCallback(
     (choice: T) => {

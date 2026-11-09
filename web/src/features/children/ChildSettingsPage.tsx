@@ -39,7 +39,7 @@ interface ChildSettingsPageProps {
 export function ChildSettingsPage({ settingsPath }: ChildSettingsPageProps) {
   const { t } = useTranslation();
   const { id } = useParams();
-  const { load, retry, save, remove } = useChildren();
+  const { load, retry, save, remove, saveFailure } = useChildren();
   const back = { to: settingsPath, title: t('settings.title') };
 
   const child = load.status === 'ready' ? load.value.find((c) => c.id === id) : undefined;
@@ -51,6 +51,7 @@ export function ChildSettingsPage({ settingsPath }: ChildSettingsPageProps) {
           child={child}
           save={save}
           remove={remove}
+          saveFailure={saveFailure}
           settingsPath={settingsPath}
         />
       </Page>
@@ -85,10 +86,12 @@ interface ChildEditorProps {
   child: Child;
   save: (id: string, details: ChildDetails) => Promise<Child>;
   remove: (id: string) => Promise<void>;
+  /** «Не удалось сохранить» after the server rejected a change. */
+  saveFailure: ErrorMessage | undefined;
   settingsPath: string;
 }
 
-function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
+function ChildEditor({ child, save, remove, saveFailure, settingsPath }: ChildEditorProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const navigate = useNavigate();
@@ -149,7 +152,12 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
 
   return (
     <Sections>
-      <GroupedSection messages={autoSaveMessages([name.failure, color.failure, birthday.failure])}>
+      <GroupedSection
+        messages={[
+          ...autoSaveMessages([name.failure, color.failure, birthday.failure]),
+          lines.failure(saveFailure),
+        ]}
+      >
         <ChildRows name={name.input} color={color.control} birthday={birthday.input} />
       </GroupedSection>
       <GroupedSection messages={[lines.failure(deleteError)]}>
