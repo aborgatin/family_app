@@ -331,12 +331,12 @@ export const SEED = {
         ],
       },
       {
-        name: 'Желания Маши',
+        name: 'Подарки',
         kind: 'WISH',
         visibility: 'SHARED',
         items: ['Самокат', { text: 'Набор фломастеров', done: true }],
       },
-      { name: 'Желания Пети', kind: 'WISH', visibility: 'SHARED' },
+      { name: 'Книги', kind: 'WISH', visibility: 'SHARED' },
     ],
     secondMember: [
       { name: 'Гараж', kind: 'TODO', visibility: 'SHARED' },

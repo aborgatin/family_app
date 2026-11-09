@@ -4,6 +4,12 @@ import { editIn, failClipboard, hang, noLists, rejectPushes, rowActions, section
 
 const INVITE = 'role=button[name="Пригласить взрослого…"]';
 const ITEM = 'role=textbox[name="Товар «Молоко 3,2%»"]';
+/** Steps from Home to the «Настройки списка» screen of the List with this name. */
+const listSettings = (name) => [
+  { click: `role=link[name=/${name}/]` },
+  { click: 'role=link[name="Настройки списка"]' },
+  { waitFor: 'role=textbox[name="Название"]' },
+];
 const showInvites = async (page) => {
   await page.locator(INVITE).scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, 200));
@@ -207,14 +213,14 @@ export default {
       ],
     },
     {
+    {
       // The server rejects the change: the app-wide Toast with the reason, the server's value back.
       name: 'list-save-rejected',
       path: '/',
       isolate: true,
       initScript: rejectPushes('list.owner_only'),
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
-        { waitFor: ITEM },
+        ...listSettings('Супермаркет'),
         { click: 'role=radiogroup[name="Видимость"] >> text=Личный' },
         { waitFor: 'role=alert' },
         { wait: 300 },
@@ -229,25 +235,26 @@ export default {
     {
       name: 'list-wish',
       path: '/',
-      steps: [{ click: 'role=link[name=/Желания Маши/]' }, { waitFor: 'text=Исполнено' }],
+      steps: [{ click: 'role=link[name=/Подарки/]' }, { waitFor: 'text=Исполнено' }],
     },
     {
       name: 'list-wish-empty',
       path: '/',
-      steps: [{ click: 'role=link[name=/Желания Пети/]' }, { waitFor: 'text=Желаний пока нет' }],
+      steps: [{ click: 'role=link[name=/Книги/]' }, { waitFor: 'text=Желаний пока нет' }],
     },
-    {
-      // Борис's Shared List: Анна may rename and delete it, but sees no Visibility.
-      name: 'list-not-owner',
-      path: '/',
-      steps: [{ click: 'role=link[name=/Гараж/]' }, { waitFor: 'text=Задач пока нет' }],
-    },
+
+    // «Настройки списка», opened by the gear on the List screen
+    { name: 'list-settings', path: '/', steps: listSettings('Супермаркет') },
+    // Борис's Shared List: Анна may rename and delete it, but sees no Visibility.
+    { name: 'list-settings-not-owner', path: '/', steps: listSettings('Гараж') },
+    // A Wish list is always Shared: no Visibility, even for its Owner.
+    { name: 'list-settings-wish', path: '/', steps: listSettings('Подарки') },
     {
       name: 'list-delete-confirm',
       path: '/',
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Аптека/]' },
+        ...listSettings('Аптека'),
         { click: 'role=button[name="Удалить список"]' },
         { waitFor: 'role=dialog' },
         { wait: 400 },
@@ -258,11 +265,29 @@ export default {
       path: '/',
       isolate: true,
       steps: [
-        { click: 'role=link[name=/Аптека/]' },
+        ...listSettings('Аптека'),
         { click: 'role=button[name="Удалить список"]' },
         { click: 'role=dialog >> role=button[name="Удалить"]' },
         { waitFor: 'role=heading[name="Семья"]' },
         { wait: 400 },
+      ],
+    },
+    {
+      // Deleted in another tab while «Настройки списка» is open here.
+      name: 'list-settings-gone',
+      path: '/',
+      isolate: true,
+      steps: [
+        ...listSettings('Аптека'),
+        async (page) => {
+          const other = await page.context().newPage();
+          await other.goto(page.url());
+          await other.locator('role=button[name="Удалить список"]').click();
+          await other.locator('role=dialog >> role=button[name="Удалить"]').click();
+          await other.locator('role=heading[name="Семья"]').waitFor();
+          await other.close();
+        },
+        { waitFor: 'role=alert' },
       ],
     },
     {

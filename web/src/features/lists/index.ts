@@ -1,2 +1,4 @@
 export { ListsSection } from './ListsSection';
-export { LIST_PATH, ListPage } from './ListPage';
+export { ListPage } from './ListPage';
+export { LIST_PATH, LIST_SETTINGS_PATH } from './listPaths';
+export { ListSettingsPage } from './ListSettingsPage';

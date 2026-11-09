@@ -7,8 +7,8 @@ import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
 
 // Lists live in the local store and reach the server through the Outbox (spec #3, tickets #55, #56):
-// Home lists them, «Новый список» creates one (offline too), a List opens its own screen, and List
-// settings rename it, change its Visibility (Owner only) and delete it.
+// Home lists them, «Новый список» creates one (offline too), a List opens its own screen, and its
+// «Настройки списка» screen (#63) renames it, changes its Visibility (Owner only) and deletes it.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -292,22 +292,43 @@ describe('The List screen', () => {
   });
 });
 
-describe('List settings', () => {
-  function settings() {
-    return screen.getByRole('region', { name: 'Настройки списка' });
-  }
+describe('The «Настройки списка» screen', () => {
+  const settingsPath = `/lists/${groceries.id}/settings`;
+
+  it('opens from the settings icon on the List screen, which shows only the Items, and goes back to the List', async () => {
+    syncServer.seed('list', [groceries]);
+    const user = userEvent.setup();
+
+    const app = renderApp(`/lists/${groceries.id}`);
+    await screen.findByRole('heading', { level: 1, name: 'Супермаркет' });
+    expect(await screen.findByText('Товаров пока нет')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Настройки списка' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Название' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Удалить список' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: 'Настройки списка' }));
+
+    expect(app.location()).toBe(settingsPath);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Настройки списка' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Название' })).toHaveValue('Супермаркет');
+    await user.click(screen.getByRole('link', { name: 'Супермаркет' }));
+    expect(app.location()).toBe(`/lists/${groceries.id}`);
+  });
 
   it('renames the List from «Название», whoever owns it, sending only the name', async () => {
     syncServer.seed('list', [{ ...groceries, ownerId: boris.id }]);
     const user = userEvent.setup();
 
-    renderApp(`/lists/${groceries.id}`);
+    renderApp(settingsPath);
     const name = await screen.findByRole('textbox', { name: 'Название' });
     expect(name).toHaveValue('Супермаркет');
     await user.clear(name);
     await user.type(name, 'Ашан{Enter}');
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Ашан' })).toBeInTheDocument();
+    // The back link names the List: renamed at once.
+    expect(await screen.findByRole('link', { name: 'Ашан' })).toBeInTheDocument();
     await waitFor(() => {
       expect(syncServer.operations('list')).toEqual([
         { table: 'list', id: groceries.id, op: 'upsert', fields: { name: 'Ашан' } },
@@ -319,9 +340,8 @@ describe('List settings', () => {
     syncServer.seed('list', [groceries]);
     const user = userEvent.setup();
 
-    renderApp(`/lists/${groceries.id}`);
-    await screen.findByRole('heading', { level: 1, name: 'Супермаркет' });
-    const visibility = within(settings()).getByRole('radiogroup', { name: 'Видимость' });
+    renderApp(settingsPath);
+    const visibility = await screen.findByRole('radiogroup', { name: 'Видимость' });
     expect(within(visibility).getByRole('radio', { name: 'Общий' })).toBeChecked();
     await user.click(within(visibility).getByRole('radio', { name: 'Личный' }));
 
@@ -343,11 +363,10 @@ describe('List settings', () => {
   ])('shows no Visibility for %s', async (_, shown) => {
     syncServer.seed('list', [shown]);
 
-    renderApp(`/lists/${shown.id}`);
+    renderApp(`/lists/${shown.id}/settings`);
 
-    await screen.findByRole('heading', { level: 1, name: shown.name });
-    expect(within(settings()).getByRole('textbox', { name: 'Название' })).toBeInTheDocument();
-    expect(within(settings()).queryByRole('radiogroup')).not.toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue(shown.name);
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: 'Личный' })).not.toBeInTheDocument();
   });
 
@@ -355,7 +374,7 @@ describe('List settings', () => {
     syncServer.seed('list', [groceries, list(2, 'Аптека', 'SHOPPING')]);
     const user = userEvent.setup();
 
-    const app = renderApp(`/lists/${groceries.id}`);
+    const app = renderApp(settingsPath);
     await user.click(await screen.findByRole('button', { name: 'Удалить список' }));
     const sheet = screen.getByRole('dialog', {
       name: 'Удалить „Супермаркет“ со всем содержимым?',
@@ -393,7 +412,8 @@ describe('List settings', () => {
       expect(syncServer.pulls.slice(pullsBefore)).toContain(0);
     });
     // Renamed while that pull is under way: the rename is still in the Outbox when it lands.
-    const name = screen.getByRole('textbox', { name: 'Название' });
+    await user.click(screen.getByRole('link', { name: 'Настройки списка' }));
+    const name = await screen.findByRole('textbox', { name: 'Название' });
     await user.clear(name);
     await user.type(name, 'Ашан{Enter}');
     release();
@@ -411,22 +431,29 @@ describe('List settings', () => {
     });
   });
 
-  it('says the List is gone when it disappears while open, with the way back to Home', async () => {
-    syncServer.seed('list', [{ ...groceries, ownerId: boris.id }]);
-    const user = userEvent.setup();
+  it.each([
+    ['the List screen', `/lists/${groceries.id}`, 'Новый товар'],
+    ['«Настройки списка»', settingsPath, 'Название'],
+  ])(
+    'says the List is gone when it disappears while %s is open, with the way back to Home',
+    async (_, path, field) => {
+      syncServer.seed('list', [{ ...groceries, ownerId: boris.id }]);
+      const user = userEvent.setup();
 
-    const app = renderApp(`/lists/${groceries.id}`);
-    await screen.findByRole('heading', { level: 1, name: 'Супермаркет' });
+      const app = renderApp(path);
+      await screen.findByRole('textbox', { name: field });
 
-    // Deleted, or made Private by Boris: either way the pull brings a tombstone.
-    syncServer.change('list', groceries.id, 'deleted');
-    window.dispatchEvent(new Event('online'));
+      // Deleted, or made Private by Boris: either way the pull brings a tombstone.
+      syncServer.change('list', groceries.id, 'deleted');
+      window.dispatchEvent(new Event('online'));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Такого списка нет: возможно, его удалили.',
-    );
-    expect(screen.queryByRole('textbox', { name: 'Название' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: 'Семья' }));
-    expect(app.location()).toBe('/');
-  });
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Такого списка нет: возможно, его удалили.',
+      );
+      expect(screen.queryByRole('textbox', { name: field })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Удалить список' })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('link', { name: 'Семья' }));
+      expect(app.location()).toBe('/');
+    },
+  );
 });
