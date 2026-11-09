@@ -342,7 +342,10 @@ async function seed(browser, baseUrl) {
   await api(p2, 'POST', `/api/invites/by-token/${token1}/accept`, SEED.secondMember);
   await ctx2.close();
 
-  for (const c of SEED.children) await api(page, 'PUT', `/api/children/${crypto.randomUUID()}`, c);
+  // Children are written only through the sync push (spec #3).
+  const operations = SEED.children.map((fields) => ({ table: 'child', id: crypto.randomUUID(), op: 'upsert', fields }));
+  const pushed = await api(page, 'POST', '/api/sync/push', { operations });
+  if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed children: ${JSON.stringify(pushed.results)}`);
   for (const f of SEED.extraChildFields) await api(page, 'PUT', `/api/child-fields/${crypto.randomUUID()}`, f);
   const inv2 = await api(page, 'POST', '/api/invites'); // stays active: shows in Settings, used as {inviteToken}
   const storageState = await ctx.storageState();

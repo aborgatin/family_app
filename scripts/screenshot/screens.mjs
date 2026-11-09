@@ -1,6 +1,6 @@
 // Every screen and state of the web app, as shot for review (README.md has the format). When a
 // change adds or alters a screen, add or update its route here, so the next change shoots it too.
-import { editIn, failClipboard, hang, rowActions, section, slowPut, toSection } from './helpers.mjs';
+import { editIn, failClipboard, hang, rowActions, section, toSection } from './helpers.mjs';
 
 const INVITE = 'role=button[name="Пригласить взрослого…"]';
 const showInvites = async (page) => {
@@ -178,19 +178,6 @@ export default {
       name: 'child',
       path: '/settings',
       steps: [{ click: 'role=link[name=/Маша/]' }, { waitFor: 'role=radiogroup[name="Цвет"]' }],
-    },
-    {
-      name: 'child-color-saving',
-      path: '/settings',
-      fullPage: false,
-      isolate: true,
-      steps: [
-        slowPut('/api/children/', 5000),
-        { click: 'role=link[name=/Маша/]' },
-        { waitFor: 'role=radiogroup[name="Цвет"]' },
-        { click: 'role=radio[name="Синий"]' },
-        { wait: 900 },
-      ],
     },
     {
       name: 'child-delete-confirm',

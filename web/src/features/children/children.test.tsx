@@ -125,6 +125,46 @@ describe('«Дети» in Settings', () => {
     expect(await within(await childrenList()).findByText('Маша')).toBeInTheDocument();
   });
 
+  it('lists oldest first, no birthday last, then by name the Russian way (ё with е)', async () => {
+    const child = (n: number, name: string, birthday: string | null) => ({
+      id: `0c3e4a52-0000-4000-8000-0000000001${String(n).padStart(2, '0')}`,
+      name,
+      color: 'teal',
+      birthday,
+    });
+    syncServer.seed('child', [
+      child(1, 'Без даты Б', null),
+      child(2, 'Младшая', '2022-01-05'),
+      child(3, 'Ёлка', null),
+      child(4, 'Старший', '2017-09-30'),
+      child(5, 'Близнец Б', '2019-04-12'),
+      child(6, 'Близнец А', '2019-04-12'),
+      child(7, 'Елена', null),
+      child(8, 'Ежевика', null),
+      child(9, 'Ёжик', null),
+    ]);
+
+    renderApp('/settings');
+
+    await waitFor(async () => {
+      expect(
+        within(await childrenList())
+          .getAllByRole('listitem')
+          .map((item) => item.textContent),
+      ).toEqual([
+        'Старший9 лет',
+        'Близнец А7 лет',
+        'Близнец Б7 лет',
+        'Младшая4 года',
+        'Без даты Б',
+        'Ежевика',
+        'Ёжик',
+        'Елена',
+        'Ёлка',
+      ]);
+    });
+  });
+
   it('sends a change still waiting in the store of an older app version after the upgrade', async () => {
     // The store as the first app version with sync created it (schema version 1), with a Child
     // added offline and not sent yet. Later versions must keep it when they upgrade the store.

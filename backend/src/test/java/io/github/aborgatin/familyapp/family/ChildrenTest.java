@@ -1,6 +1,7 @@
 package io.github.aborgatin.familyapp.family;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -18,8 +19,8 @@ import org.springframework.lang.Nullable;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * The Children list in the server's order (spec #5 stories 40–45, API contract "Children").
- * Children are written through the sync push ({@code ChildrenSyncTest}).
+ * The values a Child accepts (spec #5 stories 40–45). Children are written through the sync push
+ * and read through the pull ({@code ChildrenSyncTest}); the web app orders them.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -46,36 +47,6 @@ class ChildrenTest {
   }
 
   @Test
-  void childrenAreListedOldestFirstThenByNameWithoutBirthdayLast() throws Exception {
-    put(UUID.randomUUID(), "Без даты Б", "pink", null);
-    put(UUID.randomUUID(), "Младшая", "coral", "2022-01-05");
-    put(UUID.randomUUID(), "Без даты А", "blue", null);
-    put(UUID.randomUUID(), "Старший", "green", "2017-09-30");
-    put(UUID.randomUUID(), "Близнец Б", "teal", "2019-04-12");
-    put(UUID.randomUUID(), "Близнец А", "teal", "2019-04-12");
-
-    anna.get("/api/children")
-        .andExpect(
-            jsonPath(
-                "$[*].name",
-                contains(
-                    "Старший", "Близнец А", "Близнец Б", "Младшая", "Без даты А", "Без даты Б")));
-  }
-
-  @Test
-  void namesAreOrderedTheRussianWayWithYoNextToYe() throws Exception {
-    for (String name : List.of("Жора", "Ёлка", "Ежевика", "Арина", "Ёжик", "Елена", "Ева")) {
-      put(UUID.randomUUID(), name, "teal", null);
-    }
-
-    // The same order the web app's Intl.Collator('ru') gives (spec #5, Ordering).
-    anna.get("/api/children")
-        .andExpect(
-            jsonPath(
-                "$[*].name", contains("Арина", "Ева", "Ежевика", "Ёжик", "Елена", "Ёлка", "Жора")));
-  }
-
-  @Test
   void badValuesAreRefusedWithTheirFieldCodes() throws Exception {
     Sync.push(
             anna,
@@ -96,7 +67,8 @@ class ChildrenTest {
             jsonPath("$.results[0].params.errors[?(@.field=='birthday')].code")
                 .value("value.invalid"));
 
-    anna.get("/api/children").andExpect(jsonPath("$").isEmpty());
+    anna.get("/api/sync/pull?since=0")
+        .andExpect(jsonPath("$.changes[?(@.table=='child')]").isEmpty());
   }
 
   @Test
@@ -106,18 +78,8 @@ class ChildrenTest {
       put(UUID.randomUUID(), "Ребёнок " + color, color, null);
     }
 
-    anna.get("/api/children").andExpect(jsonPath("$.length()").value(8));
-  }
-
-  @Test
-  void childrenNeedASession() throws Exception {
-    Browser stranger = new Browser(mvc);
-    stranger.openApp();
-
-    stranger
-        .get("/api/children")
-        .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value("auth.required"));
+    anna.get("/api/sync/pull?since=0")
+        .andExpect(jsonPath("$.changes[?(@.table=='child')].fields.color", hasSize(8)));
   }
 
   private void put(UUID id, String name, String color, @Nullable String birthday) throws Exception {

@@ -77,8 +77,8 @@ Members are the principals. Sub-packages:
   `LoginService`, `MemberService`, `InviteService`; `RegistrationRequest` (registration body and the
   shared static checks `checkPassword`, `checkDisplayName`, `checkGrammaticalGender`);
   `OneTimeTokens`; `PasswordEncoderConfig`; `MemberSyncTable` (the `member` table of the pull).
-- `family.child`: `Child`, `ChildService` (also the `child` `SyncableTable`), `ChildRequest`,
-  `ChildColorPalette`, `ChildrenController` (`GET /api/children` only).
+- `family.child`: `Child`, `ChildService` (the `child` `SyncableTable`), `ChildRequest`,
+  `ChildColorPalette`. No REST endpoint: Children are written by the push and read by the pull.
 - `family.childfield`: `ChildField`, `ChildFieldService`, `ChildFieldRequest`, `ValueType`
   (`TEXT`, `DATE`), `ChildFieldsController` (`/api/child-fields`).
 
@@ -175,7 +175,7 @@ there):
 - Syncable resources (`Member`, `Child`, `ChildField`) always carry `id`, `version`, `updatedAt`
   in REST answers. List endpoints return non-deleted rows only.
 - Syncable tables are written through `POST /api/sync/push` and read by the client through
-  `GET /api/sync/pull` ([`sync.md`](sync.md)). Children have no write endpoint any more.
+  `GET /api/sync/pull` ([`sync.md`](sync.md)). Children have no REST endpoint any more.
 - Writes to Child fields (until they move onto the push) are idempotent upserts by client UUID: `PUT /…/{id}` creates
   or fully replaces, `DELETE /…/{id}` soft-deletes and returns `204` even for an unknown or already
   deleted id, and a `PUT` to a soft-deleted id returns `409 <entity>.deleted` without bringing it
@@ -195,17 +195,14 @@ there):
 | `POST /api/members/me/password`                                | `204`; other sessions stay                                                         |
 | `POST /api/sync/push`                                          | `{operations}` → `{results, version}`; see [`sync.md`](sync.md)                    |
 | `GET /api/sync/pull?since=N`                                   | `{changes, version}`; see [`sync.md`](sync.md)                                     |
-| `GET /api/children`                                            | by birthday (oldest first, none last), name (`ru-x-icu`), id; see below            |
 | `GET /api/child-fields`, `PUT/DELETE /api/child-fields/{id}`   | ordered by `position`, then id                                                     |
 | `GET /api/password-resets/by-token/{token}` (public)           | `{expiresAt}` or the reset's state error                                           |
 | `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions (same transaction), then logs in      |
 | `GET /actuator/health` (public)                                | container healthcheck                                                              |
 
-Children's name order is ICU's Russian collation, named in `ChildRepository`'s query
-(`COLLATE "ru-x-icu"`) instead of the database default, so it does not depend on the locale the
-database was created with. The web app sorts the same way with `Intl.Collator('ru')` when it places
-a saved Child (`useChildren`); both put «ё» together with «е». `ChildrenTest` and `children.test.tsx`
-check the same names.
+The pull sends Children in Version order; the web app orders them (`useChildren`: oldest first, no
+birthday last, then by name with `Intl.Collator('ru')`, «ё» with «е», then id), checked in
+`children.test.tsx`.
 
 ## Errors
 

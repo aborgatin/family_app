@@ -233,7 +233,8 @@ class ChildrenSyncTest {
   }
 
   @Test
-  void theOldChildrenWriteEndpointsAreGone() throws Exception {
+  void theOldChildrenEndpointsAreGoneThePullAndPushReplaceThem() throws Exception {
+    anna.get("/api/children").andExpect(status().is4xxClientError());
     anna.putJson("/api/children/" + UUID.randomUUID(), "{\"name\":\"Маша\",\"color\":\"coral\"}")
         .andExpect(status().is4xxClientError());
     anna.delete("/api/children/" + UUID.randomUUID()).andExpect(status().is4xxClientError());

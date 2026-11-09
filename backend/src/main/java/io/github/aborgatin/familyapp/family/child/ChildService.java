@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The Family's Children (spec #5, Children in Settings), and the {@code child} table of the sync
@@ -29,11 +28,6 @@ class ChildService implements SyncableTable {
     this.children = children;
     this.palette = palette;
     this.familyLock = familyLock;
-  }
-
-  @Transactional(readOnly = true)
-  List<Child> list() {
-    return children.findAllInOrder();
   }
 
   @Override
