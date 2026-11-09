@@ -138,7 +138,7 @@ class SyncService {
   }
 
   /** The last Version handed out; under the lock every lower one is committed or abandoned. */
-  private long latestVersion() {
+  long latestVersion() {
     Long version = jdbc.queryForObject("SELECT last_value FROM version_seq", Long.class);
     return version == null ? 0 : version;
   }

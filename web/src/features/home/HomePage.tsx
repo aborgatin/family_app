@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
+import { ListsSection } from '@/features/lists';
 import { SETTINGS_PATH } from '@/features/settings';
-import { EmptyState, Link, Page } from '@/shared/ui';
+import { Link, Page } from '@/shared/ui';
 
-/** Placeholder home screen until Lists arrive (M2/M3). Logging out is in Settings. */
+/** Home («Семья»): the Lists the Member may see. Settings (and logging out) behind the gear. */
 export function HomePage() {
   const { t } = useTranslation();
   return (
@@ -10,7 +11,7 @@ export function HomePage() {
       title={t('app.name')}
       actions={<Link to={SETTINGS_PATH} icon="settings" label={t('settings.title')} />}
     >
-      <EmptyState icon="home">{t('home.emptyState')}</EmptyState>
+      <ListsSection />
     </Page>
   );
 }

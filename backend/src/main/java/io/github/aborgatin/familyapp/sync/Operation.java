@@ -39,4 +39,21 @@ public record Operation(UUID memberId, UUID id, Type type, Map<String, Object> f
     new FieldErrors().add(field, FieldErrors.VALUE_INVALID).throwIfAny();
     return null;
   }
+
+  /**
+   * The field as a number, or {@code null} when it is absent or {@code null}. A value of another
+   * JSON type is {@code 400 validation.failed} with {@code value.invalid} for the field.
+   */
+  @Nullable
+  public Double number(String field) {
+    Object value = fields.get(field);
+    if (value == null) {
+      return null;
+    }
+    if (value instanceof Number number) {
+      return number.doubleValue();
+    }
+    new FieldErrors().add(field, FieldErrors.VALUE_INVALID).throwIfAny();
+    return null;
+  }
 }

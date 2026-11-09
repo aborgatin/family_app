@@ -1,6 +1,6 @@
 // Every screen and state of the web app, as shot for review (README.md has the format). When a
 // change adds or alters a screen, add or update its route here, so the next change shoots it too.
-import { editIn, failClipboard, hang, rowActions, section, toSection } from './helpers.mjs';
+import { editIn, failClipboard, hang, noLists, rowActions, section, toSection } from './helpers.mjs';
 
 const INVITE = 'role=button[name="Пригласить взрослого…"]';
 const showInvites = async (page) => {
@@ -45,7 +45,8 @@ export default {
     { name: 'reset-password', path: '/reset-password/{resetToken}', auth: 'loggedOut' },
 
     // Home
-    { name: 'home', path: '/' },
+    { name: 'home', path: '/', steps: [{ waitFor: 'text=Супермаркет' }] },
+    { name: 'home-empty', path: '/', initScript: noLists, steps: [{ waitFor: 'text=Списков пока нет' }] },
     {
       name: 'home-scrolled',
       path: '/',
@@ -68,6 +69,61 @@ export default {
         { waitFor: 'role=dialog' },
         { wait: 300 },
       ],
+    },
+
+    // Lists
+    {
+      name: 'new-list-sheet',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=button[name="Добавить список"]' },
+        { fill: 'role=dialog >> role=textbox[name="Название"]', value: 'Ремонт на даче' },
+        { click: 'role=dialog >> text=TODO' },
+        { click: 'role=dialog >> text=Личный' },
+        { wait: 400 },
+      ],
+    },
+    {
+      name: 'new-list-sheet-wish',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=button[name="Добавить список"]' },
+        { fill: 'role=dialog >> role=textbox[name="Название"]', value: 'Желания Пети' },
+        { click: 'role=dialog >> text=Желания' },
+        { wait: 400 },
+      ],
+    },
+    {
+      name: 'new-list-sheet-errors',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=button[name="Добавить список"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      name: 'list-shopping',
+      path: '/',
+      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: 'text=Товаров пока нет' }],
+    },
+    {
+      name: 'list-todo',
+      path: '/',
+      steps: [{ click: 'role=link[name=/Ремонт/]' }, { waitFor: 'text=Задач пока нет' }],
+    },
+    {
+      name: 'list-wish',
+      path: '/',
+      steps: [{ click: 'role=link[name=/Желания Маши/]' }, { waitFor: 'text=Желаний пока нет' }],
+    },
+    {
+      name: 'list-not-found',
+      path: '/lists/00000000-0000-4000-8000-000000000000',
+      steps: [{ waitFor: 'role=alert' }],
     },
 
     // Settings

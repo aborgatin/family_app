@@ -18,6 +18,7 @@ table adds it here.
 | `member`      | `V1__family_member_session.sql` | server, at registration (`Member` constructor) | M1    |
 | `child`       | `V3__child.sql`                 | client (`crypto.randomUUID()`)                 | M1    |
 | `child_field` | `V4__child_field.sql`           | client; Default rows by the migration          | M1    |
+| `list`        | `V5__list.sql`                  | client (`crypto.randomUUID()`)                 | M2    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -39,19 +40,20 @@ shown), `invite`, `password_reset`, `spring_session`, `spring_session_attributes
   sets these columns: entities map them with `@Generated(event = {INSERT, UPDATE})`,
   `insertable = false, updatable = false`, and Hibernate reads them back after each write.
 - Default rows (the two Child fields in `V4`) get Versions from the trigger too.
-- Tested: `everyWriteGetsAHigherVersion…` in `ChildrenSyncTest` and `ChildFieldsTest`.
+- Tested: `everyWriteGetsAHigherVersion…` in `ChildrenSyncTest`.
 
 **Soft deletes.** Removing a row sets `deleted = true` (an UPDATE, so the Version advances). The
 repositories extend Spring Data's bare `Repository` and declare no delete methods. No code path
 deletes a Member yet; `member.deleted` exists, and login, session and `MemberService` lookups
 ignore deleted Members. Email uniqueness counts deleted Members too.
 
-**Client UUIDs** (S3). Children and Child fields are created with the id the client chose; the
+**Client UUIDs** (S3). Children, Child fields and Lists are created with the id the client chose; the
 server never generates one for them. Members get theirs from the server at registration.
 
-**Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move writes only the moved
-field (midpoint between its new neighbours, computed by the client in `positionAfterMove`). Ties
-sort by id. Children have no manual order (birthday, then name, then id).
+**Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move is one upsert carrying
+only the moved field's `position` (midpoint between its new neighbours, computed by the client in
+`positionAfterMove`), so a reorder is a single-record change. The client sorts by position, ties
+by id (`useChildFields`); the pull sends rows in Version order. Children have no manual order (birthday, then name, then id).
 
 ## Push: the only write path
 
@@ -71,8 +73,16 @@ sort by id. Children have no manual order (birthday, then name, then id).
 - The push is one transaction that takes the `SyncLock` (`FamilyLock`) first. Each operation runs
   inside an SQL savepoint; a rejected one rolls back alone and the others still apply.
 - Repeating a whole push leaves the same state (S3).
+- Table rules: a Child field's `valueType` can't change after creation (ADR-0007): an upsert
+  carrying another one is rejected with `child_field.value_type_immutable`.
 - Codes of the push itself: `sync.table_unknown` (`params.table`), `sync.read_only` (a pull-only
   table such as `member`), `request.invalid` (no valid id or `op`).
+- **Lists** (`list`, ticket #55): an upsert carries `name`, `kind` (`SHOPPING` / `TODO` / `WISH`)
+  and `visibility` (`PRIVATE` / `SHARED`); the pull also sends the server-set `ownerId` (the
+  Member who pushed the create) and `createdAt`. Rules: `list.kind_immutable` (kind changed),
+  `list.wish_shared_only` (a Private Wish list, on create or later), `list.not_found` (any
+  operation on another Member's Private List), and the Child name limits on `name`
+  (`validation.failed`).
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
   reach other devices through the pull.
 
@@ -89,6 +99,10 @@ sort by id. Children have no manual order (birthday, then name, then id).
   changed. The client stores it and asks from there next time.
 - All tables are read in one `REPEATABLE READ` read-only transaction, so `H` covers exactly the
   snapshot that was read.
+- **Privacy (A1).** Another Member's Private List is never sent with its fields: a change to it
+  comes as a tombstone (id only), so a List made Private disappears from the other Member's phone,
+  and a first sync leaves it out. Operations on it are rejected with `list.not_found`, as if it
+  didn't exist.
 
 ## Versions commit in order
 
@@ -109,18 +123,44 @@ one is still in flight. Tests: `PullNeverSkipsASlowerWriteTest` (a push stalled 
 Version, a second push, a pull in between; fails without the lock) and
 `MemberWritesTakeTheFamilyLockTest`. A new write path to a syncable table must take the lock too.
 
+## Live updates: SSE
+
+`GET /api/sync/events` (`text/event-stream`, needs a session like any other API call: `401
+auth.required` without one) tells open apps when to pull:
+
+- Its only event is `changed`, with data `{"version": N}`: the last Version handed out
+  (`version_seq`'s `last_value`, as the push answers). It never carries rows.
+- It is sent once when the connection opens, and to every open connection after the commit of
+  every transaction that wrote a syncable row: the push and every online-only Member write. The
+  hook is `FamilyLock`, which every such transaction takes first ("Versions commit in order"):
+  taking it publishes `SyncableWriteStarted`, and `sync` registers one after-commit callback per
+  transaction (a rolled-back write sends nothing). A new write path that takes the lock gets live
+  updates for free.
+- A heartbeat comment (`:`) every 25 s keeps an idle connection open through Caddy and iOS. Each
+  heartbeat also checks the connection's session; the first one after the session ended (logout,
+  expiry, password reset) ends the stream. A write that fails (the client went away) drops the
+  connection silently.
+- The Version can be above anything the client will pull (a rolled-back transaction used it, or
+  the row is hidden from this Member): the client then pulls once per event and finds nothing,
+  which is harmless.
+- The client pulls on a `changed` whose Version is above its stored one, when the app returns to
+  the foreground, when the server becomes reachable again, and right after each push.
+- Tests: `LiveUpdatesTest` (real port), web `features/children/liveUpdates.test.tsx`.
+
 ## Client
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
-  table (`member`, `child` so far), the Outbox (`++seq`) and the stored Version. The app asks for
-  persistent storage at start. Dexie upgrades keep every table not dropped, so the Outbox survives
+  table (`member`, `child`, `child_field`, `list` so far), the Outbox (`++seq`) and the stored
+  Version. The app asks for persistent storage at start. Dexie upgrades keep every table not
+  dropped, so the Outbox survives
   store upgrades.
 - **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
   appended to the Outbox in the same transaction, then the engine is asked to sync.
 - **Sync engine** (`engine.ts`): pushes the Outbox in order (batches of 100), drops what the server
   answered, then pulls. It runs at start, when the app returns to the foreground
   (`visibilitychange`), when the server becomes reachable again (any API answer, or the browser's
-  `online` event), after each local change, and pulls right after each push. A failure retries
+  `online` event), after each local change, on a live-update `changed` event above the stored
+  Version (`liveUpdates.ts`, see "Live updates" above), and pulls right after each push. A failure retries
   with backoff (1 s doubling to 30 s); a `401` stops it until the next trigger and keeps the store
   and the Outbox. Its requests go through `api`, so `serverReachable` (the offline indicator) stays
   the only sign of unsent changes.
@@ -140,6 +180,5 @@ Version, a second push, a pull in between; fails without the lock) and
   meta) is wiped, so the next person on the device sees none of the Member's data. When the
   logout can't reach the server either, the store is wiped at once and the device stays logged
   out (no sync) until the server is told or someone logs in (`frontend.md`, "Pending logout").
-- Children are on the store. Child fields still use REST until their ticket moves them
-  (`PUT/DELETE /api/child-fields/{id}`: idempotent full upserts under `FamilyLock`, `409
-child_field.deleted` on a deleted id); Lists and Items and SSE (`changed` → pull) are the next M2 tickets.
+- Children, Child fields and Lists are on the store, and live updates (`changed` → pull) run.
+  Items and the List screen are the next M2 tickets.

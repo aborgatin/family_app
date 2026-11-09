@@ -2,13 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  anna,
-  childFieldsHandler,
-  invitesHandler,
-  membersHandler,
-  sessionHandler,
-} from '@/test/fixtures';
+import { anna, invitesHandler, membersHandler, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -52,7 +46,7 @@ describe('Login', () => {
     await user.type(await screen.findByLabelText('Электронная почта'), 'anna@example.com');
     await user.type(screen.getByLabelText('Пароль'), 'secret123{Enter}');
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
   });
 
   it('logs in with the CSRF header and returns to where the Member was going', async () => {
@@ -69,7 +63,7 @@ describe('Login', () => {
     const app = renderApp('/?list=groceries#top');
     await logIn(user);
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
     expect(app.location()).toBe('/?list=groceries#top');
     expect(received).toEqual({
       body: { email: 'anna@example.com', password: 'secret123' },
@@ -85,7 +79,7 @@ describe('Login', () => {
     const app = renderApp('/login');
     await logIn(user);
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
     expect(app.location()).toBe('/');
   });
 
@@ -94,7 +88,7 @@ describe('Login', () => {
 
     const app = renderApp('/login');
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
     expect(app.location()).toBe('/');
   });
 
@@ -200,7 +194,7 @@ describe('Logout', () => {
   beforeEach(() => {
     document.cookie = 'XSRF-TOKEN=token-from-server';
     server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
-    server.use(membersHandler([anna]), childFieldsHandler([]), invitesHandler([]));
+    server.use(membersHandler([anna]), invitesHandler([]));
   });
   afterEach(() => {
     document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
@@ -218,7 +212,7 @@ describe('Logout', () => {
   it('is not on the home screen', async () => {
     renderApp('/');
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Выйти' })).not.toBeInTheDocument();
   });
 
@@ -281,7 +275,7 @@ describe('Logout', () => {
     await logOut(user);
     await logIn(user);
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
     expect(app.location()).toBe('/');
   });
 

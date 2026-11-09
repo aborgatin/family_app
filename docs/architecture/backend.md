@@ -1,6 +1,7 @@
 # Backend
 
-What exists in `/backend` after Spec #1 (M0 + M1) and the M2 sync core (spec #3, ticket #52). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
+What exists in `/backend` after Spec #1 (M0 + M1), the M2 sync core (spec #3, tickets #52 and
+#53), live updates (#54) and Lists (#55). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
 Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`sync.md`](sync.md).
 
 ## Stack
@@ -39,15 +40,18 @@ The application package is `io.github.aborgatin.familyapp` (main class `FamilyAp
 Each top-level sub-package is a Spring Modulith module; its root package is its public API and its
 sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify()`.
 
-| Module    | Public API (root package)                                      | Internal                                                            |
-| --------- | -------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`     | `family.auth`, `family.member`, `family.child`, `family.childfield` |
-| `sync`    | `SyncableTable`, `Operation`, `Outcome`, `SyncRow`, `SyncLock` | `sync.internal` (`SyncController`, `SyncService`)                   |
-| `error`   | `ApiException`, `ApiError`, `FieldErrors`                      | `error.internal.ApiExceptionHandler`                                |
-| `command` | `Commands` (called from `FamilyAppApplication.main`)           | `PasswordResetCommand` (package-private)                            |
-| `webapp`  | none                                                           | `WebBundleConfig`                                                   |
+| Module    | Public API (root package)                                                              | Internal                                                                                  |
+| --------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`                             | `family.auth`, `family.member`, `family.child`, `family.childfield`                       |
+| `sync`    | `SyncableTable`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
+| `lists`   | none                                                                                   | `lists.list`                                                                              |
+| `error`   | `ApiException`, `ApiError`, `FieldErrors`                                              | `error.internal.ApiExceptionHandler`                                                      |
+| `command` | `Commands` (called from `FamilyAppApplication.main`)                                   | `PasswordResetCommand` (package-private)                                                  |
+| `webapp`  | none                                                                                   | `WebBundleConfig`                                                                         |
 
-Dependencies: `family → error`, `family → sync`, `sync → error`, `command → family`. The Version
+Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `sync → error`,
+`command → family`. (`lists` reaches Members only through `Operation.memberId()` so far; the spec
+allows `lists → family` for `Members` and `FamilyLock` when a ticket needs them.) The Version
 sequence and trigger are database objects from `V1`; `sync` only reads `version_seq` for the push
 answer (see [`sync.md`](sync.md)).
 
@@ -79,8 +83,9 @@ Members are the principals. Sub-packages:
   `OneTimeTokens`; `PasswordEncoderConfig`; `MemberSyncTable` (the `member` table of the pull).
 - `family.child`: `Child`, `ChildService` (the `child` `SyncableTable`), `ChildRequest`,
   `ChildColorPalette`. No REST endpoint: Children are written by the push and read by the pull.
-- `family.childfield`: `ChildField`, `ChildFieldService`, `ChildFieldRequest`, `ValueType`
-  (`TEXT`, `DATE`), `ChildFieldsController` (`/api/child-fields`).
+- `family.childfield`: `ChildField`, `ChildFieldService` (the `child_field` `SyncableTable`),
+  `ChildFieldRequest`, `ValueType` (`TEXT`, `DATE`). No REST endpoint: Child fields are written by
+  the push and read by the pull.
 
 The public API (root package) is what spec #5 asks for, plus password resets:
 
@@ -105,9 +110,10 @@ Shared patterns inside `family`:
   `SELECT id FROM family FOR UPDATE` and returns the Family id; `lock()` is the same as the
   `sync.SyncLock`. It needs a surrounding transaction. **Every write to a syncable table takes it
   first** (the push, bootstrap, Invite acceptance, `MemberService.updateProfile` and
-  `changePassword`, `PasswordResets.complete`, `ChildFieldService.put/delete`), so Versions commit
+  `changePassword`, `PasswordResets.complete`), so Versions commit
   in Version order (sync.md "Versions commit in order") and check-then-insert races run one after
-  another.
+  another. Taking it publishes `sync.SyncableWriteStarted`, which is what sends live updates after
+  the commit (see `sync` below).
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.
 - **Validation** collects every bad field in a `FieldErrors` and throws once. Body records read
@@ -126,11 +132,13 @@ The push and the pull ([`sync.md`](sync.md) has the semantics). Public API:
   `changesSince(version, memberId)` → `List<SyncRow>` (deleted rows as `SyncRow.tombstone`, rows
   the Member may not see as tombstones or left out). `SyncService` collects every bean; two with
   the same name fail start-up.
-- `Operation(memberId, id, type, fields)`: `type` `UPSERT` / `DELETE`; `has(field)` and
-  `text(field)` (a non-string value is `validation.failed` / `value.invalid`) read the raw JSON
-  fields.
+- `Operation(memberId, id, type, fields)`: `type` `UPSERT` / `DELETE`; `has(field)`,
+  `text(field)` and `number(field)` (a value of another JSON type is `validation.failed` /
+  `value.invalid`) read the raw JSON fields.
 - `SyncLock`: the lock the push takes; `family.FamilyLock` implements it, so `sync` doesn't depend
   on `family`.
+- `SyncableWriteStarted`: the event the lock publishes inside every transaction that writes a
+  syncable row; `sync` answers it with live updates after the commit.
 
 `sync.internal.SyncService.push` runs in one transaction: `SyncLock.lock()`, then each operation
 inside `SAVEPOINT sync_operation` (Hibernate's JPA dialect has no savepoints, so it is plain SQL
@@ -140,6 +148,37 @@ and flush each write (`saveAndFlush`), and don't annotate it `@Transactional` (a
 transaction that throws marks the whole push rollback-only). `pull` is
 `@Transactional(readOnly = true, isolation = REPEATABLE_READ)`. `SyncController` takes the Member
 id from the session principal's name (`AuthenticatedMember` is named by the Member id).
+
+Live updates ([`sync.md`](sync.md#live-updates-sse)): `LiveUpdatesController`
+(`GET /api/sync/events`, web-only) opens an `SseEmitter` (no timeout) in `LiveUpdates` with a check
+of its Spring Session id (`SessionRepository.findById`). `LiveUpdates` (not web-only, so the
+`command` context starts without it failing) keeps the open connections:
+
+- `changed` with `SyncService.latestVersion()` on open, and after commit: its listener for
+  `SyncableWriteStarted` registers one `TransactionSynchronization.afterCommit` per transaction
+  (a marker resource keeps it to one however often the transaction takes the lock).
+- A heartbeat thread (`sync.heartbeat`, default `25s`; a code default, only tests change it, so it
+  is not an environment variable) sends a comment, or ends a connection whose session is gone.
+- A failed write just forgets the connection (Spring MVC ends the request); `ApiExceptionHandler`
+  ignores `AsyncRequestNotUsableException` (client gone) instead of logging an error.
+- On `ContextClosedEvent` it ends every connection, so graceful shutdown doesn't wait for them.
+
+### `lists`
+
+Lists (and, from ticket #57, Items): written only by the push, read only by the pull, no REST
+endpoints. `lists.list`: `ListEntity` (named so it doesn't shadow `java.util.List`), `ListKind`
+(`SHOPPING`, `TODO`, `WISH`) and `Visibility` (`PRIVATE`, `SHARED`), both code (S7);
+`ListRepository`; `ListRequest` (merged fields → `validate()`: name 1–100 code points after trim,
+the Child name limits; known kind and Visibility) → `ListDetails`; `ListService`, the `list`
+`SyncableTable`:
+
+- `apply`: deleted → `IGNORED` (delete wins); another Member's Private List →
+  `list.not_found` (A1); upsert merges the carried fields over the stored ones, validates, then
+  `list.kind_immutable` if the kind changed and `list.wish_shared_only` for a Private Wish list.
+  A create sets the Owner (`operation.memberId()`) and `createdAt`; neither ever changes.
+- `changesSince`: `name`, `kind`, `visibility`, `ownerId`, `createdAt`; a tombstone for a deleted
+  List and for another Member's Private List (`ListEntity.visibleTo(memberId)`).
+- Not yet: the Owner-only Visibility change (`list.owner_only`, ticket #56) and Items (#57).
 
 ### `command`
 
@@ -172,14 +211,11 @@ there):
 ## API conventions
 
 - JSON under `/api`, camelCase fields, timestamps ISO-8601 UTC, dates `YYYY-MM-DD`, ids UUID strings.
-- Syncable resources (`Member`, `Child`, `ChildField`) always carry `id`, `version`, `updatedAt`
-  in REST answers. List endpoints return non-deleted rows only.
+- Syncable resources in REST answers (`Member`) always carry `id`, `version`, `updatedAt`. List
+  endpoints return non-deleted rows only.
 - Syncable tables are written through `POST /api/sync/push` and read by the client through
-  `GET /api/sync/pull` ([`sync.md`](sync.md)). Children have no REST endpoint any more.
-- Writes to Child fields (until they move onto the push) are idempotent upserts by client UUID: `PUT /…/{id}` creates
-  or fully replaces, `DELETE /…/{id}` soft-deletes and returns `204` even for an unknown or already
-  deleted id, and a `PUT` to a soft-deleted id returns `409 <entity>.deleted` without bringing it
-  back. Details in [`sync.md`](sync.md).
+  `GET /api/sync/pull` ([`sync.md`](sync.md)). Children and Child fields have no REST endpoint any
+  more.
 - Endpoints (all need a session unless marked public):
 
 | Endpoint                                                       | Notes                                                                              |
@@ -195,14 +231,15 @@ there):
 | `POST /api/members/me/password`                                | `204`; other sessions stay                                                         |
 | `POST /api/sync/push`                                          | `{operations}` → `{results, version}`; see [`sync.md`](sync.md)                    |
 | `GET /api/sync/pull?since=N`                                   | `{changes, version}`; see [`sync.md`](sync.md)                                     |
-| `GET /api/child-fields`, `PUT/DELETE /api/child-fields/{id}`   | ordered by `position`, then id                                                     |
+| `GET /api/sync/events`                                         | SSE: `changed` `{version}` on connect and after each syncable commit; heartbeats   |
 | `GET /api/password-resets/by-token/{token}` (public)           | `{expiresAt}` or the reset's state error                                           |
 | `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions (same transaction), then logs in      |
 | `GET /actuator/health` (public)                                | container healthcheck                                                              |
 
 The pull sends Children in Version order; the web app orders them (`useChildren`: oldest first, no
 birthday last, then by name with `Intl.Collator('ru')`, «ё» with «е», then id), checked in
-`children.test.tsx`.
+`children.test.tsx`. Child fields likewise: `useChildFields` orders them by `position`, then id
+(`childFields.test.tsx`).
 
 ## Errors
 
@@ -236,8 +273,6 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 | 405    | `method.not_allowed`                              | added: wrong HTTP method                                                      |
 | 409    | `auth.bootstrap_closed`                           | bootstrap after the first Member exists                                       |
 | 409    | `member.email_taken`                              | Invite acceptance with an email any Member row has (removed ones included)    |
-| 409    | `child_field.deleted`                             | `PUT` to a soft-deleted Child field                                           |
-| 409    | `child_field.value_type_immutable`                | `PUT` changing an existing Child field's `valueType`                          |
 | 410    | `invite.used`, `invite.revoked`, `invite.expired` | Invite link no longer works (checked in that order)                           |
 | 410    | `password_reset.used`, `password_reset.expired`   | reset link no longer works                                                    |
 | 429    | `auth.too_many_attempts`                          | login limits; `params.retryAfterSeconds`, also `Retry-After` header           |
@@ -245,8 +280,10 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 
 Push results (not HTTP statuses: the push answers `200` with one result per operation) carry the
 same `{code, params}`: `validation.failed`, `sync.table_unknown` (`params.table`), `sync.read_only`,
-`request.invalid` (no valid id or `op`). An operation on a deleted Child is `ignored`, not
-`409 child.deleted` any more.
+`request.invalid` (no valid id or `op`), and per table `child_field.value_type_immutable` (an
+upsert changing an existing Child field's `valueType`) and for Lists `list.not_found`
+(`params.listId`), `list.kind_immutable`, `list.wish_shared_only`. An operation on a deleted
+Child, Child field or List is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 
 Rows marked "added" are not in spec #5's error catalogue. They cover failures Spring raises before
 or outside an endpoint's own checks (a body that isn't JSON, an unknown path, a wrong method, an
@@ -340,6 +377,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V2_1__invite.sql`              | `invite` (numbered 2.1 because V3/V4 were reserved by parallel tickets)                            |
 | `V3__child.sql`                 | `child`                                                                                            |
 | `V4__child_field.sql`           | `child_field` + Default Child fields «Вес», «Рост» (`TEXT`, positions 1.0, 2.0)                    |
+| `V5__list.sql`                  | `list` (Owner → `member`)                                                                          |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -394,7 +432,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest` does.
+   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest` and `lists.ListsSyncTest` do.
 
 ## Testing
 
@@ -410,7 +448,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `putJson`, `patchJson`, `delete`. Login-limit counters live for the whole cached context, so
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
-    (cascading to Invites and resets) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
+    (cascading to Invites, resets and Lists) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
     `addMember(jdbc, email, password, name, gender)`.
   - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),
@@ -422,6 +460,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 - **Restart tests**: `HttpDevice` (real port, cookies survive restarts) with
   `HttpDevice.startApp(postgres)` against a test-owned static container; see
   `SessionSurvivesRestartTest` and `ChildFieldDefaultsTest`.
+- **Real-port tests**: `HttpDevice` (public) also works in a `RANDOM_PORT` `@SpringBootTest` via
+  `new HttpDevice().at(context)`; `openLines(path)` streams a long response line
+  by line. `sync.LiveUpdatesTest` reads `/api/sync/events` that way (heartbeat set to `200ms`).
 - Other: `ModularityTest` (Modulith verify), `WebBundleServingTest` (RANDOM_PORT +
   `TestRestTemplate`; test bundle in `src/test/resources/static/`), `ForwardedHeadersTest`
   (`TRUSTED_PROXIES=127\.0\.0\.1` + `X-Forwarded-For`), `PasswordResetCommandTest` (runs the command

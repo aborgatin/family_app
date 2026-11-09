@@ -1,17 +1,14 @@
-import { useCallback } from 'react';
-import { asApiError } from '@/shared/api';
-import { useLoad, type Load } from '@/shared/load';
-import {
-  deleteChildField,
-  fetchChildFields,
-  putChildField,
-  type ChildField,
-  type ValueType,
-} from './childFieldsApi';
+import { useCallback, useMemo } from 'react';
+import type { ErrorMessage } from '@/shared/api';
+import type { Load } from '@/shared/load';
+import { deleteRow, upsertRow, useRows, useSaveRejected } from '@/shared/sync';
+import type { ChildField, ValueType } from './childFieldsApi';
 
 export type ChildFieldsLoad = Load<ChildField[]>;
 
-/** Display order: by position, ties broken by id (the same rule as the server). */
+const SAVE_REJECTED: ErrorMessage = { key: 'sync.saveRejected', values: {} };
+
+/** Display order: by position, ties broken by id. */
 function inOrder(fields: ChildField[]): ChildField[] {
   return [...fields].sort((a, b) =>
     a.position === b.position ? (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) : a.position - b.position,
@@ -45,63 +42,63 @@ export function newChildFieldId(): string {
 }
 
 /**
- * The Family's Child fields and every change to them. All data access for this feature goes
- * through here (spec #5, M2 rule): in M1 it is REST, online-only; M2 swaps in the local store +
- * Outbox without touching the components. Writes reject with an `ApiError` and leave the list as
- * it was.
+ * The Family's Child fields and every change to them: the only data access of this feature. It
+ * reads the local store and writes through the Outbox (S4), so it works the same offline; the sync
+ * engine sends the changes and pulls the other Member's. Each write sends only what it changes
+ * (Last write wins per field): a rename the name, a move the position. `saveFailure` is «Не
+ * удалось сохранить» after the server rejected a change; the next pull has already put the
+ * server's copy back.
  */
 export function useChildFields() {
-  const { load, retry, update } = useLoad(() => fetchChildFields().then(inOrder));
+  const rows = useRows('child_field') as ChildField[] | undefined;
+  const { rejected, clear } = useSaveRejected('child_field');
 
+  const load = useMemo<ChildFieldsLoad>(
+    () => (rows === undefined ? { status: 'loading' } : { status: 'ready', value: inOrder(rows) }),
+    [rows],
+  );
   const fields = load.status === 'ready' ? load.value : [];
 
-  const saved = useCallback(
-    (field: ChildField) => {
-      update((previous) => inOrder([...previous.filter((f) => f.id !== field.id), field]));
-    },
-    [update],
-  );
-
-  async function write(id: string, change: Parameters<typeof putChildField>[1]) {
-    let field: ChildField;
-    try {
-      field = await putChildField(id, change);
-    } catch (error: unknown) {
-      throw asApiError(error);
-    }
-    saved(field);
+  /** Adds a field at the end, with an id from `newChildFieldId()`. */
+  async function add(id: string, name: string, valueType: ValueType): Promise<ChildField> {
+    clear();
+    const last = fields.at(-1);
+    const field = { id, name, valueType, position: last === undefined ? 1 : last.position + 1 };
+    await upsertRow('child_field', id, { name, valueType, position: field.position });
     return field;
   }
 
-  /** Adds a field at the end, with an id from `newChildFieldId()`. */
-  async function add(id: string, name: string, valueType: ValueType) {
-    const last = fields.at(-1);
-    return write(id, {
-      name,
-      valueType,
-      position: last === undefined ? 1 : last.position + 1,
-    });
-  }
-
-  async function rename(field: ChildField, name: string) {
-    return write(field.id, { name, valueType: field.valueType, position: field.position });
-  }
+  const rename = useCallback(
+    async (field: ChildField, name: string): Promise<ChildField> => {
+      clear();
+      await upsertRow('child_field', field.id, field.name === name ? {} : { name });
+      return { ...field, name };
+    },
+    [clear],
+  );
 
   /** Moves a field to index `to` of the list. */
   async function move(field: ChildField, to: number) {
     const position = positionAfterMove(fields, field.id, to);
     if (position === undefined) return;
-    await write(field.id, { name: field.name, valueType: field.valueType, position });
+    clear();
+    await upsertRow('child_field', field.id, { position });
   }
 
   async function remove(field: ChildField) {
-    try {
-      await deleteChildField(field.id);
-    } catch (error: unknown) {
-      throw asApiError(error);
-    }
-    update((previous) => previous.filter((f) => f.id !== field.id));
+    clear();
+    await deleteRow('child_field', field.id);
   }
 
-  return { load, retry, add, rename, move, remove };
+  const retry = useCallback(() => undefined, []);
+
+  return {
+    load,
+    retry,
+    add,
+    rename,
+    move,
+    remove,
+    saveFailure: rejected ? SAVE_REJECTED : undefined,
+  };
 }

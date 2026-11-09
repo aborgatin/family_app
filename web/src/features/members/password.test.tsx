@@ -2,14 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  anna,
-  boris,
-  childFieldsHandler,
-  invitesHandler,
-  membersHandler,
-  sessionHandler,
-} from '@/test/fixtures';
+import { anna, boris, invitesHandler, membersHandler, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -19,7 +12,6 @@ beforeEach(() => {
     sessionHandler({ bootstrapRequired: false, member: anna }).handler,
     membersHandler([anna, boris]),
     invitesHandler([]),
-    childFieldsHandler([]),
   );
 });
 afterEach(() => {

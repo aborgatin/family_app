@@ -11,6 +11,7 @@ import java.net.http.HttpResponse.BodyHandlers;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -20,14 +21,14 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * restarts and sends the CSRF header on writes. (The JDK's cookie store won't send {@code Secure}
  * cookies over plain HTTP.) For tests that restart the app against the same database.
  */
-final class HttpDevice {
+public final class HttpDevice {
 
   private final HttpClient http = HttpClient.newHttpClient();
   private final Map<String, String> cookies = new LinkedHashMap<>();
   private String base = "";
 
   /** Starts the whole app on a random port against {@code postgres}. */
-  static ConfigurableApplicationContext startApp(PostgreSQLContainer<?> postgres) {
+  public static ConfigurableApplicationContext startApp(PostgreSQLContainer<?> postgres) {
     return new SpringApplicationBuilder(FamilyAppApplication.class)
         .properties(
             "server.port=0",
@@ -37,13 +38,32 @@ final class HttpDevice {
         .run();
   }
 
-  HttpDevice at(ConfigurableApplicationContext app) {
+  public HttpDevice at(ConfigurableApplicationContext app) {
     base = "http://localhost:" + app.getEnvironment().getProperty("local.server.port");
     return this;
   }
 
-  HttpResponse<String> send(String method, String path, String json)
+  public HttpResponse<String> send(String method, String path, String json)
       throws IOException, InterruptedException {
+    HttpResponse<String> response = http.send(request(method, path, json), BodyHandlers.ofString());
+    for (String setCookie : response.headers().allValues("Set-Cookie")) {
+      String pair = setCookie.split(";", 2)[0];
+      int eq = pair.indexOf('=');
+      cookies.put(pair.substring(0, eq), pair.substring(eq + 1));
+    }
+    return response;
+  }
+
+  /**
+   * Opens a long-lived {@code GET} (such as an event stream) whose body is read line by line as it
+   * arrives; the lines end when the server ends the response.
+   */
+  public HttpResponse<Stream<String>> openLines(String path)
+      throws IOException, InterruptedException {
+    return http.send(request("GET", path, null), BodyHandlers.ofLines());
+  }
+
+  private HttpRequest request(String method, String path, String json) {
     BodyPublisher body = json == null ? BodyPublishers.noBody() : BodyPublishers.ofString(json);
     HttpRequest.Builder request =
         HttpRequest.newBuilder(URI.create(base + path))
@@ -60,12 +80,6 @@ final class HttpDevice {
     if (xsrf != null && !method.equals("GET")) {
       request.header("X-XSRF-TOKEN", xsrf);
     }
-    HttpResponse<String> response = http.send(request.build(), BodyHandlers.ofString());
-    for (String setCookie : response.headers().allValues("Set-Cookie")) {
-      String pair = setCookie.split(";", 2)[0];
-      int eq = pair.indexOf('=');
-      cookies.put(pair.substring(0, eq), pair.substring(eq + 1));
-    }
-    return response;
+    return request.build();
   }
 }

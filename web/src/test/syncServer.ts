@@ -109,6 +109,11 @@ class FakeSyncServer {
     }
   }
 
+  /** The last Version handed out: what a live-update `changed` event carries. */
+  get latestVersion(): number {
+    return this.version;
+  }
+
   /** The server's copy of a row (`{id, ...fields}`), or `undefined` if absent or deleted. */
   row(table: string, id: string): Record<string, unknown> | undefined {
     const row = this.stored.get(key(table, id));

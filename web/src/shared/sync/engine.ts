@@ -9,13 +9,15 @@ import {
   type SyncedTable,
   wipeLocalStore,
 } from './localStore';
+import { openLiveUpdates } from './liveUpdates';
 
 /*
  * The sync engine (ADR-0003, spec #3 "Client"): the one place that talks to the sync API. It
  * pushes the Outbox in order and then pulls, again and again while there is something to do:
  *
  * - at start, when the app comes back to the foreground, when the server becomes reachable again
- *   (any API answer, or the browser's `online` event), and after every local change;
+ *   (any API answer, or the browser's `online` event), after every local change, and when the
+ *   live-update stream (`liveUpdates.ts`) announces a Version above the stored one;
  * - after a failure it retries with backoff (1 s doubling to 30 s); a `401` stops it until the next
  *   trigger, keeping the store and the Outbox.
  *
@@ -84,10 +86,12 @@ export function startSync(): () => void {
     const stopReachable = subscribeServerReachable((reachable) => {
       if (reachable) requestSync();
     });
+    const closeLiveUpdates = openLiveUpdates(requestSync);
     unsubscribe = () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('online', requestSync);
       stopReachable();
+      closeLiveUpdates();
     };
     requestSync();
   }

@@ -100,9 +100,16 @@ another PostgreSQL container, `-d <database>` for another database).
 
 - Global `email {$ACME_EMAIL}` for the Let's Encrypt account.
 - Site `{$DOMAIN}`: automatic HTTPS (a public domain gets a Let's Encrypt certificate, `localhost`
-  gets one from Caddy's local CA), HTTP redirected to HTTPS, `encode zstd gzip`,
-  `Strict-Transport-Security "max-age=31536000; includeSubDomains"`, `reverse_proxy app:8080`.
+  gets one from Caddy's local CA), HTTP redirected to HTTPS, `encode zstd gzip` for everything but
+  the live-update stream, `Strict-Transport-Security "max-age=31536000; includeSubDomains"`,
+  `reverse_proxy app:8080`.
 - Caddy replaces any client-sent `X-Forwarded-For` with the real client IP.
+- **Live updates (SSE, `GET /api/sync/events`)**: `reverse_proxy` flushes `text/event-stream`
+  responses at once and has no read timeout by default, so it needs no setting. The stream is left
+  out of `encode` (`@compressible not path /api/sync/events`) so no compressor holds back an
+  event. The app's 25 s heartbeat keeps the idle connection open. Graceful shutdown doesn't wait
+  for open streams: the app ends them when it stops, and the clients reconnect to the new
+  container.
 
 ## Environment variables
 

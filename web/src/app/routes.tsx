@@ -10,6 +10,7 @@ import {
 } from '@/features/auth';
 import { CHILD_SETTINGS_PATH, ChildSettingsPage } from '@/features/children';
 import { HOME_PATH, HomePage } from '@/features/home';
+import { LIST_PATH, ListPage } from '@/features/lists';
 import { PASSWORD_PATH, PasswordPage } from '@/features/members';
 import { SettingsPage, SETTINGS_PATH } from '@/features/settings';
 import { AppShell } from '@/shared/ui';
@@ -25,6 +26,7 @@ export const routes: RouteObject[] = [
         element: <AuthGuard />,
         children: [
           { path: HOME_PATH, element: <HomePage /> },
+          { path: LIST_PATH, element: <ListPage homePath={HOME_PATH} /> },
           { path: '/setup', element: <SetupPage /> },
           { path: '/login', element: <LoginPage /> },
           { path: RESET_PASSWORD_PATH, element: <ResetPasswordPage /> },

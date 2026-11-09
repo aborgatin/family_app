@@ -6,9 +6,9 @@ import java.util.Arrays;
 import org.springframework.lang.Nullable;
 
 /**
- * The body of {@code PUT /api/child-fields/{id}}: {@code {name, valueType, position}}, all required
- * (a {@code PUT} fully replaces). Fields are read as nullable so that a missing or unknown value
- * becomes a field code, not a parse error.
+ * A Child field's fields as an upsert leaves them: {@code {name, valueType, position}}, all
+ * required. Fields are read as nullable so that a missing or unknown value becomes a field code,
+ * not a parse error.
  */
 record ChildFieldRequest(
     @Nullable String name, @Nullable String valueType, @Nullable Double position) {
