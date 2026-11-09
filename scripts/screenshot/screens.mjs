@@ -97,7 +97,7 @@ export default {
       fullPage: false,
       steps: [
         { click: 'role=button[name="Добавить список"]' },
-        { fill: 'role=dialog >> role=textbox[name="Название"]', value: 'Желания Пети' },
+        { fill: 'role=dialog >> role=textbox[name="Название"]', value: 'Подарки на Новый год' },
         { click: 'role=dialog >> text=Желания' },
         { wait: 400 },
       ],
