@@ -33,8 +33,8 @@ Ctrl-C). Then it seeds through the real API:
   2022-09-01). Child fields: the Defaults (Вес, Рост) plus «Размер обуви» (text) and «Последний
   визит к врачу» (date).
 - Lists: Анна's «Супермаркет» (Покупки, three open Items and two Done), «Аптека» (Покупки),
-  «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open and one Done), «Желания Маши»
-  (Желания, one open and one Done), «Желания Пети» (Желания); Борис's «Гараж» (TODO) and his
+  «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open and one Done), «Подарки»
+  (Желания, one open and one Done), «Книги» (Желания); Борис's «Гараж» (TODO) and his
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.
 - One active Invite.
 

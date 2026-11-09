@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GroupedSection, ListRow, LoadingRow } from '@/shared/ui';
-import { listPath } from './ListPage';
+import { listPath } from './listPaths';
 import { KIND_TEXTS, type List } from './listTypes';
 import { NewListSheet } from './NewListSheet';
 import { useOpenItemCounts } from './useItems';

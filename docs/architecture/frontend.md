@@ -36,7 +36,8 @@ web/src/
                         password reset; LinkScreen (link-check states); GrammaticalGender (type)
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
     home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
-    lists/              ListsSection («Списки» on Home), NewListSheet, ListPage (LIST_PATH),
+    lists/              ListsSection («Списки» on Home), NewListSheet, ListPage, ListSettingsPage,
+                        listPaths (LIST_PATH, LIST_SETTINGS_PATH), ListMissing (gone / loading),
                         ItemsSection (the List screen's Items), listTypes (kinds, Visibility,
                         kind texts, Item), useLists(), useItems(listId)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
@@ -91,6 +92,7 @@ frame around every screen and the place a sidebar goes later.
 | `/reset-password/:token` | `ResetPasswordPage` | always (public)                |
 | `/`                      | `HomePage`          | logged in                      |
 | `/lists/:id`             | `ListPage`          | logged in                      |
+| `/lists/:id/settings`    | `ListSettingsPage`  | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
@@ -262,14 +264,19 @@ Each data feature has one hook that is its only data access. Components never ca
   creates (all of `name`, `kind`, `visibility`) or sends only the given fields that differ from
   the current local row (List settings pass only the changed one). `ownerId` and `createdAt` are set by the server and absent locally until the
   pull after the create. `newListId()` makes the id once when «Новый список» opens. Used by
-  `ListsSection` (Home) and `ListPage`: title, the Items (`ItemsSection`, below), then
-  «Настройки списка» at the bottom (a `GroupedSection`: auto-saved «Название»; Visibility
+  `ListsSection` (Home), `ListPage` and `ListSettingsPage`. The List screen (`ListPage`,
+  `/lists/:id`, back to «Семья») has the List's name as its title and only the Items
+  (`ItemsSection`, below); the gear in its nav bar (a `Link` with `icon="settings"`, named
+  «Настройки списка», as on Home) opens `ListSettingsPage` (`/lists/:id/settings`,
+  `listSettingsPath(id)`), a `Page` «Настройки списка» back to the List (the back button shows its
+  name): a `GroupedSection` with the auto-saved «Название» and Visibility
   «Личный» / «Общий» only when the Member is the Owner, or `ownerId` is still unset, and never for
   a Wish list: `hasVisibility(kind)`; the segments are `VISIBILITY_CHOICES`, both in
-  `listTypes.ts` and shared with «Новый список») and «Удалить список» (`ConfirmRow`, «Удалить „{{name}}“ со всем содержимым?», then
-  back to Home). A List that is unknown, or disappears while open (deleted, or made Private by its
-  Owner: the pull's tombstone removes it), shows «Такого списка нет: возможно, его удалили.» with
-  the back link to Home. Kind texts (segment,
+  `listTypes.ts` and shared with «Новый список»), then «Удалить список» in its own
+  `GroupedSection` (`DeleteListSection`, a `ConfirmRow`, «Удалить „{{name}}“ со всем
+  содержимым?», then back to Home). A List that is unknown, or disappears while either screen is
+  open (deleted, or made Private by its Owner: the pull's tombstone removes it), shows «Такого
+  списка нет: возможно, его удалили.» with the back link to Home (`ListMissing`). Kind texts (segment,
   Home subtitle, empty state, Items header, «Новый товар», «Товар «…»», the Done label and the
   Done toggle's name) are in `KIND_TEXTS`. Each Home row's value is the List's count of open
   Items (`useOpenItemCounts()`, 0 included).
