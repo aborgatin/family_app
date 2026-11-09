@@ -51,7 +51,7 @@ class Child {
     replace(details);
   }
 
-  /** Replaces every client-editable field: a {@code PUT} is a full replace. */
+  /** Sets every client-editable field (an upsert merges its fields over the stored ones first). */
   void replace(ChildDetails details) {
     this.name = details.name();
     this.color = details.color();

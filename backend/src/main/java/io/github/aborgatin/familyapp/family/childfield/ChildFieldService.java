@@ -1,7 +1,7 @@
 package io.github.aborgatin.familyapp.family.childfield;
 
 import io.github.aborgatin.familyapp.error.ApiException;
-import io.github.aborgatin.familyapp.family.member.FamilyLock;
+import io.github.aborgatin.familyapp.family.FamilyLock;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -39,7 +39,7 @@ class ChildFieldService {
   ChildField put(UUID id, ChildFieldRequest request) {
     ChildFieldRequest.Valid valid = request.validate();
     // Serializes writes, so two concurrent creates of the same id can't both insert.
-    UUID familyId = familyLock.lock();
+    UUID familyId = familyLock.lockFamily();
     ChildField field = childFields.findById(id).orElse(null);
     if (field == null) {
       field = new ChildField(id, familyId, valid.name(), valid.valueType(), valid.position());
@@ -56,7 +56,7 @@ class ChildFieldService {
   /** Soft-deletes the Child field; nothing happens when it is already deleted or unknown. */
   @Transactional
   void delete(UUID id) {
-    familyLock.lock();
+    familyLock.lockFamily();
     childFields
         .findById(id)
         .filter(field -> !field.deleted())

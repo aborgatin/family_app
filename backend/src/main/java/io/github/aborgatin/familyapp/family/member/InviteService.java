@@ -1,6 +1,7 @@
 package io.github.aborgatin.familyapp.family.member;
 
 import io.github.aborgatin.familyapp.error.ApiException;
+import io.github.aborgatin.familyapp.family.FamilyLock;
 import io.github.aborgatin.familyapp.family.member.RegistrationRequest.Registration;
 import java.time.Clock;
 import java.time.Duration;
@@ -89,7 +90,7 @@ public class InviteService {
   @Transactional
   public Member accept(String token, RegistrationRequest body) {
     // Family lock first: concurrent registrations with the same email run one after another.
-    UUID familyId = familyLock.lock();
+    UUID familyId = familyLock.lockFamily();
     Invite invite =
         invites
             .findForUpdateByTokenHash(OneTimeTokens.hash(token))

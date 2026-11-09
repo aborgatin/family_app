@@ -1,6 +1,7 @@
 package io.github.aborgatin.familyapp.family.member;
 
 import io.github.aborgatin.familyapp.error.ApiException;
+import io.github.aborgatin.familyapp.family.FamilyLock;
 import io.github.aborgatin.familyapp.family.member.RegistrationRequest.Registration;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -30,7 +31,7 @@ public class BootstrapService {
    */
   @Transactional
   public Member bootstrap(Registration registration) {
-    UUID familyId = familyLock.lock();
+    UUID familyId = familyLock.lockFamily();
     if (members.existsBy()) {
       throw new ApiException(HttpStatus.CONFLICT, "auth.bootstrap_closed");
     }

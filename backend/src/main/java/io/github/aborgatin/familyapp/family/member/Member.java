@@ -109,4 +109,8 @@ public class Member {
   public Instant updatedAt() {
     return updatedAt;
   }
+
+  public boolean deleted() {
+    return deleted;
+  }
 }

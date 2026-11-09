@@ -15,6 +15,9 @@ interface ChildRepository extends Repository<Child, UUID> {
 
   Optional<Child> findById(UUID id);
 
+  /** Every Child written after this Version, deleted ones included (the sync pull). */
+  List<Child> findByVersionGreaterThan(long version);
+
   /**
    * Oldest first, Children without a birthday last, then by name, then by id (spec #5, Ordering).
    * Names compare by ICU's Russian collation, named explicitly rather than taken from the database

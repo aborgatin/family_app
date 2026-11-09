@@ -2,6 +2,7 @@ package io.github.aborgatin.familyapp.family.member;
 
 import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.error.FieldErrors;
+import io.github.aborgatin.familyapp.family.FamilyLock;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -16,10 +17,12 @@ public class MemberService {
 
   private final MemberRepository members;
   private final PasswordEncoder passwordEncoder;
+  private final FamilyLock familyLock;
 
-  MemberService(MemberRepository members, PasswordEncoder passwordEncoder) {
+  MemberService(MemberRepository members, PasswordEncoder passwordEncoder, FamilyLock familyLock) {
     this.members = members;
     this.passwordEncoder = passwordEncoder;
+    this.familyLock = familyLock;
   }
 
   /** Every Member, by display name. */
@@ -39,6 +42,8 @@ public class MemberService {
    */
   @Transactional
   public Member updateProfile(UUID memberId, ProfileChange change) {
+    // A write to a syncable table: Versions must commit in order (spec #3).
+    familyLock.lock();
     Member member = find(memberId);
     if (change.displayName() != null) {
       member.rename(change.displayName());
@@ -64,6 +69,7 @@ public class MemberService {
     String validNewPassword = RegistrationRequest.checkPassword("newPassword", newPassword, errors);
     errors.throwIfAny();
 
+    familyLock.lock();
     Member member = find(memberId);
     if (!passwordEncoder.matches(currentPassword, member.passwordHash())) {
       throw new ApiException(HttpStatus.BAD_REQUEST, "auth.invalid_credentials");
