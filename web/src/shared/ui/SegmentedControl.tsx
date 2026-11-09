@@ -5,6 +5,12 @@ import { Spinner } from './Spinner';
 interface SegmentedControlProps<T extends string> {
   /** Already translated; names the choice, shown inline at the left of the row. */
   label: string;
+  /**
+   * Keeps the label for screen readers only and gives the segments the whole row, for a choice
+   * whose options say it all (Visibility «Личный» / «Общий»). Not for auto-saved rows yet: the
+   * `busy` spinner sits next to the label.
+   */
+  labelHidden?: boolean;
   /** Names the row for the group footer's messages (`SectionMessage.row`). */
   name: string;
   /** Two or three choices; labels already translated. */
@@ -22,6 +28,7 @@ interface SegmentedControlProps<T extends string> {
  */
 export function SegmentedControl<T extends string>({
   label,
+  labelHidden = false,
   name,
   options,
   value,
@@ -39,13 +46,15 @@ export function SegmentedControl<T extends string>({
       aria-invalid={invalid}
       className={`${ROW_CLASSES} py-1.5`}
     >
-      <span className="flex items-center gap-2">
+      <span className={labelHidden ? 'sr-only' : 'flex items-center gap-2'}>
         <span id={labelId} className={invalid ? 'text-destructive' : undefined}>
           {label}
         </span>
         {busy && <Spinner />}
       </span>
-      <div className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-lg bg-fill p-0.5">
+      <div
+        className={`grid auto-cols-fr grid-flow-col gap-0.5 rounded-lg bg-fill p-0.5 ${labelHidden ? 'col-span-full' : ''}`}
+      >
         {options.map((option) => (
           <label
             key={option.value}

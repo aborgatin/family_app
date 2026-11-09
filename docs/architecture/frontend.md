@@ -35,7 +35,9 @@ web/src/
     auth/               session, guard, setup (bootstrap), login, LogoutSection, Invite acceptance,
                         password reset; LinkScreen (link-check states); GrammaticalGender (type)
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
-    home/               HomePage: Page «Семья», empty state, gear → Settings; HOME_PATH
+    home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
+    lists/              ListsSection («Списки» on Home), NewListSheet, ListPage (LIST_PATH),
+                        listTypes (kinds, Visibility, kind texts), useLists()
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
@@ -87,6 +89,7 @@ frame around every screen and the place a sidebar goes later.
 | `/invite/:token`         | `InvitePage`        | always (public)                |
 | `/reset-password/:token` | `ResetPasswordPage` | always (public)                |
 | `/`                      | `HomePage`          | logged in                      |
+| `/lists/:id`             | `ListPage`          | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
@@ -150,7 +153,7 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`), `outbox` (`++seq`) and `meta` (the stored Version). Internal to the folder.
+  (`member`, `child`, `list`; `list` added in store version 2), `outbox` (`++seq`) and `meta` (the stored Version). Internal to the folder.
 - `engine.ts`: `startSync()` / `stopSync()` / `requestSync()`, `onRejection(listener)`. `AuthGuard`
   starts it while a Member is logged in (keyed on the Member id) and stops it otherwise.
 - `rows.ts`, what features use:
@@ -188,6 +191,15 @@ move(field, to), remove(field)}` (still online REST until its ticket); `newChild
   takes the field's index after the move; `positionAfterMove(fields, id, to)` gives it the midpoint
   between its new neighbours, or one past either end, and only that field is written. A new field
   goes one past the last. Ordering is `position`, then id, as on the server.
+- `useLists()` → `{load, save(id, details), saveFailure}` on the local store, like
+  `useChildren()`: `load` is `ready` with every List the pull brought (never the other Member's
+  Private ones: the server filters them), by name with `Intl.Collator('ru')`, then id. `save`
+  creates (all of `name`, `kind`, `visibility`) or sends only the fields that differ from the
+  current local row. `ownerId` and `createdAt` are set by the server and absent locally until the
+  pull after the create. `newListId()` makes the id once when «Новый список» opens. Used by
+  `ListsSection` (Home) and `ListPage` (title and the kind's empty state until Items arrive in
+  #57; «Такого списка нет: возможно, его удалили.» for an unknown id). Kind texts (segment,
+  Home subtitle, empty state) are in `KIND_TEXTS`.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `load` is `{status: 'loading'} | {status: 'failed', error} | {status: 'ready', value}`.
 
@@ -392,6 +404,8 @@ fields | 'deleted')` (the other Member's change), `row(table, id)` (the server's
 - Every `renderApp` test must mock `GET /api/auth/session` (`sessionHandler({...}).handler`; its
   `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`,
   `/api/child-fields` and `/api/invites`.
+- Lists tests (`lists/lists.test.tsx`) build their rows inline and seed them with
+  `syncServer.seed('list', …)`; the fake server doesn't filter by Visibility (a backend concern).
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height`; handlers `membersHandler`,
   `childFieldsHandler`, `invitesHandler`, `sessionHandler`.

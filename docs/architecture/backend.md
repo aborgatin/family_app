@@ -1,6 +1,7 @@
 # Backend
 
-What exists in `/backend` after Spec #1 (M0 + M1) and the M2 sync core (spec #3, ticket #52). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
+What exists in `/backend` after Spec #1 (M0 + M1), the M2 sync core (spec #3, ticket #52) and
+Lists (ticket #55). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
 Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`sync.md`](sync.md).
 
 ## Stack
@@ -43,11 +44,14 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 | --------- | -------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`     | `family.auth`, `family.member`, `family.child`, `family.childfield` |
 | `sync`    | `SyncableTable`, `Operation`, `Outcome`, `SyncRow`, `SyncLock` | `sync.internal` (`SyncController`, `SyncService`)                   |
+| `lists`   | none                                                           | `lists.list`                                                        |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                      | `error.internal.ApiExceptionHandler`                                |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)           | `PasswordResetCommand` (package-private)                            |
 | `webapp`  | none                                                           | `WebBundleConfig`                                                   |
 
-Dependencies: `family → error`, `family → sync`, `sync → error`, `command → family`. The Version
+Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `sync → error`,
+`command → family`. (`lists` reaches Members only through `Operation.memberId()` so far; the spec
+allows `lists → family` for `Members` and `FamilyLock` when a ticket needs them.) The Version
 sequence and trigger are database objects from `V1`; `sync` only reads `version_seq` for the push
 answer (see [`sync.md`](sync.md)).
 
@@ -140,6 +144,23 @@ and flush each write (`saveAndFlush`), and don't annotate it `@Transactional` (a
 transaction that throws marks the whole push rollback-only). `pull` is
 `@Transactional(readOnly = true, isolation = REPEATABLE_READ)`. `SyncController` takes the Member
 id from the session principal's name (`AuthenticatedMember` is named by the Member id).
+
+### `lists`
+
+Lists (and, from ticket #57, Items): written only by the push, read only by the pull, no REST
+endpoints. `lists.list`: `ListEntity` (named so it doesn't shadow `java.util.List`), `ListKind`
+(`SHOPPING`, `TODO`, `WISH`) and `Visibility` (`PRIVATE`, `SHARED`), both code (S7);
+`ListRepository`; `ListRequest` (merged fields → `validate()`: name 1–100 code points after trim,
+the Child name limits; known kind and Visibility) → `ListDetails`; `ListService`, the `list`
+`SyncableTable`:
+
+- `apply`: deleted → `IGNORED` (delete wins); another Member's Private List →
+  `list.not_found` (A1); upsert merges the carried fields over the stored ones, validates, then
+  `list.kind_immutable` if the kind changed and `list.wish_shared_only` for a Private Wish list.
+  A create sets the Owner (`operation.memberId()`) and `createdAt`; neither ever changes.
+- `changesSince`: `name`, `kind`, `visibility`, `ownerId`, `createdAt`; a tombstone for a deleted
+  List and for another Member's Private List (`ListEntity.visibleTo(memberId)`).
+- Not yet: the Owner-only Visibility change (`list.owner_only`, ticket #56) and Items (#57).
 
 ### `command`
 
@@ -245,8 +266,9 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 
 Push results (not HTTP statuses: the push answers `200` with one result per operation) carry the
 same `{code, params}`: `validation.failed`, `sync.table_unknown` (`params.table`), `sync.read_only`,
-`request.invalid` (no valid id or `op`). An operation on a deleted Child is `ignored`, not
-`409 child.deleted` any more.
+`request.invalid` (no valid id or `op`), and for Lists `list.not_found` (`params.listId`),
+`list.kind_immutable`, `list.wish_shared_only`. An operation on a deleted Child or List is
+`ignored`, not `409 child.deleted` any more.
 
 Rows marked "added" are not in spec #5's error catalogue. They cover failures Spring raises before
 or outside an endpoint's own checks (a body that isn't JSON, an unknown path, a wrong method, an
@@ -340,6 +362,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V2_1__invite.sql`              | `invite` (numbered 2.1 because V3/V4 were reserved by parallel tickets)                            |
 | `V3__child.sql`                 | `child`                                                                                            |
 | `V4__child_field.sql`           | `child_field` + Default Child fields «Вес», «Рост» (`TEXT`, positions 1.0, 2.0)                    |
+| `V5__list.sql`                  | `list` (Owner → `member`)                                                                          |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -394,7 +417,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest` does.
+   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest` and `lists.ListsSyncTest` do.
 
 ## Testing
 
@@ -410,7 +433,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `putJson`, `patchJson`, `delete`. Login-limit counters live for the whole cached context, so
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
-    (cascading to Invites and resets) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
+    (cascading to Invites, resets and Lists) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
     `addMember(jdbc, email, password, name, gender)`.
   - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),

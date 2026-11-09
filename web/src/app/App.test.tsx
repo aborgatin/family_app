@@ -12,7 +12,7 @@ describe('App', () => {
 
     renderApp('/');
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
   });
 
   it('shows the offline indicator while the server is unreachable, and «Повторить» still works', async () => {
@@ -29,7 +29,7 @@ describe('App', () => {
     server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
     await user.click(retry);
 
-    expect(await screen.findByText('Здесь пока пусто')).toBeInTheDocument();
+    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Нет связи с сервером' })).toBeNull();
   });
 });

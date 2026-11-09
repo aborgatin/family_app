@@ -303,6 +303,20 @@ export const SEED = {
     { name: 'Петя', color: 'blue', birthday: null },
     { name: 'Соня', color: 'green', birthday: '2022-09-01' },
   ],
+  // Lists by Member: Борис's Private one never reaches Анна, whom every route is logged in as.
+  lists: {
+    member: [
+      { name: 'Супермаркет', kind: 'SHOPPING', visibility: 'SHARED' },
+      { name: 'Аптека', kind: 'SHOPPING', visibility: 'SHARED' },
+      { name: 'Ремонт', kind: 'TODO', visibility: 'PRIVATE' },
+      { name: 'Дела по дому', kind: 'TODO', visibility: 'SHARED' },
+      { name: 'Желания Маши', kind: 'WISH', visibility: 'SHARED' },
+    ],
+    secondMember: [
+      { name: 'Гараж', kind: 'TODO', visibility: 'SHARED' },
+      { name: 'Подарок Анне', kind: 'TODO', visibility: 'PRIVATE' },
+    ],
+  },
   extraChildFields: [{ name: 'Размер обуви', valueType: 'TEXT', position: 3 }, { name: 'Последний визит к врачу', valueType: 'DATE', position: 4 }],
 };
 
@@ -326,8 +340,15 @@ async function api(page, method, url, body) {
   );
 }
 
+/** Creates Lists through the sync push as the Member logged in on `page`. */
+async function pushLists(page, lists) {
+  const operations = lists.map((fields) => ({ table: 'list', id: crypto.randomUUID(), op: 'upsert', fields }));
+  const pushed = await api(page, 'POST', '/api/sync/push', { operations });
+  if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed lists: ${JSON.stringify(pushed.results)}`);
+}
+
 async function seed(browser, baseUrl) {
-  log('seed: bootstrap Member, second Member via Invite, Children, Child fields, active Invite');
+  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, active Invite');
   const ctx = await browser.newContext({ baseURL: baseUrl });
   const page = await ctx.newPage();
   await page.goto('/api/auth/session');
@@ -340,7 +361,9 @@ async function seed(browser, baseUrl) {
   const p2 = await ctx2.newPage();
   await p2.goto('/api/auth/session');
   await api(p2, 'POST', `/api/invites/by-token/${token1}/accept`, SEED.secondMember);
+  await pushLists(p2, SEED.lists.secondMember);
   await ctx2.close();
+  await pushLists(page, SEED.lists.member);
 
   // Children are written only through the sync push (spec #3).
   const operations = SEED.children.map((fields) => ({ table: 'child', id: crypto.randomUUID(), op: 'upsert', fields }));

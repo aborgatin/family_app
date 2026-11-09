@@ -18,6 +18,7 @@ table adds it here.
 | `member`      | `V1__family_member_session.sql` | server, at registration (`Member` constructor) | M1    |
 | `child`       | `V3__child.sql`                 | client (`crypto.randomUUID()`)                 | M1    |
 | `child_field` | `V4__child_field.sql`           | client; Default rows by the migration          | M1    |
+| `list`        | `V5__list.sql`                  | client (`crypto.randomUUID()`)                 | M2    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -46,7 +47,7 @@ repositories extend Spring Data's bare `Repository` and declare no delete method
 deletes a Member yet; `member.deleted` exists, and login, session and `MemberService` lookups
 ignore deleted Members. Email uniqueness counts deleted Members too.
 
-**Client UUIDs** (S3). Children and Child fields are created with the id the client chose; the
+**Client UUIDs** (S3). Children, Child fields and Lists are created with the id the client chose; the
 server never generates one for them. Members get theirs from the server at registration.
 
 **Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move writes only the moved
@@ -73,6 +74,12 @@ sort by id. Children have no manual order (birthday, then name, then id).
 - Repeating a whole push leaves the same state (S3).
 - Codes of the push itself: `sync.table_unknown` (`params.table`), `sync.read_only` (a pull-only
   table such as `member`), `request.invalid` (no valid id or `op`).
+- **Lists** (`list`, ticket #55): an upsert carries `name`, `kind` (`SHOPPING` / `TODO` / `WISH`)
+  and `visibility` (`PRIVATE` / `SHARED`); the pull also sends the server-set `ownerId` (the
+  Member who pushed the create) and `createdAt`. Rules: `list.kind_immutable` (kind changed),
+  `list.wish_shared_only` (a Private Wish list, on create or later), `list.not_found` (any
+  operation on another Member's Private List), and the Child name limits on `name`
+  (`validation.failed`).
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
   reach other devices through the pull.
 
@@ -89,6 +96,10 @@ sort by id. Children have no manual order (birthday, then name, then id).
   changed. The client stores it and asks from there next time.
 - All tables are read in one `REPEATABLE READ` read-only transaction, so `H` covers exactly the
   snapshot that was read.
+- **Privacy (A1).** Another Member's Private List is never sent with its fields: a change to it
+  comes as a tombstone (id only), so a List made Private disappears from the other Member's phone,
+  and a first sync leaves it out. Operations on it are rejected with `list.not_found`, as if it
+  didn't exist.
 
 ## Versions commit in order
 
@@ -112,7 +123,7 @@ Version, a second push, a pull in between; fails without the lock) and
 ## Client
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
-  table (`member`, `child` so far), the Outbox (`++seq`) and the stored Version. The app asks for
+  table (`member`, `child`, `list` so far), the Outbox (`++seq`) and the stored Version. The app asks for
   persistent storage at start. Dexie upgrades keep every table not dropped, so the Outbox survives
   store upgrades.
 - **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
@@ -133,4 +144,4 @@ Version, a second push, a pull in between; fails without the lock) and
   not send again.
 - Children are on the store. Child fields still use REST until their ticket moves them
   (`PUT/DELETE /api/child-fields/{id}`: idempotent full upserts under `FamilyLock`, `409
-child_field.deleted` on a deleted id); Lists and Items, SSE (`changed` → pull) and logout with a pending Outbox are the next M2 tickets.
+child_field.deleted` on a deleted id). Lists are on the store (ticket #55); Items, SSE (`changed` → pull) and logout with a pending Outbox are the next M2 tickets.

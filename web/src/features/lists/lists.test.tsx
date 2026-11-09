@@ -1,0 +1,247 @@
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { anna, boris, sessionHandler } from '@/test/fixtures';
+import { renderApp } from '@/test/renderApp';
+import { server } from '@/test/server';
+import { syncServer } from '@/test/syncServer';
+
+// Lists live in the local store and reach the server through the Outbox (spec #3, ticket #55):
+// Home lists them, «Новый список» creates one (offline too), and a List opens its own screen.
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+/** A List row as the pull sends it. */
+function list(
+  n: number,
+  name: string,
+  kind: 'SHOPPING' | 'TODO' | 'WISH',
+  visibility: 'PRIVATE' | 'SHARED' = 'SHARED',
+) {
+  return {
+    id: `1157a000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`,
+    name,
+    kind,
+    visibility,
+    ownerId: anna.id,
+    createdAt: '2026-11-01T10:00:00Z',
+  };
+}
+
+const groceries = list(1, 'Супермаркет', 'SHOPPING');
+
+/** The connection is back: the app notices (browser `online` event) and sends what is waiting. */
+function reconnect() {
+  syncServer.goOnline();
+  window.dispatchEvent(new Event('online'));
+}
+
+async function listsSection() {
+  return screen.findByRole('region', { name: 'Списки' });
+}
+
+/** The text of each List row on Home, top to bottom. */
+async function listRows() {
+  return within(await listsSection())
+    .queryAllByRole('link')
+    .map((row) => row.textContent);
+}
+
+beforeEach(() => {
+  document.cookie = 'XSRF-TOKEN=token-from-server';
+  server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
+});
+
+describe('«Списки» on Home', () => {
+  it('lists every List by name, ties by id, with its kind and « · Личный» when Private', async () => {
+    syncServer.seed('list', [
+      list(4, 'Ёлка', 'TODO'),
+      list(2, 'Аптека', 'SHOPPING'),
+      list(3, 'Подарки', 'WISH'),
+      list(6, 'Дела', 'TODO', 'PRIVATE'),
+      list(5, 'Дела', 'SHOPPING'),
+      list(7, 'Елена', 'WISH'),
+    ]);
+
+    renderApp('/');
+
+    await waitFor(async () => {
+      expect(await listRows()).toEqual([
+        'АптекаПокупки',
+        'ДелаПокупки',
+        'ДелаTODO-список · Личный',
+        'ЕленаЖелания',
+        'ЁлкаTODO-список',
+        'ПодаркиЖелания',
+      ]);
+    });
+  });
+
+  it('says when there are no Lists yet, still offering to add one', async () => {
+    renderApp('/');
+
+    const section = await listsSection();
+    expect(await within(section).findByText('Списков пока нет')).toBeInTheDocument();
+    expect(within(section).getByRole('button', { name: 'Добавить список' })).toBeInTheDocument();
+    expect(screen.queryByText('Здесь пока пусто')).not.toBeInTheDocument();
+  });
+
+  it('shows a List the other Member shared once the pull brings it', async () => {
+    renderApp('/');
+    await within(await listsSection()).findByText('Списков пока нет');
+
+    syncServer.seed('list', [{ ...groceries, ownerId: boris.id }]);
+    window.dispatchEvent(new Event('online'));
+
+    expect(await within(await listsSection()).findByText('Супермаркет')).toBeInTheDocument();
+  });
+});
+
+describe('The «Новый список» sheet', () => {
+  async function openSheet(user: ReturnType<typeof userEvent.setup>) {
+    const section = await listsSection();
+    await user.click(await within(section).findByRole('button', { name: 'Добавить список' }));
+    return screen.getByRole('dialog', { name: 'Новый список' });
+  }
+
+  it('creates a Shared List by default, under an id made on the client', async () => {
+    const user = userEvent.setup();
+
+    renderApp('/');
+    const sheet = await openSheet(user);
+    expect(within(sheet).getByRole('radio', { name: 'Общий' })).toBeChecked();
+    await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), '  Аптека ');
+    await user.click(within(sheet).getByRole('radio', { name: 'Покупки' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    await waitFor(async () => {
+      expect(await listRows()).toEqual(['АптекаПокупки']);
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(syncServer.operations('list')).toHaveLength(1);
+    });
+    const [created] = syncServer.operations('list');
+    expect(created?.id).toMatch(UUID);
+    expect(created?.op).toBe('upsert');
+    expect(created?.fields).toEqual({ name: 'Аптека', kind: 'SHOPPING', visibility: 'SHARED' });
+    expect(syncServer.pushes[0]?.csrf).toBe('token-from-server');
+  });
+
+  it('creates a List offline at once, and sends it under the same id when the server is back', async () => {
+    const user = userEvent.setup();
+
+    renderApp('/');
+    await within(await listsSection()).findByText('Списков пока нет');
+    syncServer.goOffline();
+    const sheet = await openSheet(user);
+    await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Ремонт');
+    await user.click(within(sheet).getByRole('radio', { name: 'TODO' }));
+    await user.click(within(sheet).getByRole('radio', { name: 'Личный' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    await waitFor(async () => {
+      expect(await listRows()).toEqual(['РемонтTODO-список · Личный']);
+    });
+    expect(syncServer.pushes).toEqual([]);
+
+    reconnect();
+
+    await waitFor(() => {
+      expect(syncServer.operations('list')).toHaveLength(1);
+    });
+    const id = syncServer.operations('list')[0]?.id ?? '';
+    expect(syncServer.row('list', id)).toEqual({
+      id,
+      name: 'Ремонт',
+      kind: 'TODO',
+      visibility: 'PRIVATE',
+    });
+  });
+
+  it('hides Visibility while «Желания» is chosen: a Wish list is always Shared', async () => {
+    const user = userEvent.setup();
+
+    renderApp('/');
+    const sheet = await openSheet(user);
+    await user.click(within(sheet).getByRole('radio', { name: 'Личный' }));
+    await user.click(within(sheet).getByRole('radio', { name: 'Желания' }));
+    expect(within(sheet).queryByRole('radio', { name: 'Личный' })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('radio', { name: 'Общий' })).not.toBeInTheDocument();
+    await user.type(
+      within(sheet).getByRole('textbox', { name: 'Название' }),
+      'Желания Маши{Enter}',
+    );
+
+    await waitFor(() => {
+      expect(syncServer.operations('list').map((op) => op.fields)).toEqual([
+        { name: 'Желания Маши', kind: 'WISH', visibility: 'SHARED' },
+      ]);
+    });
+  });
+
+  it('asks for a name and a kind without saving anything', async () => {
+    const user = userEvent.setup();
+
+    renderApp('/');
+    const sheet = await openSheet(user);
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    expect(within(sheet).getByRole('textbox', { name: 'Название' })).toHaveAccessibleDescription(
+      'Заполните это поле',
+    );
+    expect(within(sheet).getByRole('radiogroup', { name: 'Вид' })).toHaveAccessibleDescription(
+      'Выберите вариант',
+    );
+    expect(screen.getByRole('dialog', { name: 'Новый список' })).toBeInTheDocument();
+    expect(syncServer.operations('list')).toEqual([]);
+  });
+
+  it('takes a rejected new List off Home and says «Не удалось сохранить»', async () => {
+    syncServer.rejectWhen(() => ({ code: 'list.wish_shared_only' }));
+    const user = userEvent.setup();
+
+    renderApp('/');
+    const sheet = await openSheet(user);
+    await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Аптека');
+    await user.click(within(sheet).getByRole('radio', { name: 'Покупки' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    const section = await listsSection();
+    expect(await within(section).findByText('Не удалось сохранить')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(section).queryByText('Аптека')).not.toBeInTheDocument();
+    });
+  });
+});
+
+describe('The List screen', () => {
+  it.each([
+    ['SHOPPING', 'Товаров пока нет'],
+    ['TODO', 'Задач пока нет'],
+    ['WISH', 'Желаний пока нет'],
+  ] as const)('opens from Home: a %s List, still empty, says «%s»', async (kind, empty) => {
+    const opened = list(9, 'Мой список', kind);
+    syncServer.seed('list', [opened]);
+    const user = userEvent.setup();
+
+    const app = renderApp('/');
+    await user.click(await within(await listsSection()).findByRole('link', { name: /Мой список/ }));
+
+    expect(app.location()).toBe(`/lists/${opened.id}`);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Мой список' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(empty)).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Семья' }));
+    expect(app.location()).toBe('/');
+  });
+
+  it('says so when the List doesn’t exist (any more)', async () => {
+    renderApp(`/lists/${groceries.id}`);
+
+    expect(
+      await screen.findByText('Такого списка нет: возможно, его удалили.'),
+    ).toBeInTheDocument();
+  });
+});
