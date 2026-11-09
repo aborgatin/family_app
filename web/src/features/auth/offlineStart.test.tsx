@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { anna, invitesHandler, masha, membersHandler, petya } from '@/test/fixtures';
+import { anna, boris, invitesHandler, masha, membersHandler, petya } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
@@ -184,6 +184,26 @@ describe('Opening the app with no connection', () => {
     await waitFor(() => {
       expect(syncServer.operations('list')).toHaveLength(1);
     });
+  });
+
+  it('drops the device’s Member when the server answers with another one', async () => {
+    const auth = authServer();
+    const user = userEvent.setup();
+    await usedOnline(auth);
+
+    renderApp('/');
+    await addList(user, 'Аптека');
+    syncServer.seed('list', []);
+    auth.state.session = { bootstrapRequired: false, member: boris };
+    auth.reconnect();
+
+    // Борис's session never sees Анна's rows nor sends her Outbox.
+    await waitFor(() => {
+      expect(screen.queryByText('Аптека')).not.toBeInTheDocument();
+    });
+    await within(await listsSection()).findByRole('button', { name: 'Добавить список' });
+    expect(screen.queryByText('Супермаркет')).not.toBeInTheDocument();
+    expect(syncServer.operations('list')).toEqual([]);
   });
 
   it('opens the setup screen when the server turns out to need setup', async () => {
