@@ -6,7 +6,9 @@ import { compare, normalizedName, sortableTime } from './itemKeys';
 /**
  * One List's open and Done Items and the ways to change them: the only data access for Items. It reads the
  * local store and writes through the Outbox (S4), so it works the same offline. `items` is
- * `undefined` until the first local read. `saveFailure` is «Не удалось сохранить» after the server
+ * `undefined` until the first local read. On a Todo list `doneItems` are only those marked Done
+ * today or in the six calendar days before, by the device clock, and `earlierDoneItems` the rest
+ * («Выполненные ранее»); on other Lists `doneItems` are all of them and `earlierDoneItems` is empty. `saveFailure` is «Не удалось сохранить» after the server
  * rejected a change; the next pull has already put the server's copy back.
  */
 export function useItems(list: Pick<List, 'id' | 'kind'>) {
@@ -17,9 +19,19 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
     () => (rows === undefined ? undefined : openInOrder(rows, listId)),
     [rows, listId],
   );
-  const doneItems = useMemo(
+  const allDoneItems = useMemo(
     () => (rows === undefined ? undefined : doneInOrder(rows, listId)),
     [rows, listId],
+  );
+  // A Todo list's Done window; a number, so the split below is redone only when the day changes.
+  const windowStart = kind === 'TODO' ? doneWindowStart(new Date()) : undefined;
+  const doneItems = useMemo(
+    () => allDoneItems?.filter((item) => !doneBefore(item, windowStart)),
+    [allDoneItems, windowStart],
+  );
+  const earlierDoneItems = useMemo(
+    () => allDoneItems?.filter((item) => doneBefore(item, windowStart)),
+    [allDoneItems, windowStart],
   );
 
   /**
@@ -101,6 +113,7 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
   return {
     items,
     doneItems,
+    earlierDoneItems,
     add,
     rename,
     describe,
@@ -156,6 +169,26 @@ function doneInOrder(rows: Item[], listId: string): Item[] {
         compare(sortableTime(b.doneAt ?? undefined), sortableTime(a.doneAt ?? undefined)) ||
         compare(a.id, b.id),
     );
+}
+
+/** How many calendar days a Todo list's Done section covers: today and the six days before. */
+const DONE_WINDOW_DAYS = 7;
+
+/** The start (ms) of the first calendar day of the Done window that ends on `now`'s day, by the device clock. */
+function doneWindowStart(now: Date): number {
+  return new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - (DONE_WINDOW_DAYS - 1),
+  ).getTime();
+}
+
+/**
+ * Whether the Item was marked Done before the window that starts at `windowStart` (none: nothing
+ * is). One ticked off on this device and not pulled back yet has no done at: it was done just now.
+ */
+function doneBefore(item: Item, windowStart: number | undefined): boolean {
+  return windowStart !== undefined && item.doneAt != null && Date.parse(item.doneAt) < windowStart;
 }
 
 /**

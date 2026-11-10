@@ -78,6 +78,7 @@
       "todo": "Выполнено «{{text}}»",
       "wish": "Исполнено «{{text}}»"
     },
+    "doneEarlier": "Выполненные ранее",
     "confirmDeleteItem": "Удалить „{{text}}“?",
     "clearBought": "Очистить",
     "confirmClearBought_one": "Очистить {{count}} товар?",

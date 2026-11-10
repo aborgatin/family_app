@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import {
@@ -16,7 +16,9 @@ import {
   useReportFailure,
   useRowFailures,
   type ReportFailure,
+  type SectionMessage,
 } from '@/shared/ui';
+import { listDoneEarlierPath } from './listPaths';
 import { KIND_TEXTS, type Category, type Item, type List } from './listTypes';
 import {
   itemsByCategory,
@@ -49,6 +51,7 @@ export function ItemsSection({ list }: ItemsSectionProps) {
   const {
     items,
     doneItems,
+    earlierDoneItems,
     add: addItem,
     rename,
     describe,
@@ -94,9 +97,22 @@ export function ItemsSection({ list }: ItemsSectionProps) {
           }}
         />
       )}
-      {doneItems !== undefined && doneItems.length > 0 && (
-        <DoneItems list={list} items={doneItems} setDone={setDone} remove={remove} />
-      )}
+      {doneItems !== undefined &&
+        earlierDoneItems !== undefined &&
+        doneItems.length + earlierDoneItems.length > 0 && (
+          <DoneItems
+            list={list}
+            header={t(texts.done)}
+            items={doneItems}
+            setDone={setDone}
+            remove={remove}
+            after={
+              earlierDoneItems.length > 0 && (
+                <ListRow title={t('lists.doneEarlier')} to={listDoneEarlierPath(list.id)} />
+              )
+            }
+          />
+        )}
     </>
   );
 }
@@ -319,17 +335,32 @@ function OpenItems({
 
 interface DoneItemsProps {
   list: List;
+  /** The section's title. */
+  header: string;
   items: Item[];
+  /** A row under the Items, on the same cell (a Todo list's «Выполненные ранее»). */
+  after?: ReactNode;
+  /** Footer lines under the section's own. */
+  messages?: readonly (SectionMessage | false)[];
   setDone: (item: Item, done: boolean) => Promise<void>;
   remove: (item: Item) => Promise<void>;
 }
 
 /**
- * The Done Items, most recently done first, ticked; deleted like the open ones. A Shopping list's
+ * A section of Done Items, most recently done first, ticked; deleted like the open ones: the List
+ * screen's Done section and a Todo list's «Выполненные ранее» screen. A Shopping list's
  * are headed by «Очистить», which asks, then deletes every one shown here (one Item delete each;
  * one ticked off elsewhere and not pulled yet stays).
  */
-function DoneItems({ list, items, setDone, remove }: DoneItemsProps) {
+export function DoneItems({
+  list,
+  header,
+  items,
+  after,
+  messages = [],
+  setDone,
+  remove,
+}: DoneItemsProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const texts = KIND_TEXTS[list.kind];
@@ -339,8 +370,9 @@ function DoneItems({ list, items, setDone, remove }: DoneItemsProps) {
   return (
     <>
       <GroupedSection
-        header={t(texts.done)}
-        edit={editable.edit}
+        header={header}
+        {...(items.length > 0 && { edit: editable.edit })}
+        after={after}
         {...(list.kind === 'SHOPPING' && {
           action: {
             label: t('lists.clearBought'),
@@ -349,7 +381,7 @@ function DoneItems({ list, items, setDone, remove }: DoneItemsProps) {
             },
           },
         })}
-        messages={[lines.failure(editable.error)]}
+        messages={[lines.failure(editable.error), ...messages]}
       >
         {items.map((item) => (
           <EditableRow
