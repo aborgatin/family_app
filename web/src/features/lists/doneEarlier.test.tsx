@@ -134,7 +134,10 @@ describe('«Выполнено» on a Todo list', () => {
     const done = await screen.findByRole('region', { name: 'Выполнено' });
     await user.click(await within(done).findByRole('link', { name: 'Выполненные ранее' }));
 
-    expect(await screen.findByRole('heading', { name: 'Выполненные ранее' })).toBeInTheDocument();
+    // Level 1 is the screen's title: its section, once the Items are read, has the same name.
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Выполненные ранее' }),
+    ).toBeInTheDocument();
     expect(app.location()).toBe(`/lists/${chores.id}/done-earlier`);
     await waitFor(async () => {
       expect(await rowTexts('Выполненные ранее')).toEqual([
@@ -453,6 +456,8 @@ describe('Other Lists’ Done Items', () => {
     await waitFor(() => {
       expect(syncServer.operations('item')).toHaveLength(3);
     });
-    expect(screen.queryByRole('region', { name: 'Куплено' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('region', { name: 'Куплено' })).not.toBeInTheDocument();
+    });
   });
 });
