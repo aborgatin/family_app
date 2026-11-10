@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { deleteRow, upsertRow, useRows } from '@/shared/sync';
-import type { Item } from './listTypes';
+import type { Item, List } from './listTypes';
+import { normalizedName } from './useItemHistory';
 
 /**
  * One List's open and Done Items and the ways to change them: the only data access for Items. It reads the
@@ -8,7 +9,8 @@ import type { Item } from './listTypes';
  * `undefined` until the first local read. `saveFailure` is «Не удалось сохранить» after the server
  * rejected a change; the next pull has already put the server's copy back.
  */
-export function useItems(listId: string) {
+export function useItems(list: Pick<List, 'id' | 'kind'>) {
+  const { id: listId, kind } = list;
   const rows = useRows('item') as Item[] | undefined;
 
   const items = useMemo(
@@ -20,16 +22,33 @@ export function useItems(listId: string) {
     [rows, listId],
   );
 
-  /** Adds an Item with this text at the bottom of its Category (none: the Unnamed category). */
+  /**
+   * Adds an Item with this text into this Category (none: the Unnamed category), at the bottom.
+   * A Shopping list never gets a second Item with a name it already has (trimmed, lower-cased; of
+   * several, the most recently created): an open one is left as it is and resolves, to be shown;
+   * a Done one is set open in this Category, sending only `done` and `categoryId`.
+   */
   const add = useCallback(
-    async (text: string, categoryId?: string): Promise<void> => {
+    async (text: string, categoryId?: string): Promise<Item | undefined> => {
+      const match = kind === 'SHOPPING' ? latestNamed(rows ?? [], listId, text) : undefined;
+      if (match !== undefined && !match.done) return match;
+      if (match !== undefined) {
+        await upsertRow(
+          'item',
+          match.id,
+          { done: false, categoryId: categoryId ?? null },
+          { doneById: null, doneAt: null },
+        );
+        return undefined;
+      }
       await upsertRow('item', newItemId(), {
         listId,
         text,
         ...(categoryId !== undefined && { categoryId }),
       });
+      return undefined;
     },
-    [listId],
+    [rows, listId, kind],
   );
 
   /** Changes the Item's text, sending only the text; resolves with it as saved. */
@@ -130,6 +149,20 @@ function doneInOrder(rows: Item[], listId: string): Item[] {
         compare(sortableTime(b.doneAt ?? undefined), sortableTime(a.doneAt ?? undefined)) ||
         compare(a.id, b.id),
     );
+}
+
+/**
+ * The List's Item named `text` (both trimmed and lower-cased), open or Done; of several, the most
+ * recently created (one not pulled back yet is newer than every pulled one).
+ */
+function latestNamed(rows: Item[], listId: string, text: string): Item | undefined {
+  const name = normalizedName(text);
+  return rows
+    .filter((item) => item.listId === listId && normalizedName(item.text) === name)
+    .sort(
+      (a, b) =>
+        compare(sortableTime(b.createdAt), sortableTime(a.createdAt)) || compare(b.id, a.id),
+    )[0];
 }
 
 let lastTickTime = 0;

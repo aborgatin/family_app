@@ -42,7 +42,7 @@ web/src/
                         ListMissing (gone / loading),
                         ItemsSection (the List screen's Items, by Category on a Shopping list),
                         listTypes (kinds, Visibility, kind texts, Item, Category,
-                        ItemHistoryEntry), useLists(), useItems(listId), useCategories(list),
+                        ItemHistoryEntry), useLists(), useItems(list), useCategories(list),
                         useItemHistory(list)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
@@ -315,7 +315,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   (the start of the name, or after a space) that starts with the typed text, both trimmed and
   lower-cased, newest `lastUsedAt` first (fraction padded as for `createdAt`), ties by name. Only a
   Shopping list's screen uses it.
-- `useItems(listId)` → `{items, doneItems, add(text, categoryId?), rename(item, text),
+- `useItems(list)` → `{items, doneItems, add(text, categoryId?), rename(item, text),
   describe(item, description), move(item, categoryId), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
   by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
@@ -328,7 +328,13 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   back on and off again goes on top). Device and server times are never compared: pending ticks
   are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
   so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`, and
-  `categoryId` when added in a Category; adding stays name-only), `rename` sends only `text`,
+  `categoryId` when added in a Category; adding stays name-only). On a Shopping list `add` first
+  looks among the List's Items for one with the same name, both trimmed and lower-cased (of
+  several, the most recently created, as `items` orders them; #75): an open one is left as it is
+  and `add` resolves with it, writing nothing; a Done one is set open in the add field's Category
+  in one upsert (`done: false`, `categoryId`, `null` for none; the Outbox sends only what
+  changed), clearing `doneById` / `doneAt` locally like `setDone`, and the server touches its Item
+  history. Todo and Wish lists may have two Items with one name. `rename` sends only `text`,
   `describe` only `description` (blank as `null`), `move` only `categoryId` (`null` for the
   Unnamed category), `setDone` only `done`, `remove` deletes; all
   resolve at once,
@@ -368,7 +374,9 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   `useItemHistory`: while it is focused and has text, the suggestions show under it
   (`SuggestionRows`), and tapping one calls the same `onAdd` as Enter, so the Item goes into that
   field's Category (none for the «Товары» or the untitled section), offline too. Todo and Wish
-  lists get no suggestions.
+  lists get no suggestions. When `add` (Enter or a suggestion) resolves with an open Item of that
+  name, `ItemsSection` highlights its row for 1.5 s (`EditableRow` `highlighted`: scrolled into
+  view and tinted); the add field is emptied and keeps the focus as after any add.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `useLogout()` → `{logOut({discardUnsent?}), pending, error, unsentWarning, dismissWarning}`:
   the only data access of `LogoutSection` (Outbox flush, logout request, pending logout, wipe;
@@ -587,7 +595,8 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`
   and `/api/invites`.
 - Lists, Items, Categories and Item history tests (`lists/lists.test.tsx`, `lists/items.test.tsx`,
-  `lists/categories.test.tsx`, `lists/categoriesScreen.test.tsx`, `lists/itemHistory.test.tsx`) build
+  `lists/categories.test.tsx`, `lists/categoriesScreen.test.tsx`, `lists/itemHistory.test.tsx`,
+  `lists/reAdding.test.tsx`) build
   their rows inline and seed them with
   `syncServer.seed('list' | 'item' | 'category' | 'item_history', …)`; `items.test.tsx` and `categories.test.tsx`
   also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).
@@ -599,6 +608,8 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   `document.cookie = 'XSRF-TOKEN=…'` to check the CSRF header.
 - To test copying, stub `ClipboardItem` (`vi.stubGlobal`) and `navigator.clipboard` (`write`,
   `writeText`) after `userEvent.setup()`, which installs its own clipboard (`invites.test.tsx`).
+- jsdom lays nothing out: `test/setup.ts` stubs `scrollIntoView` (a no-op); a highlighted row is
+  checked by its `data-highlighted` (`reAdding.test.tsx`), the tint by screenshots.
 - Right-click: `user.pointer({keys: '[MouseRight]', target})`, then the `menuitem`. jsdom has no
   `matchMedia`, so `RowContextMenu` treats the pointer as fine there. Swipes can't be tested in
   jsdom (screenshots instead).
