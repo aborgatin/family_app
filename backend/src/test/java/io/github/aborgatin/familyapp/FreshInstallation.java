@@ -15,7 +15,7 @@ public final class FreshInstallation {
 
   public static void reset(JdbcTemplate jdbc) {
     jdbc.execute("TRUNCATE spring_session CASCADE");
-    jdbc.execute("TRUNCATE child");
+    jdbc.execute("TRUNCATE child CASCADE");
     removeMembersOnly(jdbc);
   }
 
@@ -30,7 +30,7 @@ public final class FreshInstallation {
    * ChildFieldDefaultsTest}.)
    */
   public static void removeChildFields(JdbcTemplate jdbc) {
-    jdbc.execute("TRUNCATE child_field");
+    jdbc.execute("TRUNCATE child_field CASCADE");
   }
 
   /**
