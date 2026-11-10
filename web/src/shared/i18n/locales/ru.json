@@ -194,12 +194,16 @@
     "confirmDelete": "Удалить поле „{{name}}“?"
   },
   "children": {
+    "title": "Дети",
     "empty": "Детей пока нет",
     "add": "Добавить ребёнка",
     "newTitle": "Новый ребёнок",
     "name": "Имя",
     "color": "Цвет",
     "birthday": "День рождения",
+    "birthdayWithAge": "{{date}} · {{age}}",
+    "birthdayMissing": "Не указан",
+    "profile": "Профиль",
     "age": {
       "years_one": "{{count}} год",
       "years_few": "{{count}} года",

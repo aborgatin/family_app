@@ -8,7 +8,7 @@ import {
   ResetPasswordPage,
   SetupPage,
 } from '@/features/auth';
-import { CHILD_SETTINGS_PATH, ChildSettingsPage } from '@/features/children';
+import { CHILD_PATH, CHILD_SETTINGS_PATH, ChildPage, ChildSettingsPage } from '@/features/children';
 import { HOME_PATH, HomePage } from '@/features/home';
 import {
   CategoriesPage,
@@ -40,6 +40,7 @@ export const routes: RouteObject[] = [
         element: <AuthGuard />,
         children: [
           { path: HOME_PATH, element: <HomePage /> },
+          { path: CHILD_PATH, element: <ChildPage homePath={HOME_PATH} /> },
           { path: LIST_PATH, element: <ListPage homePath={HOME_PATH} /> },
           { path: LIST_SETTINGS_PATH, element: <ListSettingsPage homePath={HOME_PATH} /> },
           { path: LIST_CATEGORIES_PATH, element: <CategoriesPage homePath={HOME_PATH} /> },
