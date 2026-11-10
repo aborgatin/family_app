@@ -79,6 +79,11 @@
       "wish": "Исполнено «{{text}}»"
     },
     "confirmDeleteItem": "Удалить „{{text}}“?",
+    "clearBought": "Очистить",
+    "confirmClearBought_one": "Очистить {{count}} товар?",
+    "confirmClearBought_few": "Очистить {{count}} товара?",
+    "confirmClearBought_many": "Очистить {{count}} товаров?",
+    "confirmClearBought_other": "Очистить {{count}} товара?",
     "notFound": "Такого списка нет: возможно, его удалили.",
     "settings": "Настройки списка",
     "delete": "Удалить список",

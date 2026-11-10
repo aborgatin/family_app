@@ -309,7 +309,12 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   kind) with no open Items (a rejected new Item leaves the List; «Не удалось сохранить» shows
   app-wide, see `useSaveRejection`). Under it, while there are Done Items, a second `GroupedSection` headed «Куплено» /
   «Выполнено» / «Исполнено» with edit mode: each an `EditableRow`, `muted`, with its ticked
-  `DoneToggle` (untick puts it back among the open ones), deleted the same ways.
+  `DoneToggle` (untick puts it back among the open ones), deleted the same ways. A Shopping
+  list's is headed by «Очистить» too (the `GroupedSection` `action`; Todo and Wish lists get
+  none): an `ActionSheet` «Очистить 3 товара?» (`lists.confirmClearBought`, plural by `count`) /
+  «Очистить» (destructive) / «Отменить», then `remove()` for every Done Item shown, so one Item
+  delete each and no list-level operation (spec #67, ticket #71). An Item the other Member ticked
+  off that no pull has brought yet isn't shown, so it stays.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `useLogout()` → `{logOut({discardUnsent?}), pending, error, unsentWarning, dismissWarning}`:
   the only data access of `LogoutSection` (Outbox flush, logout request, pending logout, wipe;

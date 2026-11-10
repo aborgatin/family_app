@@ -264,6 +264,34 @@ export default {
       steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: ITEM }, editIn('Куплено'), toSection('Куплено', 0)],
     },
     {
+      // «Очистить» on «Куплено»: the plural action sheet.
+      name: 'list-clear-confirm',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: `${section('Куплено')} >> role=button[name="Очистить"]` },
+        { waitFor: 'role=dialog' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // Cleared offline: «Куплено» goes at once, with the offline indicator as the only sign.
+      name: 'list-cleared-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: `${section('Куплено')} >> role=button[name="Очистить"]` },
+        { click: 'role=dialog >> role=button[name="Очистить"]' },
+        async (page) => page.locator(section('Куплено')).waitFor({ state: 'detached' }),
+        { wait: 300 },
+      ],
+    },
+    {
       name: 'list-wish',
       path: '/',
       steps: [{ click: 'role=link[name=/Подарки/]' }, { waitFor: 'text=Исполнено' }],
