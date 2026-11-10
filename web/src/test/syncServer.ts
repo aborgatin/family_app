@@ -5,9 +5,9 @@ import { network } from './network';
  * A fake of the server's sync API (`POST /api/sync/push`, `GET /api/sync/pull`) for MSW, installed
  * for every test by `server.ts` and emptied after each. It behaves like the real one where the
  * client can tell: a global Version, per-field Last write wins by arrival, delete wins, tombstones
- * after a first sync, and the table rules a screen relies on: deleting a Child deletes its Child
- * lists with their Items, a deleted Child or Child field takes its Child field values
- * (`CASCADES`), and a Child field value is a timeline entry (stamped with `recordedAt`, never
+ * after a first sync, and the table rules a screen relies on: a deleted row takes the rows that
+ * belong to it (`CASCADES`: a Child its Child lists and Child field values, a List its Items,
+ * Categories and Item history), and a Child field value is a timeline entry (stamped with `recordedAt`, never
  * changed, ignored for a deleted Child or Child field), a List made Private loses the Assignee
  * of every one of its Items, and a repeating Item turned Done (pushed, or by `change`) hands its
  * Repeat on to its next occurrence, a new open Item (ADR-0009); a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
@@ -48,12 +48,18 @@ type Rejecter = (
 
 /**
  * What the server soft-deletes together with a row, in the same operation: the rows of `table`
- * whose `key` field holds the deleted `parent` row's id. A deleted Child or Child field takes its
- * Child field values (spec #81).
+ * whose `key` field holds the deleted `parent` row's id, and so on down. A deleted Child takes its
+ * Child lists, whoever owns them, and its Child field values; a deleted Child field takes its
+ * Child field values (spec #81); a deleted List takes its Items, Categories and Item history
+ * (`ListService.deleteWithContent`).
  */
 const CASCADES: readonly { parent: string; table: string; key: string }[] = [
+  { parent: 'child', table: 'list', key: 'childId' },
   { parent: 'child', table: 'child_field_value', key: 'childId' },
   { parent: 'child_field', table: 'child_field_value', key: 'childFieldId' },
+  { parent: 'list', table: 'item', key: 'listId' },
+  { parent: 'list', table: 'category', key: 'listId' },
+  { parent: 'list', table: 'item_history', key: 'listId' },
 ];
 
 /** The rejection used when `rejectWhen`'s predicate just answers `true`. */
@@ -233,7 +239,7 @@ class FakeSyncServer {
 
   /**
    * Soft-deletes the row and, as the server does in the same operation, the rows that go with it
-   * (`CASCADES`, and a Child's Child lists with their Items), each with a new Version.
+   * (`CASCADES`), each with a new Version.
    */
   private delete(table: string, id: string) {
     this.write(table, id, this.stored.get(key(table, id))?.fields ?? {}, true);
@@ -244,7 +250,6 @@ class FakeSyncServer {
         }
       }
     }
-    if (table === 'child') this.deleteChildLists(id);
   }
 
   /** Stores the row with a new Version, as it is: no table rule runs (a seeded row). */
@@ -315,24 +320,6 @@ class FakeSyncServer {
     for (const item of [...this.stored.values()]) {
       if (item.table === 'item' && !item.deleted && item.fields.listId === listId) {
         this.write('item', item.id, { ...item.fields, assigneeId: null }, false);
-      }
-    }
-  }
-
-  /**
-   * Deleting a Child deletes its Child lists and their Items in the same operation, whoever owns
-   * them (spec #81), as the real server does.
-   */
-  private deleteChildLists(childId: string) {
-    const live = [...this.stored.values()].filter((row) => !row.deleted);
-    for (const list of live.filter(
-      (row) => row.table === 'list' && row.fields.childId === childId,
-    )) {
-      this.write('list', list.id, list.fields, true);
-      for (const item of live.filter(
-        (row) => row.table === 'item' && row.fields.listId === list.id,
-      )) {
-        this.write('item', item.id, item.fields, true);
       }
     }
   }

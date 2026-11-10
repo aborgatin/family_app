@@ -754,10 +754,11 @@ a Vite native-config-loader warning).
   (MSW 3's name for `onUnhandledRequest`), so any request without a handler fails the test.
 - The sync API is always answered by the fake sync server `syncServer` (`@/test/syncServer`,
   installed in `server.ts`, emptied after each test). It behaves like the real one (Versions,
-  per-field Last write wins, delete wins, tombstones; a deleted Child or Child field takes its
-  Child field values, in `CASCADES`; a Child field value is stamped with `recordedAt`, never
+  per-field Last write wins, delete wins, tombstones; a deleted row takes the rows that belong to
+  it, in `CASCADES`, as the server does: a Child its Child lists and Child field values, a Child
+  field its Child field values, a List its Items, Categories and Item history; a Child field value is stamped with `recordedAt`, never
   changes once recorded, and is `ignored` for a deleted or unknown Child or Child field; a List
-  made Private loses its Items' Assignees; a repeating Item turned Done, pushed or by `change`,
+  made Private loses its Items' Assignees; a repeating Item turned Done (created Done or changed), pushed or by `change`,
   loses its Repeat to a new open Item, its next occurrence, counted as the server does from the
   device's date, #87):
   `seed(table, rows)`, `change(table, id,
