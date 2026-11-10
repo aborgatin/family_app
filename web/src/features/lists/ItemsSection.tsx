@@ -20,6 +20,7 @@ import {
   type RowCaptionPart,
   type SectionMessage,
 } from '@/shared/ui';
+import { assigneeOf } from './assignees';
 import { dueDateText, isOverdue } from './dueDates';
 import { listDoneEarlierPath, listItemPath } from './listPaths';
 import { KIND_TEXTS, type Category, type Item, type List } from './listTypes';
@@ -524,11 +525,7 @@ function itemCaption(
   if (list.kind !== 'TODO') return [];
   const now = new Date();
   const due = dueDateText(t, item, now);
-  // A Private list's Items have no Assignee: one the server hasn't removed yet isn't shown.
-  const assignee =
-    list.visibility === 'SHARED' && item.assigneeId != null
-      ? members?.get(item.assigneeId)?.displayName
-      : undefined;
+  const assignee = assigneeOf(list, item, members)?.displayName;
   return [
     // Overdue is red on an open Item only: a Done one is no longer late.
     due !== undefined && {

@@ -18,6 +18,7 @@ import {
   useAutoSaveChoice,
   useAutoSaveText,
 } from '@/shared/ui';
+import { assignable, assigneeOf } from './assignees';
 import { dueDayText, shortDay } from './dueDates';
 import { ListMissing, useRouteList } from './ListMissing';
 import { listPath } from './listPaths';
@@ -88,7 +89,7 @@ function ListItem({ list }: { list: List }) {
           <DoneSection list={list} item={item} setDone={setDone} />
           {list.kind === 'TODO' &&
             (item.done ? (
-              <DoneTodoFields item={item} assignable={assignable(list)} />
+              <DoneTodoFields list={list} item={item} />
             ) : (
               <TodoFields
                 key={`${item.id}-todo`}
@@ -147,11 +148,6 @@ function ItemFields({ item, rename, describe }: ItemFieldsProps) {
       <TextAreaRow label={t('lists.description')} {...description.input} />
     </GroupedSection>
   );
-}
-
-/** Whether the List's todo items may have an Assignee: only on a Shared list. */
-function assignable(list: List): boolean {
-  return list.visibility === 'SHARED';
 }
 
 interface TodoFieldsProps {
@@ -292,10 +288,10 @@ function membersByName(members: ReadonlyMap<string, FamilyMember> | undefined): 
 }
 
 /** A Done todo item's own fields, read-only: nobody schedules what is already done. */
-function DoneTodoFields({ item, assignable }: { item: Item; assignable: boolean }) {
+function DoneTodoFields({ list, item }: { list: List; item: Item }) {
   const { t } = useTranslation();
   const members = useFamilyMembers();
-  const assignee = item.assigneeId == null ? undefined : members?.get(item.assigneeId);
+  const assignee = assigneeOf(list, item, members);
   const none = t('lists.due.none');
   return (
     <GroupedSection>
@@ -305,7 +301,7 @@ function DoneTodoFields({ item, assignable }: { item: Item; assignable: boolean 
       />
       <ListRow title={t('lists.dueTime')} value={item.dueTime ?? none} />
       <ListRow title={t('lists.repeat.label')} value={t(REPEAT_LABELS[item.repeat ?? NO_REPEAT])} />
-      {assignable && (
+      {assignable(list) && (
         <ListRow
           title={t('lists.assignee.label')}
           value={assignee?.displayName ?? t('lists.assignee.none')}

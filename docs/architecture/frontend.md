@@ -436,8 +436,8 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   passes (as the Done window follows midnight). After the Due date comes the Assignee's name
   (#85): «15 нояб. · Даша» (`lists.assignee.afterDueDate`, a part of its own, never red), or the
   name alone when there is no Due date; the name is the Member's `displayName` from
-  `useFamilyMembers()`, read once per section and passed to the rows. It shows on a Shared list
-  only: on a List just made Private the Items may still hold an `assigneeId` until the server's
+  `useFamilyMembers()`, read once per section and passed to the rows (`assigneeOf(list, item,
+  members)` in `assignees.ts`, which the Item screen uses too). It shows on a Shared list only: on a List just made Private the Items may still hold an `assigneeId` until the server's
   copies arrive, and the row leaves it out at once. Between the two, an open Item with a Repeat (#86)
   has the mark ↻ (a Done one, ticked here and not pulled back yet, may still hold its Repeat until
   the server hands it on, #87; the row leaves the mark out) (`lists.repeat.mark`, a part of its own, never red), shown only with a Due date:
@@ -495,7 +495,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   clearing «Срок» clears «Время» with it. Then «Повтор» (#86): a `SelectRow` with «Нет»,
   «Каждый день», «Каждую неделю», «Каждый месяц», «Каждый год» (`lists.repeat.*`), saved when
   chosen (`useAutoSaveChoice`, `setRepeat`), offline too, `disabled` while there is no «Срок»;
-  clearing «Срок» removes the Repeat without asking. On a Shared list (`list.visibility === 'SHARED'`, so
+  clearing «Срок» removes the Repeat without asking. On a Shared list (`assignable(list)` in `assignees.ts`, so
   on every Child list) the section also has «Ответственный» (#85): a `SelectRow` with «Никто»
   and then each Member of `useFamilyMembers()` by name, saved when chosen (`useAutoSaveChoice`,
   `setAssignee`), offline too; a Private list has no such row. On a Done Item they are read-only
