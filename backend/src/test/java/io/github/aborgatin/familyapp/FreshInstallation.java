@@ -15,7 +15,8 @@ public final class FreshInstallation {
 
   public static void reset(JdbcTemplate jdbc) {
     jdbc.execute("TRUNCATE spring_session CASCADE");
-    jdbc.execute("TRUNCATE child");
+    // CASCADE: Lists refer to their Child (Child lists).
+    jdbc.execute("TRUNCATE child CASCADE");
     removeMembersOnly(jdbc);
   }
 

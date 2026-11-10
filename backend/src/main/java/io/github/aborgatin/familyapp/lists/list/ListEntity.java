@@ -14,6 +14,7 @@ import java.util.UUID;
 import org.hibernate.annotations.Generated;
 import org.hibernate.generator.EventType;
 import org.springframework.http.HttpStatus;
+import org.springframework.lang.Nullable;
 
 /**
  * A List (GLOSSARY): a Shopping list, Todo list or Wish list, Private or Shared. Named {@code
@@ -48,6 +49,11 @@ class ListEntity implements SyncedRecord {
   @Column(nullable = false, updatable = false)
   private UUID ownerId;
 
+  /** The Child a Child list is about, for good; none for every other List. */
+  @Column(updatable = false)
+  @Nullable
+  private UUID childId;
+
   @Column(nullable = false, updatable = false)
   private Instant createdAt;
 
@@ -64,9 +70,11 @@ class ListEntity implements SyncedRecord {
 
   protected ListEntity() {}
 
-  ListEntity(UUID id, UUID ownerId, Instant createdAt, ListDetails details) {
+  ListEntity(
+      UUID id, UUID ownerId, @Nullable UUID childId, Instant createdAt, ListDetails details) {
     this.id = id;
     this.ownerId = ownerId;
+    this.childId = childId;
     this.createdAt = createdAt;
     this.kind = details.kind();
     replace(details);
@@ -121,6 +129,11 @@ class ListEntity implements SyncedRecord {
 
   UUID ownerId() {
     return ownerId;
+  }
+
+  @Nullable
+  UUID childId() {
+    return childId;
   }
 
   Instant createdAt() {

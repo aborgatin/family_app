@@ -17,6 +17,10 @@ const REJECTION_KEYS = {
   'list.owner_only': 'sync.rejected.listOwnerOnly',
   'list.kind_immutable': 'sync.rejected.listKindImmutable',
   'list.wish_shared_only': 'sync.rejected.listWishSharedOnly',
+  'list.child_not_shopping': 'sync.rejected.listChildNotShopping',
+  'list.child_shared_only': 'sync.rejected.listChildSharedOnly',
+  'list.child_immutable': 'sync.rejected.listChildImmutable',
+  'list.child_not_found': 'sync.rejected.listChildNotFound',
   'child_field.value_type_immutable': 'sync.rejected.childFieldValueTypeImmutable',
   'sync.read_only': 'sync.rejected.readOnly',
   // Not something the Member can cause from the app (another List's Category, a Category on a Todo
