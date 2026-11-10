@@ -13,3 +13,11 @@ export function listPath(id: string): string {
 export function listSettingsPath(id: string): string {
   return LIST_SETTINGS_PATH.replace(':id', encodeURIComponent(id));
 }
+
+/** Route of a Shopping list's «Категории» screen, opened from its «Настройки списка». */
+export const LIST_CATEGORIES_PATH = '/lists/:id/categories';
+
+/** Path of the «Категории» screen of the List with this id. */
+export function listCategoriesPath(id: string): string {
+  return LIST_CATEGORIES_PATH.replace(':id', encodeURIComponent(id));
+}

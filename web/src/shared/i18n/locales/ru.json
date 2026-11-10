@@ -90,7 +90,14 @@
     "confirmDelete": "Удалить „{{name}}“ со всем содержимым?",
     "unnamedCategory": "Без категории",
     "newCategory": "Новая категория",
-    "categoryName": "Название категории"
+    "categoryName": "Название категории",
+    "categories": "Категории",
+    "categoryNamed": "Категория „{{name}}“",
+    "confirmDeleteCategory": "Удалить „{{name}}“?",
+    "categoryItemsStay_one": "{{count}} товар останется в списке без категории",
+    "categoryItemsStay_few": "{{count}} товара останутся в списке без категории",
+    "categoryItemsStay_many": "{{count}} товаров останутся в списке без категории",
+    "categoryItemsStay_other": "{{count}} товара останутся в списке без категории"
   },
   "setup": {
     "title": "Регистрация первого взрослого",

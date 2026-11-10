@@ -236,7 +236,9 @@ code points after trim, `position` a finite number, both required) → `Category
 
 - `apply`: a known Category: deleted → `IGNORED`; its List not visible → `list.not_found`; upsert
   merges `name` / `position` and validates (`listId` naming another List → `validation.failed`);
-  delete soft-deletes. An unknown one: delete → `IGNORED`; upsert needs `listId`, whose List must
+  delete soft-deletes it and moves its Items, Done ones included, to the Unnamed category in the
+  same transaction (`ItemRepository.moveToUnnamedCategory`, a bulk UPDATE, so they get new
+  Versions; #72). An unknown one: delete → `IGNORED`; upsert needs `listId`, whose List must
   be visible (`list.not_found`); a deleted List → `IGNORED`; then validation, then
   `category.list_not_shopping` (`params.listId`) unless the List is `SHOPPING`. Any Member who
   sees the List may write.

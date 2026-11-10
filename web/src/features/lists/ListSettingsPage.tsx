@@ -7,6 +7,7 @@ import {
   ConfirmRow,
   GroupedSection,
   InputRow,
+  ListRow,
   Page,
   SegmentedControl,
   Sections,
@@ -14,7 +15,7 @@ import {
   useAutoSaveText,
 } from '@/shared/ui';
 import { ListMissing, useRouteList } from './ListMissing';
-import { listPath } from './listPaths';
+import { listCategoriesPath, listPath } from './listPaths';
 import {
   hasVisibility,
   type List,
@@ -51,6 +52,11 @@ export function ListSettingsPage({ homePath }: ListSettingsPageProps) {
     <Page title={t('lists.settings')} back={{ to: listPath(list.id), title: list.name }}>
       <Sections>
         <ListDetailsSection key={list.id} list={list} owned={owned} save={save} />
+        {list.kind === 'SHOPPING' && (
+          <GroupedSection>
+            <ListRow title={t('lists.categories')} to={listCategoriesPath(list.id)} />
+          </GroupedSection>
+        )}
         {owned && <DeleteListSection list={list} remove={remove} homePath={homePath} />}
       </Sections>
     </Page>
