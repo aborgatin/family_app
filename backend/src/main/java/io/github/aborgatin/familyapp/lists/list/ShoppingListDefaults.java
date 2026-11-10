@@ -40,6 +40,7 @@ class ShoppingListDefaults {
         new ListEntity(
             UUID.randomUUID(),
             ownerId,
+            null,
             clock.instant(),
             new ListDetails(name, ListKind.SHOPPING, Visibility.SHARED, unnamedCategoryPosition));
     return lists.saveAndFlush(list).id();

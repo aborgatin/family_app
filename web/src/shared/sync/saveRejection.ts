@@ -17,6 +17,10 @@ const REJECTION_KEYS = {
   'list.owner_only': 'sync.rejected.listOwnerOnly',
   'list.kind_immutable': 'sync.rejected.listKindImmutable',
   'list.wish_shared_only': 'sync.rejected.listWishSharedOnly',
+  'list.child_not_shopping': 'sync.rejected.listChildNotShopping',
+  'list.child_shared_only': 'sync.rejected.listChildSharedOnly',
+  'list.child_immutable': 'sync.rejected.listChildImmutable',
+  'list.child_not_found': 'sync.rejected.listChildNotFound',
   'child_field.value_type_immutable': 'sync.rejected.childFieldValueTypeImmutable',
   'sync.read_only': 'sync.rejected.readOnly',
   // A Due date on a shopping or wish Item is never offered; a time without a Due date happens
@@ -27,6 +31,10 @@ const REJECTION_KEYS = {
   // list): plain «Не удалось сохранить».
   'category.list_not_shopping': 'sync.saveRejected',
   'item.category_not_found': 'sync.saveRejected',
+  // A Child field value for a Child or a Child field the server never had: the Outbox sends them
+  // first, so the app never causes it.
+  'child.not_found': 'sync.saveRejected',
+  'child_field.not_found': 'sync.saveRejected',
 } as const satisfies Readonly<Record<string, ErrorMessage['key']>>;
 
 export function rejectionMessage(code: string): ErrorMessage {

@@ -5,7 +5,10 @@ import { network } from './network';
  * A fake of the server's sync API (`POST /api/sync/push`, `GET /api/sync/pull`) for MSW, installed
  * for every test by `server.ts` and emptied after each. It behaves like the real one where the
  * client can tell: a global Version, per-field Last write wins by arrival, delete wins, tombstones
- * after a first sync. Tests seed rows, read what was pushed, and switch it offline or make it
+ * after a first sync, and the table rules a screen relies on: deleting a Child deletes its Child
+ * lists with their Items, a deleted Child or Child field takes its Child field values
+ * (`CASCADES`), and a Child field value is a timeline entry (stamped with `recordedAt`, never
+ * changed, ignored for a deleted Child or Child field). Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
@@ -40,6 +43,16 @@ interface StoredRow {
 type Rejecter = (
   operation: PushedOperation,
 ) => { code: string; params?: Record<string, unknown> } | boolean;
+
+/**
+ * What the server soft-deletes together with a row, in the same operation: the rows of `table`
+ * whose `key` field holds the deleted `parent` row's id. A deleted Child or Child field takes its
+ * Child field values (spec #81).
+ */
+const CASCADES: readonly { parent: string; table: string; key: string }[] = [
+  { parent: 'child', table: 'child_field_value', key: 'childId' },
+  { parent: 'child_field', table: 'child_field_value', key: 'childFieldId' },
+];
 
 /** The rejection used when `rejectWhen`'s predicate just answers `true`. */
 const VALIDATION_FAILED = { code: 'validation.failed', params: { errors: [] } };
@@ -113,7 +126,7 @@ class FakeSyncServer {
       throw new Error(`syncServer.change: no ${table} ${id} on the server; seed it first`);
     }
     if (fields === 'deleted') {
-      this.write(table, id, current.fields, true);
+      this.delete(table, id);
     } else {
       this.write(table, id, { ...current.fields, ...fields }, false);
     }
@@ -190,16 +203,69 @@ class FakeSyncServer {
       return { status: 'ignored' };
     }
     if (operation.op === 'delete') {
-      this.write(operation.table, operation.id, current?.fields ?? {}, true);
+      this.delete(operation.table, operation.id);
+    } else if (operation.table === 'child_field_value') {
+      // A timeline entry (ADR-0007): never changed once recorded, stamped by the server, and not
+      // recorded for a deleted Child or Child field.
+      if (current !== undefined) return { status: 'applied' };
+      const { childId, childFieldId } = operation.fields ?? {};
+      if (this.gone('child', childId) || this.gone('child_field', childFieldId)) {
+        return { status: 'ignored' };
+      }
+      this.write(
+        operation.table,
+        operation.id,
+        { ...operation.fields, recordedAt: new Date().toISOString() },
+        false,
+      );
     } else {
       this.write(operation.table, operation.id, { ...current?.fields, ...operation.fields }, false);
     }
     return { status: 'applied' };
   }
 
+  /** Whether the row is deleted, or was never there. */
+  private gone(table: string, id: unknown): boolean {
+    return typeof id !== 'string' || this.stored.get(key(table, id))?.deleted !== false;
+  }
+
+  /**
+   * Soft-deletes the row and, as the server does in the same operation, the rows that go with it
+   * (`CASCADES`, and a Child's Child lists with their Items), each with a new Version.
+   */
+  private delete(table: string, id: string) {
+    this.write(table, id, this.stored.get(key(table, id))?.fields ?? {}, true);
+    for (const cascade of CASCADES.filter(({ parent }) => parent === table)) {
+      for (const row of [...this.stored.values()]) {
+        if (row.table === cascade.table && !row.deleted && row.fields[cascade.key] === id) {
+          this.delete(row.table, row.id);
+        }
+      }
+    }
+    if (table === 'child') this.deleteChildLists(id);
+  }
+
   private write(table: string, id: string, fields: Record<string, unknown>, deleted: boolean) {
     this.version += 1;
     this.stored.set(key(table, id), { table, id, version: this.version, deleted, fields });
+  }
+
+  /**
+   * Deleting a Child deletes its Child lists and their Items in the same operation, whoever owns
+   * them (spec #81), as the real server does.
+   */
+  private deleteChildLists(childId: string) {
+    const live = [...this.stored.values()].filter((row) => !row.deleted);
+    for (const list of live.filter(
+      (row) => row.table === 'list' && row.fields.childId === childId,
+    )) {
+      this.write('list', list.id, list.fields, true);
+      for (const item of live.filter(
+        (row) => row.table === 'item' && row.fields.listId === list.id,
+      )) {
+        this.write('item', item.id, item.fields, true);
+      }
+    }
   }
 }
 

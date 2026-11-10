@@ -61,7 +61,7 @@ export function DateRow({
     <div className={ROW_CLASSES}>
       <label
         htmlFor={id}
-        className={`py-2.5 whitespace-nowrap ${invalid ? 'text-destructive' : ''} ${disabled ? 'opacity-40' : ''}`}
+        className={`py-2.5 wrap-break-word ${invalid ? 'text-destructive' : ''} ${disabled ? 'opacity-40' : ''}`}
       >
         {label}
       </label>

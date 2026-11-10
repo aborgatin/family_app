@@ -375,8 +375,30 @@ export const SEED = {
       { name: 'Гараж', kind: 'TODO', visibility: 'SHARED' },
       { name: 'Подарок Анне', kind: 'TODO', visibility: 'PRIVATE' },
     ],
+    // Child lists (`child`: the Child's name), on Маша's Child page only; never on Home.
+    children: [
+      {
+        child: 'Маша',
+        name: 'Школа',
+        kind: 'TODO',
+        visibility: 'SHARED',
+        items: ['Купить тетради в клетку', 'Сдать деньги на экскурсию', { text: 'Подписать дневник', done: true }],
+      },
+      { child: 'Маша', name: 'Желания', kind: 'WISH', visibility: 'SHARED', items: ['Кукольный домик'] },
+    ],
   },
   extraChildFields: [{ name: 'Размер обуви', valueType: 'TEXT', position: 3 }, { name: 'Последний визит к врачу', valueType: 'DATE', position: 4 }],
+  // Child field values by Child: [Child field, value] entries in the order saved. Маша has a value
+  // for every field («Размер обуви» saved twice: the profile shows the latest); Петя and Соня none.
+  childFieldValues: {
+    Маша: [
+      ['Вес', '25 кг'],
+      ['Рост', '121 см'],
+      ['Размер обуви', '30'],
+      ['Размер обуви', '31'],
+      ['Последний визит к врачу', '2026-10-03'],
+    ],
+  },
 };
 
 /** Calls the API from inside the page, the way the app does (same origin, XSRF header). */
@@ -469,8 +491,28 @@ async function prepareDefaultLists(page) {
   return defaults;
 }
 
+/**
+ * The Child field values of `SEED.childFieldValues`: an entry per value, in order (a Child field
+ * named twice for a Child gets a timeline, the last one being the latest). Children and Child
+ * fields are found by name in a pull, since the Default Child fields have server-made ids.
+ */
+async function pushChildFieldValues(page) {
+  const { changes } = await api(page, 'GET', '/api/sync/pull?since=0');
+  const idOf = (table, name) => changes.find((c) => c.table === table && c.fields.name === name).id;
+  const operations = Object.entries(SEED.childFieldValues).flatMap(([child, values]) =>
+    values.map(([field, value]) => ({
+      table: 'child_field_value',
+      id: crypto.randomUUID(),
+      op: 'upsert',
+      fields: { childId: idOf('child', child), childFieldId: idOf('child_field', field), value },
+    })),
+  );
+  const pushed = await api(page, 'POST', '/api/sync/push', { operations });
+  if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed values: ${JSON.stringify(pushed.results)}`);
+}
+
 async function seed(browser, baseUrl, pg) {
-  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, active Invite');
+  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, Child lists, active Invite');
   const ctx = await browser.newContext({ baseURL: baseUrl });
   const page = await ctx.newPage();
   await page.goto('/api/auth/session');
@@ -489,12 +531,20 @@ async function seed(browser, baseUrl, pg) {
   await pushLists(page, pg, SEED.lists.member, defaults);
 
   // Children and Child fields are written only through the sync push (spec #3).
+  const childIds = Object.fromEntries(SEED.children.map(({ name }) => [name, crypto.randomUUID()]));
   const operations = [
-    ...SEED.children.map((fields) => ({ table: 'child', id: crypto.randomUUID(), op: 'upsert', fields })),
+    ...SEED.children.map((fields) => ({ table: 'child', id: childIds[fields.name], op: 'upsert', fields })),
     ...SEED.extraChildFields.map((fields) => ({ table: 'child_field', id: crypto.randomUUID(), op: 'upsert', fields })),
   ];
   const pushed = await api(page, 'POST', '/api/sync/push', { operations });
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed: ${JSON.stringify(pushed.results)}`);
+  // Child lists carry their Child's id, so they go after the Children.
+  await pushLists(
+    page,
+    pg,
+    SEED.lists.children.map(({ child, ...list }) => ({ ...list, childId: childIds[child] })),
+  );
+  await pushChildFieldValues(page);
   const inv2 = await api(page, 'POST', '/api/invites'); // stays active: shows in Settings, used as {inviteToken}
   const storageState = await ctx.storageState();
   await ctx.close();

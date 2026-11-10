@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localStore } from '@/shared/sync/localStore';
-import { anna, boris, sessionHandler } from '@/test/fixtures';
+import { anna, boris, masha, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
@@ -232,6 +232,30 @@ describe('«Срок» and «Время» on the Item screen of a todo item', ()
 
     expect(await screen.findByLabelText('Срок')).toHaveValue('2026-11-15');
     expect(screen.getByLabelText('Время')).toBeEnabled();
+  });
+
+  it('works the same on a Child’s Todo list, whose row shows the Due date too', async () => {
+    const school = { ...list(4, 'Школа', 'TODO'), childId: masha.id };
+    const homework = item(1, 'Сделать поделку', null, null, school.id);
+    syncServer.seed('child', [masha]);
+    syncServer.seed('list', [school]);
+    syncServer.seed('item', [homework]);
+    const user = userEvent.setup();
+
+    renderApp(itemPath(homework));
+    await user.type(await screen.findByLabelText('Срок'), '2026-11-11');
+    await user.tab();
+    await user.type(screen.getByLabelText('Время'), '08:30');
+    await user.tab();
+
+    await waitFor(() => {
+      expect(syncServer.row('item', homework.id)).toMatchObject({
+        dueDate: '2026-11-11',
+        dueTime: '08:30',
+      });
+    });
+    await user.click(screen.getByRole('link', { name: 'Школа' }));
+    expect(within(await openRow('Сделать поделку')).getByText('Завтра, 08:30')).toBeInTheDocument();
   });
 });
 

@@ -24,6 +24,11 @@ export interface List {
   ownerId?: string;
   /** ISO-8601. Set by the server: absent until the pull after creating the List. */
   createdAt?: string;
+  /**
+   * The Child a Child list is about, set when it is created, for good; none (`null`, or absent on
+   * a row pulled before Child lists existed) for every other List.
+   */
+  childId?: string | null;
 }
 
 /** What a Member writes: everything when creating, the changed fields afterwards. */
@@ -31,6 +36,13 @@ export interface ListDetails {
   name: string;
   kind: ListKind;
   visibility: Visibility;
+  /** Only when creating a Child list: its Child. */
+  childId?: string;
+}
+
+/** The id of the Child a Child list is about; `undefined` for every other List. */
+export function childIdOf(list: List): string | undefined {
+  return list.childId ?? undefined;
 }
 
 /** An Item as the local store keeps it (the fields the sync pull sends). */
@@ -85,6 +97,9 @@ export interface ItemHistoryName {
 }
 
 export const LIST_KINDS: readonly ListKind[] = ['SHOPPING', 'TODO', 'WISH'];
+
+/** The kinds a Child list may have: a Child has no Shopping lists. */
+export const CHILD_LIST_KINDS: readonly ListKind[] = ['TODO', 'WISH'];
 
 /** Whether a List of this kind has a Visibility to choose: a Wish list is always Shared. */
 export function hasVisibility(kind: ListKind): boolean {

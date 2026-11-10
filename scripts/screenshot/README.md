@@ -31,7 +31,8 @@ Ctrl-C). Then it seeds through the real API:
   otherwise; **Борис**, who joined through an Invite.
 - Children **Маша** (coral, born 2019-04-12), **Петя** (blue, no birthday), **Соня** (green,
   2022-09-01). Child fields: the Defaults (Вес, Рост) plus «Размер обуви» (text) and «Последний
-  визит к врачу» (date).
+  визит к врачу» (date). Маша has a value for each of them («Размер обуви» saved twice); Петя and
+  Соня have none.
 - Lists: Анна's «Супермаркет» (Покупки, three open Items, «Хлеб бородинский» with a Description
   ending in a link, and two Done), «Аптека» (Покупки) — both the Default Shopping lists the
   bootstrap created, filled by the seed, with Супермаркет's Default Categories deleted so it stays
@@ -42,6 +43,8 @@ Ctrl-C). Then it seeds through the real API:
   «Ремонт» (TODO, Private), «Дела по дому» (TODO, five open: one without a Due date, one due tomorrow at 15:00 with a Description, one due yesterday and one due today at 00:05, both overdue, one due in 12 days; and four Done: today (it has a Due date with a time), 6, 8 and 40 days ago, so two are in «Выполненные ранее»), «Подарки»
   (Желания, one open and one Done), «Книги» (Желания); Борис's «Гараж» (TODO) and his
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.
+- Child lists, on Маша's Child page only (never on Home): «Школа» (TODO, two open Items and one
+  Done) and «Желания» (Желания, one Item). Петя and Соня have none.
 - One active Invite.
 
 Browser context: installed Google Chrome (`SHOOT_CHANNEL` to override), locale `ru-RU`,
@@ -64,7 +67,8 @@ or update its route there, so the next change shoots it too. A route has:
 - `localStorage`: `{key: value}` set before the app starts, e.g. `{theme: 'dark'}`.
 - `initScript`: JS run before the app's own code; `helpers.mjs` has `hang(part)` (a request that
   never answers), `noLists` (pulls answer without Lists: Home's empty state), `onlyChildren(…names)`
-  (pulls answer with only those Children; none: no Children) and `failClipboard`.
+  (pulls answer with only those Children; none: no Children), `noChildFields` (pulls answer
+  without Child fields) and `failClipboard`.
 - `fullPage`: default `true`; `false` shoots the viewport only (sheets, dialogs, scrolled states).
 - `steps`, run in order: `{click: sel}`, `{tap: sel}`, `{fill: sel, value}`, `{press: 'Enter'}`,
   `{hover: sel}`, `{waitFor: sel}`, `{scroll: sel}`, `{wait: ms}`, `{eval: 'js'}`, or in a `.mjs`
