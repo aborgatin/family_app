@@ -29,6 +29,9 @@ class ItemEntity implements SyncedRecord {
   @Column(nullable = false)
   private String text;
 
+  /** The Item's Category; {@code null} is the Unnamed category. */
+  @Nullable private UUID categoryId;
+
   @Nullable private String note;
 
   @Column(nullable = false)
@@ -71,6 +74,11 @@ class ItemEntity implements SyncedRecord {
     this.note = details.note();
   }
 
+  /** Puts the Item in this Category of its List; {@code null} is the Unnamed category. */
+  void moveTo(@Nullable UUID categoryId) {
+    this.categoryId = categoryId;
+  }
+
   /**
    * Sets Done. When it turns true, {@code memberId} becomes done by and {@code at} done at; when it
    * turns false both are cleared. Setting Done to its current value changes nothing (S3).
@@ -100,6 +108,11 @@ class ItemEntity implements SyncedRecord {
 
   String text() {
     return text;
+  }
+
+  @Nullable
+  UUID categoryId() {
+    return categoryId;
   }
 
   @Nullable

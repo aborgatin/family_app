@@ -5,10 +5,15 @@ import java.util.Arrays;
 import org.springframework.lang.Nullable;
 
 /**
- * A List's fields as an upsert leaves them: {@code {name, kind, visibility}}. Fields are read as
- * plain strings so that a missing or unknown value becomes a field code, not a parse error.
+ * A List's fields as an upsert leaves them: {@code {name, kind, visibility,
+ * unnamedCategoryPosition}}. Fields are read as plain strings so that a missing or unknown value
+ * becomes a field code, not a parse error.
  */
-record ListRequest(@Nullable String name, @Nullable String kind, @Nullable String visibility) {
+record ListRequest(
+    @Nullable String name,
+    @Nullable String kind,
+    @Nullable String visibility,
+    @Nullable Double unnamedCategoryPosition) {
 
   /** The same limits as a Child's name: 1–100 code points after trim. */
   private static final int MAX_NAME_LENGTH = 100;
@@ -27,8 +32,17 @@ record ListRequest(@Nullable String name, @Nullable String kind, @Nullable Strin
     }
     ListKind checkedKind = choice("kind", kind, ListKind.values(), errors);
     Visibility checkedVisibility = choice("visibility", visibility, Visibility.values(), errors);
+    if (unnamedCategoryPosition == null) {
+      errors.add("unnamedCategoryPosition", FieldErrors.REQUIRED);
+    } else if (!Double.isFinite(unnamedCategoryPosition)) {
+      errors.add("unnamedCategoryPosition", FieldErrors.VALUE_INVALID);
+    }
     errors.throwIfAny();
-    return new ListDetails(trimmedName, checkedKind, checkedVisibility);
+    return new ListDetails(
+        trimmedName,
+        checkedKind,
+        checkedVisibility,
+        unnamedCategoryPosition == null ? 0 : unnamedCategoryPosition);
   }
 
   /** One of {@code values} by its exact name: {@code required} when missing, else invalid. */

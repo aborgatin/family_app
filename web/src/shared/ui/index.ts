@@ -7,7 +7,7 @@ export { EmptyState } from './EmptyState';
 export { StatusScreen } from './StatusScreen';
 export { CenteredPage } from './CenteredPage';
 export { Form } from './Form';
-export { GroupedSection, type SectionMessage } from './GroupedSection';
+export { GroupedSection, type SectionHeaderField, type SectionMessage } from './GroupedSection';
 export { InputRow } from './InputRow';
 export { SegmentedControl } from './SegmentedControl';
 export { Sections } from './Sections';

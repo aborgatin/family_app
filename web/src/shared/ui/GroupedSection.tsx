@@ -1,4 +1,4 @@
-import { Children, createContext, use, useId, type ReactNode } from 'react';
+import { Children, createContext, use, useId, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from './Button';
 
@@ -23,9 +23,31 @@ export interface SectionMessage {
   action?: { label: string; onClick: () => void };
 }
 
+/** A header being typed: the title of a group that is being created (e.g. a new Category). */
+export interface SectionHeaderField {
+  /** Already translated; the placeholder, and the field's and the group's accessible name. */
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  /** Enter, or leaving the field. */
+  onCommit: () => void;
+  /** Esc. */
+  onCancel: () => void;
+}
+
 interface GroupedSectionProps {
   /** Already translated; shown in small capitals above the group, and names it (a region). */
   header?: string;
+  /**
+   * Instead of `header`: a text field in its place, focused when it appears, for a group whose
+   * title is being written. It names the group by its `label`.
+   */
+  headerField?: SectionHeaderField;
+  /**
+   * Already translated; names an untitled group (no `header`) for assistive technology only, so
+   * it is still a region: e.g. the Unnamed category, which shows no title.
+   */
+  label?: string;
   /** The footer's lines, top to bottom; `false` and `undefined` entries are skipped. */
   messages?: readonly (SectionMessage | false | undefined)[];
   /**
@@ -84,6 +106,8 @@ function isAbout(message: SectionMessage, row: string) {
  */
 export function GroupedSection({
   header,
+  headerField,
+  label,
   messages = [],
   edit,
   after,
@@ -105,7 +129,11 @@ export function GroupedSection({
   };
 
   return (
-    <section aria-labelledby={header === undefined ? undefined : headerId}>
+    <section
+      aria-labelledby={header === undefined ? undefined : headerId}
+      aria-label={header === undefined ? (headerField?.label ?? label) : undefined}
+    >
+      {headerField !== undefined && <HeaderField {...headerField} />}
       {header !== undefined && (
         <div className="flex items-end justify-between gap-2 px-4 pb-1.5">
           <h2 id={headerId} className="text-footnote text-secondary-label uppercase">
@@ -166,6 +194,45 @@ export function GroupedSection({
         </div>
       )}
     </section>
+  );
+}
+
+/** A header being typed: the header's look, as a text field that starts focused. */
+function HeaderField({ label, value, onChange, onCommit, onCancel }: SectionHeaderField) {
+  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      onCommit();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      onCancel();
+    }
+  }
+
+  return (
+    <div className="px-4 pb-1.5">
+      <input
+        type="text"
+        aria-label={label}
+        placeholder={label}
+        autoComplete="off"
+        enterKeyHint="next"
+        // The Member has just asked for this group: typing its title is the next thing to do.
+        autoFocus
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
+        onBlur={onCommit}
+        onKeyDown={onKeyDown}
+        className={
+          '-mx-1 block w-[calc(100%+0.5rem)] min-w-0 rounded-md bg-transparent px-1 text-footnote ' +
+          'text-secondary-label uppercase outline-none placeholder:text-tertiary-label ' +
+          'placeholder:normal-case pointer-fine:focus-visible:outline-2 ' +
+          'pointer-fine:focus-visible:outline-solid pointer-fine:focus-visible:outline-accent'
+        }
+      />
+    </div>
   );
 }
 

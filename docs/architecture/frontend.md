@@ -38,8 +38,9 @@ web/src/
     home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
     lists/              ListsSection («Списки» on Home), NewListSheet, ListPage, ListSettingsPage,
                         listPaths (LIST_PATH, LIST_SETTINGS_PATH), ListMissing (gone / loading),
-                        ItemsSection (the List screen's Items), listTypes (kinds, Visibility,
-                        kind texts, Item), useLists(), useItems(listId)
+                        ItemsSection (the List screen's Items, by Category on a Shopping list),
+                        listTypes (kinds, Visibility, kind texts, Item, Category), useLists(),
+                        useItems(listId), useCategories(list)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
@@ -182,8 +183,9 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`, `list`, `item`; `child_field` and `list` came with store
-  version 2, `item`, indexed by `listId`, with version 3),
+  (`member`, `child`, `child_field`, `list`, `item`, `category`; `child_field` and `list` came
+  with store version 2, `item`, indexed by `listId`, with version 3, `category`, indexed by
+  `listId`, with version 4),
   `outbox` (`++seq`) and `meta` (the stored Version, the owner: the Member whose data it holds,
   and the owner copy the app starts from offline). Internal to the folder, except
   `claimLocalStore(memberId)` (below) and `saveOwnerCopy(owner)` / `ownerCopy()` (see "Offline
@@ -283,8 +285,17 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   Home subtitle, empty state, Items header, «Новый товар», «Товар «…»», the Done label and the
   Done toggle's name) are in `KIND_TEXTS`. Each Home row's value is the List's count of open
   Items (`useOpenItemCounts()`, 0 included).
-- `useItems(listId)` → `{items, doneItems, add(text), rename(item, text), setDone(item, done),
-  remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
+- `useCategories(list)` → `{categories, add(id, name)}` (#70; #72 adds rename, move and remove
+  in the `useChildFields()` way): the List's Categories on the local store, by position, ties by
+  id, `undefined` until the first read. `add` puts the new one one past the largest position of
+  its Categories and its Unnamed category (`list.unnamedCategoryPosition`, 0 when absent), so it
+  goes last; `newCategoryId()` makes its id once its title starts being typed.
+  `sectionsInOrder(list, categories, openItems)` gives the Shopping list screen's sections: each
+  Category and the Unnamed category (no `category`) by position (the Unnamed one first on a tie),
+  with their open Items in the order given; an Item whose Category isn't on the device is in the
+  Unnamed category.
+- `useItems(listId)` → `{items, doneItems, add(text, categoryId?), rename(item, text),
+  setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
   by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
   after them, ordered by its id, which `newItemId()` makes time-ordered (UUID v7); an Item ticked
@@ -295,7 +306,8 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   sent; `setDone` also clears the old `doneById` / `doneAt` locally the same way, so an Item ticked
   back on and off again goes on top). Device and server times are never compared: pending ticks
   are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
-  so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`),
+  so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`, and
+  `categoryId` when added in a Category),
   `rename` sends only `text`, `setDone` only `done`, `remove` deletes; all resolve at once,
   offline too. `ItemsSection` on the List screen: a `GroupedSection` headed «Товары» / «Задачи» /
   «Желания» with edit mode («Изменить») while it has open Items; each Item an `EditableRow` with a
@@ -307,6 +319,17 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   app-wide, see `useSaveRejection`). Under it, while there are Done Items, a second `GroupedSection` headed «Куплено» /
   «Выполнено» / «Исполнено» with edit mode: each an `EditableRow`, `muted`, with its ticked
   `DoneToggle` (untick puts it back among the open ones), deleted the same ways.
+  **A Shopping list** (`CategorySections`, #70) shows the same «Товары» section while it has no
+  named Categories. With some, the open Items are in one section per `sectionsInOrder()` entry:
+  a Category's headed by its name (edit mode while it has Items), the Unnamed category's untitled
+  (`GroupedSection` `label` «Без категории», no edit mode); every section shows even with no
+  open Items, ends with its own «Новый товар» that adds into it, and has no «Товаров пока нет».
+  Under them, on every Shopping list, a «Новая категория» row (`ListRow`, accent) in an untitled
+  group: tapping it shows a new section at the end whose title is being typed (`headerField`,
+  «Название категории»); Enter (or leaving it) with a name adds the Category and focuses its
+  «Новый товар» (`AddRow` `focus`), an empty one or Esc adds nothing. The Done section stays one
+  flat group; an Item ticked back on returns to its Category. Todo and Wish lists show no
+  Categories.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `useLogout()` → `{logOut({discardUnsent?}), pending, error, unsentWarning, dismissWarning}`:
   the only data access of `LogoutSection` (Outbox flush, logout request, pending logout, wipe;
@@ -524,9 +547,10 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
 - Every `renderApp` test must mock `GET /api/auth/session` (`sessionHandler({...}).handler`; its
   `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`
   and `/api/invites`.
-- Lists and Items tests (`lists/lists.test.tsx`, `lists/items.test.tsx`) build their rows inline
-  and seed them with `syncServer.seed('list' | 'item', …)`; `items.test.tsx` also guards the store
-  upgrade to version 3 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).
+- Lists, Items and Categories tests (`lists/lists.test.tsx`, `lists/items.test.tsx`,
+  `lists/categories.test.tsx`) build their rows inline and seed them with
+  `syncServer.seed('list' | 'item' | 'category', …)`; `items.test.tsx` and `categories.test.tsx`
+  also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,
