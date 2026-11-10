@@ -198,11 +198,32 @@ describe('Re-adding a name that is bought', () => {
 });
 
 describe('Which name matches', () => {
-  it('uses the most recently created of two Items with the name', async () => {
+  it('prefers an open Item to a more recently created Done one', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.seed('item', [
       item(2, 'молоко', '2026-11-02T09:00:00Z', { done: true }),
       item(1, 'Молоко', '2026-11-01T09:00:00Z'),
+    ]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    await waitFor(async () => {
+      expect(await itemTexts('Товары')).toEqual(['Молоко']);
+    });
+    await user.type(await addField(), 'Молоко{Enter}');
+
+    await waitFor(() => {
+      expect(openRow('Молоко')).toHaveAttribute('data-highlighted');
+    });
+    expect(await itemTexts('Товары')).toEqual(['Молоко']);
+    expect(boughtTexts()).toEqual(['молоко']);
+    expect(syncServer.operations('item')).toEqual([]);
+  });
+
+  it('with none open, reopens the most recently created Done one', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item', [
+      item(2, 'молоко', '2026-11-02T09:00:00Z', { done: true }),
       item(3, 'Молоко', '2026-11-01T08:00:00Z', { done: true }),
     ]);
     const user = userEvent.setup();

@@ -329,9 +329,10 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
   so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`, and
   `categoryId` when added in a Category; adding stays name-only). On a Shopping list `add` first
-  looks among the List's Items for one with the same name, both trimmed and lower-cased (of
-  several, the most recently created, as `items` orders them; #75): an open one is left as it is
-  and `add` resolves with it, writing nothing; a Done one is set open in the add field's Category
+  looks among the List's Items for one with the same name, both trimmed and lower-cased (#75; an
+  open one first, so there are never two open ones): an open one is left as it is and `add`
+  resolves with it, writing nothing; with none open, the most recently created Done one (as
+  `items` orders them) is set open in the add field's Category
   in one upsert (`done: false`, `categoryId`, `null` for none; the Outbox sends only what
   changed), clearing `doneById` / `doneAt` locally like `setDone`, and the server touches its Item
   history. Todo and Wish lists may have two Items with one name. `rename` sends only `text`,

@@ -24,13 +24,13 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
 
   /**
    * Adds an Item with this text into this Category (none: the Unnamed category), at the bottom.
-   * A Shopping list never gets a second Item with a name it already has (trimmed, lower-cased; of
-   * several, the most recently created): an open one is left as it is and resolves, to be shown;
-   * a Done one is set open in this Category, sending only `done` and `categoryId`.
+   * A Shopping list never gets a second Item with a name it already has (trimmed, lower-cased): an
+   * open one is left as it is and resolves, to be shown; with none open, the most recently created
+   * Done one is set open in this Category, sending only `done` and `categoryId`.
    */
   const add = useCallback(
     async (text: string, categoryId?: string): Promise<Item | undefined> => {
-      const match = kind === 'SHOPPING' ? latestNamed(rows ?? [], listId, text) : undefined;
+      const match = kind === 'SHOPPING' ? sameNamed(rows ?? [], listId, text) : undefined;
       if (match !== undefined && !match.done) return match;
       if (match !== undefined) {
         await upsertRow(
@@ -152,17 +152,19 @@ function doneInOrder(rows: Item[], listId: string): Item[] {
 }
 
 /**
- * The List's Item named `text` (both trimmed and lower-cased), open or Done; of several, the most
- * recently created (one not pulled back yet is newer than every pulled one).
+ * The List's Item named `text` (both trimmed and lower-cased) to add again: an open one if there
+ * is one, else the most recently created Done one (one not pulled back yet is newer than every
+ * pulled one).
  */
-function latestNamed(rows: Item[], listId: string, text: string): Item | undefined {
+function sameNamed(rows: Item[], listId: string, text: string): Item | undefined {
   const name = normalizedName(text);
-  return rows
+  const named = rows
     .filter((item) => item.listId === listId && normalizedName(item.text) === name)
     .sort(
       (a, b) =>
         compare(sortableTime(b.createdAt), sortableTime(a.createdAt)) || compare(b.id, a.id),
-    )[0];
+    );
+  return named.find((item) => !item.done) ?? named[0];
 }
 
 let lastTickTime = 0;
