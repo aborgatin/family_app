@@ -354,9 +354,10 @@ export const SEED = {
           'Поменять лампочку в коридоре',
           // Assignees (#85): after a Due date, after an overdue one, alone, and on a Done item.
           { text: 'Разобрать балкон', assignee: 'Борис' },
-          { text: 'Записать Машу к стоматологу', description: 'Детская стоматология на Лесной, после 15:00', dueInDays: 1, dueTime: '15:00', assignee: 'Борис' },
+          // Repeats (#86): ↻ after a Due date with a time, and after an overdue one.
+          { text: 'Записать Машу к стоматологу', description: 'Детская стоматология на Лесной, после 15:00', dueInDays: 1, dueTime: '15:00', repeat: 'WEEKLY', assignee: 'Борис' },
           // Overdue: a day that has passed, and a time of today that has.
-          { text: 'Оплатить садик', dueInDays: -1, assignee: 'Анна' },
+          { text: 'Оплатить садик', dueInDays: -1, repeat: 'MONTHLY', assignee: 'Анна' },
           { text: 'Забрать посылку', dueInDays: 0, dueTime: '00:05' },
           { text: 'Купить подарок бабушке', dueInDays: 12 },
           { text: 'Оплатить интернет', done: true, dueInDays: -2, dueTime: '18:00', assignee: 'Анна' },
@@ -431,9 +432,9 @@ function dayFromToday(days) {
 /**
  * Creates Lists, their `categories` (`{name, position}`) and their `items` in that order, through
  * the sync push as the Member logged in on `page`. An Item is its text, or `{text, description?,
- * category?, dueInDays?, dueTime?, assignee?, done?, doneDaysAgo?, cleared?}` (`category` a Category's name;
+ * category?, dueInDays?, dueTime?, repeat?, assignee?, done?, doneDaysAgo?, cleared?}` (`category` a Category's name;
  * `dueInDays` a todo item's Due date that many days from today, with `dueTime` `HH:MM`;
- * `assignee` a todo item's Assignee, a Member's name; Done ones ticked in the
+ * `repeat` a todo item's Repeat (`DAILY` … `YEARLY`, with a Due date); `assignee` a todo item's Assignee, a Member's name; Done ones ticked in the
  * same order; `doneDaysAgo` moves a Done one's Done time that many days back, straight in the
  * database, since the server stamps it itself; cleared ones deleted after, so only the Item
  * history keeps their names). A List with `isDefault`
@@ -464,7 +465,7 @@ async function pushLists(page, pg, lists, defaults = {}) {
         op: 'upsert',
         fields: { listId, name, position },
       })),
-      ...added.map(({ id, text, description, category, dueInDays, dueTime, assignee }) => ({
+      ...added.map(({ id, text, description, category, dueInDays, dueTime, repeat, assignee }) => ({
         table: 'item',
         id,
         op: 'upsert',
@@ -474,6 +475,7 @@ async function pushLists(page, pg, lists, defaults = {}) {
           description,
           ...(category && { categoryId: categoryIds[category] }),
           ...(dueInDays !== undefined && { dueDate: dayFromToday(dueInDays), ...(dueTime && { dueTime }) }),
+          ...(repeat && { repeat }),
           ...(assignee && { assigneeId: memberId(assignee) }),
         },
       })),
