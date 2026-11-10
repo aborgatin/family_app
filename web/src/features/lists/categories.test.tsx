@@ -156,6 +156,9 @@ describe('A Shopping list with Categories', () => {
 
     renderApp(`/lists/${groceries.id}`);
 
+    await waitFor(async () => {
+      expect(await itemTexts('Еда')).toEqual(['Молоко']);
+    });
     expect(await addField('Бытовая химия')).toBeInTheDocument();
     expect(await itemTexts('Бытовая химия')).toEqual([]);
     expect(await addField('Без категории')).toBeInTheDocument();
@@ -228,7 +231,9 @@ describe('A Shopping list with Categories', () => {
     syncServer.seed('item', [item(1, 'Мыло', chemicals.id, '2026-11-01T09:00:00Z')]);
 
     renderApp(`/lists/${groceries.id}`);
-    expect(await itemTexts('Бытовая химия')).toEqual(['Мыло']);
+    await waitFor(async () => {
+      expect(await itemTexts('Бытовая химия')).toEqual(['Мыло']);
+    });
 
     syncServer.change('category', chemicals.id, 'deleted');
     window.dispatchEvent(new Event('online'));

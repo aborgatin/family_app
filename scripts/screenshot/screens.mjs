@@ -123,6 +123,40 @@ export default {
       steps: [{ click: 'role=link[name=/Аптека/]' }, { waitFor: 'text=Товаров пока нет' }],
     },
     {
+      // A Shopping list with Categories: «Еда», «Бытовая химия» (empty), then the untitled Unnamed
+      // category, each with its own «Новый товар»; «Новая категория» above «Куплено».
+      name: 'list-categories',
+      path: '/',
+      steps: [{ click: 'role=link[name=/Гипермаркет/]' }, { waitFor: 'role=textbox[name="Товар «Батарейки»"]' }],
+    },
+    {
+      // «Новая категория» tapped: a new section at the end with its title being typed.
+      name: 'list-category-naming',
+      path: '/',
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=button[name="Новая категория"]' },
+        { fill: 'role=textbox[name="Название категории"]', value: 'Напит' },
+        { wait: 200 },
+      ],
+    },
+    {
+      // Enter named it «Напитки»: the focus is in its own «Новый товар».
+      name: 'list-category-added',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=button[name="Новая категория"]' },
+        { fill: 'role=textbox[name="Название категории"]', value: 'Напитки' },
+        { press: 'Enter' },
+        { waitFor: 'role=region[name="Напитки"] >> role=textbox[name="Новый товар"]' },
+        { wait: 300 },
+      ],
+    },
+    {
       name: 'list-todo',
       path: '/',
       steps: [{ click: 'role=link[name=/Дела по дому/]' }, { waitFor: 'role=textbox[name^="Задача"]' }],

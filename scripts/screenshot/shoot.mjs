@@ -322,6 +322,23 @@ export const SEED = {
         ],
       },
       { name: 'Аптека', kind: 'SHOPPING', visibility: 'SHARED' },
+      {
+        // Categories in walking order: «Еда», «Бытовая химия» (empty), then the Unnamed category.
+        name: 'Гипермаркет',
+        kind: 'SHOPPING',
+        visibility: 'SHARED',
+        unnamedCategoryPosition: 3,
+        categories: [
+          { name: 'Еда', position: 1 },
+          { name: 'Бытовая химия', position: 2 },
+        ],
+        items: [
+          { text: 'Молоко', category: 'Еда' },
+          { text: 'Хлеб', category: 'Еда' },
+          'Батарейки',
+          { text: 'Яблоки', category: 'Еда', done: true },
+        ],
+      },
       { name: 'Ремонт', kind: 'TODO', visibility: 'PRIVATE' },
       {
         name: 'Дела по дому',
@@ -370,16 +387,29 @@ async function api(page, method, url, body) {
 }
 
 /**
- * Creates Lists, and their `items` in that order, through the sync push as the Member logged in on
- * `page`. An Item is its text, or `{text, description?, done?}` (Done ones ticked in the same order).
+ * Creates Lists, their `categories` (`{name, position}`) and their `items` in that order, through
+ * the sync push as the Member logged in on `page`. An Item is its text, or `{text, description?,
+ * category?, done?}` (`category` a Category's name; Done ones ticked in the same order).
  */
 async function pushLists(page, lists) {
-  const operations = lists.flatMap(({ items = [], ...fields }) => {
+  const operations = lists.flatMap(({ items = [], categories = [], ...fields }) => {
     const listId = crypto.randomUUID();
+    const categoryIds = Object.fromEntries(categories.map(({ name }) => [name, crypto.randomUUID()]));
     const added = items.map((item) => ({ id: crypto.randomUUID(), ...(typeof item === 'string' ? { text: item } : item) }));
     return [
       { table: 'list', id: listId, op: 'upsert', fields },
-      ...added.map(({ id, text, description }) => ({ table: 'item', id, op: 'upsert', fields: { listId, text, description } })),
+      ...categories.map(({ name, position }) => ({
+        table: 'category',
+        id: categoryIds[name],
+        op: 'upsert',
+        fields: { listId, name, position },
+      })),
+      ...added.map(({ id, text, description, category }) => ({
+        table: 'item',
+        id,
+        op: 'upsert',
+        fields: { listId, text, description, ...(category && { categoryId: categoryIds[category] }) },
+      })),
       ...added.filter((item) => item.done).map(({ id }) => ({ table: 'item', id, op: 'upsert', fields: { done: true } })),
     ];
   });
