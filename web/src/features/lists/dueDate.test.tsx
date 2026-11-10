@@ -227,7 +227,8 @@ describe('«Срок» and «Время» on the Item screen of a todo item', ()
     renderApp(itemPath(trash));
     expect(await screen.findByText('Срок')).toBeInTheDocument();
     expect(screen.getByText('Время')).toBeInTheDocument();
-    expect(screen.getAllByText('Нет')).toHaveLength(2);
+    // «Срок», «Время» and «Повтор».
+    expect(screen.getAllByText('Нет')).toHaveLength(3);
     expect(screen.queryByLabelText('Срок')).not.toBeInTheDocument();
   });
 

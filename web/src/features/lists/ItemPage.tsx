@@ -21,7 +21,7 @@ import {
 import { dueDayText, shortDay } from './dueDates';
 import { ListMissing, useRouteList } from './ListMissing';
 import { listPath } from './listPaths';
-import { KIND_TEXTS, type Item, type List } from './listTypes';
+import { KIND_TEXTS, type Item, type List, type Repeat } from './listTypes';
 import { useItems } from './useItems';
 import { useLists } from './useLists';
 
@@ -61,6 +61,7 @@ function ListItem({ list }: { list: List }) {
     describe,
     setDueDate,
     setDueTime,
+    setRepeat,
     setAssignee,
     setDone,
     remove,
@@ -95,6 +96,7 @@ function ListItem({ list }: { list: List }) {
                 assignable={assignable(list)}
                 setDueDate={setDueDate}
                 setDueTime={setDueTime}
+                setRepeat={setRepeat}
                 setAssignee={setAssignee}
               />
             ))}
@@ -158,16 +160,24 @@ interface TodoFieldsProps {
   assignable: boolean;
   setDueDate: (item: Item, dueDate: string | null) => Promise<void>;
   setDueTime: (item: Item, dueTime: string | null) => Promise<void>;
+  setRepeat: (item: Item, repeat: Repeat | null) => Promise<void>;
   setAssignee: (item: Item, assigneeId: string | null) => Promise<void>;
 }
 
 /**
  * A todo item's own fields: its Due date as «Срок» (the day) and «Время» (a time of day, only
- * with a day), auto-saved; removing the day removes the time. On a Shared list also its Assignee
- * as «Ответственный»: «Никто», then each Member by name, saved when chosen. Later todo fields go
- * here too.
+ * with a day), auto-saved, and its Repeat as «Повтор» (only with a day), saved when chosen;
+ * removing the day removes the time and the Repeat. On a Shared list also its Assignee as
+ * «Ответственный»: «Никто», then each Member by name, saved when chosen.
  */
-function TodoFields({ item, assignable, setDueDate, setDueTime, setAssignee }: TodoFieldsProps) {
+function TodoFields({
+  item,
+  assignable,
+  setDueDate,
+  setDueTime,
+  setRepeat,
+  setAssignee,
+}: TodoFieldsProps) {
   const { t } = useTranslation();
   const members = useFamilyMembers();
   const dueDate = useAutoSaveText({
@@ -192,6 +202,21 @@ function TodoFields({ item, assignable, setDueDate, setDueTime, setAssignee }: T
       [item, setDueTime],
     ),
   });
+  const repeat = useAutoSaveChoice<RepeatChoice>({
+    name: 'repeat',
+    saved: item.repeat ?? NO_REPEAT,
+    save: useCallback(
+      async (value: RepeatChoice) => {
+        await setRepeat(item, value === NO_REPEAT ? null : value);
+        return value;
+      },
+      [item, setRepeat],
+    ),
+  });
+  const repeats = useMemo(
+    () => REPEAT_CHOICES.map((value) => ({ value, label: t(REPEAT_LABELS[value]) })),
+    [t],
+  );
   const assignee = useAutoSaveChoice<string>({
     name: 'assignee',
     saved: item.assigneeId ?? NOBODY,
@@ -213,7 +238,12 @@ function TodoFields({ item, assignable, setDueDate, setDueTime, setAssignee }: T
 
   return (
     <GroupedSection
-      messages={autoSaveMessages([dueDate.failure, dueTime.failure, assignee.failure])}
+      messages={autoSaveMessages([
+        dueDate.failure,
+        dueTime.failure,
+        repeat.failure,
+        assignee.failure,
+      ])}
     >
       <DateRow label={t('lists.dueDate')} {...dueDate.input} />
       <DateRow
@@ -222,12 +252,34 @@ function TodoFields({ item, assignable, setDueDate, setDueTime, setAssignee }: T
         disabled={item.dueDate == null}
         {...dueTime.input}
       />
+      <SelectRow
+        label={t('lists.repeat.label')}
+        options={repeats}
+        disabled={item.dueDate == null}
+        {...repeat.control}
+      />
       {assignable && (
         <SelectRow label={t('lists.assignee.label')} options={assignees} {...assignee.control} />
       )}
     </GroupedSection>
   );
 }
+
+/** «Нет» among the choices of «Повтор»: no Repeat. */
+const NO_REPEAT = '';
+
+type RepeatChoice = Repeat | typeof NO_REPEAT;
+
+/** The choices of «Повтор», in order. */
+const REPEAT_CHOICES: readonly RepeatChoice[] = [NO_REPEAT, 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'];
+
+const REPEAT_LABELS = {
+  [NO_REPEAT]: 'lists.repeat.none',
+  DAILY: 'lists.repeat.daily',
+  WEEKLY: 'lists.repeat.weekly',
+  MONTHLY: 'lists.repeat.monthly',
+  YEARLY: 'lists.repeat.yearly',
+} as const satisfies Record<RepeatChoice, string>;
 
 /** «Никто» among the choices of «Ответственный»: no Member's id. */
 const NOBODY = '';
@@ -252,6 +304,7 @@ function DoneTodoFields({ item, assignable }: { item: Item; assignable: boolean 
         value={item.dueDate == null ? none : dueDayText(t, item.dueDate, new Date())}
       />
       <ListRow title={t('lists.dueTime')} value={item.dueTime ?? none} />
+      <ListRow title={t('lists.repeat.label')} value={t(REPEAT_LABELS[item.repeat ?? NO_REPEAT])} />
       {assignable && (
         <ListRow
           title={t('lists.assignee.label')}

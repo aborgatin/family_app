@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { deleteRow, upsertRow, useRows } from '@/shared/sync';
-import type { Item, List, ListKind } from './listTypes';
+import type { Item, List, ListKind, Repeat } from './listTypes';
 import { compare, normalizedName, sortableTime } from './itemKeys';
 
 /**
@@ -93,15 +93,24 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
 
   /**
    * Sets a todo item's Due date to this day (`YYYY-MM-DD`), sending only `dueDate`; `null` removes
-   * the Due date, and its time with it (the server clears the time too).
+   * the Due date, and its time and Repeat with it (the server clears both too).
    */
   const setDueDate = useCallback(async (item: Item, dueDate: string | null): Promise<void> => {
-    await upsertRow('item', item.id, dueDate === null ? { dueDate, dueTime: null } : { dueDate });
+    await upsertRow(
+      'item',
+      item.id,
+      dueDate === null ? { dueDate, dueTime: null, repeat: null } : { dueDate },
+    );
   }, []);
 
   /** Sets the time of day (`HH:MM`) of a todo item's Due date, or removes it (`null`). */
   const setDueTime = useCallback(async (item: Item, dueTime: string | null): Promise<void> => {
     await upsertRow('item', item.id, { dueTime });
+  }, []);
+
+  /** Sets a todo item's Repeat, or removes it (`null`), sending only `repeat`. */
+  const setRepeat = useCallback(async (item: Item, repeat: Repeat | null): Promise<void> => {
+    await upsertRow('item', item.id, { repeat });
   }, []);
 
   /** Makes this Member the todo item's Assignee, or nobody (`null`), sending only `assigneeId`. */
@@ -138,6 +147,7 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
     move,
     setDueDate,
     setDueTime,
+    setRepeat,
     setAssignee,
     setDone,
     remove,
