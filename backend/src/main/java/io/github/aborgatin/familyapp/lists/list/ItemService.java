@@ -12,16 +12,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.format.ResolverStyle;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -33,10 +29,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 class ItemService implements SyncableTable {
-
-  /** {@code dueTime} on the wire: {@code HH:MM}, 24 hours, no seconds. */
-  private static final DateTimeFormatter DUE_TIME =
-      DateTimeFormatter.ofPattern("HH:mm").withResolverStyle(ResolverStyle.STRICT);
 
   private final Clock clock = Clock.systemUTC();
   private final ItemRepository items;
@@ -179,7 +171,7 @@ class ItemService implements SyncableTable {
    */
   @Nullable
   private UUID categoryId(Operation operation, ListEntity list) {
-    UUID categoryId = RequestFields.uuid(operation, "categoryId");
+    UUID categoryId = operation.uuid("categoryId");
     if (categoryId == null) {
       return null;
     }
@@ -211,12 +203,10 @@ class ItemService implements SyncableTable {
     }
     FieldErrors errors = new FieldErrors();
     LocalDate day =
-        operation.has("dueDate")
-            ? parsed(operation, "dueDate", LocalDate::parse, errors)
-            : stored.day();
+        operation.has("dueDate") ? errors.date("dueDate", operation.text("dueDate")) : stored.day();
     LocalTime time = day == null ? null : stored.time();
     if (operation.has("dueTime")) {
-      time = parsed(operation, "dueTime", text -> LocalTime.parse(text, DUE_TIME), errors);
+      time = errors.parsed("dueTime", operation.text("dueTime"), DueDate::parseTime);
     }
     errors.throwIfAny();
     if (time != null && day == null) {
@@ -240,17 +230,11 @@ class ItemService implements SyncableTable {
     if (!carriesTodoField(operation, list, "repeat")) {
       return dueDate.day() == null ? null : stored;
     }
-    String text = operation.text("repeat");
-    if (text == null) {
-      return null;
-    }
-    Repeat repeat =
-        Arrays.stream(Repeat.values())
-            .filter(candidate -> candidate.name().equals(text))
-            .findFirst()
-            .orElse(null);
+    FieldErrors errors = new FieldErrors();
+    Repeat repeat = errors.choice("repeat", operation.text("repeat"), Repeat.values());
+    errors.throwIfAny();
     if (repeat == null) {
-      new FieldErrors().add("repeat", FieldErrors.VALUE_INVALID).throwIfAny();
+      return null;
     }
     if (dueDate.day() == null) {
       throw new ApiException(HttpStatus.CONFLICT, "item.repeat_without_due_date");
@@ -272,7 +256,7 @@ class ItemService implements SyncableTable {
     if (!carriesTodoField(operation, list, "assigneeId")) {
       return stored;
     }
-    UUID assigneeId = RequestFields.uuid(operation, "assigneeId");
+    UUID assigneeId = operation.uuid("assigneeId");
     if (assigneeId == null) {
       return null;
     }
@@ -304,22 +288,6 @@ class ItemService implements SyncableTable {
           HttpStatus.CONFLICT, "item.list_not_todo", Map.of("listId", list.id().toString()));
     }
     return true;
-  }
-
-  /** The operation's {@code field} parsed, {@code null} for none; {@code value.invalid} if bad. */
-  @Nullable
-  private static <T> T parsed(
-      Operation operation, String field, Function<String, T> parse, FieldErrors errors) {
-    String text = operation.text(field);
-    if (text == null) {
-      return null;
-    }
-    try {
-      return parse.apply(text);
-    } catch (DateTimeParseException e) {
-      errors.add(field, FieldErrors.VALUE_INVALID);
-      return null;
-    }
   }
 
   /** The operation's {@code done}: a boolean, never {@code null}. */

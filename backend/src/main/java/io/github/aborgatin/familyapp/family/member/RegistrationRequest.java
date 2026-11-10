@@ -2,7 +2,6 @@ package io.github.aborgatin.familyapp.family.member;
 
 import io.github.aborgatin.familyapp.error.FieldErrors;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import org.springframework.lang.Nullable;
@@ -48,7 +47,7 @@ public record RegistrationRequest(
 
     String name = checkDisplayName("displayName", displayName, errors);
     GrammaticalGender gender =
-        checkGrammaticalGender("grammaticalGender", grammaticalGender, errors);
+        errors.requiredChoice("grammaticalGender", grammaticalGender, GrammaticalGender.values());
 
     errors.throwIfAny();
     return new Registration(normalizedEmail, rawPassword, name, gender);
@@ -84,28 +83,6 @@ public record RegistrationRequest(
       errors.add(field, FieldErrors.TOO_LONG);
     }
     return name;
-  }
-
-  /**
-   * Checks a {@code MASCULINE} / {@code FEMININE} choice (required), adding any failure to {@code
-   * errors} under {@code field}. Returns the value, {@code null} when missing or unknown.
-   */
-  @Nullable
-  public static GrammaticalGender checkGrammaticalGender(
-      String field, @Nullable String grammaticalGender, FieldErrors errors) {
-    if (grammaticalGender == null || grammaticalGender.isBlank()) {
-      errors.add(field, FieldErrors.REQUIRED);
-      return null;
-    }
-    GrammaticalGender gender =
-        Arrays.stream(GrammaticalGender.values())
-            .filter(value -> value.name().equals(grammaticalGender))
-            .findFirst()
-            .orElse(null);
-    if (gender == null) {
-      errors.add(field, FieldErrors.VALUE_INVALID);
-    }
-    return gender;
   }
 
   /** A registration that passed validation. */

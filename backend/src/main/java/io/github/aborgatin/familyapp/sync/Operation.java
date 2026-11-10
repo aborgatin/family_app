@@ -41,6 +41,18 @@ public record Operation(UUID memberId, UUID id, Type type, Map<String, Object> f
   }
 
   /**
+   * The field as a UUID, or {@code null} when it is absent or {@code null}. Anything else is {@code
+   * 400 validation.failed} with {@code value.invalid} for the field.
+   */
+  @Nullable
+  public UUID uuid(String field) {
+    FieldErrors errors = new FieldErrors();
+    UUID id = errors.uuid(field, text(field));
+    errors.throwIfAny();
+    return id;
+  }
+
+  /**
    * The field as a number, or {@code null} when it is absent or {@code null}. A value of another
    * JSON type is {@code 400 validation.failed} with {@code value.invalid} for the field.
    */

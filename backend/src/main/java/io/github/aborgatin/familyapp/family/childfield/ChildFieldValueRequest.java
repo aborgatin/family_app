@@ -1,8 +1,6 @@
 package io.github.aborgatin.familyapp.family.childfield;
 
 import io.github.aborgatin.familyapp.error.FieldErrors;
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.UUID;
 import org.springframework.lang.Nullable;
 
@@ -20,27 +18,13 @@ record ChildFieldValueRequest(
    */
   Valid validate() {
     FieldErrors errors = new FieldErrors();
-    UUID child = uuid("childId", childId, errors);
-    UUID childField = uuid("childFieldId", childFieldId, errors);
+    UUID child = errors.requiredUuid("childId", childId);
+    UUID childField = errors.requiredUuid("childFieldId", childFieldId);
     if (value == null) {
       errors.add("value", FieldErrors.REQUIRED);
     }
     errors.throwIfAny();
     return new Valid(child, childField, value.strip());
-  }
-
-  @Nullable
-  private static UUID uuid(String field, @Nullable String text, FieldErrors errors) {
-    if (text == null || text.isBlank()) {
-      errors.add(field, FieldErrors.REQUIRED);
-      return null;
-    }
-    try {
-      return UUID.fromString(text);
-    } catch (IllegalArgumentException e) {
-      errors.add(field, FieldErrors.VALUE_INVALID);
-      return null;
-    }
   }
 
   /** A request whose fields are all there; {@code value} is trimmed. */
@@ -64,24 +48,11 @@ record ChildFieldValueRequest(
               errors.add("value", FieldErrors.TOO_LONG);
             }
           }
-          case DATE -> {
-            if (!isDate(value)) {
-              errors.add("value", FieldErrors.VALUE_INVALID);
-            }
-          }
+          case DATE -> errors.date("value", value);
         }
       }
       errors.throwIfAny();
       return value;
-    }
-
-    /** {@code YYYY-MM-DD} exactly, and a day that exists. */
-    private static boolean isDate(String text) {
-      try {
-        return LocalDate.parse(text).toString().equals(text);
-      } catch (DateTimeParseException e) {
-        return false;
-      }
     }
   }
 }

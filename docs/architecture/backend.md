@@ -82,7 +82,7 @@ Members are the principals. Sub-packages:
   `MembersController` (`/api/members`), `PasswordResetController` (`/api/password-resets`).
 - `family.member`: `Member`, `Invite`, `PasswordReset` entities and repositories; `BootstrapService`,
   `LoginService`, `MemberService`, `InviteService`; `RegistrationRequest` (registration body and the
-  shared static checks `checkPassword`, `checkDisplayName`, `checkGrammaticalGender`);
+  shared static checks `checkPassword`, `checkDisplayName`);
   `OneTimeTokens`; `PasswordEncoderConfig`; `MemberSyncTable` (the `member` table of the pull).
 - `family.child`: `Child`, `ChildService` (the `child` `SyncableTable`), `ChildRequest`,
   `ChildColorPalette`. No REST endpoint: Children are written by the push and read by the pull.
@@ -160,6 +160,8 @@ Shared patterns inside `family`:
   parse error. Each body record validates itself: `RegistrationRequest.validate()`,
   `ChildFieldRequest.validate()` and `ChildRequest.validate(palette)` (a bean the check needs is
   passed in) return the normalized values or throw. Services call it before taking `FamilyLock`.
+  Shared values are read one way, by `FieldErrors` (see Errors): an enum, a UUID, a
+  `YYYY-MM-DD` day.
 
 ### `sync`
 
@@ -181,8 +183,8 @@ The push and the pull ([`sync.md`](sync.md) has the semantics). Public API:
     rows, a tombstone for a deleted record or one `visible` refuses, else the fields in the order
     put.
 - `Operation(memberId, id, type, fields)`: `type` `UPSERT` / `DELETE`; `has(field)`,
-  `text(field)` and `number(field)` (a value of another JSON type is `validation.failed` /
-  `value.invalid`) read the raw JSON fields.
+  `text(field)`, `number(field)`, `bool(field)` and `uuid(field)` (a value of another JSON type,
+  or text that isn't a UUID, is `validation.failed` / `value.invalid`) read the raw JSON fields.
 - `SyncLock`: the lock the push takes; `family.FamilyLock` implements it, so `sync` doesn't depend
   on `family`.
 - `SyncableWriteStarted`: the event the lock publishes inside every transaction that writes a
@@ -238,7 +240,7 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   JPQL updates that flush and clear the persistence context, so later operations of the same push
   see them.
 - Child lists (#90; `list.child_id`, nullable, → `child`): a create may carry `childId`
-  (`RequestFields.uuid`; a non-UUID is `validation.failed`), stored for good
+  (`Operation.uuid`; a non-UUID is `validation.failed`), stored for good
   (`ListEntity.childId`, `updatable = false`). An upsert of a known List may only repeat the
   stored value, `null` for an ordinary List (`list.child_immutable` otherwise, so a repeated push
   stays applied, S3). With a Child, after the checks above: kind `SHOPPING` →
@@ -266,8 +268,7 @@ memberId)` (the List, deleted or not, or `list.not_found`), `rowsVisibleTo(membe
 listIdOfRow)` (the pull's `visible` predicate, loading the Lists once with `findAllById`).
 Items, Categories and Item history use it. `RequestFields` holds the field checks Lists,
 Categories and Items share: `name` (1–100 code points after trim), `position` (required, finite),
-`uuid(operation, field)` (absent or `null` is none, else `value.invalid` unless a UUID), and
-`listId(operation)` / `sameList(operation, listId)` for the create-only `listId` field.
+and `listId(operation)` / `sameList(operation, listId)` for the create-only `listId` field.
 `ItemService` looks an Item's List up once per operation and passes it on.
 
 Items are in the same package (an Item belongs to its List): `ItemEntity` (`list_id`, `text`,
@@ -296,7 +297,8 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
   wall-clock values that never pass through a time zone. The carried fields are merged over the
   stored `DueDate`; a `dueDate` of `null` drops the stored time. Then, in this order:
   `item.list_not_todo` (`params.listId`) unless the List is `TODO`; `validation.failed` /
-  `value.invalid` for a day that isn't ISO `YYYY-MM-DD` or a time that isn't strict `HH:mm`;
+  `value.invalid` for a day that isn't ISO `YYYY-MM-DD` (`FieldErrors.date`) or a time that isn't
+  strict `HH:mm` (`DueDate.parseTime`; the one `HH:mm` format, which the pull writes too);
   `item.due_time_without_due_date` when a time is left without a day. An upsert carrying neither
   field leaves the Due date alone on every kind of List.
 - Repeat (#86; `repeat`, when carried; `ItemService.repeat` → `ItemEntity.repeat`): column
@@ -436,7 +438,11 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 
 - Throw `new ApiException(HttpStatus, code[, params])` from anywhere.
 - For field validation, collect into `FieldErrors` (`add(field, code)`, then `throwIfAny()`), which
-  throws `400 validation.failed` with `params.errors = [{field, code}, …]`.
+  throws `400 validation.failed` with `params.errors = [{field, code}, …]`. It is also the one way
+  to read the values requests share, each adding its failure and returning `null`: an enum by its
+  exact name (`choice`: `null` is none, other text `value.invalid`; `requiredChoice`: missing or
+  blank is `required`), a UUID (`uuid` / `requiredUuid`, the same way), a `YYYY-MM-DD` day
+  (`date`), and anything else through a parser (`parsed(field, value, parse)`).
 - `error.internal.ApiExceptionHandler` (`@RestControllerAdvice`) is the single mapping for MVC:
   `ApiException` as is; unreadable JSON and a path value of the wrong type (e.g. a non-UUID id) →
   `400 request.invalid`; Spring's own `ErrorResponse` exceptions → `not_found`,

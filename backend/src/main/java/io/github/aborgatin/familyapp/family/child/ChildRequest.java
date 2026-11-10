@@ -3,7 +3,6 @@ package io.github.aborgatin.familyapp.family.child;
 import io.github.aborgatin.familyapp.error.FieldErrors;
 import io.github.aborgatin.familyapp.family.member.RegistrationRequest;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import org.springframework.lang.Nullable;
 
 /**
@@ -26,22 +25,9 @@ record ChildRequest(@Nullable String name, @Nullable String color, @Nullable Str
     } else if (!palette.contains(checkedColor)) {
       errors.add("color", FieldErrors.COLOR_INVALID);
     }
-    LocalDate parsedBirthday = parseBirthday(errors);
+    // YYYY-MM-DD; null or absent means the birthday is unknown.
+    LocalDate parsedBirthday = errors.date("birthday", birthday);
     errors.throwIfAny();
     return new ChildDetails(trimmedName, checkedColor, parsedBirthday);
-  }
-
-  /** {@code YYYY-MM-DD}; {@code null} or absent means the birthday is unknown. */
-  @Nullable
-  private LocalDate parseBirthday(FieldErrors errors) {
-    if (birthday == null) {
-      return null;
-    }
-    try {
-      return LocalDate.parse(birthday);
-    } catch (DateTimeParseException e) {
-      errors.add("birthday", FieldErrors.VALUE_INVALID);
-      return null;
-    }
   }
 }

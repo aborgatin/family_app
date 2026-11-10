@@ -127,7 +127,7 @@ class ListService implements SyncableTable {
    */
   @Nullable
   private static UUID childId(Operation operation, Optional<ListEntity> existing) {
-    UUID carried = RequestFields.uuid(operation, "childId");
+    UUID carried = operation.uuid("childId");
     if (existing.isEmpty()) {
       return carried;
     }
