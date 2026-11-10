@@ -362,6 +362,41 @@ export default {
       ],
     },
     {
+      // A repeating item marked Done (#87): «Оплатить садик» (monthly, due yesterday) is in
+      // «Выполнено» without ↻, and its next occurrence, made by the server, is open in its place
+      // in the order, a month after the old Due date.
+      name: 'list-todo-repeat-done',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { waitFor: 'role=link[name="Выполненные ранее"]' },
+        // A dispatched click: a mouse press focuses the toggle, which opens the row for editing and
+        // moves the toggle down before the release, so a real click misses it in Chromium.
+        async (page) => page.locator('role=checkbox[name="Выполнено «Оплатить садик»"]').first().dispatchEvent('click'),
+        { waitFor: 'role=region[name="Выполнено"] >> role=checkbox[name="Выполнено «Оплатить садик»"]' },
+        { waitFor: 'role=region[name="Задачи"] >> role=textbox[name="Задача «Оплатить садик»"]' },
+        { wait: 200 },
+      ],
+    },
+    {
+      // The same with no connection: the item is in «Выполнено» at once, still with ↻, and the
+      // next occurrence comes only when the device syncs.
+      name: 'list-todo-repeat-done-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { waitFor: 'role=link[name="Выполненные ранее"]' },
+        // A dispatched click: a mouse press focuses the toggle, which opens the row for editing and
+        // moves the toggle down before the release, so a real click misses it in Chromium.
+        async (page) => page.locator('role=checkbox[name="Выполнено «Оплатить садик»"]').first().dispatchEvent('click'),
+        { waitFor: 'role=region[name="Выполнено"] >> role=checkbox[name="Выполнено «Оплатить садик»"]' },
+        { wait: 200 },
+      ],
+    },
+    {
       name: 'list-todo-empty',
       path: '/',
       steps: [{ click: 'role=link[name=/Ремонт/]' }, { waitFor: 'text=Задач пока нет' }],

@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
@@ -125,6 +126,7 @@ class ItemService implements SyncableTable {
     UUID assigneeId = operation.has("assigneeId") ? assigneeId(operation, list) : item.assigneeId();
     // The history keeps a name when it is given (a new text) or used again (Done → open).
     boolean nameUsed = !details.text().equals(item.text()) || (item.done() && !done);
+    boolean turnsDone = done && !item.done();
     Instant now = clock.instant();
     item.replace(details);
     item.moveTo(categoryId);
@@ -132,11 +134,26 @@ class ItemService implements SyncableTable {
     item.repeat(repeat);
     item.assignTo(assigneeId);
     item.markDone(done, operation.memberId(), now);
+    // A repeating Item marked Done hands its Repeat on to a new open Item (ADR-0009). Turning Done
+    // true again (the other device's tick) is no turn, so it adds no second one.
+    ItemEntity next =
+        turnsDone && repeat != null ? item.nextOccurrence(UUID.randomUUID(), now, today()) : null;
     items.saveAndFlush(item);
+    if (next != null) {
+      items.saveAndFlush(next);
+    }
     if (nameUsed) {
       history.used(list, item.text(), now);
     }
     return Outcome.APPLIED;
+  }
+
+  /**
+   * Today by the server's clock in the installation's time zone: the JVM's default zone, which the
+   * container's {@code TZ} sets (deployment.md).
+   */
+  private LocalDate today() {
+    return LocalDate.ofInstant(clock.instant(), ZoneId.systemDefault());
   }
 
   private Outcome delete(ItemEntity item) {

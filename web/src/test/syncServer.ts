@@ -8,8 +8,9 @@ import { network } from './network';
  * after a first sync, and the table rules a screen relies on: deleting a Child deletes its Child
  * lists with their Items, a deleted Child or Child field takes its Child field values
  * (`CASCADES`), and a Child field value is a timeline entry (stamped with `recordedAt`, never
- * changed, ignored for a deleted Child or Child field), and a List made Private loses the Assignee
- * of every one of its Items. Tests seed rows, read what was pushed, and switch it offline or make it
+ * changed, ignored for a deleted Child or Child field), a List made Private loses the Assignee
+ * of every one of its Items, and a repeating Item turned Done (pushed, or by `change`) hands its
+ * Repeat on to its next occurrence, a new open Item (ADR-0009). Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
@@ -248,8 +249,23 @@ class FakeSyncServer {
 
   private write(table: string, id: string, fields: Record<string, unknown>, deleted: boolean) {
     const before = this.stored.get(key(table, id));
+    const repeating =
+      table === 'item' &&
+      !deleted &&
+      before !== undefined &&
+      before.fields.done !== true &&
+      fields.done === true &&
+      typeof fields.repeat === 'string' &&
+      typeof fields.dueDate === 'string';
     this.version += 1;
-    this.stored.set(key(table, id), { table, id, version: this.version, deleted, fields });
+    this.stored.set(key(table, id), {
+      table,
+      id,
+      version: this.version,
+      deleted,
+      fields: repeating ? { ...fields, repeat: null } : fields,
+    });
+    if (repeating) this.addNextOccurrence(fields);
     if (
       table === 'list' &&
       before !== undefined &&
@@ -258,6 +274,36 @@ class FakeSyncServer {
     ) {
       this.clearAssignees(id);
     }
+  }
+
+  /**
+   * A repeating Item turned Done hands its Repeat on to a new open Item with a server-made id, in
+   * the same operation (ADR-0009), as the real server does: same List, text, Description,
+   * Assignee, Repeat, time of day and Creator, created now, due on the old Due date advanced by
+   * the Repeat until it is after today (the device's date stands in for the server's).
+   */
+  private addNextOccurrence(done: Record<string, unknown>) {
+    const now = new Date();
+    this.write(
+      'item',
+      crypto.randomUUID(),
+      {
+        listId: done.listId,
+        text: done.text,
+        categoryId: null,
+        description: done.description ?? null,
+        dueDate: nextDueDate(done.dueDate as string, done.repeat as string, now),
+        dueTime: done.dueTime ?? null,
+        repeat: done.repeat,
+        assigneeId: done.assigneeId ?? null,
+        done: false,
+        doneById: null,
+        doneAt: null,
+        creatorId: done.creatorId,
+        createdAt: now.toISOString(),
+      },
+      false,
+    );
   }
 
   /**
@@ -290,6 +336,38 @@ class FakeSyncServer {
       }
     }
   }
+}
+
+/**
+ * The Due date (`YYYY-MM-DD`) of the next occurrence after one due on `dueDate`: advanced by the
+ * Repeat, at least once, until it is after `now`'s day. A month or year step to a day the month
+ * doesn't have lands on its last day, and the next step goes on from there.
+ */
+function nextDueDate(dueDate: string, repeat: string, now: Date): string {
+  const [year = 0, month = 1, day = 1] = dueDate.split('-').map(Number);
+  let next = { year, month, day };
+  const today = { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
+  const order = (d: typeof next) => d.year * 10_000 + d.month * 100 + d.day;
+  do {
+    next = step(next, repeat);
+  } while (order(next) <= order(today));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${String(next.year)}-${pad(next.month)}-${pad(next.day)}`;
+}
+
+/** One Repeat period on from a day. */
+function step(
+  { year, month, day }: { year: number; month: number; day: number },
+  repeat: string,
+): { year: number; month: number; day: number } {
+  if (repeat === 'DAILY' || repeat === 'WEEKLY') {
+    const date = new Date(Date.UTC(year, month - 1, day + (repeat === 'DAILY' ? 1 : 7)));
+    return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
+  }
+  const months = (month - 1 + (repeat === 'MONTHLY' ? 1 : 12)) % 12;
+  const nextYear = year + Math.floor((month - 1 + (repeat === 'MONTHLY' ? 1 : 12)) / 12);
+  const lastDay = new Date(Date.UTC(nextYear, months + 1, 0)).getUTCDate();
+  return { year: nextYear, month: months + 1, day: Math.min(day, lastDay) };
 }
 
 function key(table: string, id: string) {

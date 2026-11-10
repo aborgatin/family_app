@@ -10,6 +10,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Objects;
 import java.util.UUID;
 import org.hibernate.annotations.Generated;
 import org.hibernate.generator.EventType;
@@ -124,6 +125,23 @@ class ItemEntity implements SyncedRecord {
     this.done = done;
     this.doneById = done ? memberId : null;
     this.doneAt = done ? at : null;
+  }
+
+  /**
+   * Hands this repeating Item's Repeat on to its next occurrence (ADR-0009): returns a new open
+   * Item {@code id} in the same List with the same text, Description, Assignee, Repeat, time of day
+   * and Creator, created {@code at}, due on the next occurrence after {@code today}; this Item
+   * keeps no Repeat.
+   */
+  ItemEntity nextOccurrence(UUID id, Instant at, LocalDate today) {
+    Repeat handedOn = Objects.requireNonNull(repeat, "only a repeating Item has a next occurrence");
+    LocalDate day = Objects.requireNonNull(dueDate, "a Repeat is only with a Due date");
+    ItemEntity next = new ItemEntity(id, listId, creatorId, at, new ItemDetails(text, description));
+    next.due(new DueDate(handedOn.next(day, today), dueTime));
+    next.repeat(handedOn);
+    next.assignTo(assigneeId);
+    this.repeat = null;
+    return next;
   }
 
   /** Soft delete (S2): the row stays and its Version advances. */
