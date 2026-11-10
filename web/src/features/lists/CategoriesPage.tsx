@@ -18,7 +18,7 @@ import {
 import { ListMissing, useRouteList } from './ListMissing';
 import { listSettingsPath } from './listPaths';
 import type { Category, List } from './listTypes';
-import { newCategoryId, useCategories, walkingOrder } from './useCategories';
+import { categoryOrder, newCategoryId, UNNAMED_CATEGORY_KEY, useCategories } from './useCategories';
 import { useItems } from './useItems';
 import { useLists } from './useLists';
 
@@ -29,7 +29,7 @@ interface CategoriesPageProps {
 
 /**
  * «Категории» (`/lists/:id/categories`, from a Shopping list's «Настройки списка»), back to the
- * settings: the List's Categories and its Unnamed category («Без категории», grey) in walking
+ * settings: the List's Categories and its Unnamed category («Без категории», grey) in their
  * order. Any Member who sees the List may rename a Category in place (auto-saved), add one at the
  * end («Новая категория»), drag any row into place, and delete a Category after the action sheet,
  * which says how many Items stay in the list without a Category. The Unnamed row can only be
@@ -56,7 +56,7 @@ export function CategoriesPage({ homePath }: CategoriesPageProps) {
   );
 }
 
-/** The walking order as an edit-mode list, and the «Новая категория» add row. */
+/** The Category order as an edit-mode list, and the «Новая категория» add row. */
 function CategoriesSection({ list }: { list: List }) {
   const { t } = useTranslation();
   const lines = useFooterLines();
@@ -73,7 +73,7 @@ function CategoriesSection({ list }: { list: List }) {
 
   const known = categories ?? [];
   // A row per Category and one for the Unnamed category (`category` undefined).
-  const rows = walkingOrder(list, known).map((category) => ({ category }));
+  const rows = categoryOrder(list, known).map((category) => ({ category }));
   const itemsIn = (category: Category) =>
     [...(items ?? []), ...(doneItems ?? [])].filter((item) => item.categoryId === category.id)
       .length;
@@ -102,7 +102,7 @@ function CategoriesSection({ list }: { list: List }) {
       {categories !== undefined && (
         <SortableList
           items={rows}
-          itemId={({ category }) => category?.id ?? UNNAMED}
+          itemId={({ category }) => category?.id ?? UNNAMED_CATEGORY_KEY}
           itemTitle={({ category }) => category?.name ?? t('lists.unnamedCategory')}
           onMove={({ category }, to) => editable.attempt(() => move(category, to))}
         >
@@ -112,7 +112,7 @@ function CategoriesSection({ list }: { list: List }) {
             ) : (
               <CategoryRow
                 category={category}
-                items={itemsIn(category)}
+                itemCount={itemsIn(category)}
                 sortable={sortable}
                 rename={rename}
                 onFailure={reportFailure}
@@ -129,13 +129,10 @@ function CategoriesSection({ list }: { list: List }) {
   );
 }
 
-/** The Unnamed row's id in the `SortableList` (never a Category's: those are UUIDs). */
-const UNNAMED = 'unnamed';
-
 interface CategoryRowProps {
   category: Category;
   /** How many Items (open and Done) are in it: they stay in the list without a Category. */
-  items: number;
+  itemCount: number;
   sortable: SortableRow;
   rename: (category: Category, name: string) => Promise<void>;
   /** Tells the section about this row's failed save (or that it cleared), for its footer. */
@@ -146,7 +143,7 @@ interface CategoryRowProps {
 
 function CategoryRow({
   category,
-  items,
+  itemCount,
   sortable,
   rename,
   onFailure,
@@ -182,7 +179,7 @@ function CategoryRow({
       input={{ ...name.input, label: t('lists.categoryNamed', { name: category.name }) }}
       confirm={{
         title: t('lists.confirmDeleteCategory', { name: category.name }),
-        ...(items > 0 && { message: t('lists.categoryItemsStay', { count: items }) }),
+        ...(itemCount > 0 && { message: t('lists.categoryItemsStay', { count: itemCount }) }),
       }}
       onDelete={onDelete}
     />

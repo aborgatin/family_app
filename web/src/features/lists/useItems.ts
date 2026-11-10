@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { deleteRow, upsertRow, useRows } from '@/shared/sync';
 import type { Item, List } from './listTypes';
-import { normalizedName } from './useItemHistory';
+import { compare, normalizedName, sortableTime } from './itemKeys';
 
 /**
  * One List's open and Done Items and the ways to change them: the only data access for Items. It reads the
@@ -178,26 +178,6 @@ function tickTime(): number {
 /** When this device ticked the Item off (ms); 0 once the server's copy with done at is here. */
 function doneHere(item: Item): number {
   return item.doneAt == null ? (item.doneHereAt ?? 0) : 0;
-}
-
-/**
- * An ISO-8601 UTC time that sorts as text: the server prints 0, 3, 6 or 9 fraction digits
- * (`…:00Z`, `…:00.123Z`, `…:00.123456Z`), so the fraction is padded to 9.
- */
-export function sortableTime(time: string): string;
-export function sortableTime(time: string | undefined): string | undefined;
-export function sortableTime(time: string | undefined): string | undefined {
-  if (time === undefined) return undefined;
-  const [, seconds = time, fraction = ''] = /^(.*?)(?:\.(\d+))?Z$/.exec(time) ?? [];
-  return `${seconds}.${fraction.padEnd(9, '0')}Z`;
-}
-
-/** Ascending; a missing value after every present one. */
-function compare(a: string | undefined, b: string | undefined): number {
-  if (a === b) return 0;
-  if (a === undefined) return 1;
-  if (b === undefined) return -1;
-  return a < b ? -1 : 1;
 }
 
 let lastIdTime = 0;

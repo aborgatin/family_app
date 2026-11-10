@@ -70,7 +70,7 @@ export interface Category {
  * One name of a Shopping list's Item history as the local store keeps it (the fields the sync
  * pull sends): its latest spelling and when it was last used. Written by the server only.
  */
-export interface ItemHistoryEntry {
+export interface ItemHistoryName {
   id: string;
   listId: string;
   name: string;

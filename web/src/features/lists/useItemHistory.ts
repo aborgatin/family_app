@@ -1,10 +1,10 @@
 import { useCallback, useMemo } from 'react';
 import { useRows } from '@/shared/sync';
-import type { ItemHistoryEntry, List } from './listTypes';
-import { sortableTime } from './useItems';
+import { compare, normalizedName, sortableTime } from './itemKeys';
+import type { ItemHistoryName, List } from './listTypes';
 
 /** How many names autocomplete shows at most. */
-const SUGGESTIONS = 5;
+const MAX_NAMES = 5;
 
 /**
  * Autocomplete from a Shopping list's Item history: the only data access for it. It reads the
@@ -12,17 +12,17 @@ const SUGGESTIONS = 5;
  * Only a Shopping list's screen uses it (Todo and Wish lists keep no history).
  */
 export function useItemHistory(list: List) {
-  const rows = useRows('item_history') as ItemHistoryEntry[] | undefined;
+  const rows = useRows('item_history') as ItemHistoryName[] | undefined;
   const listId = list.id;
 
   // Newest use first, ties by name.
-  const entries = useMemo(
+  const names = useMemo(
     () =>
       (rows ?? [])
         .filter((row) => row.listId === listId)
         .sort(
           (a, b) =>
-            compareDesc(sortableTime(a.lastUsedAt), sortableTime(b.lastUsedAt)) ||
+            compare(sortableTime(b.lastUsedAt), sortableTime(a.lastUsedAt)) ||
             a.name.localeCompare(b.name),
         ),
     [rows, listId],
@@ -32,24 +32,19 @@ export function useItemHistory(list: List) {
    * Up to 5 names of the history with a word that starts with the typed text, both trimmed and
    * lower-cased, the most recently used first.
    */
-  const suggest = useCallback(
+  const namesStarting = useCallback(
     (typed: string): readonly string[] => {
       const prefix = normalizedName(typed);
       if (prefix === '') return [];
-      return entries
+      return names
         .filter(({ name }) => startsAWord(normalizedName(name), prefix))
-        .slice(0, SUGGESTIONS)
+        .slice(0, MAX_NAMES)
         .map(({ name }) => name);
     },
-    [entries],
+    [names],
   );
 
-  return { suggest };
-}
-
-/** A name as the history keys it, and as adding compares Items: trimmed and lower-cased. */
-export function normalizedName(name: string): string {
-  return name.trim().toLowerCase();
+  return { namesStarting };
 }
 
 /** Whether `prefix` starts at the beginning of `name` or after a space in it. */
@@ -58,9 +53,4 @@ function startsAWord(name: string, prefix: string): boolean {
     if (at === 0 || /\s/.test(name.charAt(at - 1))) return true;
   }
   return false;
-}
-
-/** Descending. */
-function compareDesc(a: string, b: string): number {
-  return a === b ? 0 : a < b ? 1 : -1;
 }

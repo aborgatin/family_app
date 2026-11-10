@@ -42,8 +42,9 @@ web/src/
                         ListMissing (gone / loading),
                         ItemsSection (the List screen's Items, by Category on a Shopping list),
                         listTypes (kinds, Visibility, kind texts, Item, Category,
-                        ItemHistoryEntry), useLists(), useItems(list), useCategories(list),
-                        useItemHistory(list)
+                        ItemHistoryName), useLists(), useItems(list), useCategories(list),
+                        useItemHistory(list), itemKeys (normalizedName, sortableTime, compare:
+                        shared by useItems and useItemHistory)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
@@ -285,7 +286,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   opening `CategoriesPage` (`/lists/:id/categories`, `listCategoriesPath(id)`, #72): a `Page`
   «Категории» back to the settings, one `GroupedSection` with `edit` whose `SortableList` has the
   Categories and the Unnamed category («Без категории», `muted`, no `confirm`: it can only be
-  moved) in `walkingOrder()`, each Category renamed in place (auto-saved, «Категория „…“») and
+  moved) in `categoryOrder()`, each Category renamed in place (auto-saved, «Категория „…“») and
   deleted after «Удалить „…“?» with «N товар останется / товара останутся / товаров останутся в
   списке без категории» (open and Done Items; no message when empty), and an `AddRow` «Новая
   категория» that adds at the end. Any Member who sees the List may do it all, offline too. Then,
@@ -303,15 +304,17 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   largest position of its Categories and its Unnamed category (`list.unnamedCategoryPosition`, 0
   when absent), so it goes last; `newCategoryId()` makes its id once its title starts being
   typed. `move` takes a Category, or `undefined` for the Unnamed category, to index `to` of the
-  walking order and writes only its position (the midpoint between its new neighbours, as
+  Category order and writes only its position (the midpoint between its new neighbours, as
   `useChildFields().move`): the Category's `position`, or the List's `unnamedCategoryPosition`.
   `remove` deletes the Category only; the server moves its Items to the Unnamed category.
-  `walkingOrder(list, categories)` is the Categories and the Unnamed category (`undefined`) by
-  position (the Unnamed one first on a tie); `sectionsInOrder(list, categories, openItems)` gives
-  the Shopping list screen's sections in that order, with their open Items in the order given; an
-  Item whose Category isn't on the device is in the Unnamed category.
-- `useItemHistory(list)` → `{suggest(typed)}` (#74): autocomplete from the List's Item history
-  on the local store (pull-only; the server writes it). `suggest` gives up to 5 names with a word
+  `categoryOrder(list, categories)` is the Categories and the Unnamed category (`undefined`) by
+  position (the Unnamed one first on a tie; `list.unnamedCategoryPosition`, 0 when absent);
+  `itemsByCategory(list, categories, openItems)` gives each one's open Items in that order (the
+  Shopping list screen's sections), in the order given; an Item whose Category isn't on the device
+  is in the Unnamed category. `UNNAMED_CATEGORY_KEY` stands for the Unnamed category wherever
+  Categories are keyed by id (a React key, a `SortableList` id).
+- `useItemHistory(list)` → `{namesStarting(typed)}` (#74): autocomplete from the List's Item
+  history on the local store (pull-only; the server writes it). `namesStarting` gives up to 5 names with a word
   (the start of the name, or after a space) that starts with the typed text, both trimmed and
   lower-cased, newest `lastUsedAt` first (fraction padded as for `createdAt`), ties by name. Only a
   Shopping list's screen uses it.
@@ -356,8 +359,8 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   «Очистить» (destructive) / «Отменить», then `remove()` for every Done Item shown, so one Item
   delete each and no list-level operation (spec #67, ticket #71). An Item the other Member ticked
   off that no pull has brought yet isn't shown, so it stays.
-  **A Shopping list** (`CategorySections`, #70) shows the same «Товары» section while it has no
-  named Categories. With some, the open Items are in one section per `sectionsInOrder()` entry:
+  **A Shopping list** (`ShoppingItems`, #70) shows the same «Товары» section while it has no
+  named Categories. With some, the open Items are in one section per `itemsByCategory()` entry:
   a Category's headed by its name (edit mode while it has Items), the Unnamed category's untitled
   (`GroupedSection` `label` «Без категории», with edit mode while it has Items all the same, its
   «Изменить» alone above the cell); every section shows even with no
@@ -369,11 +372,11 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   flat group; an Item ticked back on returns to its Category. Todo and Wish lists show no
   Categories. With named Categories, an open Item being edited has the Category chip (#73,
   `EditableRow` `chip`, a `MenuChip`) under its Description: its Category's name or «Без
-  категории», named «Категория: Еда» (`lists.itemCategory`); the menu is `sectionsInOrder()`'s
-  sections, «Без категории» (grey) in the Unnamed category's place, the current one ticked, and
+  категории», named «Категория: Еда» (`lists.itemCategory`); the menu is `itemsByCategory()`'s
+  entries, «Без категории» (grey) in the Unnamed category's place, the current one ticked, and
   picking another calls `move()`, so the Item goes to that section at once, offline too. Every
   «Новый товар» of a Shopping list has `AddRow` `suggest` from
-  `useItemHistory`: while it is focused and has text, the suggestions show under it
+  `useItemHistory().namesStarting`: while it is focused and has text, the suggestions show under it
   (`SuggestionRows`), and tapping one calls the same `onAdd` as Enter, so the Item goes into that
   field's Category (none for the «Товары» or the untitled section), offline too. Todo and Wish
   lists get no suggestions. When `add` (Enter or a suggestion) resolves with an open Item of that

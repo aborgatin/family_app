@@ -17,7 +17,12 @@ import {
   type SaveFailure,
 } from '@/shared/ui';
 import { KIND_TEXTS, type Category, type Item, type List } from './listTypes';
-import { newCategoryId, sectionsInOrder, useCategories } from './useCategories';
+import {
+  itemsByCategory,
+  newCategoryId,
+  UNNAMED_CATEGORY_KEY,
+  useCategories,
+} from './useCategories';
 import { useItemHistory } from './useItemHistory';
 import { useItems } from './useItems';
 
@@ -32,7 +37,7 @@ interface ItemsSectionProps {
  * swipe or right-click deletes after the action sheet, and the last row adds an Item («Новый
  * товар», Enter keeps the focus for the next). With no open Items the footer says «Товаров пока
  * нет». A Shopping list with named Categories shows its open Items in one section per Category
- * instead (`CategorySections`). The Done ones follow in their own group, headed by the kind's
+ * instead (`ShoppingItems`). The Done ones follow in their own group, headed by the kind's
  * Done («Куплено» / «Выполнено» / «Исполнено»), ticked; ticking one off again puts it back among
  * the open ones; a Shopping list's are headed by «Очистить». All data access goes through
  * `useItems()` and `useCategories()` (the local store + Outbox).
@@ -52,7 +57,7 @@ export function ItemsSection({ list }: ItemsSectionProps) {
   } = useItems(list);
   // The open Item just added again by name: highlighted for a moment.
   const [highlighted, setHighlighted] = useState<string>();
-  const changes = { list, rename, describe, move, setDone, remove, highlighted };
+  const rowProps = { list, highlighted, rename, describe, move, setDone, remove };
 
   useEffect(() => {
     if (highlighted === undefined) return;
@@ -76,10 +81,10 @@ export function ItemsSection({ list }: ItemsSectionProps) {
   return (
     <>
       {list.kind === 'SHOPPING' ? (
-        <CategorySections {...changes} items={items} add={add} />
+        <ShoppingItems {...rowProps} items={items} add={add} />
       ) : (
         <OpenItems
-          {...changes}
+          {...rowProps}
           header={t(texts.items)}
           items={items}
           showEmpty
@@ -98,8 +103,8 @@ export function ItemsSection({ list }: ItemsSectionProps) {
 /** How long an open Item added again by name stays highlighted. */
 const HIGHLIGHT_MS = 1500;
 
-/** What changes an Item, from `useItems()`, and which open Item is highlighted. */
-interface ItemChanges {
+/** What every open Item row needs: its List, which one is highlighted, and `useItems()`' changes. */
+interface ItemRowContext {
   list: List;
   highlighted: string | undefined;
   rename: (item: Item, text: string) => Promise<string>;
@@ -109,7 +114,7 @@ interface ItemChanges {
   remove: (item: Item) => Promise<void>;
 }
 
-interface CategorySectionsProps extends ItemChanges {
+interface ShoppingItemsProps extends ItemRowContext {
   items: Item[] | undefined;
   add: (text: string, categoryId?: string) => void;
 }
@@ -117,36 +122,35 @@ interface CategorySectionsProps extends ItemChanges {
 /**
  * A Shopping list's open Items. With no named Categories, the one «Товары» section, as on any
  * List. With some, one section per Category, headed by its name, and an untitled one for the
- * Unnamed category, in walking order; each shows even with no open Items and ends with its own
+ * Unnamed category, in their order; each shows even with no open Items and ends with its own
  * «Новый товар», which adds into it. Then the «Новая категория» row: it adds a Category at the end
  * with its title being typed, and Enter there moves to that Category's «Новый товар».
  */
-function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
+function ShoppingItems({ items, add, ...rowContext }: ShoppingItemsProps) {
   const { t } = useTranslation();
-  const { list } = changes;
+  const { list } = rowContext;
   const { categories, add: addCategory } = useCategories(list);
-  const { suggest } = useItemHistory(list);
+  const { namesStarting } = useItemHistory(list);
   // A Category whose title is being typed (not saved yet), or saved and not read back yet.
-  const [typed, setDraft] = useState<{ id: string; name: string; saved: boolean }>();
+  const [draftState, setDraftState] = useState<{ id: string; name: string; saved: boolean }>();
   // The Category whose «Новый товар» takes the focus when it appears: the one just named.
   const [focusAddIn, setFocusAddIn] = useState<string>();
 
   const known = categories ?? [];
   // Once read back from the store, the new Category is an ordinary one: the draft is done with, so
   // a later delete of that Category (from another device) leaves no trace of it here.
-  if (typed !== undefined && known.some(({ id }) => id === typed.id)) {
-    setDraft(undefined);
-  }
-  const draft = typed !== undefined && !known.some(({ id }) => id === typed.id) ? typed : undefined;
+  const readBack = draftState !== undefined && known.some(({ id }) => id === draftState.id);
+  if (readBack) setDraftState(undefined);
+  const draft = readBack ? undefined : draftState;
 
   function commitDraft() {
     if (draft === undefined || draft.saved) return;
     const name = draft.name.trim();
     if (name === '') {
-      setDraft(undefined);
+      setDraftState(undefined);
       return;
     }
-    setDraft({ ...draft, saved: true });
+    setDraftState({ ...draft, saved: true });
     setFocusAddIn(draft.id);
     void addCategory(draft.id, name);
   }
@@ -157,7 +161,7 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
         title={t('lists.newCategory')}
         accent
         onClick={() => {
-          setDraft({ id: newCategoryId(), name: '', saved: false });
+          setDraftState({ id: newCategoryId(), name: '', saved: false });
         }}
       />
     </GroupedSection>
@@ -167,11 +171,11 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
     return (
       <>
         <OpenItems
-          {...changes}
+          {...rowContext}
           header={t(KIND_TEXTS.SHOPPING.items)}
           items={items}
           showEmpty
-          suggest={suggest}
+          historyNames={namesStarting}
           onAdd={(text) => {
             add(text);
           }}
@@ -183,17 +187,17 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
 
   return (
     <>
-      {sectionsInOrder(list, known, items ?? []).map(({ category, items: shown }) => (
+      {itemsByCategory(list, known, items ?? []).map(({ category, items: shown }) => (
         <OpenItems
-          {...changes}
-          key={category?.id ?? 'unnamed'}
+          {...rowContext}
+          key={category?.id ?? UNNAMED_CATEGORY_KEY}
           {...(category === undefined
             ? { label: t('lists.unnamedCategory') }
             : { header: category.name })}
           items={items === undefined ? undefined : shown}
           categories={known}
           focusAdd={category !== undefined && category.id === focusAddIn}
-          suggest={suggest}
+          historyNames={namesStarting}
           onAdd={(text) => {
             add(text, category?.id);
           }}
@@ -205,11 +209,11 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
             label: t('lists.categoryName'),
             value: draft.name,
             onChange: (name) => {
-              setDraft({ ...draft, name });
+              setDraftState({ ...draft, name });
             },
             onCommit: commitDraft,
             onCancel: () => {
-              setDraft(undefined);
+              setDraftState(undefined);
             },
           }}
         />
@@ -219,7 +223,7 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
   );
 }
 
-interface OpenItemsProps extends ItemChanges {
+interface OpenItemsProps extends ItemRowContext {
   /** The section's title; without it the section is untitled, named by `label`. */
   header?: string;
   label?: string;
@@ -230,7 +234,7 @@ interface OpenItemsProps extends ItemChanges {
   /** The add field takes the focus when it appears. */
   focusAdd?: boolean;
   /** Names from the Item history for what is typed in the add field (a Shopping list's). */
-  suggest?: (typed: string) => readonly string[];
+  historyNames?: (typed: string) => readonly string[];
   /** The List's named Categories, if any: each Item has the Category chip while edited. */
   categories?: readonly Category[];
 }
@@ -243,7 +247,7 @@ function OpenItems({
   showEmpty = false,
   onAdd,
   focusAdd = false,
-  suggest,
+  historyNames,
   categories,
   list,
   rename,
@@ -285,7 +289,7 @@ function OpenItems({
             label={t(texts.newItem)}
             onAdd={onAdd}
             focus={focusAdd}
-            {...(suggest !== undefined && { suggest })}
+            {...(historyNames !== undefined && { suggest: historyNames })}
           />
         )
       }
@@ -468,7 +472,7 @@ function ItemRow({
 
 /**
  * The Category chip of an Item being edited: its Category's name or «Без категории»; the menu has
- * the Categories in walking order, «Без категории» in the Unnamed category's place, the current one
+ * the Categories in their order, «Без категории» in the Unnamed category's place, the current one
  * ticked, and picking one moves the Item there.
  */
 function categoryChip(
@@ -479,13 +483,13 @@ function categoryChip(
   t: TFunction,
 ): MenuChipProps {
   const unnamed = t('lists.unnamedCategory');
-  const sections = sectionsInOrder(list, categories, [item]);
-  const current = sections.find(({ items }) => items.length > 0)?.category;
+  const order = itemsByCategory(list, categories, [item]);
+  const current = order.find(({ items }) => items.length > 0)?.category;
   const label = current?.name ?? unnamed;
   return {
     label,
     accessibleLabel: t('lists.itemCategory', { name: label }),
-    choices: sections.map(({ category }) => ({
+    choices: order.map(({ category }) => ({
       label: category?.name ?? unnamed,
       checked: category === current,
       muted: category === undefined,

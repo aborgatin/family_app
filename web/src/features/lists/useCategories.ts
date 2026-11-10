@@ -33,16 +33,16 @@ export function useCategories(list: List) {
   }, []);
 
   /**
-   * Moves a Category, or the Unnamed category (`undefined`), to index `to` of the walking order
+   * Moves a Category, or the Unnamed category (`undefined`), to index `to` of the Category order
    * (counted after the move): only its position is written, the midpoint between its new
    * neighbours (one past the end neighbour at the top or bottom). The Unnamed category's position
    * is a field of the List.
    */
   const move = useCallback(
     async (moved: Category | undefined, to: number): Promise<void> => {
-      const order = walkingOrder(list, categories ?? []);
+      const order = categoryOrder(list, categories ?? []);
       const position = positionAfterMove(
-        order.map((category) => category?.position ?? list.unnamedCategoryPosition ?? 0),
+        order.map((category) => category?.position ?? unnamedPosition(list)),
         order.indexOf(moved),
         to,
       );
@@ -67,39 +67,49 @@ export function newCategoryId(): string {
 }
 
 /**
- * The List's Categories and its Unnamed category (`undefined`) in walking order: by position (the
- * Unnamed one's is the List's `unnamedCategoryPosition`; on a tie it goes first, then the
- * Categories by id). `categories` must be in order already.
+ * The Unnamed category's key where Categories are keyed by id (a React key, a `SortableList` id);
+ * never a Category's id, since those are UUIDs.
  */
-export function walkingOrder(
+export const UNNAMED_CATEGORY_KEY = 'unnamed';
+
+/** The Unnamed category's position: the List's, 0 on a row pulled before Categories existed. */
+function unnamedPosition(list: List): number {
+  return list.unnamedCategoryPosition ?? 0;
+}
+
+/**
+ * The List's Categories and its Unnamed category (`undefined`) in the order the list is shown in:
+ * by position (the Unnamed one's is the List's `unnamedCategoryPosition`; on a tie it goes first,
+ * then the Categories by id). `categories` must be in order already.
+ */
+export function categoryOrder(
   list: List,
   categories: readonly Category[],
 ): (Category | undefined)[] {
-  const unnamedPosition = list.unnamedCategoryPosition ?? 0;
-  const before = categories.filter(({ position }) => position < unnamedPosition);
-  const after = categories.filter(({ position }) => position >= unnamedPosition);
+  const unnamed = unnamedPosition(list);
+  const before = categories.filter(({ position }) => position < unnamed);
+  const after = categories.filter(({ position }) => position >= unnamed);
   return [...before, undefined, ...after];
 }
 
-/** One section of the Shopping list screen: a Category's open Items, or the Unnamed category's. */
-export interface CategorySection {
+/** A Category's open Items, or the Unnamed category's: one section of the Shopping list screen. */
+export interface CategoryItems {
   /** `undefined` for the Unnamed category. */
   category: Category | undefined;
   items: Item[];
 }
 
 /**
- * The Shopping list screen's sections in walking order (`walkingOrder`), each with its open Items
- * in the order given. An Item whose Category isn't on the device (deleted meanwhile) is in the
- * Unnamed category.
+ * Each Category's Items in `categoryOrder`, the Items in the order given. An Item whose Category
+ * isn't on the device (deleted meanwhile) is in the Unnamed category.
  */
-export function sectionsInOrder(
+export function itemsByCategory(
   list: List,
   categories: readonly Category[],
   items: readonly Item[],
-): CategorySection[] {
+): CategoryItems[] {
   const known = new Set(categories.map(({ id }) => id));
-  return walkingOrder(list, categories).map((category) => ({
+  return categoryOrder(list, categories).map((category) => ({
     category,
     items: items.filter((item) =>
       category === undefined
@@ -137,5 +147,5 @@ function inOrder(categories: Category[]): Category[] {
 
 /** The largest position among the List's Categories and its Unnamed category. */
 function lastPosition(list: List, categories: readonly Category[]): number {
-  return Math.max(list.unnamedCategoryPosition ?? 0, ...categories.map(({ position }) => position));
+  return Math.max(unnamedPosition(list), ...categories.map(({ position }) => position));
 }
