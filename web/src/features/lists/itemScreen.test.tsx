@@ -83,13 +83,217 @@ describe('Opening the Item screen', () => {
 
     expect(app.location()).toBe(itemPath(milk));
     expect(await screen.findByRole('heading', { level: 1, name: 'Товар' })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Название' })).toHaveValue('Молоко');
+    expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue('Молоко');
     expect(screen.getByRole('link', { name: 'Супермаркет' })).toHaveAttribute(
       'href',
       `/lists/${groceries.id}`,
     );
   });
+
+  it('saves what was typed in the row before «Подробнее» opens the screen', async () => {
+    syncServer.seed('item', [milk]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    await user.click(await screen.findByRole('textbox', { name: 'Товар «Молоко»' }));
+    await user.keyboard(' 3,2%');
+    await user.type(screen.getByRole('textbox', { name: 'Описание «Молоко»' }), 'Любое');
+    await user.click(screen.getByRole('link', { name: 'Подробнее' }));
+
+    expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue('Молоко 3,2%');
+    await waitFor(() => {
+      expect(syncServer.row('item', milk.id)).toMatchObject({
+        text: 'Молоко 3,2%',
+        description: 'Любое',
+      });
+    });
+  });
+
+  it('opens from a Done row by a tap on its text', async () => {
+    syncServer.seed('item', [done(milk)]);
+    const user = userEvent.setup();
+
+    const app = renderApp(`/lists/${groceries.id}`);
+    const bought = await screen.findByRole('region', { name: 'Куплено' });
+    await user.click(await within(bought).findByRole('link', { name: 'Молоко' }));
+
+    expect(app.location()).toBe(itemPath(milk));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Товар' })).toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue('Молоко');
+  });
+
+  it('keeps a Done row’s text plain in edit mode', async () => {
+    syncServer.seed('item', [done(milk)]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    const bought = await screen.findByRole('region', { name: 'Куплено' });
+    await within(bought).findByRole('link', { name: 'Молоко' });
+    await user.click(within(bought).getByRole('button', { name: 'Изменить' }));
+
+    expect(within(bought).queryByRole('link', { name: 'Молоко' })).not.toBeInTheDocument();
+    expect(within(bought).getByText('Молоко')).toBeInTheDocument();
+  });
+
+  it.each([
+    [chores, 'Задача'],
+    [gifts, 'Желание'],
+  ] as const)('is titled by the List’s kind: %o → «%s»', async (shown, title) => {
+    const row = item(5, 'Самокат', shown.id);
+    syncServer.seed('item', [row]);
+
+    renderApp(itemPath(row));
+
+    expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue('Самокат');
+    expect(screen.getByRole('link', { name: shown.name })).toHaveAttribute(
+      'href',
+      `/lists/${shown.id}`,
+    );
+  });
 });
 
-// Used by the tests added with the next slices.
-void [waitFor, within, FakeEventSource, done, reconnect];
+describe('The Item screen’s name and Description', () => {
+  it('saves both by themselves with no connection; they are still there after a restart offline, and sent on reconnect', async () => {
+    syncServer.seed('item', [milk]);
+    const user = userEvent.setup();
+
+    const app = renderApp(itemPath(milk));
+    const name = await screen.findByRole('textbox', { name: 'Название' });
+    const description = screen.getByRole('textbox', { name: 'Описание' });
+    expect(description).toHaveAttribute('placeholder', 'Описание');
+    expect(description).toHaveValue('');
+    syncServer.goOffline();
+
+    await user.click(name);
+    await user.keyboard(' 3,2%{Enter}');
+    await user.click(description);
+    await user.keyboard('Безлактозное{Enter}{Enter}Магазин у дома');
+    expect(description).toHaveValue('Безлактозное\n\nМагазин у дома');
+    await user.click(name);
+    expect(syncServer.pushes).toEqual([]);
+
+    app.unmount();
+    renderApp(itemPath(milk), { offline: true });
+
+    expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue('Молоко 3,2%');
+    expect(screen.getByRole('textbox', { name: 'Описание' })).toHaveValue(
+      'Безлактозное\n\nМагазин у дома',
+    );
+
+    reconnect();
+
+    await waitFor(() => {
+      expect(syncServer.operations('item')).toEqual([
+        { table: 'item', id: milk.id, op: 'upsert', fields: { text: 'Молоко 3,2%' } },
+        {
+          table: 'item',
+          id: milk.id,
+          op: 'upsert',
+          fields: { description: 'Безлактозное\n\nМагазин у дома' },
+        },
+      ]);
+    });
+  });
+
+  it('refuses an empty name without sending anything', async () => {
+    syncServer.seed('item', [milk]);
+    const user = userEvent.setup();
+
+    renderApp(itemPath(milk));
+    await user.clear(await screen.findByRole('textbox', { name: 'Название' }));
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByText('Заполните это поле')).toBeInTheDocument();
+    expect(syncServer.operations('item')).toEqual([]);
+  });
+
+  it('puts the saved Description back on Esc, and clears it when emptied', async () => {
+    syncServer.seed('item', [{ ...milk, description: 'Любое' }]);
+    const user = userEvent.setup();
+
+    renderApp(itemPath(milk));
+    const description = await screen.findByRole('textbox', { name: 'Описание' });
+    await user.click(description);
+    await user.keyboard(', но свежее{Escape}');
+    expect(description).toHaveValue('Любое');
+
+    await user.clear(description);
+    await user.click(screen.getByRole('textbox', { name: 'Название' }));
+
+    await waitFor(() => {
+      expect(syncServer.operations('item')).toEqual([
+        { table: 'item', id: milk.id, op: 'upsert', fields: { description: null } },
+      ]);
+    });
+  });
+
+  it('shows the Description’s addresses as links that open in a new tab, with its line breaks', async () => {
+    syncServer.seed('item', [
+      {
+        ...milk,
+        description: 'Любое, вот такое: https://shop.example/milk?id=7.\n\nИли http://other.example',
+      },
+    ]);
+
+    renderApp(itemPath(milk));
+
+    const link = await screen.findByRole('link', { name: 'https://shop.example/milk?id=7' });
+    expect(link).toHaveAttribute('href', 'https://shop.example/milk?id=7');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(screen.getByRole('link', { name: 'http://other.example' })).toHaveAttribute(
+      'href',
+      'http://other.example',
+    );
+    const text = screen.getByText(/Любое, вот такое/, { ignore: 'textarea' });
+    expect(text).toHaveClass('whitespace-pre-wrap');
+    expect(text.textContent).toBe(
+      'Любое, вот такое: https://shop.example/milk?id=7.\n\nИли http://other.example',
+    );
+  });
+
+  it('starts editing the whole Description, the caret at its end, on a tap beside its links', async () => {
+    syncServer.seed('item', [{ ...milk, description: 'Любое\nhttps://shop.example' }]);
+    const user = userEvent.setup();
+
+    renderApp(itemPath(milk));
+    await user.click(await screen.findByText(/Любое/, { ignore: 'textarea' }));
+
+    const description = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Описание' });
+    expect(description).toHaveFocus();
+    expect(description).toHaveValue('Любое\nhttps://shop.example');
+    expect(description.selectionStart).toBe('Любое\nhttps://shop.example'.length);
+    // Being edited, it is one field: the links come back when it is left.
+    expect(screen.queryByRole('link', { name: 'https://shop.example' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('textbox', { name: 'Название' }));
+    expect(screen.getByRole('link', { name: 'https://shop.example' })).toBeInTheDocument();
+  });
+
+  it('shows the other Member’s change to the Description while the screen is open', async () => {
+    syncServer.seed('item', [{ ...milk, description: 'Любое' }]);
+
+    renderApp(itemPath(milk));
+    expect(await screen.findByRole('textbox', { name: 'Описание' })).toHaveValue('Любое');
+    const sse = await liveUpdates();
+
+    syncServer.change('item', milk.id, { description: 'Только безлактозное' });
+    sse.emit('changed', JSON.stringify({ version: syncServer.latestVersion }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Описание' })).toHaveValue(
+        'Только безлактозное',
+      );
+    });
+  });
+});
+
+/** The app's live-update connection, open. */
+async function liveUpdates() {
+  await waitFor(() => {
+    expect(FakeEventSource.instances).not.toHaveLength(0);
+  });
+  const sse = FakeEventSource.latest();
+  sse.open();
+  return sse;
+}

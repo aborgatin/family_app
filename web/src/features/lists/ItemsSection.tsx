@@ -356,6 +356,7 @@ function DoneItems({ list, items, setDone, remove }: DoneItemsProps) {
           <EditableRow
             key={item.id}
             title={item.text}
+            textTo={listItemPath(list.id, item.id)}
             muted
             leading={
               <DoneToggle

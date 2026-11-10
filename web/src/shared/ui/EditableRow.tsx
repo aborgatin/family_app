@@ -26,6 +26,12 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
   /** Opens another screen (chevron), as a `ListRow` with `to`; not in edit mode. */
   to?: string;
   /**
+   * Makes only the title a link to another screen, with no chevron: for a row whose `leading` is a
+   * control of its own (a Done Item: the toggle unticks, the text opens the Item screen). Not in
+   * edit mode, and not with `input`.
+   */
+  textTo?: string;
+  /**
    * The action sheet that asks before deleting: the question, and an optional explanation. Without
    * it (and `onDelete`) the row can't be deleted: no ⊖, swipe or right-click menu (e.g. the
    * Unnamed category, which can only be moved).
@@ -111,6 +117,7 @@ export interface RowSecondaryProps {
 export function EditableRow({
   title,
   to,
+  textTo,
   confirm,
   onDelete,
   sortable,
@@ -142,7 +149,17 @@ export function EditableRow({
   const withSecondary = input !== undefined && secondary !== undefined && !editing;
 
   const inside =
-    input === undefined || editing ? (
+    textTo !== undefined && input === undefined && !editing ? (
+      <RowInside
+        {...content}
+        title={
+          <RouterLink to={textTo} className={TEXT_LINK}>
+            {title}
+          </RouterLink>
+        }
+        field
+      />
+    ) : input === undefined || editing ? (
       <RowInside title={title} chevron={link} {...content} />
     ) : (
       <RowInside
@@ -278,6 +295,15 @@ export function EditableRow({
     </div>
   );
 }
+
+/**
+ * A title that is a link (`textTo`): it looks like the title, cut with «…», and its target is the
+ * whole height of the row beside the leading control.
+ */
+const TEXT_LINK =
+  '-my-2.5 block cursor-pointer truncate rounded-md py-2.5 text-inherit no-underline ' +
+  'pointer-fine:-my-1.5 pointer-fine:py-1.5 active:opacity-50 focus-visible:outline-2 ' +
+  'focus-visible:-outline-offset-2 focus-visible:outline-accent';
 
 /** A tint over the whole row (above its swipe layer), shown while `highlighted`. */
 const HIGHLIGHT =
