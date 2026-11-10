@@ -96,11 +96,11 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
   is `ignored` (delete wins). Deleting a List soft-deletes its Items, Categories and Item history
   in the same operation.
-- **Items** (`item`, tickets #57, #58, #69, #70): an upsert carries `listId` (create only; a later upsert
+- **Items** (`item`, tickets #57, #58, #69, #70, #84): an upsert carries `listId` (create only; a later upsert
   naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
   points after trim), `description` (the Description: optional, ≤ 10000 code points, over is
   `too_long`; blank is stored as none, `null`), `categoryId` (optional; `null` is the Unnamed
-  category) and `done` (`true` / `false`; another
+  category), `dueDate` and `dueTime` (a todo item's Due date, below) and `done` (`true` / `false`; another
   type is `value.invalid`, `null` is `required`); the pull also sends the server-set `doneById`,
   `doneAt`, `creatorId` (the Member who pushed the create) and `createdAt`. When `done` turns
   true the server sets `doneById` to the pushing Member and `doneAt` to now; when it turns false
@@ -111,6 +111,18 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   the Item's own List, which must be a Shopping list, else `item.category_not_found`
   (`params.categoryId`); one deleted meanwhile is stored as `null` (the Item is kept, in the
   Unnamed category).
+  **Due date** (#84): `dueDate` is `YYYY-MM-DD` or `null`, `dueTime` is `HH:MM` (24 hours, no
+  seconds) or `null`; both are wall-clock values, stored and sent as written, never an instant or
+  a time zone, and the pull always sends both. Each is its own field for Last write wins (a new
+  day on one device and a new text, or a new time, on the other are all kept). Setting `dueDate`
+  to `null` clears `dueTime` too, unless the same upsert carries one. Rejected: either field, even
+  as `null`, on an Item of a Shopping or Wish list is `item.list_not_todo` (`params.listId`); a
+  value of another shape (`15.11.2026`, `2026-02-30`, `9:05`, `15:00:30`, `25:00`, `""`, a number)
+  is `validation.failed` with `value.invalid` for that field; a time that would be left without a
+  day (a `dueTime` on an Item with no Due date, or sent with `dueDate: null`) is
+  `item.due_time_without_due_date`. The app never sends the first two; the third happens when one
+  device sets a time while the other removes the Due date and its operation arrives first. A Done
+  Item's Due date is not locked by the server (the app shows it read-only).
 - **Item history** (`item_history`, tickets #74, #78): the server writes it; the push may only
   delete a row (a Member removing a mistyped name), and every upsert is `sync.read_only`. Rules
   of the delete: a row of another Member's Private List is `list.not_found`; deleting a deleted or
@@ -215,7 +227,9 @@ auth.required` without one) tells open apps when to pull:
   table (`member`, `child`, `child_field`, `list`, `item`, `category`), the Outbox (`++seq`) and the stored
   Version. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives
-  store upgrades.
+  store upgrades. A new field of an existing table (an Item's `dueDate` / `dueTime`, #84) needs no
+  store version: rows are stored whole, and one pulled before the field existed simply has none
+  until the server sends it again.
 - **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
   appended to the Outbox in the same transaction, then the engine is asked to sync. An upsert
   carries only the fields that differ from the local row (none: nothing is written); one written
@@ -254,7 +268,7 @@ auth.required` without one) tells open apps when to pull:
   wherever the Member is by then (`useSaveRejection`, a `Toast` placed by the app), with the
   reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
   `list.kind_immutable`, `list.wish_shared_only`, `child_field.value_type_immutable`,
-  `sync.read_only`; anything else plain, including `category.list_not_shopping` and
+  `sync.read_only`, `item.list_not_todo`, `item.due_time_without_due_date`; anything else plain, including `category.list_not_shopping` and
   `item.category_not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.

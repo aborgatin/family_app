@@ -106,8 +106,8 @@ The Member responsible for a todo item on a Shared list; never a Child. Optional
 _Avoid_: Executor, performer, owner
 
 **Due date** — «Срок»:
-The optional day a todo item should be done by, with an optional time of day; it triggers a Reminder.
-_Avoid_: Deadline, due time
+The optional day a todo item should be done by, with an optional time of day; it triggers a Reminder. Both are wall-clock values, the same on every device (in the sync API the day is `dueDate` and the time of day `dueTime`). An open item is **overdue** once its Due date has passed on the device's clock: without a time from the next day, with a time once that time passes.
+_Avoid_: Deadline, due time (for the whole Due date)
 
 **Repeat** — «Повтор»:
 An optional rule (daily, weekly, monthly or yearly) that makes a todo item recur; it needs a Due date. Marking the item Done keeps it as Done and adds an open copy carrying the Repeat, due at the next occurrence counted from the old Due date and lying in the future. A Done item put back to open has no Repeat.

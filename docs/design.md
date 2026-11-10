@@ -301,7 +301,10 @@ column, 44px tall (about 40px wide on a phone). Fine pointer: smaller circles, t
 An optional date as a row: `label` inline at the left, the browser's own date field at the right
 in a grey pill (the wheel on the iPhone, a calendar popup on the Mac; the format follows the
 browser's language), and a grey ⊗ «Очистить «<label>»» after it while there is a date. `value`
-is `YYYY-MM-DD` or `''`. Auto-saved like an `InputRow` (spread `input` of `useAutoSaveText()`):
+is `YYYY-MM-DD` or `''`. With `type="time"` (#84) it is an optional time of day, `HH:MM` or `''`,
+in the browser's time field, the same in every other way (a todo item's «Время» under its
+«Срок»). `disabled` dims the label and the field to 40% and takes the ⊗ away: a row that can't
+be set yet («Время» while there is no «Срок»). Auto-saved like an `InputRow` (spread `input` of `useAutoSaveText()`):
 leaving the field or Enter saves, Esc puts the saved date back, clearing saves at once; not on
 every change, since typing a year digit by digit is a valid date at each step. Without
 `onCommit` (in a `Sheet`) Enter submits. Touch: the ⊗ has a 44px target. Fine pointer: 28px.
@@ -437,6 +440,12 @@ opens the screen with everything about the row (the Item screen). It looks like 
 does). Tapping it saves what was typed in the row first; pressing it doesn't take the focus from
 the field. Tab reaches it after the chip.
 
+`caption` (#84) is a small line under the title and the secondary line, in `footnote`
+`secondary-label`, cut with «…»: facts about the row in a few words, shown in every state of the
+row (being edited, edit mode, a `textTo` row). It takes parts (`{text, tone?}`), joined by
+spaces; a part with `tone: 'destructive'` is in `destructive` (`data-tone="destructive"`). A todo
+item's Due date is one: «Завтра, 15:00», red once overdue. No parts, no line.
+
 `textTo` (#83) makes just the title a link to another screen, for a row whose `leading` is a
 control of its own: a Done Item's text opens the Item screen while its `DoneToggle` still
 unticks it. No chevron; the title keeps its look (`muted` included), dims while pressed, and its
@@ -448,7 +457,7 @@ scrolled into view (nearest edge, smooth) and covered by a 15% `accent` tint abo
 layer (`data-highlighted`); unset, the tint fades out over 0.7 s. The caller unsets it after a moment (1.5 s for Items).
 
 Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
-`sortable`, Items with `input`, `secondary` (the Description), `details` («Подробнее»), on a Shopping list with named Categories a
+`sortable`, Items with `input`, `secondary` (the Description), `details` («Подробнее»), on a Todo list a `caption` (the Due date), on a Shopping list with named Categories a
 `chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`, with `textTo`),
 Invites plain.
 
