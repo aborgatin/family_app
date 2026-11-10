@@ -315,6 +315,36 @@ export default {
       ],
     },
     {
+      // «Масло» typed in «Новый товар»: the Description icon button at the field's end (#79).
+      name: 'list-add-description-button',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: 'role=textbox[name="Новый товар"]' },
+        { fill: 'role=textbox[name="Новый товар"]', value: 'Масло сливочное 82,5%' },
+        toSection('Товары', 120),
+        { wait: 300 },
+      ],
+    },
+    {
+      // The icon tapped in «Еда»'s «Новый товар»: the grey one-line «Описание» under the typed
+      // name, focused, being typed in; the suggestions hidden (#79).
+      name: 'list-add-description-open',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'Мука' },
+        { click: 'role=region[name="Еда"] >> role=button[name="Добавить описание"]' },
+        { fill: 'role=region[name="Еда"] >> role=textbox[name="Описание"]', value: 'Цельнозерновая' },
+        { wait: 300 },
+      ],
+    },
+    {
       // The Item being edited: its grey «Описание» line, empty, under the title.
       name: 'list-item-description-empty',
       path: '/',
