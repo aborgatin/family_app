@@ -38,7 +38,7 @@ function openItem(n: number, text: string, listId: string) {
     id: `17e40000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`,
     listId,
     text,
-    note: null,
+    description: null,
     done: false,
     doneById: null,
     doneAt: null,

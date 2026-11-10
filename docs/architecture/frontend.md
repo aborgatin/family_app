@@ -295,12 +295,15 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   sent; `setDone` also clears the old `doneById` / `doneAt` locally the same way, so an Item ticked
   back on and off again goes on top). Device and server times are never compared: pending ticks
   are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
-  so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`),
-  `rename` sends only `text`, `setDone` only `done`, `remove` deletes; all resolve at once,
+  so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`; adding
+  stays name-only), `rename` sends only `text`, `describe` only `description` (blank as `null`),
+  `setDone` only `done`, `remove` deletes; all resolve at once,
   offline too. `ItemsSection` on the List screen: a `GroupedSection` headed «Товары» / «Задачи» /
   «Желания» with edit mode («Изменить») while it has open Items; each Item an `EditableRow` with a
   `DoneToggle` (named «Куплено «Молоко»» / «Выполнено «…»» / «Исполнено «…»») as `leading`, its
-  text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), deleted from edit
+  text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), its Description
+  as the row's `secondary` line (`useAutoSaveText`, named «Описание «Молоко»», placeholder
+  «Описание»), deleted from edit
   mode, a swipe or right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая
   задача» / «Новое желание» (Enter adds and keeps the focus). Footer: «Товаров пока нет» (by
   kind) with no open Items (a rejected new Item leaves the List; «Не удалось сохранить» shows

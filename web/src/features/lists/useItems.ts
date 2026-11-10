@@ -35,6 +35,16 @@ export function useItems(listId: string) {
   }, []);
 
   /**
+   * Changes the Item's Description, sending only it: a blank one as `null` (none). Resolves with
+   * it as saved (`''` for none).
+   */
+  const describe = useCallback(async (item: Item, description: string): Promise<string> => {
+    const saved = description.trim() === '' ? null : description;
+    await upsertRow('item', item.id, { description: saved });
+    return saved ?? '';
+  }, []);
+
+  /**
    * Ticks the Item off, or back on (`done` false); the server records who did it and when. Until
    * its copy arrives, the old done by / done at are cleared locally (never sent), so an Item ticked
    * back on and off again goes on top, not where it was last done.
@@ -58,6 +68,7 @@ export function useItems(listId: string) {
     doneItems,
     add,
     rename,
+    describe,
     setDone,
     remove,
   };

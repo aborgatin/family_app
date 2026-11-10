@@ -88,9 +88,10 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   `list.not_found` (any operation on another Member's Private List), and the Child name limits on
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
   is `ignored` (delete wins). Deleting a List soft-deletes its Items in the same operation.
-- **Items** (`item`, tickets #57, #58): an upsert carries `listId` (create only; a later upsert
+- **Items** (`item`, tickets #57, #58, #69): an upsert carries `listId` (create only; a later upsert
   naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
-  points after trim), `note` (optional, ≤ 10000, no UI yet) and `done` (`true` / `false`; another
+  points after trim), `description` (the Description: optional, ≤ 10000 code points, over is
+  `too_long`; blank is stored as none, `null`) and `done` (`true` / `false`; another
   type is `value.invalid`, `null` is `required`); the pull also sends the server-set `doneById`,
   `doneAt`, `creatorId` (the Member who pushed the create) and `createdAt`. When `done` turns
   true the server sets `doneById` to the pushing Member and `doneAt` to now; when it turns false

@@ -22,7 +22,7 @@ interface ItemsSectionProps {
 /**
  * The List screen's Items. The open ones come first, headed by the kind's Items («Товары» /
  * «Задачи» / «Желания»): each has a Done toggle, its text is edited in place and auto-saved, edit
- * mode («Изменить»), a swipe or right-click deletes after the action sheet, and the last row adds
+ * mode («Изменить»), a grey «Описание» line under an Item being edited (its Description), a swipe or right-click deletes after the action sheet, and the last row adds
  * an Item («Новый товар», Enter keeps the focus for the next). With no open Items the footer says
  * «Товаров пока нет». The Done ones follow in their own group, headed by the kind's Done
  * («Куплено» / «Выполнено» / «Исполнено»), ticked; ticking one off again puts it back among the
@@ -32,7 +32,7 @@ export function ItemsSection({ list }: ItemsSectionProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const texts = KIND_TEXTS[list.kind];
-  const { items, doneItems, add, rename, setDone, remove } = useItems(list.id);
+  const { items, doneItems, add, rename, describe, setDone, remove } = useItems(list.id);
   const editable = useEditableList();
   const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
 
@@ -73,6 +73,7 @@ export function ItemsSection({ list }: ItemsSectionProps) {
             item={item}
             list={list}
             rename={rename}
+            describe={describe}
             setDone={setDone}
             onFailure={reportFailure}
             busy={editable.deleting === item.id}
@@ -138,6 +139,7 @@ interface ItemRowProps {
   item: Item;
   list: List;
   rename: (item: Item, text: string) => Promise<string>;
+  describe: (item: Item, description: string) => Promise<string>;
   setDone: (item: Item, done: boolean) => Promise<void>;
   /** Tells the section about this row's failed save (or that it cleared), for its footer. */
   onFailure: (id: string, failure: SaveFailure | undefined) => void;
@@ -145,15 +147,34 @@ interface ItemRowProps {
   onDelete: () => void;
 }
 
-function ItemRow({ item, list, rename, setDone, onFailure, busy, onDelete }: ItemRowProps) {
+function ItemRow({
+  item,
+  list,
+  rename,
+  describe,
+  setDone,
+  onFailure,
+  busy,
+  onDelete,
+}: ItemRowProps) {
   const { t } = useTranslation();
   const save = useCallback((text: string) => rename(item, text.trim()), [item, rename]);
   const text = useAutoSaveText({ name: item.id, saved: item.text, save, required: true });
+  const saveDescription = useCallback(
+    (value: string) => describe(item, value),
+    [item, describe],
+  );
+  const description = useAutoSaveText({
+    name: item.id,
+    saved: item.description ?? '',
+    save: saveDescription,
+  });
 
   const { id } = item;
+  const failure = text.failure ?? description.failure;
   useEffect(() => {
-    onFailure(id, text.failure);
-  }, [id, text.failure, onFailure]);
+    onFailure(id, failure);
+  }, [id, failure, onFailure]);
   useEffect(
     () => () => {
       onFailure(id, undefined);
@@ -175,6 +196,11 @@ function ItemRow({ item, list, rename, setDone, onFailure, busy, onDelete }: Ite
       }
       busy={busy}
       input={{ ...text.input, label: t(KIND_TEXTS[list.kind].itemText, { text: item.text }) }}
+      secondary={{
+        ...description.input,
+        label: t('lists.itemDescription', { text: item.text }),
+        placeholder: t('lists.description'),
+      }}
       confirm={{ title: t('lists.confirmDeleteItem', { text: item.text }) }}
       onDelete={onDelete}
     />

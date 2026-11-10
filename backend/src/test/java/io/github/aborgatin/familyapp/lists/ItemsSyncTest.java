@@ -62,7 +62,8 @@ class ItemsSyncTest {
     assertThat(fields)
         .containsEntry("listId", groceries.toString())
         .containsEntry("text", "Молоко")
-        .containsEntry("note", null)
+        .containsEntry("description", null)
+        .doesNotContainKey("note")
         .containsEntry("done", false)
         .containsEntry("doneById", null)
         .containsEntry("doneAt", null)
@@ -158,12 +159,13 @@ class ItemsSyncTest {
     UUID milk = UUID.randomUUID();
     SyncRequests.push(anna, add(milk, groceries, "Молоко"));
 
-    SyncRequests.push(boris, SyncRequests.upsert("item", milk, "{\"note\":\"Безлактозное\"}"));
+    SyncRequests.push(
+        boris, SyncRequests.upsert("item", milk, "{\"description\":\"Безлактозное\"}"));
     SyncRequests.push(anna, SyncRequests.upsert("item", milk, "{\"text\":\"Молоко 1,5%\"}"));
 
     assertThat(SyncRequests.fields(boris, "item", milk))
         .containsEntry("text", "Молоко 1,5%")
-        .containsEntry("note", "Безлактозное");
+        .containsEntry("description", "Безлактозное");
   }
 
   @Test
@@ -272,6 +274,39 @@ class ItemsSyncTest {
             jsonPath("$.results[6].params.errors[?(@.field=='text')].code").value("required"));
 
     assertThat(SyncRequests.fields(boris, "item", milk)).containsEntry("text", "Молоко");
+  }
+
+  @Test
+  void aDescriptionRoundTripsABlankOneIsNoneAndOneOver10000CharactersIsRejected() throws Exception {
+    UUID milk = UUID.randomUUID();
+    String link = "Безлактозное\\nhttps://example.com/milk";
+    SyncRequests.push(
+            anna,
+            SyncRequests.upsert(
+                "item",
+                milk,
+                "{\"listId\":\"%s\",\"text\":\"Молоко\",\"description\":\"%s\"}"
+                    .formatted(groceries, link)))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+    assertThat(SyncRequests.fields(boris, "item", milk))
+        .containsEntry("description", "Безлактозное\nhttps://example.com/milk");
+
+    SyncRequests.push(
+            anna,
+            SyncRequests.upsert(
+                "item", milk, "{\"description\":\"%s\"}".formatted("я".repeat(10_001))),
+            SyncRequests.upsert("item", milk, "{\"description\":\"  \"}"))
+        .andExpect(jsonPath("$.results[*].status", contains("rejected", "applied")))
+        .andExpect(
+            jsonPath("$.results[0].params.errors[?(@.field=='description')].code")
+                .value("too_long"));
+    assertThat(SyncRequests.fields(boris, "item", milk)).containsEntry("description", null);
+
+    SyncRequests.push(
+            anna,
+            SyncRequests.upsert(
+                "item", milk, "{\"description\":\"%s\"}".formatted("я".repeat(10_000))))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
   }
 
   @Test
