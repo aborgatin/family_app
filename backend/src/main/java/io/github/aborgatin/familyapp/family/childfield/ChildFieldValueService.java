@@ -95,10 +95,10 @@ class ChildFieldValueService implements SyncableTable {
 
   /**
    * A deleted Child takes its values, in the push operation that deletes it (which holds the Family
-   * lock).
+   * lock). One bulk update: an entry has nothing of its own to delete with it.
    */
   @EventListener
-  void on(ChildDeleted event) {
+  void onChildDeleted(ChildDeleted event) {
     values.markDeletedOfChild(event.childId());
   }
 

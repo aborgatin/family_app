@@ -98,8 +98,9 @@ Members are the principals. Sub-packages:
     (`child.not_found` / `child_field.not_found`), a deleted one of either → `IGNORED`, then the
     value by the field's Value type, then the entry is inserted with `recordedAt` from the
     `Clock`. A delete soft-deletes the entry.
-  - Cascades: it listens for `ChildDeleted` (a synchronous `@EventListener`, so inside the delete
-    operation's savepoint) and soft-deletes the Child's entries; `ChildFieldService`'s delete calls
+  - Cascades: `onChildDeleted` listens for `ChildDeleted` (a synchronous `@EventListener`, so
+    inside the delete operation's savepoint) and soft-deletes the Child's entries in one bulk
+    update (`markDeletedOfChild`); `ChildFieldService`'s delete calls
     `childFieldDeleted(id)` for the field's.
   - `changesSince`: `childId`, `childFieldId`, `value`, `recordedAt`; every Member sees every
     entry. The latest entry is the client's to pick: the highest Version ([`sync.md`](sync.md)).
@@ -151,7 +152,8 @@ Shared patterns inside `family`:
 - **`ChildDeleted(childId)`** (public): `ChildService` publishes it when a delete operation
   soft-deletes a Child, inside that push operation (its savepoint, under `FamilyLock`). Listeners
   are plain synchronous `@EventListener`s that soft-delete what their module keeps about the
-  Child: `lists.list.ListService.onChildDeleted` deletes the Child lists (see `lists` below). A
+  Child, each named `onChildDeleted`: `family.childfield.ChildFieldValueService` deletes the
+  Child field values, `lists.list.ListService` the Child lists (see `lists` below). A
   listener that throws rejects the delete operation.
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.

@@ -170,7 +170,8 @@ class ListService implements SyncableTable {
 
   /**
    * Deleting a Child deletes their Child lists with their Items, whoever owns them (spec #81), in
-   * the push operation that deletes the Child.
+   * the push operation that deletes the Child. Each goes through {@link #deleteWithContent}, as a
+   * List delete does, so its Items, Categories and Item history go with it.
    */
   @EventListener
   void onChildDeleted(ChildDeleted event) {
