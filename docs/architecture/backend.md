@@ -445,7 +445,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V4__child_field.sql`           | `child_field` + Default Child fields «Вес», «Рост» (`TEXT`, positions 1.0, 2.0)                    |
 | `V5__list.sql`                  | `list` (Owner → `member`)                                                                          |
 | `V6__item.sql`                  | `item` (→ `list`; Creator and done by → `member`), index on `list_id`                              |
-| `V7__category.sql`              | `category` (→ `list`), index on `list_id`; `list.unnamed_category_position`; `item.category_id`    |
+| `V8__category.sql`              | `category` (→ `list`), index on `list_id`; `list.unnamed_category_position`; `item.category_id`    |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of

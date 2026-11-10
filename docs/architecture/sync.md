@@ -20,7 +20,7 @@ table adds it here.
 | `child_field` | `V4__child_field.sql`           | client; Default rows by the migration          | M1    |
 | `list`        | `V5__list.sql`                  | client (`crypto.randomUUID()`)                 | M2    |
 | `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7) | M2    |
-| `category`    | `V7__category.sql`              | client (`crypto.randomUUID()`)                 | M3    |
+| `category`    | `V8__category.sql`              | client (`crypto.randomUUID()`)                 | M3    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
