@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { dayParts, localDay } from '@/shared/dates';
 import type { Item } from './listTypes';
 
 // How a todo item's Due date reads and when it is overdue, by the device's clock and time zone:
@@ -15,7 +16,7 @@ export function shortDay(day: Date, now: Date): string {
 
 /** The Due date's parts as numbers; the time is the end of the day when there is none. */
 function dueParts(dueDate: string, dueTime: string | null | undefined) {
-  const [year = 0, month = 1, day = 1] = dueDate.split('-').map(Number);
+  const { year, month, day } = dayParts(dueDate);
   const [hours, minutes] = dueTime == null ? [24, 0] : dueTime.split(':').map(Number);
   return { year, month, day, hours: hours ?? 0, minutes: minutes ?? 0 };
 }
@@ -25,15 +26,14 @@ function dueParts(dueDate: string, dueTime: string | null | undefined) {
  * device's calendar, else «15 нояб.», with the year when it isn't this one.
  */
 export function dueDayText(t: TFunction, dueDate: string, now: Date): string {
-  const { year, month, day } = dueParts(dueDate, null);
-  const date = new Date(year, month - 1, day);
+  const { year, month, day } = dayParts(dueDate);
   // Whole calendar days from today, whatever the clock changes in between.
   const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   const days = Math.round((Date.UTC(year, month - 1, day) - today) / 86_400_000);
   if (days === 0) return t('lists.due.today');
   if (days === 1) return t('lists.due.tomorrow');
   if (days === -1) return t('lists.due.yesterday');
-  return shortDay(date, now);
+  return shortDay(localDay(dueDate), now);
 }
 
 /**

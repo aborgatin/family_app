@@ -52,7 +52,7 @@ web/src/
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage;
                         useFamilyMembers() (the Members on the local store, by id)
-    children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(),
+    children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(), useChild(id),
                         ChildrenTiles («Дети» on Home), ChildPage (the Child page, CHILD_PATH)
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
                         ChildProfileSection («Профиль» on the Child page), useChildFieldValues(childId)
@@ -63,6 +63,7 @@ web/src/
     sync/               local store (Dexie), sync engine, useRows / useSyncedRows / upsertRow /
                         deleteRow, useSaveRejection, startSync / stopSync / onSessionEnded
     palette/            Child color palette (childColors.json)
+    dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
@@ -275,7 +276,9 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
 
 - `useChildren()` → `{load, save(id, fields), remove(id)}` (`useSyncedRows('child', …)`): `load`
   is `loading` until the first local read, then `ready` with the Children in order (birthday, then
-  name by `Intl.Collator('ru')`, then id); it never fails. `save` resolves at once, offline too:
+  name by `Intl.Collator('ru')`, then id); it never fails. `useChild(id)` is the same with
+  `child` picked out (`undefined` while loading, and for an unknown or deleted Child), for the
+  screens about one Child. `save` resolves at once, offline too:
   the «Новый ребёнок» sheet passes every field, the Child screen only the field that changed, and
   only fields that differ from the local row are sent, so a change the other Member made meanwhile
   stays. `newChildId()` uses `crypto.randomUUID()`; the sheet gets its id once when it opens.
@@ -336,7 +339,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   with `childId`: «Вид» is TODO / Желания only (`CHILD_LIST_KINDS`), there is no Visibility, and
   the create carries `visibility: 'SHARED'` and `childId` (offline too). A Child list opens the
   same `ListPage` and `ListSettingsPage`. `useListHome(list, homePath)` says where a List lives:
-  the Child page, titled with the Child's name (`useChildren()` and `childPath` from
+  the Child page, titled with the Child's name (`useChild(id)` and `childPath` from
   `features/children`), for a Child list, Home otherwise. It is the List screen's back link, and
   where the settings go after «Удалить список»; the settings' own back link stays the List.
   Settings show no Visibility for a Child list (always Shared; the server enforces it). A missing
@@ -660,7 +663,7 @@ the Outbox. With no fields the footer says «Полей пока нет»; a rej
 
 The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_PATH`; `app/routes.tsx` passes
 `settingsPath` as for the password screen) is a `Page` titled with the Child's name, back to
-«Настройки». It loads through `useChildren()` like the list (so a deep link works) and shows
+«Настройки». It loads through `useChild(id)` like the list (so a deep link works) and shows
 `ChildRows`: Имя (`InputRow`, `useAutoSaveText`; empty is refused without a request), Цвет
 (`ColorChoice`, `useAutoSaveChoice`), День рождения (`DateRow`, `useAutoSaveText` with `''` for
 none). Each change saves only that field through `useChildren().save` (local store + Outbox), so
@@ -695,7 +698,7 @@ rows appear once both the fields and the values are read; with no Child fields t
 «Полей профиля нет. Добавьте их в Настройках.». Values and Child fields changed on the other
 Member's device show live. Under the section, «Списки» has the Child lists (#90): the `lists` component the routes pass in
 (`ListsSection` from `features/lists`, given the Child's id; passed in because `lists` already
-imports `children` for a Child list's back link), described with `useLists()` above. It loads through `useChildren()`, so a deep link
+imports `children` for a Child list's back link), described with `useLists()` above. It loads through `useChild(id)`, so a deep link
 works, it follows live updates (a rename, a new birthday), and it opens offline after a restart.
 An unknown id, or a Child deleted while the page is open, shows «Такого ребёнка нет: возможно,
 его удалили.» under the title «Дети», with the back link to Home. Tests:

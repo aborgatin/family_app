@@ -2,11 +2,12 @@ import type { ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { ChildProfileSection } from '@/features/child-fields';
+import { localDay } from '@/shared/dates';
 import { EmptyState, Link, ListRow, Page, Sections } from '@/shared/ui';
 import { useAge } from './age';
 import { childSettingsPath } from './ChildSettingsPage';
 import type { Child } from './childTypes';
-import { useChildren } from './useChildren';
+import { useChild } from './useChildren';
 
 /** Route of the Child page, opened from a tile of «Дети» on Home. */
 export const CHILD_PATH = '/children/:id';
@@ -32,15 +33,14 @@ interface ChildPageProps {
  * birthday); «Профиль» shows the birthday with the age, read-only, then the Child's value for
  * every Child field, edited in place (`ChildProfileSection`); «Списки» has the Child lists. A
  * Child that is unknown, or is deleted while the page is open, shows «Такого ребёнка нет». Data
- * only through `useChildren()`.
+ * only through `useChild(id)`.
  */
 export function ChildPage({ homePath, lists: ChildLists }: ChildPageProps) {
   const { t } = useTranslation();
   const { id } = useParams();
-  const { load } = useChildren();
+  const { load, child } = useChild(id);
   const back = { to: homePath, title: t('app.name') };
 
-  const child = load.status === 'ready' ? load.value.find((c) => c.id === id) : undefined;
   if (child !== undefined) {
     return (
       <Page
@@ -76,9 +76,7 @@ function ProfileSection({ child }: { child: Child }) {
 
   let birthday = t('children.birthdayMissing');
   if (child.birthday !== null) {
-    const [year = 0, month = 1, day = 1] = child.birthday.split('-').map(Number);
-    // The date as written, whatever the device's time zone.
-    const date = DATE.format(new Date(year, month - 1, day));
+    const date = DATE.format(localDay(child.birthday));
     const years = age(child.birthday);
     birthday = years === undefined ? date : t('children.birthdayWithAge', { date, age: years });
   }

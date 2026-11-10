@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { dayParts } from '@/shared/dates';
 
 /** A Child's age: whole years, or whole months under a year. */
 export type Age = { years: number } | { months: number };
@@ -9,7 +10,7 @@ export type Age = { years: number } | { months: number };
  * for a birthday still to come.
  */
 export function ageOn(birthday: string, today: Date): Age | undefined {
-  const [year = 0, month = 0, day = 0] = birthday.split('-').map(Number);
+  const { year, month, day } = dayParts(birthday);
   let months = (today.getFullYear() - year) * 12 + (today.getMonth() + 1 - month);
   if (today.getDate() < day) months -= 1;
   if (months < 0) return undefined;

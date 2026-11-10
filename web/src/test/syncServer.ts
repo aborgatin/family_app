@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { dayParts } from '@/shared/dates';
 import { network } from './network';
 
 /*
@@ -331,8 +332,7 @@ class FakeSyncServer {
  * doesn't have lands on its last day, and the next step goes on from there.
  */
 function nextDueDate(dueDate: string, repeat: string, now: Date): string {
-  const [year = 0, month = 1, day = 1] = dueDate.split('-').map(Number);
-  let next = { year, month, day };
+  let next = dayParts(dueDate);
   const today = { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
   const order = (d: typeof next) => d.year * 10_000 + d.month * 100 + d.day;
   do {

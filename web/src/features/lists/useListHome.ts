@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { childPath, useChildren } from '@/features/children';
+import { childPath, useChild } from '@/features/children';
 import type { List } from './listTypes';
 
 /**
@@ -12,11 +12,10 @@ export function useListHome(
   homePath: string,
 ): { to: string; title: string } {
   const { t } = useTranslation();
-  const { load } = useChildren();
   const childId = list?.childId ?? undefined;
+  const { child } = useChild(childId);
   if (childId === undefined) {
     return { to: homePath, title: t('app.name') };
   }
-  const child = load.status === 'ready' ? load.value.find((c) => c.id === childId) : undefined;
   return { to: childPath(childId), title: child?.name ?? t('children.title') };
 }
