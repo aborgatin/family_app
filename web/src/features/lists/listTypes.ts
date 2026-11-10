@@ -66,6 +66,18 @@ export interface Category {
   position: number;
 }
 
+/**
+ * One name of a Shopping list's Item history as the local store keeps it (the fields the sync
+ * pull sends): its latest spelling and when it was last used. Written by the server only.
+ */
+export interface ItemHistoryEntry {
+  id: string;
+  listId: string;
+  name: string;
+  /** ISO-8601. */
+  lastUsedAt: string;
+}
+
 export const LIST_KINDS: readonly ListKind[] = ['SHOPPING', 'TODO', 'WISH'];
 
 /** Whether a List of this kind has a Visibility to choose: a Wish list is always Shared. */

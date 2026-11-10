@@ -18,6 +18,7 @@ export { ActionSheet } from './ActionSheet';
 export { ConfirmRow } from './ConfirmRow';
 export { EditableRow } from './EditableRow';
 export { AddRow } from './AddRow';
+export { SuggestionRows } from './SuggestionRows';
 export { DoneToggle } from './DoneToggle';
 export { SwipeToDelete } from './SwipeToDelete';
 export { useAutoSaveText, useAutoSaveChoice, autoSaveMessages, type SaveFailure } from './autoSave';

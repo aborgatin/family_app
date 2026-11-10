@@ -409,6 +409,19 @@ nothing; Esc empties the field. Goes in a `GroupedSection`'s `after`, under an e
 typed).
 Touch: 44px row, the caret is the focus sign; fine pointer: 36px row, accent outline when focused.
 Same on narrow and wide windows.
+`suggest(typed)` gives names to suggest for the text typed so far: while the field is focused
+and has text, they show right under it as `SuggestionRows`, and picking one adds it (`onAdd`)
+instead of the typed text, empties the field and keeps the focus there. Tab moves from the field
+to the suggestions without adding anything; leaving both adds the typed text as usual.
+
+### SuggestionRows
+
+Up to 5 plain rows directly under the focused `AddRow` (it places them; a List's autocomplete
+from the Item history): each a name in `label`, a hairline above every row as in any group.
+Tapping or clicking a row picks it; pressing it with the mouse doesn't take the focus from the
+field. A group named «Подсказки» (`ui.suggestions`); each row is a button named by its name, so
+Tab reaches them after the field, Enter or Space picks. Touch: 44px rows; fine pointer: 36px,
+hover tint. Same on narrow and wide windows.
 
 ### DoneToggle
 

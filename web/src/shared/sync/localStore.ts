@@ -18,6 +18,7 @@ export const SYNCED_TABLES = [
   'list',
   'item',
   'category',
+  'item_history',
 ] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 
@@ -62,6 +63,7 @@ export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTabl
   [
     { parent: 'list', table: 'item', key: 'listId' },
     { parent: 'list', table: 'category', key: 'listId' },
+    { parent: 'list', table: 'item_history', key: 'listId' },
   ];
 
 interface Meta {
@@ -81,6 +83,8 @@ class LocalStore extends Dexie {
     this.version(3).stores({ item: 'id, listId' });
     // Categories of a Shopping list, indexed by their List like Items (a dependent table).
     this.version(4).stores({ category: 'id, listId' });
+    // A Shopping list's Item history (names for autocomplete), a dependent table of the List too.
+    this.version(5).stores({ item_history: 'id, listId' });
   }
 
   rows(table: SyncedTable): Table<Row, string> {
