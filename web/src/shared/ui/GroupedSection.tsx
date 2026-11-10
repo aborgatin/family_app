@@ -52,7 +52,8 @@ interface GroupedSectionProps {
   messages?: readonly (SectionMessage | false | undefined)[];
   /**
    * Makes the rows an edit-mode list (`EditableRow`s): «Изменить» / «Готово» in the header turns
-   * edit mode on and off. Needs a `header`.
+   * edit mode on and off. An untitled group (`label`) shows the button alone, where a header would
+   * be.
    */
   edit?: { editing: boolean; onEditingChange: (editing: boolean) => void };
   /**
@@ -140,11 +141,15 @@ export function GroupedSection({
       aria-label={header === undefined ? (headerField?.label ?? label) : undefined}
     >
       {headerField !== undefined && <HeaderField {...headerField} />}
-      {header !== undefined && (
+      {(header !== undefined || edit !== undefined) && (
         <div className="flex items-end justify-between gap-2 px-4 pb-1.5">
-          <h2 id={headerId} className="text-footnote text-secondary-label uppercase">
-            {header}
-          </h2>
+          {header === undefined ? (
+            <span />
+          ) : (
+            <h2 id={headerId} className="text-footnote text-secondary-label uppercase">
+              {header}
+            </h2>
+          )}
           {(action !== undefined || edit !== undefined) && (
             <div className="flex gap-4">
               {action !== undefined && (
@@ -176,6 +181,7 @@ export function GroupedSection({
                     <div
                       role="list"
                       aria-labelledby={header === undefined ? undefined : headerId}
+                      aria-label={header === undefined ? label : undefined}
                       className="col-span-full grid grid-cols-subgrid"
                     >
                       {children}

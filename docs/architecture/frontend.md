@@ -358,7 +358,8 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   **A Shopping list** (`CategorySections`, #70) shows the same «Товары» section while it has no
   named Categories. With some, the open Items are in one section per `sectionsInOrder()` entry:
   a Category's headed by its name (edit mode while it has Items), the Unnamed category's untitled
-  (`GroupedSection` `label` «Без категории», no edit mode); every section shows even with no
+  (`GroupedSection` `label` «Без категории», with edit mode while it has Items all the same, its
+  «Изменить» alone above the cell); every section shows even with no
   open Items, ends with its own «Новый товар» that adds into it, and has no «Товаров пока нет».
   Under them, on every Shopping list, a «Новая категория» row (`ListRow`, accent) in an untitled
   group: tapping it shows a new section at the end whose title is being typed (`headerField`,

@@ -220,7 +220,7 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
 }
 
 interface OpenItemsProps extends ItemChanges {
-  /** The section's title; without it the section is untitled, named by `label` (no edit mode). */
+  /** The section's title; without it the section is untitled, named by `label`. */
   header?: string;
   label?: string;
   items: Item[] | undefined;
@@ -271,7 +271,7 @@ function OpenItems({
     <GroupedSection
       header={header}
       label={label}
-      {...(header !== undefined && shown.length > 0 && { edit: editable.edit })}
+      {...(shown.length > 0 && { edit: editable.edit })}
       messages={[
         ...autoSaveMessages(shown.map((item) => failures[item.id])),
         lines.failure(editable.error),

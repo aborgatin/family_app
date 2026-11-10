@@ -165,6 +165,30 @@ describe('A Shopping list with Categories', () => {
     expect(screen.queryByText('Товаров пока нет')).not.toBeInTheDocument();
   });
 
+  it('deletes from the untitled section’s edit mode too', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('category', [food]);
+    syncServer.seed('item', [item(1, 'Хлеб', null, '2026-11-01T09:00:00Z')]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    const unnamed = await screen.findByRole('region', { name: 'Без категории' });
+    await within(unnamed).findByRole('textbox', { name: 'Товар «Хлеб»' });
+    expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
+      'Супермаркет',
+      'Еда',
+    ]);
+    await user.click(within(unnamed).getByRole('button', { name: 'Изменить' }));
+    await user.click(within(unnamed).getByRole('button', { name: 'Удалить «Хлеб»' }));
+    const sheet = screen.getByRole('dialog', { name: 'Удалить „Хлеб“?' });
+    await user.click(within(sheet).getByRole('button', { name: 'Удалить' }));
+
+    await waitFor(() => {
+      expect(syncServer.row('item', item(1, '', null, '').id)).toBeUndefined();
+    });
+    expect(within(unnamed).queryByRole('button', { name: 'Готово' })).not.toBeInTheDocument();
+  });
+
   it('adds an Item typed in a Category’s field into it, offline too', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.seed('category', [food, chemicals]);
