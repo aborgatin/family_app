@@ -79,6 +79,7 @@
       "wish": "Исполнено «{{text}}»"
     },
     "doneEarlier": "Выполненные ранее",
+    "noDoneEarlier": "Выполненных ранее задач нет",
     "confirmDeleteItem": "Удалить „{{text}}“?",
     "clearBought": "Очистить",
     "confirmClearBought_one": "Очистить {{count}} товар?",

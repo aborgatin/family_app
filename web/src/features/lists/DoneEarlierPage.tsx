@@ -35,6 +35,7 @@ export function DoneEarlierPage({ homePath }: DoneEarlierPageProps) {
   );
 }
 
+/** The older Done Items; «Выполненных ранее задач нет» once none is left. */
 function EarlierDoneItems({ list }: { list: List }) {
   const { t } = useTranslation();
   const { earlierDoneItems, setDone, remove } = useItems(list);
@@ -45,6 +46,7 @@ function EarlierDoneItems({ list }: { list: List }) {
       list={list}
       header={t('lists.doneEarlier')}
       items={earlierDoneItems}
+      messages={[earlierDoneItems.length === 0 && { text: t('lists.noDoneEarlier') }]}
       setDone={setDone}
       remove={remove}
     />
