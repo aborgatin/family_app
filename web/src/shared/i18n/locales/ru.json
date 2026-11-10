@@ -91,6 +91,7 @@
     "unnamedCategory": "Без категории",
     "newCategory": "Новая категория",
     "categoryName": "Название категории",
+    "itemCategory": "Категория: {{name}}",
     "categories": "Категории",
     "categoryNamed": "Категория „{{name}}“",
     "confirmDeleteCategory": "Удалить „{{name}}“?",
