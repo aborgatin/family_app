@@ -90,7 +90,8 @@
     "confirmDelete": "Удалить „{{name}}“ со всем содержимым?",
     "unnamedCategory": "Без категории",
     "newCategory": "Новая категория",
-    "categoryName": "Название категории"
+    "categoryName": "Название категории",
+    "itemCategory": "Категория: {{name}}"
   },
   "setup": {
     "title": "Регистрация первого взрослого",
