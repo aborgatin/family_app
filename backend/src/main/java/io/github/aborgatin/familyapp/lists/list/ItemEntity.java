@@ -3,6 +3,8 @@ package io.github.aborgatin.familyapp.lists.list;
 import io.github.aborgatin.familyapp.sync.SyncedRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -49,6 +51,11 @@ class ItemEntity implements SyncedRecord {
   /** The Due date's time of day; only with a day. */
   @Nullable private LocalTime dueTime;
 
+  /** The Repeat; {@code null} is none. Only with a Due date. */
+  @Enumerated(EnumType.STRING)
+  @Nullable
+  private Repeat repeat;
+
   /** The Assignee: the Member responsible; {@code null} is nobody. Only on a Shared Todo list. */
   @Nullable private UUID assigneeId;
 
@@ -94,6 +101,11 @@ class ItemEntity implements SyncedRecord {
   void due(DueDate dueDate) {
     this.dueDate = dueDate.day();
     this.dueTime = dueDate.time();
+  }
+
+  /** Sets the Repeat; {@code null} removes it. */
+  void repeat(@Nullable Repeat repeat) {
+    this.repeat = repeat;
   }
 
   /** Makes this Member the Assignee; {@code null} is nobody. */
@@ -158,6 +170,11 @@ class ItemEntity implements SyncedRecord {
 
   DueDate dueDate() {
     return new DueDate(dueDate, dueTime);
+  }
+
+  @Nullable
+  Repeat repeat() {
+    return repeat;
   }
 
   @Nullable
