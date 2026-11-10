@@ -352,8 +352,12 @@ export const SEED = {
         visibility: 'SHARED',
         items: [
           'Поменять лампочку в коридоре',
-          { text: 'Записать Машу к стоматологу', description: 'Детская стоматология на Лесной, после 15:00' },
-          { text: 'Оплатить интернет', done: true },
+          { text: 'Записать Машу к стоматологу', description: 'Детская стоматология на Лесной, после 15:00', dueInDays: 1, dueTime: '15:00' },
+          // Overdue: a day that has passed, and a time of today that has.
+          { text: 'Оплатить садик', dueInDays: -1 },
+          { text: 'Забрать посылку', dueInDays: 0, dueTime: '00:05' },
+          { text: 'Купить подарок бабушке', dueInDays: 12 },
+          { text: 'Оплатить интернет', done: true, dueInDays: -2, dueTime: '18:00' },
           { text: 'Вызвать сантехника', done: true, doneDaysAgo: 6 },
           { text: 'Помыть окна', done: true, doneDaysAgo: 8 },
           { text: 'Сдать батарейки в переработку', done: true, doneDaysAgo: 40 },
@@ -417,10 +421,16 @@ async function api(page, method, url, body) {
   );
 }
 
+/** The day `days` days from today (`YYYY-MM-DD`) on the calendar the shots' browser uses. */
+function dayFromToday(days) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(Date.now() + days * 86_400_000);
+}
+
 /**
  * Creates Lists, their `categories` (`{name, position}`) and their `items` in that order, through
  * the sync push as the Member logged in on `page`. An Item is its text, or `{text, description?,
- * category?, done?, doneDaysAgo?, cleared?}` (`category` a Category's name; Done ones ticked in the
+ * category?, dueInDays?, dueTime?, done?, doneDaysAgo?, cleared?}` (`category` a Category's name;
+ * `dueInDays` a todo item's Due date that many days from today, with `dueTime` `HH:MM`; Done ones ticked in the
  * same order; `doneDaysAgo` moves a Done one's Done time that many days back, straight in the
  * database, since the server stamps it itself; cleared ones deleted after, so only the Item
  * history keeps their names). A List with `isDefault`
@@ -443,11 +453,17 @@ async function pushLists(page, pg, lists, defaults = {}) {
         op: 'upsert',
         fields: { listId, name, position },
       })),
-      ...added.map(({ id, text, description, category }) => ({
+      ...added.map(({ id, text, description, category, dueInDays, dueTime }) => ({
         table: 'item',
         id,
         op: 'upsert',
-        fields: { listId, text, description, ...(category && { categoryId: categoryIds[category] }) },
+        fields: {
+          listId,
+          text,
+          description,
+          ...(category && { categoryId: categoryIds[category] }),
+          ...(dueInDays !== undefined && { dueDate: dayFromToday(dueInDays), ...(dueTime && { dueTime }) }),
+        },
       })),
       ...added.filter((item) => item.done).map(({ id }) => ({ table: 'item', id, op: 'upsert', fields: { done: true } })),
       ...added.filter((item) => item.cleared).map(({ id }) => ({ table: 'item', id, op: 'delete' })),

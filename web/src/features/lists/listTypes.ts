@@ -54,6 +54,12 @@ export interface Item {
   categoryId?: string | null;
   /** The Description: details or a link, several lines; `null` when there is none. */
   description: string | null;
+  /**
+   * A todo item's Due date: the day (`YYYY-MM-DD`) and, only with a day, a time of day (`HH:MM`),
+   * both as written on the wall clock; none is `null` or absent.
+   */
+  dueDate?: string | null;
+  dueTime?: string | null;
   /** Done, and who marked it Done and when (set by the server when Done changes). */
   done: boolean;
   doneById?: string | null;

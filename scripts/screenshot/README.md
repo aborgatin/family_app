@@ -40,7 +40,7 @@ Ctrl-C). Then it seeds through the real API:
   «Еда» (two open, «Молоко» with a Description, one Done), «Бытовая химия» (empty), then the
   Unnamed category with one Item; three more Items added and cleared, so its Item history has
   names no Item shows),
-  «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open, one with a Description, and four Done: today, 6, 8 and 40 days ago, so two are in «Выполненные ранее»), «Подарки»
+  «Ремонт» (TODO, Private), «Дела по дому» (TODO, five open: one without a Due date, one due tomorrow at 15:00 with a Description, one due yesterday and one due today at 00:05, both overdue, one due in 12 days; and four Done: today (it has a Due date with a time), 6, 8 and 40 days ago, so two are in «Выполненные ранее»), «Подарки»
   (Желания, one open and one Done), «Книги» (Желания); Борис's «Гараж» (TODO) and his
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.
 - Child lists, on Маша's Child page only (never on Home): «Школа» (TODO, two open Items and one

@@ -350,7 +350,8 @@ export default {
       ],
     },
     {
-      // «Выполнено» holds the last 7 days (today and 6 days ago); the row under it opens the rest.
+      // Open Items by Due date (#84), the overdue ones' in red, the one without last. «Выполнено»
+      // holds the last 7 days (today and 6 days ago); the row under it opens the rest.
       name: 'list-todo',
       path: '/',
       steps: [
@@ -600,7 +601,11 @@ export default {
     { name: 'item-shopping', path: '/', steps: openItem('Супермаркет', 'Товар', 'Хлеб бородинский') },
     // A Done one: ticked, with «Купила Анна, …» under «Добавила Анна, …».
     { name: 'item-shopping-done', path: '/', steps: openDoneItem('Супермаркет', 'Сыр') },
+    // A todo item with a Due date (#84): «Срок» and «Время» under the Done toggle.
     { name: 'item-todo', path: '/', steps: openItem('Дела по дому', 'Задача', 'Записать Машу к стоматологу') },
+    // One without: «Срок» empty, «Время» dimmed until there is a day.
+    { name: 'item-todo-no-due-date', path: '/', steps: openItem('Дела по дому', 'Задача', 'Поменять лампочку в коридоре') },
+    // A Done one: «Срок» and «Время» read-only.
     { name: 'item-todo-done', path: '/', steps: openDoneItem('Дела по дому', 'Оплатить интернет') },
     // A wish without a Description: the empty large field.
     { name: 'item-wish', path: '/', steps: openItem('Подарки', 'Желание', 'Самокат') },

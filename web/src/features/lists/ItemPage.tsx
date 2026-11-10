@@ -5,6 +5,7 @@ import { useFamilyMembers, type FamilyMember } from '@/features/members';
 import {
   autoSaveMessages,
   ConfirmRow,
+  DateRow,
   DoneToggle,
   EmptyState,
   GroupedSection,
@@ -15,6 +16,7 @@ import {
   TextAreaRow,
   useAutoSaveText,
 } from '@/shared/ui';
+import { dueDayText, shortDay } from './dueDates';
 import { ListMissing, useRouteList } from './ListMissing';
 import { listPath } from './listPaths';
 import { KIND_TEXTS, type Item, type List } from './listTypes';
@@ -49,7 +51,17 @@ function ListItem({ list }: { list: List }) {
   const { t } = useTranslation();
   const { itemId } = useParams();
   const navigate = useNavigate();
-  const { items, doneItems, earlierDoneItems, rename, describe, setDone, remove } = useItems(list);
+  const {
+    items,
+    doneItems,
+    earlierDoneItems,
+    rename,
+    describe,
+    setDueDate,
+    setDueTime,
+    setDone,
+    remove,
+  } = useItems(list);
   const texts = KIND_TEXTS[list.kind];
   const back = listPath(list.id);
   const loading = items === undefined || doneItems === undefined || earlierDoneItems === undefined;
@@ -70,6 +82,17 @@ function ListItem({ list }: { list: List }) {
         <Sections>
           <ItemFields key={item.id} item={item} rename={rename} describe={describe} />
           <DoneSection list={list} item={item} setDone={setDone} />
+          {list.kind === 'TODO' &&
+            (item.done ? (
+              <DoneTodoFields item={item} />
+            ) : (
+              <TodoFields
+                key={`${item.id}-todo`}
+                item={item}
+                setDueDate={setDueDate}
+                setDueTime={setDueTime}
+              />
+            ))}
           <GroupedSection>
             <ConfirmRow
               title={t('ui.delete')}
@@ -115,6 +138,69 @@ function ItemFields({ item, rename, describe }: ItemFieldsProps) {
     <GroupedSection messages={autoSaveMessages([text.failure, description.failure])}>
       <InputRow label={t('lists.name')} autoComplete="off" {...text.input} />
       <TextAreaRow label={t('lists.description')} {...description.input} />
+    </GroupedSection>
+  );
+}
+
+interface TodoFieldsProps {
+  item: Item;
+  setDueDate: (item: Item, dueDate: string | null) => Promise<void>;
+  setDueTime: (item: Item, dueTime: string | null) => Promise<void>;
+}
+
+/**
+ * A todo item's own fields: its Due date as «Срок» (the day) and «Время» (a time of day, only
+ * with a day), auto-saved. Removing the day removes the time. Later todo fields go here too.
+ */
+function TodoFields({ item, setDueDate, setDueTime }: TodoFieldsProps) {
+  const { t } = useTranslation();
+  const dueDate = useAutoSaveText({
+    name: 'dueDate',
+    saved: item.dueDate ?? '',
+    save: useCallback(
+      async (value: string) => {
+        await setDueDate(item, value === '' ? null : value);
+        return value;
+      },
+      [item, setDueDate],
+    ),
+  });
+  const dueTime = useAutoSaveText({
+    name: 'dueTime',
+    saved: item.dueTime ?? '',
+    save: useCallback(
+      async (value: string) => {
+        await setDueTime(item, value === '' ? null : value);
+        return value;
+      },
+      [item, setDueTime],
+    ),
+  });
+
+  return (
+    <GroupedSection messages={autoSaveMessages([dueDate.failure, dueTime.failure])}>
+      <DateRow label={t('lists.dueDate')} {...dueDate.input} />
+      <DateRow
+        label={t('lists.dueTime')}
+        type="time"
+        disabled={item.dueDate == null}
+        {...dueTime.input}
+      />
+    </GroupedSection>
+  );
+}
+
+/** A Done todo item's own fields, read-only: nobody schedules what is already done. */
+function DoneTodoFields({ item }: { item: Item }) {
+  const { t } = useTranslation();
+  const none = t('lists.due.none');
+  return (
+    <GroupedSection>
+      <ListRow
+        title={t('lists.dueDate')}
+        value={item.dueDate == null ? none : dueDayText(t, item.dueDate, new Date())}
+      />
+      <ListRow title={t('lists.dueTime')} value={item.dueTime ?? none} />
     </GroupedSection>
   );
 }
@@ -174,15 +260,9 @@ function by(
   const member = memberId == null ? undefined : members?.get(memberId);
   if (member === undefined || at == null) return undefined;
   const context = member.grammaticalGender?.toLowerCase() as 'masculine' | 'feminine' | undefined;
-  return { name: member.displayName, day: shortDay(at), ...(context !== undefined && { context }) };
-}
-
-/** «12 нояб.», with the year when it isn't this one («5 мар. 2025 г.»), on the device's clock. */
-function shortDay(at: string): string {
-  const day = new Date(at);
-  return new Intl.DateTimeFormat('ru', {
-    day: 'numeric',
-    month: 'short',
-    ...(day.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }),
-  }).format(day);
+  return {
+    name: member.displayName,
+    day: shortDay(new Date(at), new Date()),
+    ...(context !== undefined && { context }),
+  };
 }

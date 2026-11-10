@@ -267,7 +267,8 @@ Categories and Items share: `name` (1–100 code points after trim), `position` 
 `ItemService` looks an Item's List up once per operation and passes it on.
 
 Items are in the same package (an Item belongs to its List): `ItemEntity` (`list_id`, `text`,
-`category_id`, `description`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`), `ItemRepository`,
+`category_id`, `description`, `due_date`, `due_time`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`),
+`DueDate` (a record of the day and the optional time of day, `NONE` for no Due date), `ItemRepository`,
 `ItemRequest` (text 1–1000 code points after trim, description ≤ 10000 or blank = none) → `ItemDetails`;
 `ItemService`, the `item` `SyncableTable`:
 
@@ -286,10 +287,18 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
 - Category (`categoryId`, when carried; `ItemEntity.moveTo`): `null` is the Unnamed category; a
   UUID must name a Category of the Item's own List, which must be `SHOPPING`, else
   `item.category_not_found` (`params.categoryId`); a deleted one is stored as `null`.
+- Due date (#84; `dueDate`, `dueTime`, when either is carried; `ItemService.dueDate` →
+  `ItemEntity.due(DueDate)`): columns `DATE` and `TIME`, mapped as `LocalDate` / `LocalTime`,
+  wall-clock values that never pass through a time zone. The carried fields are merged over the
+  stored `DueDate`; a `dueDate` of `null` drops the stored time. Then, in this order:
+  `item.list_not_todo` (`params.listId`) unless the List is `TODO`; `validation.failed` /
+  `value.invalid` for a day that isn't ISO `YYYY-MM-DD` or a time that isn't strict `HH:mm`;
+  `item.due_time_without_due_date` when a time is left without a day. An upsert carrying neither
+  field leaves the Due date alone on every kind of List.
 - Item history: a create, a changed `text`, and Done → open each call `ItemHistoryService.used(list,
   text, now)` in the same operation (below). A delete never touches the history.
-- `changesSince`: `listId`, `text`, `categoryId`, `description`, `done`, `doneById`, `doneAt`,
-  `creatorId`, `createdAt`; a tombstone for a deleted Item and for one whose List the Member may
+- `changesSince`: `listId`, `text`, `categoryId`, `description`, `dueDate` (`YYYY-MM-DD`),
+  `dueTime` (`HH:MM`), `done`, `doneById`, `doneAt`, `creatorId`, `createdAt`; a tombstone for a deleted Item and for one whose List the Member may
   not see (`VisibleLists.rowsVisibleTo`).
 
 Categories are in the same package too: `CategoryEntity` (`list_id`, `name`, `position`),
@@ -430,7 +439,8 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `list.child_not_shopping`, `list.child_shared_only`, `list.child_immutable` and
 `list.child_not_found` (`params.childId`), for Categories
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
-(`params.categoryId`). An operation on a deleted Child, Child field, List,
+(`params.categoryId`), `item.list_not_todo` (`params.listId`: a Due date on an Item of a Shopping
+or Wish list) and `item.due_time_without_due_date` (a time of day without a Due date). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
 (`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a
@@ -535,6 +545,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V9__item_history.sql`          | `item_history` (→ `list`), unique on (`list_id`, `normalized_name`)                                |
 | `V10__list_child.sql`           | `list.child_id` (→ `child`, nullable: a Child list), partial index on it                           |
 | `V11__child_field_value.sql`    | `child_field_value` (→ `child`, `child_field`), indexes on `child_id` and `child_field_id`         |
+| `V12__item_due_date.sql`        | `item.due_date` (`DATE`), `item.due_time` (`TIME`): a todo item's Due date, nullable, no backfill  |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -596,7 +607,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest` and `lists.ItemHistorySyncTest` do.
+   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest` and `lists.ItemDueDateSyncTest` do.
 
 ## Testing
 

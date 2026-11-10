@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -69,10 +70,25 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
    */
   details?: { label: string; to: string };
   /**
+   * A small grey line under the title and the secondary line, shown in every state of the row:
+   * facts about it in a few words (a todo item's Due date, «15 нояб., 15:00»). Its parts are
+   * joined by spaces; one with `tone: 'destructive'` is red (an overdue Due date,
+   * `data-tone="destructive"`). Empty: no line.
+   */
+  caption?: readonly RowCaptionPart[];
+  /**
    * Points the row out (e.g. an Item added again by name): scrolled into view and tinted with the
    * accent while set (`data-highlighted`), fading back when unset.
    */
   highlighted?: boolean;
+}
+
+/** One part of an `EditableRow`'s `caption`. */
+export interface RowCaptionPart {
+  /** Already translated. */
+  text: string;
+  /** Red: something that needs attention (overdue). */
+  tone?: 'destructive';
 }
 
 /** An `EditableRow`'s title as a text field (`useAutoSaveText()`'s `input`, plus a `label`). */
@@ -125,6 +141,7 @@ export function EditableRow({
   secondary,
   chip,
   details,
+  caption = [],
   highlighted = false,
   ...content
 }: EditableRowProps) {
@@ -147,6 +164,7 @@ export function EditableRow({
   const deletable = confirm !== undefined && onDelete !== undefined;
   const link = to !== undefined && !editing;
   const withSecondary = input !== undefined && secondary !== undefined && !editing;
+  const captionLine = caption.length > 0 && <Caption parts={caption} />;
 
   const inside =
     textTo !== undefined && input === undefined && !editing ? (
@@ -157,60 +175,66 @@ export function EditableRow({
             {title}
           </RouterLink>
         }
+        below={captionLine}
         field
       />
     ) : input === undefined || editing ? (
-      <RowInside title={title} chevron={link} {...content} />
+      <RowInside title={title} chevron={link} below={captionLine} {...content} />
     ) : (
       <RowInside
         {...content}
         title={<RowInput {...input} />}
         below={
-          withSecondary &&
-          (active || choosing ? (
-            <>
-              <SecondaryInput {...secondary} takeFocus={tapped} />
-              {(chip !== undefined || details !== undefined) && (
-                <span className="flex items-center gap-3">
-                  {chip !== undefined && (
-                    <span className="flex min-w-0">
-                      <MenuChip {...chip} onOpenChange={setChoosing} />
-                    </span>
-                  )}
-                  {details !== undefined && (
-                    <span className="mt-1.5 ml-auto flex shrink-0">
-                      <RouterLink
-                        to={details.to}
-                        // The fields keep the focus (Safari gives a clicked link none), so the row
-                        // is still being edited, and the link still there, when the click arrives.
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                        }}
-                        // Leaving the row this way fires no blur: save what was typed.
-                        onClick={() => {
-                          input.onCommit();
-                          secondary.onCommit();
-                        }}
-                        className={controlClasses('plain', 'small')}
-                      >
-                        {details.label}
-                      </RouterLink>
-                    </span>
-                  )}
-                </span>
-              )}
-            </>
-          ) : (
-            secondary.value.trim() !== '' && (
-              <SecondaryLine
-                text={secondary.value}
-                onOpen={() => {
-                  setTapped(true);
-                  setActive(true);
-                }}
-              />
-            )
-          ))
+          <>
+            {withSecondary &&
+              (active || choosing ? (
+                <SecondaryInput {...secondary} takeFocus={tapped} />
+              ) : (
+                secondary.value.trim() !== '' && (
+                  <SecondaryLine
+                    text={secondary.value}
+                    onOpen={() => {
+                      setTapped(true);
+                      setActive(true);
+                    }}
+                  />
+                )
+              ))}
+            {captionLine}
+            {withSecondary && (active || choosing) && (
+              <>
+                {(chip !== undefined || details !== undefined) && (
+                  <span className="flex items-center gap-3">
+                    {chip !== undefined && (
+                      <span className="flex min-w-0">
+                        <MenuChip {...chip} onOpenChange={setChoosing} />
+                      </span>
+                    )}
+                    {details !== undefined && (
+                      <span className="mt-1.5 ml-auto flex shrink-0">
+                        <RouterLink
+                          to={details.to}
+                          // The fields keep the focus (Safari gives a clicked link none), so the row
+                          // is still being edited, and the link still there, when the click arrives.
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                          }}
+                          // Leaving the row this way fires no blur: save what was typed.
+                          onClick={() => {
+                            input.onCommit();
+                            secondary.onCommit();
+                          }}
+                          className={controlClasses('plain', 'small')}
+                        >
+                          {details.label}
+                        </RouterLink>
+                      </span>
+                    )}
+                  </span>
+                )}
+              </>
+            )}
+          </>
         }
         field
         busy={input.busy || content.busy === true}
@@ -315,6 +339,25 @@ const HIGHLIGHT =
  * empty on a row that can't be deleted, so its title lines up with the others.
  */
 const DELETE_SLOT = 'shrink-0 pl-4 w-[calc(1rem+1.375rem)] pointer-coarse:min-w-11';
+
+/** The `caption` line: small and grey, its `destructive` parts red. */
+function Caption({ parts }: { parts: readonly RowCaptionPart[] }) {
+  return (
+    <span className="mt-0.5 block truncate text-footnote text-secondary-label">
+      {parts.map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && ' '}
+          <span
+            data-tone={part.tone}
+            className={part.tone === 'destructive' ? 'text-destructive' : undefined}
+          >
+            {part.text}
+          </span>
+        </Fragment>
+      ))}
+    </span>
+  );
+}
 
 /** The title of a row renamed in place: a text field that looks like the title. */
 function RowInput({ label, name, value, onChange, onCommit, onRevert }: RowInputProps) {

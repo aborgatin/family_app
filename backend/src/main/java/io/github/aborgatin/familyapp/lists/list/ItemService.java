@@ -8,10 +8,16 @@ import io.github.aborgatin.familyapp.sync.SyncRow;
 import io.github.aborgatin.familyapp.sync.SyncableTable;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -23,6 +29,10 @@ import org.springframework.stereotype.Service;
  */
 @Service
 class ItemService implements SyncableTable {
+
+  /** {@code dueTime} on the wire: {@code HH:MM}, 24 hours, no seconds. */
+  private static final DateTimeFormatter DUE_TIME =
+      DateTimeFormatter.ofPattern("HH:mm").withResolverStyle(ResolverStyle.STRICT);
 
   private final Clock clock = Clock.systemUTC();
   private final ItemRepository items;
@@ -79,9 +89,11 @@ class ItemService implements SyncableTable {
         new ItemRequest(operation.text("text"), operation.text("description")).validate();
     boolean done = operation.has("done") && done(operation);
     UUID categoryId = operation.has("categoryId") ? categoryId(operation, list) : null;
+    DueDate dueDate = dueDate(operation, DueDate.NONE, list);
     Instant now = clock.instant();
     ItemEntity item = new ItemEntity(operation.id(), listId, operation.memberId(), now, details);
     item.moveTo(categoryId);
+    item.due(dueDate);
     item.markDone(done, operation.memberId(), now);
     items.saveAndFlush(item);
     history.used(list, item.text(), now);
@@ -98,11 +110,13 @@ class ItemService implements SyncableTable {
             .validate();
     boolean done = operation.has("done") ? done(operation) : item.done();
     UUID categoryId = operation.has("categoryId") ? categoryId(operation, list) : item.categoryId();
+    DueDate dueDate = dueDate(operation, item.dueDate(), list);
     // The history keeps a name when it is given (a new text) or used again (Done → open).
     boolean nameUsed = !details.text().equals(item.text()) || (item.done() && !done);
     Instant now = clock.instant();
     item.replace(details);
     item.moveTo(categoryId);
+    item.due(dueDate);
     item.markDone(done, operation.memberId(), now);
     items.saveAndFlush(item);
     if (nameUsed) {
@@ -143,6 +157,54 @@ class ItemService implements SyncableTable {
     return category.deleted() ? null : categoryId;
   }
 
+  /**
+   * The Due date the operation leaves on an Item of {@code list} that had {@code stored}: {@code
+   * dueDate} ({@code YYYY-MM-DD} or {@code null}) and {@code dueTime} ({@code HH:MM} or {@code
+   * null}) are each their own field (Last write wins per field), and setting {@code dueDate} to
+   * {@code null} removes the time too. Rejected: either field on an Item of a List that is not a
+   * Todo list ({@code item.list_not_todo}), a malformed value ({@code validation.failed}, {@code
+   * value.invalid}), and a time left without a day ({@code item.due_time_without_due_date}).
+   */
+  private static DueDate dueDate(Operation operation, DueDate stored, ListEntity list) {
+    boolean carriesDay = operation.has("dueDate");
+    boolean carriesTime = operation.has("dueTime");
+    if (!carriesDay && !carriesTime) {
+      return stored;
+    }
+    if (list.kind() != ListKind.TODO) {
+      throw new ApiException(
+          HttpStatus.CONFLICT, "item.list_not_todo", Map.of("listId", list.id().toString()));
+    }
+    FieldErrors errors = new FieldErrors();
+    LocalDate day =
+        carriesDay ? parsed(operation, "dueDate", LocalDate::parse, errors) : stored.day();
+    LocalTime time = day == null ? null : stored.time();
+    if (carriesTime) {
+      time = parsed(operation, "dueTime", text -> LocalTime.parse(text, DUE_TIME), errors);
+    }
+    errors.throwIfAny();
+    if (time != null && day == null) {
+      throw new ApiException(HttpStatus.CONFLICT, "item.due_time_without_due_date");
+    }
+    return new DueDate(day, time);
+  }
+
+  /** The operation's {@code field} parsed, {@code null} for none; {@code value.invalid} if bad. */
+  @Nullable
+  private static <T> T parsed(
+      Operation operation, String field, Function<String, T> parse, FieldErrors errors) {
+    String text = operation.text(field);
+    if (text == null) {
+      return null;
+    }
+    try {
+      return parse.apply(text);
+    } catch (DateTimeParseException e) {
+      errors.add(field, FieldErrors.VALUE_INVALID);
+      return null;
+    }
+  }
+
   /** The operation's {@code done}: a boolean, never {@code null}. */
   private static boolean done(Operation operation) {
     Boolean done = operation.bool("done");
@@ -167,6 +229,8 @@ class ItemService implements SyncableTable {
           fields.put("text", item.text());
           fields.put("categoryId", item.categoryId() == null ? null : item.categoryId().toString());
           fields.put("description", item.description());
+          fields.put("dueDate", item.dueDate().dayText());
+          fields.put("dueTime", item.dueDate().timeText());
           fields.put("done", item.done());
           fields.put("doneById", item.doneById() == null ? null : item.doneById().toString());
           fields.put("doneAt", item.doneAt() == null ? null : item.doneAt().toString());

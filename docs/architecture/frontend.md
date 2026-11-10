@@ -47,7 +47,8 @@ web/src/
                         listTypes (kinds, Visibility, kind texts, Item, Category,
                         ItemHistoryName), useLists(), useItems(list), useCategories(list),
                         useItemHistory(list), itemKeys (normalizedName, sortableTime, compare:
-                        shared by useItems and useItemHistory)
+                        shared by useItems and useItemHistory), dueDates (how a Due date reads
+                        and when it is overdue)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage;
                         useFamilyMembers() (the Members on the local store, by id)
@@ -248,7 +249,8 @@ code that touches IndexedDB or the sync API:
     once, online or not;
   - `useSaveRejection()` → `{message, dismiss}`: the message about the last operation the server
     rejected (`saveRejection.ts`, I3: `list.not_found`, `list.owner_only`, `list.kind_immutable`,
-    `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only` map to
+    `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only`,
+    `item.list_not_todo`, `item.due_time_without_due_date` map to
     `sync.rejected.*`, «Не удалось сохранить: …» with the reason; any other code to
     `sync.saveRejected`, plain «Не удалось сохранить»). It is recorded whatever screen is open and
     cleared by the Member's next change, `dismiss()` or a logout. Its one user is
@@ -360,11 +362,17 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   lower-cased, newest `lastUsedAt` first (fraction padded as for `createdAt`), ties by name. Only a
   Shopping list's screen uses it.
 - `useItems(list)` → `{items, doneItems, earlierDoneItems, add(text, categoryId?), rename(item, text),
-  describe(item, description), move(item, categoryId), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
+  describe(item, description), move(item, categoryId), setDueDate(item, day | null),
+  setDueTime(item, time | null), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
   by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
   after them, ordered by its id, which `newItemId()` makes time-ordered (UUID v7); an Item ticked
-  back on returns to its place by the same rule. `doneItems` are the Done ones, most recently done
+  back on returns to its place by the same rule. **On a Todo list** (#84) the open Items with a
+  Due date come first, soonest on top: by `dueDate`, on one day those with a `dueTime` (by time)
+  before those without, then in the order added; the ones without a Due date follow in the order
+  added (`dueKey`: the two fields sort as text). Shopping and Wish lists keep the order added.
+  `setDueDate` sends only `dueDate` (`YYYY-MM-DD`), or `dueDate: null` with `dueTime: null` to
+  remove the Due date and its time; `setDueTime` only `dueTime` (`HH:MM` or `null`). `doneItems` are the Done ones, most recently done
   first: by the server's `doneAt` (fraction padded as for `createdAt`), ties by id; one ticked off
   on this device and not pulled back yet has no `doneAt` and goes on top, the last ticked first,
   by its device-only `doneHereAt` (a monotonic ms time written with `upsertRow`'s `local`, never
@@ -394,7 +402,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   `DoneToggle` (named «Куплено «Молоко»» / «Выполнено «…»» / «Исполнено «…»») as `leading`, its
   text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), its Description
   as the row's `secondary` line (`useAutoSaveText`, named «Описание «Молоко»», placeholder
-  «Описание»), deleted from edit
+  «Описание»), on a Todo list its Due date as the row's `caption` (below), deleted from edit
   mode, a swipe or right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая
   задача» / «Новое желание» (Enter adds and keeps the focus) with `descriptionLabel` «Описание» on
   every List kind (#79): its icon or ↓ opens the one-line Description under the name, and Enter
@@ -408,6 +416,16 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   «Очистить» (destructive) / «Отменить», then `remove()` for every Done Item shown, so one Item
   delete each and no list-level operation (spec #67, ticket #71). An Item the other Member ticked
   off that no pull has brought yet isn't shown, so it stays.
+  **A todo item's row line** (#84, `itemCaption` → `EditableRow` `caption`): under the name and
+  the Description, the Due date in a small grey line, on open and Done rows, also while the row is
+  edited: the day as «Сегодня» / «Завтра» / «Вчера», else «15 нояб.», with the year when it isn't
+  this one («5 янв. 2027 г.»), and the time after a comma («15 нояб., 15:00»; `dueDates.ts`:
+  `dueDayText`, `dueDateText`, i18n `lists.due.*`). On an open Item an overdue Due date is red
+  (`tone: 'destructive'`; `isOverdue`: without a time from the next day's midnight, with a time
+  once the clock is past it); a Done Item's is never red. Everything is by the device's clock and
+  time zone, read when the row renders, so a row turns red at its next render after the moment
+  passes (as the Done window follows midnight). Assignee and Repeat (#85–#87) add their parts to
+  the same line. Shopping and wish rows have no such line.
   **A Todo list's «Выполнено»** (#88) holds only `doneItems` (the last 7 days) and, while there
   are `earlierDoneItems`, ends with a chevron row «Выполненные ранее» (a `ListRow` as the
   section's `after`, so not part of the edit-mode list); with only older Done Items the section is
@@ -454,7 +472,14 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   `DoneToggle` as `leading`; `setDone`), whose footer says who added the Item and, when Done, who
   marked it Done: «Добавила Анна, 12 нояб.», «Купила / Выполнила / Исполнила Анна, 14 нояб.»
   (`lists.addedBy`, `KIND_TEXTS[kind].doneBy`, by the Member's Grammatical gender, see i18n; the
-  day by the device's clock, with the year when it isn't this one); then «Удалить» (`ConfirmRow`,
+  day by the device's clock, with the year when it isn't this one); on a Todo list only, a section
+  with the todo fields (`TodoFields`, #84): «Срок» (`DateRow`, `setDueDate`) and «Время»
+  (`DateRow` `type="time"`, `setDueTime`; `disabled` while there is no «Срок»), each auto-saved
+  with `useAutoSaveText` (blur, Enter, or its ⊗), offline too; a date without a time is fine, and
+  clearing «Срок» clears «Время» with it. On a Done Item they are read-only (`DoneTodoFields`:
+  plain `ListRow`s with the day as on the row and the time, «Нет» for none) and editable again
+  once it is ticked back on; later todo fields (#85–#87) join this section and follow the same
+  rule. Then «Удалить» (`ConfirmRow`,
   «Удалить „Молоко“?», `remove`, back to the List replacing the history entry). The Member comes
   from `useFamilyMembers()`; a line shows only once the server's `creatorId` / `createdAt`
   (`doneById` / `doneAt`) are on the device, so an Item added or ticked on this device gets it
@@ -730,17 +755,22 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
 - Lists, Items, Categories and Item history tests (`lists/lists.test.tsx`, `lists/items.test.tsx`,
   `lists/categories.test.tsx`, `lists/categoriesScreen.test.tsx`, `lists/itemHistory.test.tsx`,
   `lists/reAdding.test.tsx`, `lists/doneEarlier.test.tsx`, `lists/itemScreen.test.tsx`: the Item
-  screen, which also seeds `member` rows for its footer lines) build
+  screen, which also seeds `member` rows for its footer lines; `lists/dueDate.test.tsx`: a todo
+  item's Due date on the Item screen and the row, overdue, the order, with the device clock
+  fixed) build
   their rows inline and seed them with
   `syncServer.seed('list' | 'item' | 'category' | 'item_history', …)`; `items.test.tsx` and `categories.test.tsx`
-  also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, as on the real server.
+  also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent),
+  and `dueDate.test.tsx` that a version 5 store from before Due dates still sends its unsent
+  operation and its Items take a Due date; the fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, as on the real server.
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,
   `sessionHandler`.
 - The device clock: `vi.useFakeTimers({ toFake: ['Date'], now })` in `beforeEach` and
   `vi.useRealTimers()` after (`children.test.tsx` for ages, `doneEarlier.test.tsx` for the Done
-  window, whose Done times are built from local dates so the tests pass in any time zone).
+  window, whose Done times are built from local dates so the tests pass in any time zone,
+  `dueDate.test.tsx` for «Сегодня» and overdue).
 - A deep link to a screen renders with an empty store first, so «Такого списка нет» may show for
   a moment before the pull. A test that expects it as the final state fills the store first
   (render the List, wait, `unmount()`, render the deep link: an app restart).
@@ -749,7 +779,8 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
 - To test copying, stub `ClipboardItem` (`vi.stubGlobal`) and `navigator.clipboard` (`write`,
   `writeText`) after `userEvent.setup()`, which installs its own clipboard (`invites.test.tsx`).
 - jsdom lays nothing out: `test/setup.ts` stubs `scrollIntoView` (a no-op); a highlighted row is
-  checked by its `data-highlighted` (`reAdding.test.tsx`), the tint by screenshots.
+  checked by its `data-highlighted` (`reAdding.test.tsx`), the tint by screenshots; an overdue
+  Due date by its `data-tone="destructive"` (`dueDate.test.tsx`), the red by screenshots.
 - Right-click: `user.pointer({keys: '[MouseRight]', target})`, then the `menuitem`. jsdom has no
   `matchMedia`, so `RowContextMenu` treats the pointer as fine there. Swipes can't be tested in
   jsdom (screenshots instead).
