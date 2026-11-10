@@ -28,11 +28,17 @@ class ItemService implements SyncableTable {
   private final ItemRepository items;
   private final CategoryRepository categories;
   private final VisibleLists visibleLists;
+  private final ItemHistoryService history;
 
-  ItemService(ItemRepository items, CategoryRepository categories, VisibleLists visibleLists) {
+  ItemService(
+      ItemRepository items,
+      CategoryRepository categories,
+      VisibleLists visibleLists,
+      ItemHistoryService history) {
     this.items = items;
     this.categories = categories;
     this.visibleLists = visibleLists;
+    this.history = history;
   }
 
   @Override
@@ -75,6 +81,7 @@ class ItemService implements SyncableTable {
     item.moveTo(categoryId);
     item.markDone(done, operation.memberId(), now);
     items.saveAndFlush(item);
+    history.used(list, item.text(), now);
     return Outcome.APPLIED;
   }
 
@@ -90,10 +97,16 @@ class ItemService implements SyncableTable {
         operation.has("categoryId")
             ? categoryId(operation, visibleLists.find(item.listId(), operation.memberId()))
             : item.categoryId();
+    // The history keeps a name when it is given (a new text) or used again (Done → open).
+    boolean nameUsed = !details.text().equals(item.text()) || (item.done() && !done);
+    Instant now = clock.instant();
     item.replace(details);
     item.moveTo(categoryId);
-    item.markDone(done, operation.memberId(), clock.instant());
+    item.markDone(done, operation.memberId(), now);
     items.saveAndFlush(item);
+    if (nameUsed) {
+      history.used(visibleLists.find(item.listId(), operation.memberId()), item.text(), now);
+    }
     return Outcome.APPLIED;
   }
 
