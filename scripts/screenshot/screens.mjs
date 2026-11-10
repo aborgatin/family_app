@@ -4,6 +4,7 @@ import {
   editIn,
   failClipboard,
   hang,
+  noChildFields,
   noLists,
   onlyChildren,
   rejectPushes,
@@ -898,20 +899,26 @@ export default {
 
     // The Child page, opened from a tile of «Дети» on Home
     {
-      // Маша has two Child lists under «Списки».
+      // Маша has a value for every Child field (text and date) and two Child lists under «Списки».
       name: 'child-page',
       path: '/',
       steps: [
         { click: childTile('Маша') },
-        { waitFor: 'role=region[name="Профиль"]' },
+        { waitFor: `${section('Профиль')} >> role=textbox[name="Размер обуви"]` },
         { waitFor: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
       ],
     },
     {
-      // Петя has no birthday: «Не указан»; and no Child lists: «Списков пока нет».
+      // Петя has no birthday («Не указан»), no values (every Child field is empty) and no Child
+      // lists («Списков пока нет»).
       name: 'child-page-no-birthday',
       path: '/',
-      steps: [{ click: childTile('Петя') }, { waitFor: 'text=Не указан' }, { waitFor: 'text=Списков пока нет' }],
+      steps: [
+        { click: childTile('Петя') },
+        { waitFor: 'text=Не указан' },
+        { waitFor: `${section('Профиль')} >> role=textbox[name="Размер обуви"]` },
+        { waitFor: 'text=Списков пока нет' },
+      ],
     },
     {
       // «Новый список» opened on a Child page: Вид is TODO / Желания only, no Visibility.
@@ -945,6 +952,24 @@ export default {
         { click: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
         { click: 'role=link[name="Настройки списка"]' },
         { waitFor: 'role=textbox[name="Название"]' },
+      ],
+    },
+    {
+      // No Child fields defined: the hint to add them in Settings.
+      name: 'child-page-no-fields',
+      path: '/',
+      initScript: noChildFields,
+      steps: [{ click: childTile('Маша') }, { waitFor: 'text=Полей профиля нет' }],
+    },
+    {
+      // A text value over 1000 characters is refused: the footer says so about its row.
+      name: 'child-page-value-too-long',
+      path: '/',
+      steps: [
+        { click: childTile('Маша') },
+        { fill: `${section('Профиль')} >> role=textbox[name="Размер обуви"]`, value: '31 '.repeat(334) },
+        { press: 'Enter' },
+        { waitFor: `${section('Профиль')} >> role=alert` },
       ],
     },
     {

@@ -22,10 +22,13 @@ import org.springframework.stereotype.Service;
 class ChildFieldService implements SyncableTable {
 
   private final ChildFieldRepository childFields;
+  private final ChildFieldValueService values;
   private final Family family;
 
-  ChildFieldService(ChildFieldRepository childFields, Family family) {
+  ChildFieldService(
+      ChildFieldRepository childFields, ChildFieldValueService values, Family family) {
     this.childFields = childFields;
+    this.values = values;
     this.family = family;
   }
 
@@ -36,9 +39,10 @@ class ChildFieldService implements SyncableTable {
 
   /**
    * An upsert creates the Child field (name, value type and position required) or changes only the
-   * fields it carries; a delete soft-deletes. Delete wins: anything on a deleted Child field, and
-   * deleting an unknown one, is ignored. Validation comes first; then a different value type for an
-   * existing field is rejected with {@code child_field.value_type_immutable} (ADR-0007).
+   * fields it carries; a delete soft-deletes the field and its values for every Child. Delete wins:
+   * anything on a deleted Child field, and deleting an unknown one, is ignored. Validation comes
+   * first; then a different value type for an existing field is rejected with {@code
+   * child_field.value_type_immutable} (ADR-0007).
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -81,6 +85,7 @@ class ChildFieldService implements SyncableTable {
   private Outcome delete(ChildField field) {
     field.markDeleted();
     childFields.saveAndFlush(field);
+    values.childFieldDeleted(field.id());
     return Outcome.APPLIED;
   }
 

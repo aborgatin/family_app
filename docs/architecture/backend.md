@@ -71,7 +71,7 @@ purpose, because none of them belongs to the Family domain and each is shared or
 
 ### `family`
 
-Owns Family, Member, Invite, Password reset, Child and Child field, plus authentication, because
+Owns Family, Member, Invite, Password reset, Child, Child field and Child field value, plus authentication, because
 Members are the principals. Sub-packages:
 
 - `family.auth`: everything web and security: `SecurityConfig`, `SessionLogin`,
@@ -86,6 +86,22 @@ Members are the principals. Sub-packages:
 - `family.child`: `Child`, `ChildService` (the `child` `SyncableTable`), `ChildRequest`,
   `ChildColorPalette`. No REST endpoint: Children are written by the push and read by the pull.
   Deleting a Child publishes `ChildDeleted` (below).
+- Child field values (#91, ADR-0007) are in `family.childfield` too: `ChildFieldValue` (`child_id`,
+  `child_field_id`, `value`, `recorded_at`; no setters, an entry never changes),
+  `ChildFieldValueRepository` (`markDeletedOfChild`, `markDeletedOfChildField`: bulk JPQL updates
+  that flush and clear the persistence context), `ChildFieldValueRequest` (`validate()`: the two
+  ids and the value required, the value trimmed → `Valid`, whose `valueOf(valueType)` checks it by
+  the Value type) and `ChildFieldValueService`, the `child_field_value` `SyncableTable`:
+  - `apply`: `Outcome.deleteWins`; an upsert of a known entry is `APPLIED` and writes nothing; of
+    an unknown one: `validate()`, then the Child (`family.Children.known`) and the Child field must exist
+    (`child.not_found` / `child_field.not_found`), a deleted one of either → `IGNORED`, then the
+    value by the field's Value type, then the entry is inserted with `recordedAt` from the
+    `Clock`. A delete soft-deletes the entry.
+  - Cascades: it listens for `ChildDeleted` (a synchronous `@EventListener`, so inside the delete
+    operation's savepoint) and soft-deletes the Child's entries; `ChildFieldService`'s delete calls
+    `childFieldDeleted(id)` for the field's.
+  - `changesSince`: `childId`, `childFieldId`, `value`, `recordedAt`; every Member sees every
+    entry. The latest entry is the client's to pick: the highest Version ([`sync.md`](sync.md)).
 - `family.childfield`: `ChildField`, `ChildFieldService` (the `child_field` `SyncableTable`),
   `ChildFieldRequest`, `ValueType` (`TEXT`, `DATE`). No REST endpoint: Child fields are written by
   the push and read by the pull.
@@ -118,6 +134,10 @@ Shared patterns inside `family`:
   in Version order (sync.md "Versions commit in order") and check-then-insert races run one after
   another. Taking it publishes `sync.SyncableWriteStarted`, which is what sends live updates after
   the commit (see `sync` below).
+- **`ChildDeleted(childId)`** (public): `ChildService` publishes it inside the push operation that
+  deletes a Child, right after the soft delete. Listeners are plain synchronous `@EventListener`s
+  that soft-delete what belongs to the Child in the same operation (its Child field values); one
+  that throws rejects the delete.
 - **`FirstMemberRegistered(memberId)`** (public): `BootstrapService` publishes it after saving the
   first Member, inside the bootstrap transaction (which holds `FamilyLock`); Invite acceptance
   never does. Listeners are plain synchronous `@EventListener`s, so what they write commits or
@@ -412,6 +432,9 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
 (`params.categoryId`). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
+For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
+(`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a
+deleted Child or Child field is `ignored`.
 
 Rows marked "added" are not in spec #5's error catalogue. They cover failures Spring raises before
 or outside an endpoint's own checks (a body that isn't JSON, an unknown path, a wrong method, an
@@ -511,6 +534,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V8__category.sql`              | `category` (→ `list`), index on `list_id`; `list.unnamed_category_position`; `item.category_id`    |
 | `V9__item_history.sql`          | `item_history` (→ `list`), unique on (`list_id`, `normalized_name`)                                |
 | `V10__list_child.sql`           | `list.child_id` (→ `child`, nullable: a Child list), partial index on it                           |
+| `V11__child_field_value.sql`    | `child_field_value` (→ `child`, `child_field`), indexes on `child_id` and `child_field_id`         |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -572,7 +596,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest` and `lists.ItemHistorySyncTest` do.
+   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest` and `lists.ItemHistorySyncTest` do.
 
 ## Testing
 
@@ -591,7 +615,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `putJson`, `patchJson`, `delete`. Login-limit counters live for the whole cached context, so
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
-    (both cascading: Invites, resets, Lists, Items, Categories and Item history) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
+    (both cascading: Invites, resets, Lists, Items, Categories, Item history and Child field values) but keeps `child_field` Defaults; `removeChildFields(jdbc)` (with their values);
     `addMember(jdbc, email, password, name, gender)`.
   - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),

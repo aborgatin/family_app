@@ -53,7 +53,8 @@ web/src/
                         useFamilyMembers() (the Members on the local store, by id)
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(),
                         ChildrenTiles («Дети» on Home), ChildPage (the Child page, CHILD_PATH)
-    child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields()
+    child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
+                        ChildProfileSection («Профиль» on the Child page), useChildFieldValues(childId)
   shared/
     api/                API client, error-code mapping, form error helpers
     i18n/               i18next set-up, typed keys, locales/ru.json
@@ -198,10 +199,13 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`, `list`, `item`, `category`, `item_history`; `child_field`
+  (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`; `child_field`
   and `list` came with store version 2, `item`, indexed by `listId`, with version 3, `category`,
   indexed by `listId`, with version 4, `item_history`, indexed by `listId`, with version 5;
-  version 6 indexes `list` by `childId`, for Child lists),
+  version 6 indexes `list` by `childId`, for Child lists; `child_field_value`, indexed by
+  `childId` and `childFieldId`, came with version 7). A row holds the
+  fields the pull sent and `version`, the Version it was pulled with (none on a row created here
+  until the pull brings it back). Also there:
   `outbox` (`++seq`) and `meta` (the stored Version, the owner: the Member whose data it holds,
   and the owner copy the app starts from offline). Internal to the folder, except
   `claimLocalStore(memberId)` (below) and `saveOwnerCopy(owner)` / `ownerCopy()` (see "Offline
@@ -256,7 +260,7 @@ code that touches IndexedDB or the sync API:
 `this.version(n).stores({...})` in `localStore.ts` (keep the older versions as they are, never drop
 `outbox`); the pull fills it, and the feature's hook reads and writes it with `useSyncedRows` (or
 `useRows` and `upsertRow` / `deleteRow`). Rows that belong to a row of another table (an Item to
-its List) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
+its List, a Child field value to its Child and to its Child field) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
 
 ## Data access
 
@@ -279,6 +283,17 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or one past
   either end, so a reorder is a single-record change. A new field goes one past the last.
   Ordering is `position`, then id.
+- `useChildFieldValues(childId)` → `{values, save(field, value)}` (#91; `child-fields`): the
+  Child's values on the local store (`useRows('child_field_value')`). `values` is a `Map` from
+  Child field id to the value of the **latest** entry of the timeline (ADR-0007), `undefined`
+  until the first local read; a field with no entry is absent. Latest is the highest `version`
+  (the Version the pull sent the row with, so server arrival, never `recordedAt`); an entry saved
+  here and not pulled back yet has none and is later than every pulled one, the last saved first
+  among them (device-only `savedHereAt`, `upsertRow`'s `local`). `save` trims the value and
+  appends an entry with a new id (`childId`, `childFieldId`, `value`; `''` clears), resolving with
+  the value as saved, offline too; a value equal to the latest one (or empty with no entry) writes
+  nothing; a `TEXT` value over 1000 code points rejects with `validation.failed` / `too_long`
+  without writing, as the server would.
 - `useLists()` → `{load, save(id, fields), remove(id)}` (`useSyncedRows('list', …)`), like
   `useChildren()`: `load` is `ready` with every List the pull brought (never the other Member's
   Private ones: the server filters them), by name with `Intl.Collator('ru')`, then id. `save`
@@ -621,16 +636,26 @@ a `Page` titled with the Child's name, back to «Семья». Its nav bar actio
 «Изменить» to the Child's screen in Settings (`childSettingsPath(id)`, which goes back to
 Settings as before). «Профиль» is a `GroupedSection` with one plain `ListRow` «День рождения»
 whose value is the date and the age, «12.04.2019 · 7 лет» (`children.birthdayWithAge`; the date
-alone before the birthday; «Не указан» with none), read-only. Under it «Списки» has the Child lists (#90): the `lists` component the routes pass in
+alone before the birthday; «Не указан» with none), read-only. Under it, in the same section
+(`ChildProfileSection` from `features/child-fields`, which takes the birthday row as its
+children; #91), a row per Child field in the Settings order (`useChildFields()`), labelled with
+the field's name, holding this Child's latest value (`useChildFieldValues(child.id)`): an
+`InputRow` for `TEXT`, a `DateRow` (the browser's date picker, with its clear button) for `DATE`,
+each auto-saved with `useAutoSaveText` (text on blur or Enter, a date on blur, Enter or clear).
+Clearing a value saves an empty entry; leaving a row as it was saves nothing. A text over 1000
+characters is refused with «Слишком длинно» in the footer about its row (`useRowFailures`). The
+rows appear once both the fields and the values are read; with no Child fields the footer says
+«Полей профиля нет. Добавьте их в Настройках.». Values and Child fields changed on the other
+Member's device show live. Under the section, «Списки» has the Child lists (#90): the `lists` component the routes pass in
 (`ListsSection` from `features/lists`, given the Child's id; passed in because `lists` already
-imports `children` for a Child list's back link), described with `useLists()` above. The Child
-field values (#91) are added to this page later. It loads through `useChildren()`, so a deep link
+imports `children` for a Child list's back link), described with `useLists()` above. It loads through `useChildren()`, so a deep link
 works, it follows live updates (a rename, a new birthday), and it opens offline after a restart.
 An unknown id, or a Child deleted while the page is open, shows «Такого ребёнка нет: возможно,
 его удалили.» under the title «Дети», with the back link to Home. Tests:
 `children/childTiles.test.tsx`, `children/childPage.test.tsx`, `children/childLists.test.tsx`
 (Child lists on the page and off Home, «Новый список» there, a Child list's screen and settings,
-the delete warning, the store upgrade to version 6).
+the delete warning, the store upgrade to version 6),
+`child-fields/childFieldValues.test.tsx` (the profile's values, and the store upgrade to version 7).
 
 ## PWA
 
@@ -682,7 +707,10 @@ a Vite native-config-loader warning).
   (MSW 3's name for `onUnhandledRequest`), so any request without a handler fails the test.
 - The sync API is always answered by the fake sync server `syncServer` (`@/test/syncServer`,
   installed in `server.ts`, emptied after each test). It behaves like the real one (Versions,
-  per-field Last write wins, delete wins, tombstones): `seed(table, rows)`, `change(table, id,
+  per-field Last write wins, delete wins, tombstones; a deleted Child or Child field takes its
+  Child field values, in `CASCADES`; a Child field value is stamped with `recordedAt`, never
+  changes once recorded, and is `ignored` for a deleted or unknown Child or Child field):
+  `seed(table, rows)`, `change(table, id,
 fields | 'deleted')` (the other Member's change), `row(table, id)` (the server's copy),
   `operations(table)` / `pushes` (with `csrf`) / `pulls`, `goOffline()` / `goOnline()` (MSW network
   error), `rejectWhen(op => …)`, `holdPulls()` (returns `release`). Tests trigger a reconnect with

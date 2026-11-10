@@ -80,7 +80,8 @@ class ChildService implements SyncableTable {
   private Outcome delete(Child child) {
     child.markDeleted();
     children.saveAndFlush(child);
-    // Other modules delete what they keep about the Child (their Child lists), in this operation.
+    // Other modules delete what they keep about the Child (Child lists, Child field values), in
+    // this operation.
     events.publishEvent(new ChildDeleted(child.id()));
     return Outcome.APPLIED;
   }

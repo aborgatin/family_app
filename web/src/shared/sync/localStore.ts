@@ -15,6 +15,7 @@ export const SYNCED_TABLES = [
   'member',
   'child',
   'child_field',
+  'child_field_value',
   'list',
   'item',
   'category',
@@ -26,7 +27,10 @@ export function isSyncedTable(name: string): name is SyncedTable {
   return (SYNCED_TABLES as readonly string[]).includes(name);
 }
 
-/** A row of a syncable table: its id and the fields the server sends for it. */
+/**
+ * A row of a syncable table: its id and the fields the server sends for it, plus the Version the
+ * pull sent it with (`version`; absent on a row this device created and no pull has brought yet).
+ */
 export interface Row {
   id: string;
   [field: string]: unknown;
@@ -62,6 +66,8 @@ export interface Operation {
 export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTable; key: string }[] =
   [
     { parent: 'child', table: 'list', key: 'childId' },
+    { parent: 'child', table: 'child_field_value', key: 'childId' },
+    { parent: 'child_field', table: 'child_field_value', key: 'childFieldId' },
     { parent: 'list', table: 'item', key: 'listId' },
     { parent: 'list', table: 'category', key: 'listId' },
     { parent: 'list', table: 'item_history', key: 'listId' },
@@ -88,6 +94,8 @@ class LocalStore extends Dexie {
     this.version(5).stores({ item_history: 'id, listId' });
     // Child lists: a List may belong to a Child, so Lists are indexed by it (a dependent table).
     this.version(6).stores({ list: 'id, childId' });
+    // Child field values (a timeline of entries), dependent on their Child and their Child field.
+    this.version(7).stores({ child_field_value: 'id, childId, childFieldId' });
   }
 
   rows(table: SyncedTable): Table<Row, string> {

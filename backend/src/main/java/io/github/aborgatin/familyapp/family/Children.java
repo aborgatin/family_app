@@ -5,8 +5,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Children for other modules: whether a Child exists, for rows of another module that are about a
- * Child (a Child list). The Children themselves are written by the push and read by the pull.
+ * Children for the other packages and modules: whether a Child exists, for rows that are about a
+ * Child (a Child list, a Child field value). The Children themselves are written by the push and
+ * read by the pull.
  */
 @Component
 public class Children {

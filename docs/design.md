@@ -248,7 +248,10 @@ makes Esc in a field leave the screen without saving. Same on every device.
 A grouped inset list, as in the iPhone Settings app: optional `header` (footnote, uppercase,
 `secondary-label`), the rows on one `cell` with rounded corners and inset hairlines between them,
 and a footer. Rows share a two-column grid, so inline labels line up and values start at one
-edge. Use it for every group of rows; a screen is a stack of them.
+edge. The label column is as wide as the longest label, up to half the cell: a longer label of an
+`InputRow` or a `DateRow` (a Child field's name, which the Family writes) wraps onto more lines,
+so the value always keeps half the row. Use it for every group of rows; a screen is a stack of
+them.
 
 The footer is `messages`: lines top to bottom, each `{text, tone, row}`. `tone: 'error'` is red,
 `hint` (default) is `secondary-label`. A line with `row` (a row's `name`) is that row's
@@ -332,7 +335,8 @@ fine pointer.
 
 ### InputRow
 
-A text field as a row of a `GroupedSection`: `label` inline at the left, the field filling the
+A text field as a row of a `GroupedSection`: `label` inline at the left (wrapping when it would
+take more than half the row), the field filling the
 rest (`type` text, email or password; `autoComplete`). Its `name` links it to footer messages.
 Touch: 44px row, the caret is the only focus sign, as on iOS. Fine pointer: 36px row, and the
 focused field gets the accent outline. Enter submits the surrounding `Form`, unless the row
