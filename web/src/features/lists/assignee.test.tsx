@@ -1,6 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { localStore } from '@/shared/sync/localStore';
 import { anna, boris, masha, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
@@ -254,6 +256,143 @@ describe('The Item screen where an Item has no Assignee', () => {
     renderApp(itemPath(lego));
     expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue('Лего');
     expect(screen.queryByText('Ответственный')).not.toBeInTheDocument();
+  });
+});
+
+describe('Making a Shared Todo list Private', () => {
+  it('removes every Assignee, and making it Shared again restores none', async () => {
+    const flowers = item(1, 'Полить цветы', boris.id);
+    const trash = done(item(2, 'Вынести мусор', anna.id));
+    const paint = item(3, 'Купить краску', boris.id, list(6, 'Ремонт', 'TODO').id);
+    syncServer.seed('list', [list(6, 'Ремонт', 'TODO')]);
+    syncServer.seed('item', [flowers, trash, paint]);
+    const user = userEvent.setup();
+
+    const settings = renderApp(`/lists/${chores.id}/settings`);
+    await user.click(await screen.findByRole('radio', { name: 'Личный' }));
+
+    await waitFor(() => {
+      expect(syncServer.row('list', chores.id)).toMatchObject({ visibility: 'PRIVATE' });
+    });
+    expect(syncServer.row('item', flowers.id)).toMatchObject({ assigneeId: null });
+    expect(syncServer.row('item', trash.id)).toMatchObject({ assigneeId: null });
+    expect(syncServer.row('item', paint.id)).toMatchObject({ assigneeId: boris.id });
+
+    await user.click(screen.getByRole('radio', { name: 'Общий' }));
+    await waitFor(() => {
+      expect(syncServer.row('list', chores.id)).toMatchObject({ visibility: 'SHARED' });
+    });
+    settings.unmount();
+
+    renderApp(`/lists/${chores.id}`);
+    expect(await rowLine('Полить цветы')).toBe('');
+    expect(screen.queryByText('· Анна')).not.toBeInTheDocument();
+    expect(screen.queryByText('Анна')).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('textbox', { name: 'Задача «Полить цветы»' }));
+    await user.click(screen.getByRole('link', { name: 'Подробнее' }));
+    expect(chosen(await assignee())).toBe('Никто');
+  });
+
+  it('hides the Assignee on the row at once, before the server has removed it', async () => {
+    const flowers = { ...item(1, 'Полить цветы', boris.id), dueDate: '2026-11-15' };
+    syncServer.seed('item', [flowers]);
+    const user = userEvent.setup();
+
+    const settings = renderApp(`/lists/${chores.id}/settings`);
+    const visibility = await screen.findByRole('radio', { name: 'Личный' });
+    syncServer.goOffline();
+    await user.click(visibility);
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: 'Личный' })).toBeChecked();
+    });
+    settings.unmount();
+
+    renderApp(`/lists/${chores.id}`);
+    expect(await rowLine('Полить цветы')).toBe('15 нояб.');
+  });
+});
+
+describe('An Assignee the server rejects', () => {
+  it('says the list is Private when its Owner made it so meanwhile, and shows the server’s copy', async () => {
+    const flowers = item(1, 'Полить цветы');
+    syncServer.seed('item', [flowers]);
+    const user = userEvent.setup();
+
+    renderApp(itemPath(flowers));
+    const select = await assignee();
+    syncServer.rejectWhen(() => ({
+      code: 'item.assignee_on_private_list',
+      params: { listId: chores.id },
+    }));
+    await user.selectOptions(select, 'Борис');
+
+    expect(
+      await screen.findByText('Не удалось сохранить: в личном списке нет ответственных'),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(chosen(select)).toBe('Никто');
+    });
+  });
+
+  it('says the Member is no more', async () => {
+    const flowers = item(1, 'Полить цветы');
+    syncServer.seed('item', [flowers]);
+    const user = userEvent.setup();
+
+    renderApp(itemPath(flowers));
+    const select = await assignee();
+    syncServer.rejectWhen(() => ({
+      code: 'item.assignee_not_found',
+      params: { assigneeId: boris.id },
+    }));
+    await user.selectOptions(select, 'Борис');
+
+    expect(
+      await screen.findByText('Не удалось сохранить: такого взрослого больше нет'),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('A store from the app version before Assignees', () => {
+  it('still sends its unsent operation, and its Items take an Assignee', async () => {
+    // The store as the app before this ticket left it (schema version 7): a todo item pulled
+    // without `assigneeId`, given a Due date offline and not sent yet.
+    const pulled = item(1, 'Полить цветы');
+    const flowers = Object.fromEntries(
+      Object.entries(pulled).filter(([field]) => field !== 'assigneeId'),
+    ) as Omit<typeof pulled, 'assigneeId'>;
+    syncServer.seed('item', [flowers]);
+    localStore.close();
+    await Dexie.delete(localStore.name);
+    const older = new Dexie(localStore.name);
+    older.version(1).stores({ member: 'id', child: 'id', outbox: '++seq', meta: 'key' });
+    older.version(2).stores({ child_field: 'id', list: 'id' });
+    older.version(3).stores({ item: 'id, listId' });
+    older.version(4).stores({ category: 'id, listId' });
+    older.version(5).stores({ item_history: 'id, listId' });
+    older.version(6).stores({ list: 'id, childId' });
+    older.version(7).stores({ child_field_value: 'id, childId, childFieldId' });
+    await older.table('list').put(chores);
+    await older.table('item').put({ ...flowers, dueDate: '2026-11-15' });
+    await older
+      .table('outbox')
+      .add({ table: 'item', id: flowers.id, op: 'upsert', fields: { dueDate: '2026-11-15' } });
+    older.close();
+    await localStore.open();
+    const user = userEvent.setup();
+
+    renderApp(itemPath(flowers));
+
+    expect(await screen.findByLabelText('Срок')).toHaveValue('2026-11-15');
+    await waitFor(() => {
+      expect(syncServer.row('item', flowers.id)).toMatchObject({ dueDate: '2026-11-15' });
+    });
+    const select = await assignee();
+    expect(chosen(select)).toBe('Никто');
+    await user.selectOptions(select, 'Борис');
+    await waitFor(() => {
+      expect(pushed()).toEqual([{ dueDate: '2026-11-15' }, { assigneeId: boris.id }]);
+    });
   });
 });
 
