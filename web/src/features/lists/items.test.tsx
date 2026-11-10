@@ -1,12 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { localStore } from '@/shared/sync/localStore';
 import { anna, boris, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
+import { upgradeStoreFrom } from '@/test/olderStore';
 
 // Items on the List screen (spec #3, ticket #57): open Items in the order added, newest at the
 // bottom; adding from the last row, editing in place and deleting, all on the local store and
@@ -735,18 +734,13 @@ describe('The store upgrade that adds Items', () => {
   it('sends a List still waiting in the store of the app version before Items', async () => {
     // The store as the app before Items created it (schema version 2), with a List added offline
     // and not sent yet.
-    localStore.close();
-    await Dexie.delete(localStore.name);
-    const older = new Dexie(localStore.name);
-    older.version(1).stores({ member: 'id', child: 'id', outbox: '++seq', meta: 'key' });
-    older.version(2).stores({ child_field: 'id', list: 'id' });
     const { id, name, kind, visibility } = groceries;
-    await older.table('list').put({ id, name, kind, visibility });
-    await older
-      .table('outbox')
-      .add({ table: 'list', id, op: 'upsert', fields: { name, kind, visibility } });
-    older.close();
-    await localStore.open();
+    await upgradeStoreFrom(2, async (older) => {
+      await older.table('list').put({ id, name, kind, visibility });
+      await older
+        .table('outbox')
+        .add({ table: 'list', id, op: 'upsert', fields: { name, kind, visibility } });
+    });
 
     renderApp(`/lists/${groceries.id}`);
 

@@ -1,12 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { localStore } from '@/shared/sync/localStore';
 import { anna, boris, masha, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
+import { upgradeStoreFrom } from '@/test/olderStore';
 
 // A todo item's Due date (spec #81, ticket #84): a day, optionally with a time of day, set on the
 // Item screen («Срок», «Время»), shown on the Todo list's row under the name, red when overdue by
@@ -436,21 +435,13 @@ describe('A store from the app version before Due dates', () => {
     const { id, listId, text, description, done: open, creatorId, createdAt } = item(1, 'Цветы');
     const flowers = { id, listId, text, description, done: open, creatorId, createdAt };
     syncServer.seed('item', [flowers]);
-    localStore.close();
-    await Dexie.delete(localStore.name);
-    const older = new Dexie(localStore.name);
-    older.version(1).stores({ member: 'id', child: 'id', outbox: '++seq', meta: 'key' });
-    older.version(2).stores({ child_field: 'id', list: 'id' });
-    older.version(3).stores({ item: 'id, listId' });
-    older.version(4).stores({ category: 'id, listId' });
-    older.version(5).stores({ item_history: 'id, listId' });
-    await older.table('list').put(chores);
-    await older.table('item').put({ ...flowers, text: 'Полить фикус' });
-    await older
-      .table('outbox')
-      .add({ table: 'item', id, op: 'upsert', fields: { text: 'Полить фикус' } });
-    older.close();
-    await localStore.open();
+    await upgradeStoreFrom(5, async (older) => {
+      await older.table('list').put(chores);
+      await older.table('item').put({ ...flowers, text: 'Полить фикус' });
+      await older
+        .table('outbox')
+        .add({ table: 'item', id, op: 'upsert', fields: { text: 'Полить фикус' } });
+    });
     const user = userEvent.setup();
 
     renderApp(itemPath(flowers));

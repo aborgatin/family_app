@@ -1,8 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import Dexie from 'dexie';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { localStore } from '@/shared/sync/localStore';
 import {
   anna,
   boris,
@@ -15,6 +13,7 @@ import {
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
+import { upgradeStoreFrom } from '@/test/olderStore';
 
 // Child lists (spec #81, ticket #90): Todo lists and Wish lists created on a Child page, always
 // Shared, tied to that Child, absent from Home's «Списки», and deleted with the Child.
@@ -323,21 +322,17 @@ describe('The store upgrade that adds Child lists', () => {
   it('sends a List still waiting in the store of the app version before Child lists', async () => {
     // The store as the app before Child lists created it (schema version 5), with a List added
     // offline and not sent yet.
-    localStore.close();
-    await Dexie.delete(localStore.name);
-    const older = new Dexie(localStore.name);
-    older.version(1).stores({ member: 'id', child: 'id', outbox: '++seq', meta: 'key' });
-    older.version(2).stores({ child_field: 'id', list: 'id' });
-    older.version(3).stores({ item: 'id, listId' });
-    older.version(4).stores({ category: 'id, listId' });
-    older.version(5).stores({ item_history: 'id, listId' });
     const { id, name, kind, visibility } = chores;
-    await older.table('list').put({ id, name, kind, visibility });
-    await older
-      .table('outbox')
-      .add({ table: 'list', id, op: 'upsert', fields: { name, kind, visibility }, creates: true });
-    older.close();
-    await localStore.open();
+    await upgradeStoreFrom(5, async (older) => {
+      await older.table('list').put({ id, name, kind, visibility });
+      await older.table('outbox').add({
+        table: 'list',
+        id,
+        op: 'upsert',
+        fields: { name, kind, visibility },
+        creates: true,
+      });
+    });
 
     renderApp('/');
 

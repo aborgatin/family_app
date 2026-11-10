@@ -261,8 +261,8 @@ code that touches IndexedDB or the sync API:
     be gone).
 
 **Adding a syncable table** on the client: add the name to `SYNCED_TABLES` and declare it in a new
-`this.version(n).stores({...})` in `localStore.ts` (keep the older versions as they are, never drop
-`outbox`); the pull fills it, and the feature's hook reads and writes it with `useSyncedRows` (or
+entry at the end of `STORE_SCHEMA` in `localStore.ts` (one entry per Dexie version; keep the older
+entries as they are, never drop `outbox`); the pull fills it, and the feature's hook reads and writes it with `useSyncedRows` (or
 `useRows` and `upsertRow` / `deleteRow`). Rows that belong to a row of another table (an Item to
 its List, a Child field value to its Child and to its Child field) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
 
@@ -791,7 +791,10 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent),
   and `dueDate.test.tsx` that a version 5 store from before Due dates still sends its unsent
   operation and its Items take a Due date, and `assignee.test.tsx` and `repeat.test.tsx` the same for a version 7 store from
-  before Assignees and Repeats (a new Item field needs no store version); the fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, and making a List Private there removes the Assignee from all its Items, as on the real server.
+  before Assignees and Repeats (a new Item field needs no store version). A store-upgrade test
+  builds the older store with `upgradeStoreFrom(version, async (older) => { … })`
+  (`@/test/olderStore`: the first `version` entries of `STORE_SCHEMA`, seeded, then the current
+  store opened over it). The fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, and making a List Private there removes the Assignee from all its Items, as on the real server.
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,

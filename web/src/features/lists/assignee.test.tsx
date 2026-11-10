@@ -1,12 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { localStore } from '@/shared/sync/localStore';
 import { anna, boris, masha, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
+import { upgradeStoreFrom } from '@/test/olderStore';
 
 // A todo item's Assignee (spec #81, ticket #85): a Member, on a Shared Todo list only, chosen on
 // the Item screen («Ответственный»: «Никто», then each Member) and shown on the row after the Due
@@ -362,23 +361,13 @@ describe('A store from the app version before Assignees', () => {
       Object.entries(pulled).filter(([field]) => field !== 'assigneeId'),
     ) as Omit<typeof pulled, 'assigneeId'>;
     syncServer.seed('item', [flowers]);
-    localStore.close();
-    await Dexie.delete(localStore.name);
-    const older = new Dexie(localStore.name);
-    older.version(1).stores({ member: 'id', child: 'id', outbox: '++seq', meta: 'key' });
-    older.version(2).stores({ child_field: 'id', list: 'id' });
-    older.version(3).stores({ item: 'id, listId' });
-    older.version(4).stores({ category: 'id, listId' });
-    older.version(5).stores({ item_history: 'id, listId' });
-    older.version(6).stores({ list: 'id, childId' });
-    older.version(7).stores({ child_field_value: 'id, childId, childFieldId' });
-    await older.table('list').put(chores);
-    await older.table('item').put({ ...flowers, dueDate: '2026-11-15' });
-    await older
-      .table('outbox')
-      .add({ table: 'item', id: flowers.id, op: 'upsert', fields: { dueDate: '2026-11-15' } });
-    older.close();
-    await localStore.open();
+    await upgradeStoreFrom(7, async (older) => {
+      await older.table('list').put(chores);
+      await older.table('item').put({ ...flowers, dueDate: '2026-11-15' });
+      await older
+        .table('outbox')
+        .add({ table: 'item', id: flowers.id, op: 'upsert', fields: { dueDate: '2026-11-15' } });
+    });
     const user = userEvent.setup();
 
     renderApp(itemPath(flowers));

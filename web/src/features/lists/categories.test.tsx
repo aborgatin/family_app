@@ -1,12 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import Dexie from 'dexie';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { localStore } from '@/shared/sync/localStore';
 import { anna, boris, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
+import { upgradeStoreFrom } from '@/test/olderStore';
 
 // Categories on the Shopping list screen (spec #4, ticket #70): one section per Category and one
 // for the Unnamed category, in walking order, each with its own «Новый товар» field.
@@ -372,20 +371,14 @@ describe('The store upgrade that adds Categories', () => {
   it('sends an Item still waiting in the store of the app version before Categories', async () => {
     // The store as the app before Categories created it (schema version 3), with an Item added
     // offline and not sent yet.
-    localStore.close();
-    await Dexie.delete(localStore.name);
-    const older = new Dexie(localStore.name);
-    older.version(1).stores({ member: 'id', child: 'id', outbox: '++seq', meta: 'key' });
-    older.version(2).stores({ child_field: 'id', list: 'id' });
-    older.version(3).stores({ item: 'id, listId' });
     const { id, name, kind, visibility } = groceries;
     const milkId = item(1, '', null, '').id;
     const milk = { listId: id, text: 'Молоко' };
-    await older.table('list').put({ id, name, kind, visibility });
-    await older.table('item').put({ id: milkId, ...milk, done: false });
-    await older.table('outbox').add({ table: 'item', id: milkId, op: 'upsert', fields: milk });
-    older.close();
-    await localStore.open();
+    await upgradeStoreFrom(3, async (older) => {
+      await older.table('list').put({ id, name, kind, visibility });
+      await older.table('item').put({ id: milkId, ...milk, done: false });
+      await older.table('outbox').add({ table: 'item', id: milkId, op: 'upsert', fields: milk });
+    });
     syncServer.seed('list', [groceries]);
 
     renderApp(`/lists/${groceries.id}`);
