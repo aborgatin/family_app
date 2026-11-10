@@ -312,7 +312,10 @@ export const SEED = {
         visibility: 'SHARED',
         items: [
           'Молоко 3,2%',
-          'Хлеб бородинский',
+          {
+            text: 'Хлеб бородинский',
+            description: 'Нарезанный, половинку. Если нет — любой ржаной https://shop.example.com/bread/borodinsky-nareznoy',
+          },
           'Яйца, десяток',
           { text: 'Помидоры черри', done: true },
           { text: 'Сыр', done: true },
@@ -326,7 +329,7 @@ export const SEED = {
         visibility: 'SHARED',
         items: [
           'Поменять лампочку в коридоре',
-          'Записать Машу к стоматологу',
+          { text: 'Записать Машу к стоматологу', description: 'Детская стоматология на Лесной, после 15:00' },
           { text: 'Оплатить интернет', done: true },
         ],
       },
@@ -368,7 +371,7 @@ async function api(page, method, url, body) {
 
 /**
  * Creates Lists, and their `items` in that order, through the sync push as the Member logged in on
- * `page`. An Item is its text, or `{text, done: true}` for a Done one (ticked in the same order).
+ * `page`. An Item is its text, or `{text, description?, done?}` (Done ones ticked in the same order).
  */
 async function pushLists(page, lists) {
   const operations = lists.flatMap(({ items = [], ...fields }) => {
@@ -376,7 +379,7 @@ async function pushLists(page, lists) {
     const added = items.map((item) => ({ id: crypto.randomUUID(), ...(typeof item === 'string' ? { text: item } : item) }));
     return [
       { table: 'list', id: listId, op: 'upsert', fields },
-      ...added.map(({ id, text }) => ({ table: 'item', id, op: 'upsert', fields: { listId, text } })),
+      ...added.map(({ id, text, description }) => ({ table: 'item', id, op: 'upsert', fields: { listId, text, description } })),
       ...added.filter((item) => item.done).map(({ id }) => ({ table: 'item', id, op: 'upsert', fields: { done: true } })),
     ];
   });

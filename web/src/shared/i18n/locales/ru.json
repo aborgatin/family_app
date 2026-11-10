@@ -61,6 +61,8 @@
       "todo": "Задача «{{text}}»",
       "wish": "Желание «{{text}}»"
     },
+    "description": "Описание",
+    "itemDescription": "Описание «{{text}}»",
     "newItem": {
       "shopping": "Новый товар",
       "todo": "Новая задача",

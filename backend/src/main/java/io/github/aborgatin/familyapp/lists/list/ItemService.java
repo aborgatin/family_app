@@ -64,7 +64,7 @@ class ItemService implements SyncableTable {
       return Outcome.IGNORED;
     }
     ItemDetails details =
-        new ItemRequest(operation.text("text"), operation.text("note")).validate();
+        new ItemRequest(operation.text("text"), operation.text("description")).validate();
     boolean done = operation.has("done") && done(operation);
     Instant now = clock.instant();
     ItemEntity item = new ItemEntity(operation.id(), listId, operation.memberId(), now, details);
@@ -80,7 +80,7 @@ class ItemService implements SyncableTable {
     ItemDetails details =
         new ItemRequest(
                 operation.has("text") ? operation.text("text") : item.text(),
-                operation.has("note") ? operation.text("note") : item.note())
+                operation.has("description") ? operation.text("description") : item.description())
             .validate();
     boolean done = operation.has("done") ? done(operation) : item.done();
     item.replace(details);
@@ -146,7 +146,7 @@ class ItemService implements SyncableTable {
         (item, fields) -> {
           fields.put("listId", item.listId().toString());
           fields.put("text", item.text());
-          fields.put("note", item.note());
+          fields.put("description", item.description());
           fields.put("done", item.done());
           fields.put("doneById", item.doneById() == null ? null : item.doneById().toString());
           fields.put("doneAt", item.doneAt() == null ? null : item.doneAt().toString());

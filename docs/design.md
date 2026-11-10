@@ -374,8 +374,17 @@ screen, chevron; not in edit mode), `confirm` (`{title, message}` of the action 
 shows the spinner, and its `name` links it to the footer messages. It looks like the title; with
 a fine pointer the focused field gets the accent outline. In edit mode the row shows `title`.
 
+`secondary` (with `input`) adds a grey secondary line under the title, in `subhead`
+`secondary-label` (an Item's Description). While the row is being edited (the focus is anywhere
+in it) it is a multi-line text field that grows with its text, with a `placeholder` («Описание»)
+in `tertiary-label`: Enter starts a new line, blur saves, Esc puts the saved text back. Out of it a
+non-empty value is one line cut with «…», its http(s) addresses links in `accent` that open in a
+new tab; tapping the line beside them starts editing with the full text and the caret at the end.
+Leaving the row with it empty hides it. Spread `useAutoSaveText()`'s `input` and add `label` and
+`placeholder`.
+
 Children use it for delete only (`to` their screen), Child fields with `input` and `sortable`,
-Items with `input` and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
+Items with `input`, `secondary` (the Description) and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
 Invites plain.
 
 `muted` (on `ListRow` and `EditableRow`) shows the title in `secondary-label`: something set

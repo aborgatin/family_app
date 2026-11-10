@@ -150,6 +150,38 @@ export default {
       ],
     },
     {
+      // The Item being edited: its grey «Описание» line, empty, under the title.
+      name: 'list-item-description-empty',
+      path: '/',
+      fullPage: false,
+      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { click: ITEM }, { waitFor: 'role=textbox[name="Описание «Молоко 3,2%»"]' }],
+    },
+    {
+      // Tapping the cut Description line opens it in full; Enter started a second line.
+      name: 'list-item-description-editing',
+      path: '/',
+      isolate: true,
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { click: 'text=Нарезанный, половинку' },
+        { waitFor: 'role=textbox[name="Описание «Хлеб бородинский»"]' },
+        async (page) => page.keyboard.type('\nВитрина справа от кассы'),
+        { wait: 200 },
+      ],
+    },
+    {
+      // A Todo Item's Description being edited.
+      name: 'list-todo-description-editing',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { click: 'text=Детская стоматология' },
+        { waitFor: 'role=textbox[name="Описание «Записать Машу к стоматологу»"]' },
+      ],
+    },
+    {
       name: 'list-item-empty-text',
       path: '/',
       fullPage: false,

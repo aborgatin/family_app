@@ -29,7 +29,7 @@ class ItemEntity implements SyncedRecord {
   @Column(nullable = false)
   private String text;
 
-  @Nullable private String note;
+  @Nullable private String description;
 
   @Column(nullable = false)
   private boolean done;
@@ -68,7 +68,7 @@ class ItemEntity implements SyncedRecord {
   /** Sets the fields an operation may change. */
   void replace(ItemDetails details) {
     this.text = details.text();
-    this.note = details.note();
+    this.description = details.description();
   }
 
   /**
@@ -103,8 +103,8 @@ class ItemEntity implements SyncedRecord {
   }
 
   @Nullable
-  String note() {
-    return note;
+  String description() {
+    return description;
   }
 
   boolean done() {
