@@ -421,7 +421,7 @@ function ItemRow({
   const text = useAutoSaveText({ name: item.id, saved: item.text, save, required: true });
   const saveDescription = useCallback((value: string) => describe(item, value), [item, describe]);
   const description = useAutoSaveText({
-    name: item.id,
+    name: `${item.id}-description`,
     saved: item.description ?? '',
     save: saveDescription,
   });

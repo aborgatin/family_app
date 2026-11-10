@@ -82,6 +82,8 @@ export interface RowSecondaryProps {
   label: string;
   /** Already translated; shown in the empty field. */
   placeholder: string;
+  /** Names the line for the group footer's messages, apart from the title's `name`. */
+  name: string;
   value: string;
   onChange: (value: string) => void;
   /** Called on blur. */
@@ -292,6 +294,7 @@ function RowInput({ label, name, value, onChange, onCommit, onRevert }: RowInput
 function SecondaryInput({
   label,
   placeholder,
+  name,
   value,
   onChange,
   onCommit,
@@ -302,6 +305,7 @@ function SecondaryInput({
   takeFocus: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const { describedBy, invalid } = useSectionRow(name);
 
   useLayoutEffect(() => {
     const field = ref.current;
@@ -321,7 +325,10 @@ function SecondaryInput({
     <textarea
       ref={ref}
       rows={1}
+      name={name}
       aria-label={label}
+      aria-invalid={invalid}
+      aria-describedby={describedBy}
       placeholder={placeholder}
       value={value}
       onChange={(event) => {

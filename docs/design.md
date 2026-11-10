@@ -395,7 +395,8 @@ in `tertiary-label`: Enter starts a new line, blur saves, Esc puts the saved tex
 non-empty value is one line cut with «…», its http(s) addresses links in `accent` that open in a
 new tab; tapping the line beside them starts editing with the full text and the caret at the end.
 Leaving the row with it empty hides it. Spread `useAutoSaveText()`'s `input` and add `label` and
-`placeholder`.
+`placeholder`; its `name` must differ from the title's, so a footer line about a failed save is
+tied to the field that failed.
 
 `chip` (with `secondary`) adds a `MenuChip` under the secondary line while the row is being edited
 (an Item's Category); the row stays edited while the chip's menu is open, and the focus goes back
