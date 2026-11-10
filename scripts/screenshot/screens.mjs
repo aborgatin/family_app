@@ -25,6 +25,19 @@ const categories = (name) => [
   { click: 'role=link[name="Категории"]' },
   { waitFor: 'role=list[name="Категории"]' },
 ];
+/** Steps from Home to the Item screen of an open Item: its row is edited, then «Подробнее». */
+const openItem = (listName, kindWord, text) => [
+  { click: `role=link[name=/${listName}/]` },
+  { click: `role=textbox[name="${kindWord} «${text}»"]` },
+  { click: 'role=link[name="Подробнее"]' },
+  { waitFor: 'role=textbox[name="Название"]' },
+];
+/** Steps from Home to the Item screen of a Done Item: a tap on its text. */
+const openDoneItem = (listName, text) => [
+  { click: `role=link[name=/${listName}/]` },
+  { click: `role=link[name="${text}"]` },
+  { waitFor: 'role=textbox[name="Название"]' },
+];
 const showInvites = async (page) => {
   await page.locator(INVITE).scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, 200));
@@ -345,7 +358,8 @@ export default {
       ],
     },
     {
-      // The Item being edited: its grey «Описание» line, empty, under the title.
+      // The Item being edited: its grey «Описание» line, empty, under the title, and «Подробнее»
+      // at the end of the line under it (#83).
       name: 'list-item-description-empty',
       path: '/',
       fullPage: false,
@@ -495,6 +509,70 @@ export default {
       name: 'list-wish-empty',
       path: '/',
       steps: [{ click: 'role=link[name=/Книги/]' }, { waitFor: 'text=Желаний пока нет' }],
+    },
+
+    // The Item screen (#83), opened by «Подробнее» on the row being edited, or a Done row's text
+    // A shopping Item: the name, the large «Описание» with its link, the Done toggle, who added it.
+    { name: 'item-shopping', path: '/', steps: openItem('Супермаркет', 'Товар', 'Хлеб бородинский') },
+    // A Done one: ticked, with «Купила Анна, …» under «Добавила Анна, …».
+    { name: 'item-shopping-done', path: '/', steps: openDoneItem('Супермаркет', 'Сыр') },
+    { name: 'item-todo', path: '/', steps: openItem('Дела по дому', 'Задача', 'Записать Машу к стоматологу') },
+    { name: 'item-todo-done', path: '/', steps: openDoneItem('Дела по дому', 'Оплатить интернет') },
+    // A wish without a Description: the empty large field.
+    { name: 'item-wish', path: '/', steps: openItem('Подарки', 'Желание', 'Самокат') },
+    { name: 'item-wish-done', path: '/', steps: openDoneItem('Подарки', 'Набор фломастеров') },
+    {
+      // The Description tapped beside its link: one field with the whole text, a paragraph added.
+      name: 'item-description-editing',
+      path: '/',
+      isolate: true,
+      steps: [
+        ...openItem('Супермаркет', 'Товар', 'Хлеб бородинский'),
+        // Its first line: the middle of the text is the link.
+        async (page) => page.locator('p:has-text("Нарезанный, половинку")').click({ position: { x: 8, y: 8 } }),
+        async (page) => page.keyboard.type('\n\nВитрина справа от кассы, верхняя полка'),
+        { wait: 200 },
+      ],
+    },
+    {
+      name: 'item-delete-confirm',
+      path: '/',
+      fullPage: false,
+      steps: [
+        ...openItem('Супермаркет', 'Товар', 'Молоко 3,2%'),
+        { click: 'role=button[name="Удалить"]' },
+        { waitFor: 'role=dialog' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // An Item that is unknown, or was deleted meanwhile: the List is there, the Item is not.
+      name: 'item-missing',
+      path: '/',
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        async (page) => page.goto(`${page.url()}/items/00000000-0000-7000-8000-000000000000`),
+        { waitFor: 'role=alert' },
+      ],
+    },
+    {
+      // Deleted in another tab while the Item screen is open here.
+      name: 'item-gone',
+      path: '/',
+      isolate: true,
+      steps: [
+        ...openItem('Супермаркет', 'Товар', 'Молоко 3,2%'),
+        async (page) => {
+          const other = await page.context().newPage();
+          await other.goto(page.url());
+          await other.locator('role=button[name="Удалить"]').click();
+          await other.locator('role=dialog >> role=button[name="Удалить"]').click();
+          await other.locator(ITEM.replace('Молоко 3,2%', 'Яйца, десяток')).waitFor();
+          await other.close();
+        },
+        { waitFor: 'role=alert' },
+      ],
     },
 
     // «Настройки списка», opened by the gear on the List screen
