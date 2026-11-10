@@ -21,3 +21,11 @@ export const LIST_CATEGORIES_PATH = '/lists/:id/categories';
 export function listCategoriesPath(id: string): string {
   return LIST_CATEGORIES_PATH.replace(':id', encodeURIComponent(id));
 }
+
+/** Route of a Todo list's «Выполненные ранее» screen, opened from the row under «Выполнено». */
+export const LIST_DONE_EARLIER_PATH = '/lists/:id/done-earlier';
+
+/** Path of the «Выполненные ранее» screen of the List with this id. */
+export function listDoneEarlierPath(id: string): string {
+  return LIST_DONE_EARLIER_PATH.replace(':id', encodeURIComponent(id));
+}

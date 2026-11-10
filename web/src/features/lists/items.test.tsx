@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Dexie from 'dexie';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localStore } from '@/shared/sync/localStore';
 import { anna, boris, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
@@ -63,6 +63,9 @@ async function itemTexts(name = 'Товары') {
 beforeEach(() => {
   document.cookie = 'XSRF-TOKEN=token-from-server';
   server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
+});
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('The List screen’s Items', () => {
@@ -666,6 +669,8 @@ describe('Done', () => {
     ['TODO', 'Выполнено', 'Задачи'],
     ['WISH', 'Исполнено', 'Желания'],
   ] as const)('a %s List’s Done Items are headed «%s»', async (kind, done, header) => {
+    // A Todo list shows only what was done in the last 7 days: the device's day is the next one.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-03T12:00:00Z') });
     const shown = list(5, 'Мой список', kind);
     syncServer.seed('list', [shown]);
     syncServer.seed('item', [

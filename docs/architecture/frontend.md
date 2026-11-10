@@ -39,7 +39,9 @@ web/src/
     lists/              ListsSection («Списки» on Home and on the Child page), NewListSheet, ListPage,
                         ListSettingsPage, useListHome (back to Home, or to the Child page),
                         CategoriesPage («Категории» of a Shopping list),
-                        listPaths (LIST_PATH, LIST_SETTINGS_PATH, LIST_CATEGORIES_PATH),
+                        DoneEarlierPage («Выполненные ранее» of a Todo list),
+                        listPaths (LIST_PATH, LIST_SETTINGS_PATH, LIST_CATEGORIES_PATH,
+                        LIST_DONE_EARLIER_PATH),
                         ListMissing (gone / loading),
                         ItemsSection (the List screen's Items, by Category on a Shopping list),
                         listTypes (kinds, Visibility, kind texts, Item, Category,
@@ -103,6 +105,7 @@ frame around every screen and the place a sidebar goes later.
 | `/lists/:id`             | `ListPage`          | logged in                      |
 | `/lists/:id/settings`    | `ListSettingsPage`  | logged in                      |
 | `/lists/:id/categories`  | `CategoriesPage`    | logged in                      |
+| `/lists/:id/done-earlier` | `DoneEarlierPage`  | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
@@ -338,7 +341,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   (the start of the name, or after a space) that starts with the typed text, both trimmed and
   lower-cased, newest `lastUsedAt` first (fraction padded as for `createdAt`), ties by name. Only a
   Shopping list's screen uses it.
-- `useItems(list)` → `{items, doneItems, add(text, categoryId?), rename(item, text),
+- `useItems(list)` → `{items, doneItems, earlierDoneItems, add(text, categoryId?), rename(item, text),
   describe(item, description), move(item, categoryId), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
   by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
@@ -350,7 +353,12 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   sent; `setDone` also clears the old `doneById` / `doneAt` locally the same way, so an Item ticked
   back on and off again goes on top). Device and server times are never compared: pending ticks
   are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
-  so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`, and
+  so the server's copy keeps the Item where it was. **The Done window** (#88): on a Todo list
+  `doneItems` are only those whose `doneAt` is today or in the six calendar days before, by the
+  device clock and time zone (from local midnight six days ago; one ticked off here and not pulled
+  back yet has no `doneAt` and counts as done now), and `earlierDoneItems` the older ones, in the
+  same order; the day is read on every render, so the split follows midnight at the next render.
+  On Shopping and Wish lists `doneItems` are all of them and `earlierDoneItems` is empty. `add` creates (`listId`, `text`, and
   `categoryId` when added in a Category, `description` when one was typed in the add row's
   «Описание» line, #79; all in one upsert). On a Shopping list `add` first
   looks among the List's Items for one with the same name, both trimmed and lower-cased (#75; an
@@ -382,6 +390,18 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   «Очистить» (destructive) / «Отменить», then `remove()` for every Done Item shown, so one Item
   delete each and no list-level operation (spec #67, ticket #71). An Item the other Member ticked
   off that no pull has brought yet isn't shown, so it stays.
+  **A Todo list's «Выполнено»** (#88) holds only `doneItems` (the last 7 days) and, while there
+  are `earlierDoneItems`, ends with a chevron row «Выполненные ранее» (a `ListRow` as the
+  section's `after`, so not part of the edit-mode list); with only older Done Items the section is
+  that row alone, without «Изменить». The row opens `DoneEarlierPage`
+  (`/lists/:id/done-earlier`, `listDoneEarlierPath(id)`): a `Page` «Выполненные ранее» back to
+  the List (the back button shows its name) with one section of the same Done rows (`DoneItems`,
+  shared with the List screen): most recent first, unticking puts the Item back among the List's
+  open ones, deleting asks first (edit mode, swipe or right-click), no «Очистить». When the last
+  one goes the section stays with the footer «Выполненных ранее задач нет». A List that is not a
+  Todo list, is unknown or disappears shows `ListMissing`, as «Категории» does for a List that is
+  not a Shopping list. Nothing is ever removed by the window: a Done todo item leaves both places
+  only when a Member deletes it.
   **A Shopping list** (`ShoppingItems`, #70) shows the same «Товары» section while it has no
   named Categories. With some, the open Items are in one section per `itemsByCategory()` entry:
   a Category's headed by its name (edit mode while it has Items), the Unnamed category's untitled
@@ -652,7 +672,7 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   and `/api/invites`.
 - Lists, Items, Categories and Item history tests (`lists/lists.test.tsx`, `lists/items.test.tsx`,
   `lists/categories.test.tsx`, `lists/categoriesScreen.test.tsx`, `lists/itemHistory.test.tsx`,
-  `lists/reAdding.test.tsx`) build
+  `lists/reAdding.test.tsx`, `lists/doneEarlier.test.tsx`) build
   their rows inline and seed them with
   `syncServer.seed('list' | 'item' | 'category' | 'item_history', …)`; `items.test.tsx` and `categories.test.tsx`
   also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, as on the real server.
@@ -660,6 +680,12 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,
   `sessionHandler`.
+- The device clock: `vi.useFakeTimers({ toFake: ['Date'], now })` in `beforeEach` and
+  `vi.useRealTimers()` after (`children.test.tsx` for ages, `doneEarlier.test.tsx` for the Done
+  window, whose Done times are built from local dates so the tests pass in any time zone).
+- A deep link to a screen renders with an empty store first, so «Такого списка нет» may show for
+  a moment before the pull. A test that expects it as the final state fills the store first
+  (render the List, wait, `unmount()`, render the deep link: an app restart).
 - Query by role and label; assert on the Russian text the user sees (T1). Set
   `document.cookie = 'XSRF-TOKEN=…'` to check the CSRF header.
 - To test copying, stub `ClipboardItem` (`vi.stubGlobal`) and `navigator.clipboard` (`write`,
