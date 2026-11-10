@@ -15,6 +15,11 @@ export interface List {
   name: string;
   kind: ListKind;
   visibility: Visibility;
+  /**
+   * The Unnamed category's place among the Categories (a Shopping list's): ordered with their
+   * positions. Absent on a row pulled before Categories existed: 0.
+   */
+  unnamedCategoryPosition?: number;
   /** The Owner's Member id. Set by the server: absent until the pull after creating the List. */
   ownerId?: string;
   /** ISO-8601. Set by the server: absent until the pull after creating the List. */
@@ -33,6 +38,8 @@ export interface Item {
   id: string;
   listId: string;
   text: string;
+  /** The Item's Category in a Shopping list; none (`null` or absent) is the Unnamed category. */
+  categoryId?: string | null;
   /** The Description: details or a link, several lines; `null` when there is none. */
   description: string | null;
   /** Done, and who marked it Done and when (set by the server when Done changes). */
@@ -48,6 +55,15 @@ export interface Item {
   creatorId?: string;
   /** ISO-8601. Set by the server: absent until the pull after adding the Item. */
   createdAt?: string;
+}
+
+/** A Category of a Shopping list as the local store keeps it (the fields the sync pull sends). */
+export interface Category {
+  id: string;
+  listId: string;
+  name: string;
+  /** The ordering key: by position, ties by id; the Unnamed category's is the List's. */
+  position: number;
 }
 
 export const LIST_KINDS: readonly ListKind[] = ['SHOPPING', 'TODO', 'WISH'];

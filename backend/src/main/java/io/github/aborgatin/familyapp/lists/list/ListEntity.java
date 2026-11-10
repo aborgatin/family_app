@@ -38,6 +38,13 @@ class ListEntity implements SyncedRecord {
   @Column(nullable = false)
   private Visibility visibility;
 
+  /**
+   * The Unnamed category's place among the List's Categories (ordered like their positions). Only a
+   * Shopping list shows Categories; 0 for a new List.
+   */
+  @Column(nullable = false)
+  private double unnamedCategoryPosition;
+
   @Column(nullable = false, updatable = false)
   private UUID ownerId;
 
@@ -69,6 +76,7 @@ class ListEntity implements SyncedRecord {
   void replace(ListDetails details) {
     this.name = details.name();
     this.visibility = details.visibility();
+    this.unnamedCategoryPosition = details.unnamedCategoryPosition();
   }
 
   /** Soft delete (S2): the row stays and its Version advances. */
@@ -105,6 +113,10 @@ class ListEntity implements SyncedRecord {
 
   Visibility visibility() {
     return visibility;
+  }
+
+  double unnamedCategoryPosition() {
+    return unnamedCategoryPosition;
   }
 
   UUID ownerId() {

@@ -22,10 +22,12 @@ class ListService implements SyncableTable {
   private final Clock clock = Clock.systemUTC();
   private final ListRepository lists;
   private final ItemRepository items;
+  private final CategoryRepository categories;
 
-  ListService(ListRepository lists, ItemRepository items) {
+  ListService(ListRepository lists, ItemRepository items, CategoryRepository categories) {
     this.lists = lists;
     this.items = items;
+    this.categories = categories;
   }
 
   @Override
@@ -36,9 +38,9 @@ class ListService implements SyncableTable {
   /**
    * An upsert creates the List (name, kind and Visibility required; the pushing Member becomes the
    * Owner) or changes only the fields it carries. Only the Owner changes Visibility or deletes the
-   * List ({@code list.owner_only}). A delete soft-deletes the List and its Items. Delete wins:
-   * anything on a deleted List, and deleting an unknown one, is ignored. Another Member's Private
-   * List is treated as unknown: {@code list.not_found} (A1).
+   * List ({@code list.owner_only}). A delete soft-deletes the List, its Items and its Categories.
+   * Delete wins: anything on a deleted List, and deleting an unknown one, is ignored. Another
+   * Member's Private List is treated as unknown: {@code list.not_found} (A1).
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -79,9 +81,10 @@ class ListService implements SyncableTable {
                     new ListEntity(operation.id(), operation.memberId(), clock.instant(), details));
     lists.saveAndFlush(list);
     if (visibilityChanged) {
-      // The pull sends the Items again: with their fields to a Member who may now see the List,
-      // as tombstones to one who no longer may.
+      // The pull sends the Items and Categories again: with their fields to a Member who may now
+      // see the List, as tombstones to one who no longer may.
       items.bumpVersionsInList(list.id());
+      categories.bumpVersionsInList(list.id());
     }
     return Outcome.APPLIED;
   }
@@ -93,6 +96,7 @@ class ListService implements SyncableTable {
     list.markDeleted();
     lists.saveAndFlush(list);
     items.markDeletedInList(list.id());
+    categories.markDeletedInList(list.id());
     return Outcome.APPLIED;
   }
 
@@ -105,10 +109,15 @@ class ListService implements SyncableTable {
     String name = existing.map(ListEntity::name).orElse(null);
     String kind = existing.map(list -> list.kind().name()).orElse(null);
     String visibility = existing.map(list -> list.visibility().name()).orElse(null);
+    // A new List's Unnamed category comes first (0) unless the create says otherwise.
+    double unnamedCategoryPosition = existing.map(ListEntity::unnamedCategoryPosition).orElse(0.0);
     return new ListRequest(
         operation.has("name") ? operation.text("name") : name,
         operation.has("kind") ? operation.text("kind") : kind,
-        operation.has("visibility") ? operation.text("visibility") : visibility);
+        operation.has("visibility") ? operation.text("visibility") : visibility,
+        operation.has("unnamedCategoryPosition")
+            ? operation.number("unnamedCategoryPosition")
+            : Double.valueOf(unnamedCategoryPosition));
   }
 
   /**
@@ -125,6 +134,7 @@ class ListService implements SyncableTable {
           fields.put("name", list.name());
           fields.put("kind", list.kind().name());
           fields.put("visibility", list.visibility().name());
+          fields.put("unnamedCategoryPosition", list.unnamedCategoryPosition());
           fields.put("ownerId", list.ownerId().toString());
           fields.put("createdAt", list.createdAt().toString());
         });

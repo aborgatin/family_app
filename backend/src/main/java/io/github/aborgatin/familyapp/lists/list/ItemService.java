@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.lists.list;
 
+import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.error.FieldErrors;
 import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
@@ -11,8 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -25,11 +26,13 @@ class ItemService implements SyncableTable {
 
   private final Clock clock = Clock.systemUTC();
   private final ItemRepository items;
-  private final ListRepository lists;
+  private final CategoryRepository categories;
+  private final VisibleLists visibleLists;
 
-  ItemService(ItemRepository items, ListRepository lists) {
+  ItemService(ItemRepository items, CategoryRepository categories, VisibleLists visibleLists) {
     this.items = items;
-    this.lists = lists;
+    this.categories = categories;
+    this.visibleLists = visibleLists;
   }
 
   @Override
@@ -48,7 +51,7 @@ class ItemService implements SyncableTable {
   public Outcome apply(Operation operation) {
     Optional<ItemEntity> existing = items.findById(operation.id());
     if (existing.isPresent() && !existing.get().deleted()) {
-      visibleList(existing.get().listId(), operation.memberId());
+      visibleLists.find(existing.get().listId(), operation.memberId());
     }
     return Outcome.deleteWins(
         operation,
@@ -58,32 +61,37 @@ class ItemService implements SyncableTable {
   }
 
   private Outcome create(Operation operation) {
-    UUID listId = listId(operation);
-    ListEntity list = visibleList(listId, operation.memberId());
+    UUID listId = VisibleLists.listId(operation);
+    ListEntity list = visibleLists.find(listId, operation.memberId());
     if (list.deleted()) {
       return Outcome.IGNORED;
     }
     ItemDetails details =
         new ItemRequest(operation.text("text"), operation.text("description")).validate();
     boolean done = operation.has("done") && done(operation);
+    UUID categoryId = operation.has("categoryId") ? categoryId(operation, list) : null;
     Instant now = clock.instant();
     ItemEntity item = new ItemEntity(operation.id(), listId, operation.memberId(), now, details);
+    item.moveTo(categoryId);
     item.markDone(done, operation.memberId(), now);
     items.saveAndFlush(item);
     return Outcome.APPLIED;
   }
 
   private Outcome change(Operation operation, ItemEntity item) {
-    if (operation.has("listId") && !item.listId().equals(listId(operation))) {
-      new FieldErrors().add("listId", FieldErrors.VALUE_INVALID).throwIfAny();
-    }
+    VisibleLists.sameList(operation, item.listId());
     ItemDetails details =
         new ItemRequest(
                 operation.has("text") ? operation.text("text") : item.text(),
                 operation.has("description") ? operation.text("description") : item.description())
             .validate();
     boolean done = operation.has("done") ? done(operation) : item.done();
+    UUID categoryId =
+        operation.has("categoryId")
+            ? categoryId(operation, visibleLists.find(item.listId(), operation.memberId()))
+            : item.categoryId();
     item.replace(details);
+    item.moveTo(categoryId);
     item.markDone(done, operation.memberId(), clock.instant());
     items.saveAndFlush(item);
     return Outcome.APPLIED;
@@ -95,6 +103,39 @@ class ItemService implements SyncableTable {
     return Outcome.APPLIED;
   }
 
+  /**
+   * The operation's {@code categoryId}: {@code null} is the Unnamed category. It must be a Category
+   * of the Item's own List, which must be a Shopping list ({@code item.category_not_found}
+   * otherwise). A Category deleted meanwhile gives {@code null}: the Item is kept, in the Unnamed
+   * category, rather than lost (spec #4, user story 50).
+   */
+  @Nullable
+  private UUID categoryId(Operation operation, ListEntity list) {
+    String value = operation.text("categoryId");
+    if (value == null) {
+      return null;
+    }
+    UUID categoryId;
+    try {
+      categoryId = UUID.fromString(value);
+    } catch (IllegalArgumentException e) {
+      new FieldErrors().add("categoryId", FieldErrors.VALUE_INVALID).throwIfAny();
+      throw e;
+    }
+    CategoryEntity category =
+        categories
+            .findById(categoryId)
+            .filter(found -> found.listId().equals(list.id()))
+            .filter(found -> list.kind() == ListKind.SHOPPING)
+            .orElseThrow(
+                () ->
+                    new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "item.category_not_found",
+                        Map.of("categoryId", categoryId.toString())));
+    return category.deleted() ? null : categoryId;
+  }
+
   /** The operation's {@code done}: a boolean, never {@code null}. */
   private static boolean done(Operation operation) {
     Boolean done = operation.bool("done");
@@ -104,29 +145,6 @@ class ItemService implements SyncableTable {
     return Boolean.TRUE.equals(done);
   }
 
-  /** The operation's {@code listId}: required, a UUID. */
-  private static UUID listId(Operation operation) {
-    String value = operation.text("listId");
-    FieldErrors errors = new FieldErrors();
-    if (value == null || value.isBlank()) {
-      errors.add("listId", FieldErrors.REQUIRED).throwIfAny();
-    }
-    try {
-      return UUID.fromString(String.valueOf(value));
-    } catch (IllegalArgumentException e) {
-      errors.add("listId", FieldErrors.VALUE_INVALID).throwIfAny();
-      throw e;
-    }
-  }
-
-  /** The List, deleted or not, when this Member may see it; else {@code list.not_found} (A1). */
-  private ListEntity visibleList(UUID listId, UUID memberId) {
-    return lists
-        .findById(listId)
-        .filter(list -> list.visibleTo(memberId))
-        .orElseThrow(() -> ListEntity.notFound(listId));
-  }
-
   /**
    * Items changed since {@code version}. An Item of another Member's Private List is never sent
    * with its content (A1): it comes as a tombstone, like its List.
@@ -134,18 +152,13 @@ class ItemService implements SyncableTable {
   @Override
   public List<SyncRow> changesSince(long version, UUID memberId) {
     List<ItemEntity> changed = items.findByVersionGreaterThan(version);
-    Map<UUID, ListEntity> listsById =
-        lists.findAllById(changed.stream().map(ItemEntity::listId).distinct().toList()).stream()
-            .collect(Collectors.toMap(ListEntity::id, Function.identity()));
     return SyncRow.changes(
         changed,
-        item -> {
-          ListEntity list = listsById.get(item.listId());
-          return list != null && list.visibleTo(memberId);
-        },
+        visibleLists.rowsVisibleTo(memberId, changed, ItemEntity::listId),
         (item, fields) -> {
           fields.put("listId", item.listId().toString());
           fields.put("text", item.text());
+          fields.put("categoryId", item.categoryId() == null ? null : item.categoryId().toString());
           fields.put("description", item.description());
           fields.put("done", item.done());
           fields.put("doneById", item.doneById() == null ? null : item.doneById().toString());

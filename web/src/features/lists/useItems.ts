@@ -20,10 +20,14 @@ export function useItems(listId: string) {
     [rows, listId],
   );
 
-  /** Adds an Item with this text at the bottom. */
+  /** Adds an Item with this text at the bottom of its Category (none: the Unnamed category). */
   const add = useCallback(
-    async (text: string): Promise<void> => {
-      await upsertRow('item', newItemId(), { listId, text });
+    async (text: string, categoryId?: string): Promise<void> => {
+      await upsertRow('item', newItemId(), {
+        listId,
+        text,
+        ...(categoryId !== undefined && { categoryId }),
+      });
     },
     [listId],
   );

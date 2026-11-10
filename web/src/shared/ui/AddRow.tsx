@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ROW_FRAME } from './GroupedSection';
 import { ROW_LAYOUT } from './ListRow';
 
@@ -7,6 +7,8 @@ interface AddRowProps {
   label: string;
   /** Adds an entry with the typed text, trimmed; never called with a blank one. */
   onAdd: (text: string) => void;
+  /** Takes the focus when it appears with this set (e.g. a new Category's field once named). */
+  focus?: boolean;
 }
 
 /**
@@ -14,8 +16,13 @@ interface AddRowProps {
  * `label`. Enter adds the text and empties the field, keeping the focus for the next entry;
  * leaving the field with text in it adds it too; Esc empties it.
  */
-export function AddRow({ label, onAdd }: AddRowProps) {
+export function AddRow({ label, onAdd, focus = false }: AddRowProps) {
   const [text, setText] = useState('');
+  const field = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (focus) field.current?.focus();
+  }, [focus]);
 
   function add() {
     const trimmed = text.trim();
@@ -37,6 +44,7 @@ export function AddRow({ label, onAdd }: AddRowProps) {
   return (
     <div className={`${ROW_FRAME} ${ROW_LAYOUT}`}>
       <input
+        ref={field}
         type="text"
         aria-label={label}
         placeholder={label}

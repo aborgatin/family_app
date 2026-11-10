@@ -250,6 +250,14 @@ row's error an `alert` too (a save that failed after the field was left), and a 
 screen, «Ссылка скопирована» for a few seconds); `action` adds a small
 text `Button` after the line («Повторить»). A `header` also names the section (a region).
 
+**Untitled group**: with no `header`, the group is just the gap above its cell (the Unnamed
+category on a Shopping list); `label` names it for assistive technology only, so it is still a
+region («Без категории»). **Header being typed**: `headerField` (`{label, value, onChange,
+onCommit, onCancel}`) puts a text field in the header's place and look, focused when it appears,
+with `label` as its placeholder and the group's name: for a group the Member has just asked for
+(a new Category, «Название категории»). Enter or leaving it commits, Esc cancels; the screen
+decides what an empty one means.
+
 With `edit` (`{editing, onEditingChange}`) the group is an **edit-mode list**: «Изменить» /
 «Готово» (a small `Button`) at the right of the header turns edit mode on and off, the cell is a
 `list` named by the header, and its rows are `EditableRow`s. Leave edit mode when the last row
@@ -397,6 +405,8 @@ empty text field showing `label` as its placeholder (secondary colour), which is
 accessible name. Enter calls `onAdd(text)` with the trimmed text and empties the field, keeping
 the focus for the next entry; leaving the field with text in it adds it too; blank text adds
 nothing; Esc empties the field. Goes in a `GroupedSection`'s `after`, under an edit-mode list.
+`focus` makes it take the focus when it appears (a new Category's field, once its title is
+typed).
 Touch: 44px row, the caret is the focus sign; fine pointer: 36px row, accent outline when focused.
 Same on narrow and wide windows.
 
