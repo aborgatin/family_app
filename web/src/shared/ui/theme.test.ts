@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { CHILD_COLORS } from '@/shared/palette';
 
 // Read from disk: Vitest serves CSS imports (`?raw` too) as empty strings.
 const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'theme.css'), 'utf8');
@@ -68,4 +69,15 @@ describe.each(Object.entries(THEMES))('%s theme', (_, colors) => {
     expect(bg, `--color-${background} as #rrggbb`).toBeDefined();
     expect(contrast(fg ?? '', bg ?? '')).toBeGreaterThanOrEqual(4.5);
   });
+
+  // A `Tile` is filled with a Child color, the same in both themes, and its text is
+  // `on-child-color`: it must read on every colour of the palette.
+  it.each(CHILD_COLORS.map((color) => [color.code, color.hex]))(
+    'on-child-color on the Child color %s meets 4.5:1',
+    (_code, hex) => {
+      const fg = colors.get('on-child-color');
+      expect(fg, '--color-on-child-color as #rrggbb').toBeDefined();
+      expect(contrast(fg ?? '', hex)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 });

@@ -35,7 +35,7 @@ web/src/
     auth/               session, guard, setup (bootstrap), login, LogoutSection + useLogout, Invite acceptance,
                         password reset; LinkScreen (link-check states); GrammaticalGender (type)
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
-    home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
+    home/               HomePage: Page «Семья» with «Дети» (tiles), then «Списки», gear → Settings; HOME_PATH
     lists/              ListsSection («Списки» on Home), NewListSheet, ListPage, ListSettingsPage,
                         CategoriesPage («Категории» of a Shopping list),
                         DoneEarlierPage («Выполненные ранее» of a Todo list),
@@ -49,7 +49,8 @@ web/src/
                         shared by useItems and useItemHistory)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
-    children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
+    children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(),
+                        ChildrenTiles («Дети» on Home), ChildPage (the Child page, CHILD_PATH)
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields()
   shared/
     api/                API client, error-code mapping, form error helpers
@@ -64,6 +65,7 @@ web/src/
                         InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
                         LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
+                        TileGrid + Tile,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
   test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
 ```
@@ -106,6 +108,7 @@ frame around every screen and the place a sidebar goes later.
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
+| `/children/:id`          | `ChildPage`         | logged in                      |
 
 The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure,
 or after an offline cold start, below;
@@ -557,6 +560,27 @@ it shows at once offline too; after a rejection («Не удалось сохр�
 the server's value again. Then a red «Удалить ребёнка» `ConfirmRow`: the `ActionSheet`
 «Удалить „Маша“?», then back to Settings (replacing the history entry). An unknown id shows «Такого ребёнка
 нет: возможно, его удалили.».
+
+## Home «Дети» and the Child page
+
+Home (`HomePage`) is `Sections` of `ChildrenTiles` and `ListsSection`. `ChildrenTiles`
+(`features/children`, ticket #89) reads `useChildren()` and shows «Дети» as a `TileGrid` above
+«Списки»: a `Tile` per Child in the Children order (oldest first), filled with the Child color
+(`childColor(code)?.hex`; grey for an unknown code), the name and under it the age as in Settings
+(`useAge()`; the name only without a birthday or before it), each a link to the Child page. While
+the Children load, and with none, it renders nothing, so Home has no «Дети» header at all.
+
+The Child page `/children/:id` (`ChildPage`, `CHILD_PATH`; `app/routes.tsx` passes `homePath`) is
+a `Page` titled with the Child's name, back to «Семья». Its nav bar action is the text `Link`
+«Изменить» to the Child's screen in Settings (`childSettingsPath(id)`, which goes back to
+Settings as before). «Профиль» is a `GroupedSection` with one plain `ListRow` «День рождения»
+whose value is the date and the age, «12.04.2019 · 7 лет» (`children.birthdayWithAge`; the date
+alone before the birthday; «Не указан» with none), read-only. Child lists (#90) and the Child
+field values (#91) are added to this page later. It loads through `useChildren()`, so a deep link
+works, it follows live updates (a rename, a new birthday), and it opens offline after a restart.
+An unknown id, or a Child deleted while the page is open, shows «Такого ребёнка нет: возможно,
+его удалили.» under the title «Дети», with the back link to Home. Tests:
+`children/childTiles.test.tsx`, `children/childPage.test.tsx`.
 
 ## PWA
 
