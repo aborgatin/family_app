@@ -49,6 +49,9 @@ class ItemEntity implements SyncedRecord {
   /** The Due date's time of day; only with a day. */
   @Nullable private LocalTime dueTime;
 
+  /** The Assignee: the Member responsible; {@code null} is nobody. Only on a Shared Todo list. */
+  @Nullable private UUID assigneeId;
+
   @Column(nullable = false, updatable = false)
   private UUID creatorId;
 
@@ -91,6 +94,11 @@ class ItemEntity implements SyncedRecord {
   void due(DueDate dueDate) {
     this.dueDate = dueDate.day();
     this.dueTime = dueDate.time();
+  }
+
+  /** Makes this Member the Assignee; {@code null} is nobody. */
+  void assignTo(@Nullable UUID assigneeId) {
+    this.assigneeId = assigneeId;
   }
 
   /**
@@ -150,6 +158,11 @@ class ItemEntity implements SyncedRecord {
 
   DueDate dueDate() {
     return new DueDate(dueDate, dueTime);
+  }
+
+  @Nullable
+  UUID assigneeId() {
+    return assigneeId;
   }
 
   UUID creatorId() {

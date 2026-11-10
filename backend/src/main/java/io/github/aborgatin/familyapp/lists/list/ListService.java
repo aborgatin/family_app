@@ -108,6 +108,10 @@ class ListService implements SyncableTable {
                         operation.id(), operation.memberId(), childId, clock.instant(), details));
     lists.saveAndFlush(list);
     if (visibilityChanged) {
+      if (list.visibility() == Visibility.PRIVATE) {
+        // A Private list's Items have no Assignee; making it Shared again restores none.
+        items.clearAssigneesInList(list.id());
+      }
       // The pull sends the Items, Categories and Item history again: with their fields to a
       // Member who may now see the List, as tombstones to one who no longer may.
       items.bumpVersionsInList(list.id());

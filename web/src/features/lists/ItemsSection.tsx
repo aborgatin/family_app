@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { useFamilyMembers, type FamilyMember } from '@/features/members';
 import {
   ActionSheet,
   AddRow,
@@ -283,6 +284,7 @@ function OpenItems({
   const texts = KIND_TEXTS[list.kind];
   const editable = useEditableList();
   const failures = useRowFailures();
+  const members = useFamilyMembers();
 
   const shown = items ?? [];
 
@@ -320,6 +322,7 @@ function OpenItems({
           key={item.id}
           item={item}
           list={list}
+          members={members}
           rename={rename}
           describe={describe}
           categories={categories}
@@ -370,6 +373,7 @@ export function DoneItems({
   const texts = KIND_TEXTS[list.kind];
   const editable = useEditableList();
   const [clearing, setClearing] = useState(false);
+  const members = useFamilyMembers();
 
   return (
     <>
@@ -393,7 +397,7 @@ export function DoneItems({
             title={item.text}
             textTo={listItemPath(list.id, item.id)}
             muted
-            caption={itemCaption(list, item, t)}
+            caption={itemCaption(list, item, members, t)}
             leading={
               <DoneToggle
                 label={t(texts.doneToggle, { text: item.text })}
@@ -432,6 +436,8 @@ export function DoneItems({
 interface ItemRowProps {
   item: Item;
   list: List;
+  /** The Family's Members, for the Assignee's name on a todo item's row line. */
+  members: ReadonlyMap<string, FamilyMember> | undefined;
   rename: (item: Item, text: string) => Promise<string>;
   describe: (item: Item, description: string) => Promise<string>;
   /** The List's named Categories, if any: the Category chip. */
@@ -449,6 +455,7 @@ interface ItemRowProps {
 function ItemRow({
   item,
   list,
+  members,
   rename,
   describe,
   categories,
@@ -495,7 +502,7 @@ function ItemRow({
       {...(categories !== undefined &&
         categories.length > 0 && { chip: categoryChip(list, categories, item, move, t) })}
       details={{ label: t('lists.itemDetails'), to: listItemPath(list.id, item.id) }}
-      caption={itemCaption(list, item, t)}
+      caption={itemCaption(list, item, members, t)}
       confirm={{ title: t('lists.confirmDeleteItem', { text: item.text }) }}
       onDelete={onDelete}
     />
@@ -503,17 +510,35 @@ function ItemRow({
 }
 
 /**
- * The small line under a todo item's name and Description: its Due date («Завтра, 15:00»). Later
- * todo fields (the repeat mark, the Assignee) are further parts of it. An overdue one is red on an
- * open Item. By the device's clock, read when the row renders.
+ * The small line under a todo item's name and Description: its Due date, then on a Shared list its
+ * Assignee's name («Завтра, 15:00 · Даша»), or the name alone without a Due date. A later todo
+ * field (the repeat mark) goes between them. An overdue Due date is red on an open Item. By the
+ * device's clock, read when the row renders.
  */
-function itemCaption(list: List, item: Item, t: TFunction): RowCaptionPart[] {
+function itemCaption(
+  list: List,
+  item: Item,
+  members: ReadonlyMap<string, FamilyMember> | undefined,
+  t: TFunction,
+): RowCaptionPart[] {
   if (list.kind !== 'TODO') return [];
   const now = new Date();
   const due = dueDateText(t, item, now);
-  if (due === undefined) return [];
-  // Overdue is red on an open Item only: a Done one is no longer late.
-  return [{ text: due, ...(!item.done && isOverdue(item, now) && { tone: 'destructive' }) }];
+  // A Private list's Items have no Assignee: one the server hasn't removed yet isn't shown.
+  const assignee =
+    list.visibility === 'SHARED' && item.assigneeId != null
+      ? members?.get(item.assigneeId)?.displayName
+      : undefined;
+  return [
+    // Overdue is red on an open Item only: a Done one is no longer late.
+    due !== undefined && {
+      text: due,
+      ...(!item.done && isOverdue(item, now) && { tone: 'destructive' as const }),
+    },
+    assignee !== undefined && {
+      text: due === undefined ? assignee : t('lists.assignee.afterDueDate', { name: assignee }),
+    },
+  ].filter((part) => part !== false);
 }
 
 /**

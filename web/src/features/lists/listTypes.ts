@@ -60,6 +60,11 @@ export interface Item {
    */
   dueDate?: string | null;
   dueTime?: string | null;
+  /**
+   * A todo item's Assignee: the Member responsible, on a Shared list only; nobody is `null` or
+   * absent.
+   */
+  assigneeId?: string | null;
   /** Done, and who marked it Done and when (set by the server when Done changes). */
   done: boolean;
   doneById?: string | null;

@@ -104,6 +104,11 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
     await upsertRow('item', item.id, { dueTime });
   }, []);
 
+  /** Makes this Member the todo item's Assignee, or nobody (`null`), sending only `assigneeId`. */
+  const setAssignee = useCallback(async (item: Item, assigneeId: string | null): Promise<void> => {
+    await upsertRow('item', item.id, { assigneeId });
+  }, []);
+
   /**
    * Ticks the Item off, or back on (`done` false); the server records who did it and when. Until
    * its copy arrives, the old done by / done at are cleared locally (never sent), so an Item ticked
@@ -133,6 +138,7 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
     move,
     setDueDate,
     setDueTime,
+    setAssignee,
     setDone,
     remove,
   };

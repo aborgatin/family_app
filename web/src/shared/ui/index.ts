@@ -11,6 +11,7 @@ export { GroupedSection, type SectionHeaderField, type SectionMessage } from './
 export { InputRow } from './InputRow';
 export { TextAreaRow } from './TextAreaRow';
 export { SegmentedControl } from './SegmentedControl';
+export { SelectRow } from './SelectRow';
 export { Sections } from './Sections';
 export { ListRow } from './ListRow';
 export { LoadingRow } from './LoadingRow';
