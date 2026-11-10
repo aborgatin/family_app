@@ -57,6 +57,12 @@ class ListEntity implements SyncedRecord {
   @Column(nullable = false, updatable = false)
   private Instant createdAt;
 
+  /**
+   * Hide done (ticket #93): a Todo list's Done items marked Done up to this moment are hidden from
+   * «Выполнено». Set only by the server's clock, when a Member presses «Скрыть»; none until then.
+   */
+  @Nullable private Instant doneHiddenAt;
+
   @Generated(event = {EventType.INSERT, EventType.UPDATE})
   @Column(insertable = false, updatable = false)
   private long version;
@@ -85,6 +91,11 @@ class ListEntity implements SyncedRecord {
     this.name = details.name();
     this.visibility = details.visibility();
     this.unnamedCategoryPosition = details.unnamedCategoryPosition();
+  }
+
+  /** Hides the Done items marked Done up to {@code now} (the server's clock). */
+  void hideDone(Instant now) {
+    this.doneHiddenAt = now;
   }
 
   /** Soft delete (S2): the row stays and its Version advances. */
@@ -138,6 +149,11 @@ class ListEntity implements SyncedRecord {
 
   Instant createdAt() {
     return createdAt;
+  }
+
+  @Nullable
+  Instant doneHiddenAt() {
+    return doneHiddenAt;
   }
 
   @Override

@@ -1,6 +1,7 @@
 package io.github.aborgatin.familyapp.lists.list;
 
 import io.github.aborgatin.familyapp.error.ApiException;
+import io.github.aborgatin.familyapp.error.FieldErrors;
 import io.github.aborgatin.familyapp.family.ChildDeleted;
 import io.github.aborgatin.familyapp.family.Children;
 import io.github.aborgatin.familyapp.sync.Operation;
@@ -62,6 +63,12 @@ class ListService implements SyncableTable {
    * the create is ignored), and the List must be {@code TODO} or {@code WISH} ({@code
    * list.child_not_shopping}) and stay Shared ({@code list.child_shared_only}). Owner rules are the
    * same as for any List.
+   *
+   * <p>Hide done (ticket #93): an upsert of a Todo list may carry {@code hideDone: true} (any other
+   * value is {@code validation.failed}, on another kind {@code list.hide_done_not_todo}); the
+   * server then sets the List's {@code doneHiddenAt} to now by its own clock, the way it sets an
+   * Item's {@code doneAt}, so the moment never comes from a device. Either Member may hide a Shared
+   * List.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -88,6 +95,7 @@ class ListService implements SyncableTable {
     if (details.kind() == ListKind.WISH && details.visibility() == Visibility.PRIVATE) {
       throw new ApiException(HttpStatus.BAD_REQUEST, "list.wish_shared_only");
     }
+    boolean hideDone = hideDone(operation, details);
     UUID childId = childId(operation, existing);
     if (childId != null && !childListAllowed(childId, details, existing.isEmpty())) {
       // The Child was deleted meanwhile, and their Child lists with them: delete wins.
@@ -106,6 +114,9 @@ class ListService implements SyncableTable {
                 () ->
                     new ListEntity(
                         operation.id(), operation.memberId(), childId, clock.instant(), details));
+    if (hideDone) {
+      list.hideDone(clock.instant());
+    }
     lists.saveAndFlush(list);
     if (visibilityChanged) {
       if (list.visibility() == Visibility.PRIVATE) {
@@ -119,6 +130,26 @@ class ListService implements SyncableTable {
       history.bumpVersionsInList(list.id());
     }
     return Outcome.APPLIED;
+  }
+
+  /**
+   * Whether the upsert asks to hide the List's Done items: only ever {@code true} ({@code
+   * validation.failed} otherwise), and only on a Todo list ({@code list.hide_done_not_todo}).
+   */
+  private static boolean hideDone(Operation operation, ListDetails details) {
+    if (!operation.has("hideDone")) {
+      return false;
+    }
+    if (!Boolean.TRUE.equals(operation.fields().get("hideDone"))) {
+      new FieldErrors().add("hideDone", FieldErrors.VALUE_INVALID).throwIfAny();
+    }
+    if (details.kind() != ListKind.TODO) {
+      throw new ApiException(
+          HttpStatus.BAD_REQUEST,
+          "list.hide_done_not_todo",
+          Map.of("listId", operation.id().toString()));
+    }
+    return true;
   }
 
   /**
@@ -225,6 +256,7 @@ class ListService implements SyncableTable {
           fields.put("ownerId", list.ownerId().toString());
           fields.put("childId", Objects.toString(list.childId(), null));
           fields.put("createdAt", list.createdAt().toString());
+          fields.put("doneHiddenAt", Objects.toString(list.doneHiddenAt(), null));
         });
   }
 }
