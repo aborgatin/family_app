@@ -61,7 +61,7 @@ function CategoriesSection({ list }: { list: List }) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const { categories, add, rename, move, remove } = useCategories(list);
-  const { items, doneItems } = useItems(list.id);
+  const { items, doneItems } = useItems(list);
   const editable = useEditableList();
   const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
 

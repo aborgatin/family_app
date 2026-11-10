@@ -276,4 +276,5 @@ auth.required` without one) tells open apps when to pull:
   Items count (#58). Categories are on the store, and a Shopping list shows its open Items by
   Category, with «Новая категория» (#70); a Shopping list's «Категории» screen adds, renames,
   reorders and deletes them (#72). Item history is on the store, and a Shopping list's add fields
-  suggest names from it (#74).
+  suggest names from it (#74). Adding a name a Shopping list already has never makes a duplicate:
+  an open Item is highlighted, a Done one is set open in that field's Category, offline too (#75).

@@ -399,6 +399,10 @@ Leaving the row with it empty hides it. Spread `useAutoSaveText()`'s `input` and
 (an Item's Category); the row stays edited while the chip's menu is open, and the focus goes back
 to the chip when it closes.
 
+`highlighted` points the row out (an open Item added again by name): while set the row is
+scrolled into view (nearest edge, smooth) and covered by a 15% `accent` tint above its swipe
+layer (`data-highlighted`); unset, the tint fades out over 0.7 s. The caller unsets it after a moment (1.5 s for Items).
+
 Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
 `sortable`, Items with `input`, `secondary` (the Description), on a Shopping list with named Categories a
 `chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
