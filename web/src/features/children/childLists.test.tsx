@@ -238,8 +238,10 @@ describe('A Child list', () => {
     const user = userEvent.setup();
 
     const app = renderApp(`/lists/${school.id}/settings`);
-    await user.click(await screen.findByRole('button', { name: 'Удалить список' }));
+    const remove = await screen.findByRole('button', { name: 'Удалить список' });
+    // Asked before the sheet opens: an open sheet hides the screen behind it from queries.
     expect(screen.queryByRole('radiogroup', { name: 'Видимость' })).not.toBeInTheDocument();
+    await user.click(remove);
     const sheet = screen.getByRole('dialog', { name: 'Удалить „Школа“ со всем содержимым?' });
     await user.click(within(sheet).getByRole('button', { name: 'Удалить' }));
 
