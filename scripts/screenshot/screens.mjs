@@ -157,6 +157,31 @@ export default {
       ],
     },
     {
+      // A shopping Item being edited on a list with Categories: its Description, then the
+      // Category chip «Еда ⌄».
+      name: 'list-item-category-chip',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: 'role=textbox[name="Товар «Молоко»"]' },
+        { waitFor: 'role=button[name="Категория: Еда"]' },
+      ],
+    },
+    {
+      // The chip's menu: the Categories in order, «Без категории» in its place, «Еда» ticked.
+      name: 'list-item-category-menu',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: 'role=textbox[name="Товар «Молоко»"]' },
+        { click: 'role=button[name="Категория: Еда"]' },
+        { waitFor: 'role=menu' },
+        { wait: 200 },
+      ],
+    },
+    {
       name: 'list-todo',
       path: '/',
       steps: [{ click: 'role=link[name=/Дела по дому/]' }, { waitFor: 'role=textbox[name^="Задача"]' }],

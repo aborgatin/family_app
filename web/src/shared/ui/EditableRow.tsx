@@ -11,6 +11,7 @@ import { Link as RouterLink } from 'react-router';
 import { ActionSheet } from './ActionSheet';
 import { ROW_FRAME, useEditing, useSectionRow } from './GroupedSection';
 import { Icon } from './Icon';
+import { MenuChip, type MenuChipProps } from './MenuChip';
 import { LEADING_INSET, ROW_LAYOUT, RowInside, TAPPABLE, type RowContentProps } from './ListRow';
 import { RowContextMenu } from './RowContextMenu';
 import type { SortableRow } from './SortableList';
@@ -43,6 +44,11 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
    * editing. Not in edit mode.
    */
   secondary?: RowSecondaryProps;
+  /**
+   * With `secondary`: a `MenuChip` under the secondary line while the row is being edited (an
+   * Item's Category). The row stays edited while its menu is open.
+   */
+  chip?: Omit<MenuChipProps, 'onOpenChange'>;
 }
 
 /** An `EditableRow`'s title as a text field (`useAutoSaveText()`'s `input`, plus a `label`). */
@@ -90,6 +96,7 @@ export function EditableRow({
   sortable,
   input,
   secondary,
+  chip,
   ...content
 }: EditableRowProps) {
   const { t } = useTranslation();
@@ -99,6 +106,8 @@ export function EditableRow({
   // tapped, so the field takes the focus.
   const [active, setActive] = useState(false);
   const [tapped, setTapped] = useState(false);
+  // The chip's menu is open: the focus is in it, outside the row, and the row is still edited.
+  const [choosing, setChoosing] = useState(false);
   const ask = () => {
     setAsking(true);
   };
@@ -114,8 +123,11 @@ export function EditableRow({
         title={<RowInput {...input} />}
         below={
           withSecondary &&
-          (active ? (
-            <SecondaryInput {...secondary} takeFocus={tapped} />
+          (active || choosing ? (
+            <>
+              <SecondaryInput {...secondary} takeFocus={tapped} />
+              {chip !== undefined && <MenuChip {...chip} onOpenChange={setChoosing} />}
+            </>
           ) : (
             secondary.value.trim() !== '' && (
               <SecondaryLine

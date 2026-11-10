@@ -17,6 +17,7 @@ export { Avatar } from './Avatar';
 export { ActionSheet } from './ActionSheet';
 export { ConfirmRow } from './ConfirmRow';
 export { EditableRow } from './EditableRow';
+export { MenuChip, type MenuChipChoice, type MenuChipProps } from './MenuChip';
 export { AddRow } from './AddRow';
 export { DoneToggle } from './DoneToggle';
 export { SwipeToDelete } from './SwipeToDelete';
