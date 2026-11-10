@@ -246,10 +246,7 @@ code that touches IndexedDB or the sync API:
     of which only those that differ from the local row are written and sent (read in the same
     transaction; nothing differs, nothing written), so a screen passes just the changed field and
     a change the other Member made meanwhile stays; `local` fields go only into the local row and the Outbox entry, never to the server,
-    until the server's copy replaces them (an Item's `doneHereAt`); `requestUpsert(table, id,
-    fields, local?)`: the same upsert sent every time, whatever the local row holds, for a field
-    that asks the server to act rather than one stored (a List's `hideDone`, #93; nothing for a
-    row the device doesn't have); `deleteRow(table, id)`. All three write the row and the Outbox in one transaction and resolve at
+    until the server's copy replaces them (an Item's `doneHereAt`); `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
     once, online or not;
   - `useSaveRejection()` → `{message, dismiss}`: the message about the last operation the server
     rejected (`saveRejection.ts`, I3: `list.not_found`, `list.owner_only`, `list.kind_immutable`,
@@ -463,7 +460,8 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   **«Скрыть»** (#93) heads a Todo list's «Выполнено» while it has Items (the `GroupedSection`
   `action`, where a Shopping list has «Очистить»; never on «Выполненные ранее», a Wish or a
   Shopping list) and acts at once, with no question: `useItems().hideDone()` sends the List
-  upsert `{hideDone: true}` through `requestUpsert` (every press is sent) with the device-only
+  upsert `{hideDone: <a new UUID>}` through `upsertRow` (a new id each press, so every press is
+  sent and the server applies each once) with the device-only
   `doneHiddenHereAt` (a `tickTime()`, the clock that also orders `doneHereAt`) as a `local`
   field. `doneItems` leave out the hidden ones and `earlierDoneItems` take them, most recent
   first with the older ones (`hidden()` in `useItems.ts`): with the server's `doneHiddenAt`, an

@@ -37,6 +37,11 @@ function list(n: number, name: string, kind: 'SHOPPING' | 'TODO' | 'WISH') {
 
 const chores = list(1, 'Дела по дому', 'TODO');
 
+/** What a press of «Скрыть» carries: its own id, so the server applies each press once (S3). */
+const PRESS_ID: unknown = expect.stringMatching(
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+);
+
 /** An open Item row as the pull sends it. */
 function item(n: number, text: string, listId = chores.id) {
   return {
@@ -120,7 +125,7 @@ describe('«Скрыть» on a Todo list', () => {
     expect(screen.getByRole('checkbox', { name: 'Выполнено «Полить цветы»' })).not.toBeChecked();
     await waitFor(() => {
       expect(syncServer.operations('list')).toEqual([
-        { table: 'list', id: chores.id, op: 'upsert', fields: { hideDone: true } },
+        { table: 'list', id: chores.id, op: 'upsert', fields: { hideDone: PRESS_ID } },
       ]);
     });
     await waitFor(() => {
@@ -175,7 +180,7 @@ describe('«Скрыть» on a Todo list', () => {
     await waitFor(() => {
       expect(syncServer.pushes.flatMap((push) => push.operations)).toEqual([
         { table: 'item', id: item(1, '').id, op: 'upsert', fields: { done: true } },
-        { table: 'list', id: chores.id, op: 'upsert', fields: { hideDone: true } },
+        { table: 'list', id: chores.id, op: 'upsert', fields: { hideDone: PRESS_ID } },
         { table: 'item', id: item(2, '').id, op: 'upsert', fields: { done: true } },
       ]);
     });
@@ -190,6 +195,30 @@ describe('«Скрыть» on a Todo list', () => {
     await waitFor(async () => {
       expect(await rowTexts('Выполненные ранее')).toEqual(['Полить цветы', 'Вчера']);
     });
+  });
+
+  it('sends each press with an id of its own, and a later press moves the moment on', async () => {
+    syncServer.seed('list', [chores]);
+    syncServer.seed('item', [item(1, 'Полить цветы'), doneItem(2, 'Вчера', daysAgo(1))]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${chores.id}`);
+    await user.click(await hideButton());
+    await waitFor(() => {
+      expect(syncServer.row('list', chores.id)?.doneHiddenAt).toBe(NOW.toISOString());
+    });
+    vi.setSystemTime(new Date(2026, 10, 10, 15, 31));
+    await user.click(screen.getByRole('checkbox', { name: 'Выполнено «Полить цветы»' }));
+    await user.click(await hideButton());
+
+    await waitFor(() => {
+      const moment = syncServer.row('list', chores.id)?.doneHiddenAt as string;
+      expect(Date.parse(moment)).toBeGreaterThanOrEqual(new Date(2026, 10, 10, 15, 31).getTime());
+    });
+    const presses = syncServer.operations('list').map((op) => op.fields?.hideDone);
+    expect(presses).toEqual([PRESS_ID, PRESS_ID]);
+    expect(presses[0]).not.toBe(presses[1]);
+    expect(await rowTexts('Выполнено')).toEqual([]);
   });
 
   it('empties «Выполнено» on this phone when the other Member pressed it, after a live update', async () => {

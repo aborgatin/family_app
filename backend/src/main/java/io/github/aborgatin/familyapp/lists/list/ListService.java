@@ -64,10 +64,11 @@ class ListService implements SyncableTable {
    * list.child_not_shopping}) and stay Shared ({@code list.child_shared_only}). Owner rules are the
    * same as for any List.
    *
-   * <p>Hide done (ticket #93): an upsert of a Todo list may carry {@code hideDone: true} (any other
-   * value is {@code validation.failed}, on another kind {@code list.hide_done_not_todo}); the
-   * server then sets the List's {@code doneHiddenAt} to now by its own clock, the way it sets an
-   * Item's {@code doneAt}, so the moment never comes from a device. Either Member may hide a Shared
+   * <p>Hide done (ticket #93): an upsert of a Todo list may carry {@code hideDone}, the id of one
+   * press of «Скрыть» (anything but a UUID is {@code validation.failed}, on another kind {@code
+   * list.hide_done_not_todo}); the server then sets the List's {@code doneHiddenAt} to now by its
+   * own clock, the way it sets an Item's {@code doneAt}, so the moment never comes from a device.
+   * The press that set it, pushed again, changes nothing (S3). Either Member may hide a Shared
    * List.
    */
   @Override
@@ -95,7 +96,7 @@ class ListService implements SyncableTable {
     if (details.kind() == ListKind.WISH && details.visibility() == Visibility.PRIVATE) {
       throw new ApiException(HttpStatus.BAD_REQUEST, "list.wish_shared_only");
     }
-    boolean hideDone = hideDone(operation, details);
+    UUID hideDonePress = hideDone(operation, details);
     UUID childId = childId(operation, existing);
     if (childId != null && !childListAllowed(childId, details, existing.isEmpty())) {
       // The Child was deleted meanwhile, and their Child lists with them: delete wins.
@@ -114,8 +115,8 @@ class ListService implements SyncableTable {
                 () ->
                     new ListEntity(
                         operation.id(), operation.memberId(), childId, clock.instant(), details));
-    if (hideDone) {
-      list.hideDone(clock.instant());
+    if (hideDonePress != null) {
+      list.hideDone(hideDonePress, clock.instant());
     }
     lists.saveAndFlush(list);
     if (visibilityChanged) {
@@ -133,14 +134,17 @@ class ListService implements SyncableTable {
   }
 
   /**
-   * Whether the upsert asks to hide the List's Done items: only ever {@code true} ({@code
-   * validation.failed} otherwise), and only on a Todo list ({@code list.hide_done_not_todo}).
+   * The press of «Скрыть» the upsert carries, if any: {@code hideDone}, only ever a UUID, the
+   * press's id ({@code validation.failed} otherwise), and only on a Todo list ({@code
+   * list.hide_done_not_todo}).
    */
-  private static boolean hideDone(Operation operation, ListDetails details) {
+  @Nullable
+  private static UUID hideDone(Operation operation, ListDetails details) {
     if (!operation.has("hideDone")) {
-      return false;
+      return null;
     }
-    if (!Boolean.TRUE.equals(operation.fields().get("hideDone"))) {
+    UUID press = operation.uuid("hideDone");
+    if (press == null) {
       new FieldErrors().add("hideDone", FieldErrors.VALUE_INVALID).throwIfAny();
     }
     if (details.kind() != ListKind.TODO) {
@@ -149,7 +153,7 @@ class ListService implements SyncableTable {
           "list.hide_done_not_todo",
           Map.of("listId", operation.id().toString()));
     }
-    return true;
+    return press;
   }
 
   /**

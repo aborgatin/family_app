@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { deleteRow, requestUpsert, upsertRow, useRows } from '@/shared/sync';
+import { deleteRow, upsertRow, useRows } from '@/shared/sync';
 import type { Item, List, ListKind, Repeat } from './listTypes';
 import { compare, normalizedName, sortableTime } from './itemKeys';
 
@@ -145,12 +145,18 @@ export function useItems(list: Pick<List, 'id' | 'kind' | 'doneHiddenAt' | 'done
 
   /**
    * Hide done («Скрыть», a Todo list's): every Item now in «Выполнено» moves to «Выполненные
-   * ранее», for both Members. Sends `hideDone: true` every time; the server stamps the moment
-   * (`doneHiddenAt`). Until its copy arrives, the press is kept here as `doneHiddenHereAt` (never
-   * sent), so it works offline at once.
+   * ранее», for both Members. Sends `hideDone`, a new id for every press (so each press is sent,
+   * and a repeated push of it is applied once, S3); the server stamps the moment (`doneHiddenAt`).
+   * Until its copy arrives, the press is kept here as `doneHiddenHereAt` (never sent), so it works
+   * offline at once.
    */
   const hideDone = useCallback(async (): Promise<void> => {
-    await requestUpsert('list', listId, { hideDone: true }, { doneHiddenHereAt: tickTime() });
+    await upsertRow(
+      'list',
+      listId,
+      { hideDone: crypto.randomUUID() },
+      { doneHiddenHereAt: tickTime() },
+    );
   }, [listId]);
 
   return {

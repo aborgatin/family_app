@@ -63,6 +63,11 @@ class ListEntity implements SyncedRecord {
    */
   @Nullable private Instant doneHiddenAt;
 
+  /**
+   * The id of the press of «Скрыть» that set {@code doneHiddenAt}: a repeat of it changes nothing.
+   */
+  @Nullable private UUID doneHiddenPress;
+
   @Generated(event = {EventType.INSERT, EventType.UPDATE})
   @Column(insertable = false, updatable = false)
   private long version;
@@ -93,8 +98,15 @@ class ListEntity implements SyncedRecord {
     this.unnamedCategoryPosition = details.unnamedCategoryPosition();
   }
 
-  /** Hides the Done items marked Done up to {@code now} (the server's clock). */
-  void hideDone(Instant now) {
+  /**
+   * Hides the Done items marked Done up to {@code now} (the server's clock), for this {@code press}
+   * of «Скрыть»; the press that set the moment, sent again, leaves it as it is (S3).
+   */
+  void hideDone(UUID press, Instant now) {
+    if (press.equals(doneHiddenPress)) {
+      return;
+    }
+    this.doneHiddenPress = press;
     this.doneHiddenAt = now;
   }
 

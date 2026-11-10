@@ -12,9 +12,9 @@ import { network } from './network';
  * changed, ignored for a deleted Child or Child field), a List made Private loses the Assignee
  * of every one of its Items, and a repeating Item turned Done (pushed, or by `change`) hands its
  * Repeat on to its next occurrence, a new open Item (ADR-0009); a pushed `done` change stamps
- * `doneAt` with the server's clock (`now()`), and a List upsert carrying `hideDone: true` stamps
- * the List's `doneHiddenAt` (only on a Todo list: `list.hide_done_not_todo`; ticket #93) and is
- * not stored itself; a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
+ * `doneAt` with the server's clock (`now()`), and a List upsert carrying `hideDone` (a press's id)
+ * stamps the List's `doneHiddenAt` once per press (only on a Todo list:
+ * `list.hide_done_not_todo`; ticket #93), the press not stored itself; a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
@@ -73,6 +73,8 @@ class FakeSyncServer {
   private version = 0;
   /** The last moment `now()` gave (ms). */
   private lastStamp = 0;
+  /** Per List, the id of the press of «Скрыть» that set its `doneHiddenAt` (never pulled). */
+  private hidePresses = new Map<string, string>();
   private stored = new Map<string, StoredRow>();
   /** Only push and pull fail (`failSyncOnly()`); a lost network is `network.goOffline()`. */
   private syncFailing = false;
@@ -114,6 +116,7 @@ class FakeSyncServer {
   reset() {
     this.version = 0;
     this.lastStamp = 0;
+    this.hidePresses.clear();
     this.stored.clear();
     this.syncFailing = false;
     this.rejecter = undefined;
@@ -220,10 +223,11 @@ class FakeSyncServer {
     if (operation.op === 'delete') {
       this.delete(operation.table, operation.id);
     } else if (operation.table === 'list' && operation.fields?.hideDone !== undefined) {
-      // Hide done (ticket #93): a request, not a stored field; the server stamps its own time.
+      // Hide done (ticket #93): the id of a press, not a stored field; the server stamps its own
+      // time, once per press (the press that set the moment, pushed again, changes nothing).
       const { hideDone, ...fields } = operation.fields;
       const merged = { ...current?.fields, ...fields };
-      if (hideDone !== true) return { status: 'rejected', ...VALIDATION_FAILED };
+      if (typeof hideDone !== 'string') return { status: 'rejected', ...VALIDATION_FAILED };
       if (merged.kind !== 'TODO') {
         return {
           status: 'rejected',
@@ -231,7 +235,10 @@ class FakeSyncServer {
           params: { listId: operation.id },
         };
       }
-      this.write(operation.table, operation.id, { ...merged, doneHiddenAt: this.now() }, false);
+      const stamp =
+        this.hidePresses.get(operation.id) === hideDone ? {} : { doneHiddenAt: this.now() };
+      this.hidePresses.set(operation.id, hideDone);
+      this.write(operation.table, operation.id, { ...merged, ...stamp }, false);
     } else if (operation.table === 'item' && operation.fields?.done !== undefined) {
       // Done changed: the server records when (`doneAt`); set to its current value, nothing.
       const { done } = operation.fields;

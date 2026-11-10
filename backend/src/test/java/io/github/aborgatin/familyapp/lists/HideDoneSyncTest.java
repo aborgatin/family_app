@@ -25,9 +25,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * Hide done on a Todo list through the sync push and pull (spec #81, ticket #93): a List upsert
- * carrying {@code hideDone: true} makes the server stamp the List's {@code doneHiddenAt} with its
- * own time; the Done items marked Done up to that moment leave «Выполнено» on every device. Two
- * {@code Browser}s play Anna's phone and Boris's phone.
+ * carrying {@code hideDone}, the id of one press of «Скрыть», makes the server stamp the List's
+ * {@code doneHiddenAt} with its own time, once per press; the Done items marked Done up to that
+ * moment leave «Выполнено» on every device. Two {@code Browser}s play Anna's phone and Boris's
+ * phone.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -92,6 +93,20 @@ class HideDoneSyncTest {
   }
 
   @Test
+  void repeatingAPushOfThePressLeavesTheSameMomentAndVersion() throws Exception {
+    String press = hideDone(chores);
+    SyncRequests.push(anna, press);
+    Instant first = doneHiddenAt(anna, chores);
+    long version = SyncRequests.version(SyncRequests.pull(anna, 0));
+
+    // The answer was lost: the phone sends its Outbox again.
+    SyncRequests.push(anna, press).andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    assertThat(doneHiddenAt(boris, chores)).isEqualTo(first);
+    assertThat(SyncRequests.change(boris, version, "list", chores)).isNull();
+  }
+
+  @Test
   void onlyATodoListIsHidden() throws Exception {
     UUID groceries = UUID.randomUUID();
     UUID wishes = UUID.randomUUID();
@@ -111,22 +126,40 @@ class HideDoneSyncTest {
   }
 
   @Test
-  void hideDoneIsOnlyEverTrueAndTheMomentIsNeverTakenFromTheDevice() throws Exception {
+  void hideDoneIsOnlyEverAPressIdAndTheMomentIsNeverTakenFromTheDevice() throws Exception {
     SyncRequests.push(
             anna,
-            SyncRequests.upsert("list", chores, "{\"hideDone\":false}"),
+            SyncRequests.upsert("list", chores, "{\"hideDone\":true}"),
             SyncRequests.upsert("list", chores, "{\"hideDone\":\"yes\"}"),
+            SyncRequests.upsert("list", chores, "{\"hideDone\":null}"),
             SyncRequests.upsert("list", chores, "{\"doneHiddenAt\":\"2020-01-01T00:00:00Z\"}"))
-        .andExpect(jsonPath("$.results[*].status", contains("rejected", "rejected", "applied")))
+        .andExpect(
+            jsonPath(
+                "$.results[*].status", contains("rejected", "rejected", "rejected", "applied")))
         .andExpect(jsonPath("$.results[0].code").value("validation.failed"))
         .andExpect(
             jsonPath("$.results[0].params.errors[?(@.field=='hideDone')].code")
                 .value("value.invalid"))
         .andExpect(
             jsonPath("$.results[1].params.errors[?(@.field=='hideDone')].code")
+                .value("value.invalid"))
+        .andExpect(
+            jsonPath("$.results[2].params.errors[?(@.field=='hideDone')].code")
                 .value("value.invalid"));
-
     assertThat(SyncRequests.fields(boris, "list", chores)).containsEntry("doneHiddenAt", null);
+    Instant before = Instant.now();
+
+    // A press carrying a moment of the device's own: the server's clock still sets it.
+    SyncRequests.push(
+            anna,
+            SyncRequests.upsert(
+                "list",
+                chores,
+                "{\"hideDone\":\"%s\",\"doneHiddenAt\":\"2020-01-01T00:00:00Z\"}"
+                    .formatted(UUID.randomUUID())))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    assertThat(doneHiddenAt(boris, chores)).isAfterOrEqualTo(before.minusSeconds(1));
   }
 
   @Test
@@ -148,8 +181,10 @@ class HideDoneSyncTest {
     assertThat(SyncRequests.fields(anna, "list", school).get("doneHiddenAt")).isNotNull();
   }
 
+  /** One press of «Скрыть», with its own id, as the app sends it. */
   private static String hideDone(UUID listId) {
-    return SyncRequests.upsert("list", listId, "{\"hideDone\":true}");
+    return SyncRequests.upsert(
+        "list", listId, "{\"hideDone\":\"%s\"}".formatted(UUID.randomUUID()));
   }
 
   private static Instant doneHiddenAt(Browser device, UUID listId) throws Exception {
