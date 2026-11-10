@@ -73,6 +73,10 @@ jobs:
         run: scripts/check-error-codes-test.sh
       - name: Every server error code has a client message (I3)
         run: scripts/check-error-codes.sh
+      - name: Shell guard self-test
+        run: scripts/check-shell-test.sh
+      - name: No pipe into grep -q or head under pipefail
+        run: scripts/check-shell.sh
 
   backend:
     name: backend

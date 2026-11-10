@@ -34,14 +34,14 @@ A run spans hours, so it is **budgeted**:
 
 2. (optional) Use an **exploration subagent** to conduct any exploration required by the tickets - relevant codebase files or external documentation. Ensure the exploration subagent can save files - it should save its markdown notes in a directory outside the repo, accessible by all future subagents. This lets **implementer subagents** focus on implementation rather than exploration.
 
-3. Create the integration branch. If the issue tracker closes work through PRs, or the user asks for one, open a draft PR after the first merge in step 5 (a branch with no commits ahead of main can't open one), marked as closing the spec and tickets.
+3. Create the integration branch from `origin/main` with `git branch` and push it, without checking it out: a branch checked out in one worktree can't be checked out in another, and every merger needs it. Mergers work on a local branch from `origin/<integration>` and push with `git push origin HEAD:<integration>`. If the issue tracker closes work through PRs, or the user asks for one, open a draft PR after the first merge in step 5 (a branch with no commits ahead of main can't open one), marked as closing the spec and tickets.
 
 4. Use a fresh **implementer subagent** for each ticket, each in its own worktree on its own branch. Each implementer subagent:
    - confirms its worktree is based on the integration branch before starting, and resets onto it if not;
    - calls the Skill tool with `tdd` to build the ticket;
    - merges the integration branch tip into its own branch before reporting done
 
-5. Once an **implementer subagent** completes, merge its work to the integration branch with a **merger subagent**. Before merging, the merger checks the ticket's diff against that ticket's acceptance criteria and the spec sections they cite, and fixes or reports any gap. The ticket is done when every criterion is visibly met in the diff and the integration branch's checks pass after the merge.
+5. Once an **implementer subagent** completes, merge its work to the integration branch with a **merger subagent**. Before merging, the merger checks the ticket's diff against that ticket's acceptance criteria, the shared checks in `docs/agents/ticket-checks.md` and the spec sections they cite, and fixes or reports any gap. For every test the implementer reports as never seen failing, the merger mutation-checks it: break the code it covers, see the test fail, restore. The ticket is done when every criterion is visibly met in the diff and the integration branch's checks pass after the merge.
 
 6. If this changes the **frontier** of available tickets, kick off more **implementer subagents** to work on the new tickets. This allows for maximum concurrency.
 

@@ -35,7 +35,7 @@ docker run -d --name "$app" --network "$network" -p 127.0.0.1::8080 \
   -e DATASOURCE_USERNAME=family -e DATASOURCE_PASSWORD=smoke \
   "$image" >/dev/null
 
-base="http://$(docker port "$app" 8080/tcp | head -n1)"
+base="http://$(docker port "$app" 8080/tcp | sed -n 1p)"
 echo "app at $base"
 
 # The app may exit while Postgres is still starting; give it time, but fail fast if it dies.
@@ -68,7 +68,7 @@ check_serves_index_html() {
 check_cache_control() {
   local path="$1" expected="$2" headers actual
   headers="$(curl -fsS -o /dev/null -D - "$base$path")" || fail "GET $path did not return 2xx"
-  actual="$(printf '%s' "$headers" | tr -d '\r' | sed -n 's/^[Cc]ache-[Cc]ontrol: *//p' | head -n1)"
+  actual="$(printf '%s' "$headers" | tr -d '\r' | sed -n 's/^[Cc]ache-[Cc]ontrol: *//p' | sed -n 1p)"
   case "$actual" in
     "$expected") echo "ok   GET $path has Cache-Control: $actual" ;;
     *) fail "GET $path: expected Cache-Control '$expected', got '${actual:-none}'" ;;
@@ -100,7 +100,7 @@ check_manifest() {
 
 # The first hashed asset index.html references, e.g. /assets/index-AbC123.js.
 first_hashed_asset() {
-  curl -fsS "$base/" | grep -o '/assets/[^"]*' | head -n1
+  curl -fsS "$base/" | grep -o '/assets/[^"]*' | sed -n 1p
 }
 
 check_serves_index_html /
