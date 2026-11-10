@@ -172,6 +172,31 @@ describe('Adding an Item with a Description', () => {
     });
   });
 
+  it('adds nothing while the focus moves between the name and the line, and both once on leaving the row', async () => {
+    syncServer.seed('list', [groceries]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    const field = await addField();
+    await user.type(field, 'Хлеб');
+    await user.click(screen.getByRole('button', { name: 'Добавить описание' }));
+    await user.keyboard('Бородинский{ArrowUp}{ArrowDown}');
+    await user.click(field);
+    await user.tab();
+    expect(descriptionField()).toHaveFocus();
+    expect(within(await items()).queryAllByRole('listitem')).toEqual([]);
+
+    await user.click(document.body);
+
+    await waitFor(() => {
+      expect(syncServer.operations('item').map((op) => op.fields)).toEqual([
+        { listId: groceries.id, text: 'Хлеб', description: 'Бородинский' },
+      ]);
+    });
+    expect(field).toHaveValue('');
+    expect(descriptionField()).not.toBeInTheDocument();
+  });
+
   it('sends no Description for a plain name and Enter', async () => {
     syncServer.seed('list', [groceries]);
     const user = userEvent.setup();
