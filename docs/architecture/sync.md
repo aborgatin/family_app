@@ -18,9 +18,9 @@ table adds it here.
 | `member`      | `V1__family_member_session.sql` | server, at registration (`Member` constructor) | M1    |
 | `child`       | `V3__child.sql`                 | client (`crypto.randomUUID()`)                 | M1    |
 | `child_field` | `V4__child_field.sql`           | client; Default rows by the migration          | M1    |
-| `list`        | `V5__list.sql`                  | client (`crypto.randomUUID()`)                 | M2    |
+| `list`        | `V5__list.sql`                  | client; Defaults by the server at bootstrap    | M2    |
 | `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7) | M2    |
-| `category`    | `V8__category.sql`              | client (`crypto.randomUUID()`)                 | M3    |
+| `category`    | `V8__category.sql`              | client; Defaults by the server at bootstrap    | M3    |
 | `item_history` | `V9__item_history.sql`         | server, when an Item is written (pull-only)    | M3    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
@@ -42,7 +42,8 @@ shown), `invite`, `password_reset`, `spring_session`, `spring_session_attributes
   calling `bump_version()`. No code path can write a row without a new Version, and Java never
   sets these columns: entities map them with `@Generated(event = {INSERT, UPDATE})`,
   `insertable = false, updatable = false`, and Hibernate reads them back after each write.
-- Default rows (the two Child fields in `V4`) get Versions from the trigger too.
+- Default rows (the two Child fields in `V4`; the Default Shopping lists and their Categories,
+  written at the first Member's registration) get Versions from the trigger too.
 - Tested: `everyWriteGetsAHigherVersion…` in `ChildrenSyncTest`.
 
 **Soft deletes.** Removing a row sets `deleted = true` (an UPDATE, so the Version advances). The

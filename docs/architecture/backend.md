@@ -43,16 +43,17 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 | Module    | Public API (root package)                                                                              | Internal                                                                                  |
 | --------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`, `Family`                                   | `family.auth`, `family.member`, `family.child`, `family.childfield`                       |
+| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`, `Family`, `FirstMemberRegistered`          | `family.auth`, `family.member`, `family.child`, `family.childfield`                       |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | none                                                                                                   | `lists.list`                                                                              |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
 
-Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `sync → error`,
-`command → family`. (`lists` reaches Members only through `Operation.memberId()` so far; the spec
-allows `lists → family` for `Members` and `FamilyLock` when a ticket needs them.) The Version
+Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
+`sync → error`, `command → family`. (`lists` reaches Members through `Operation.memberId()`, and
+`family` only for the `FirstMemberRegistered` event; the spec also allows `Members` and
+`FamilyLock` when a ticket needs them.) The Version
 sequence and trigger are database objects from `V1`; `sync` only reads `version_seq` for the push
 answer (see [`sync.md`](sync.md)).
 
@@ -116,6 +117,11 @@ Shared patterns inside `family`:
   in Version order (sync.md "Versions commit in order") and check-then-insert races run one after
   another. Taking it publishes `sync.SyncableWriteStarted`, which is what sends live updates after
   the commit (see `sync` below).
+- **`FirstMemberRegistered(memberId)`** (public): `BootstrapService` publishes it after saving the
+  first Member, inside the bootstrap transaction (which holds `FamilyLock`); Invite acceptance
+  never does. Listeners are plain synchronous `@EventListener`s, so what they write commits or
+  rolls back with the Member: `lists.list.ShoppingListDefaults` creates the Default Shopping lists
+  (see `lists` below and "Defaults" under Flyway).
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.
 - **Validation** collects every bad field in a `FieldErrors` and throws once. Body records read
@@ -200,6 +206,12 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
 - `changesSince`: `name`, `kind`, `visibility`, `unnamedCategoryPosition`, `ownerId`,
   `createdAt`; a tombstone for a deleted List and for another Member's Private List
   (`ListEntity.visibleTo(memberId)`).
+
+`ShoppingListDefaults` listens for `family.FirstMemberRegistered` and creates the Default Shopping
+lists with server-made ids: Супермаркет (Shared, Owner the new Member, Categories «Еда» position 1,
+«Бытовая химия» 2, `unnamedCategoryPosition` 3) and Аптека (Shared, `unnamedCategoryPosition` 0).
+Afterwards they are ordinary Lists and Categories. Tested by `lists.ShoppingListDefaultsTest`; that
+a failing Defaults listener rolls the registration back, by `lists.ShoppingListDefaultsRollbackTest`.
 
 `VisibleLists` (a bean) is A1 for the tables whose rows belong to a List: `find(listId,
 memberId)` (the List, deleted or not, or `list.not_found`), `rowsVisibleTo(memberId, rows,
@@ -472,7 +484,10 @@ Migrations are in `backend/src/main/resources/db/migration`:
   `scripts/check.sh`) fails on a changed, deleted or renamed merged migration and on a new version
   that is not higher; its self-test is `scripts/check-migrations-test.sh`.
 - **Defaults** are inserted by the same migration that creates their table, so they are written
-  exactly once per installation and never come back after a Member edits or removes them. Russian
+  exactly once per installation and never come back after a Member edits or removes them. The
+  exception is the Default Shopping lists: a List needs an Owner, so they come from the first
+  Member's registration (`family.FirstMemberRegistered` → `lists.list.ShoppingListDefaults`), not
+  a migration, which is just as once-only; installations from before them get no backfill. Russian
   strings are allowed there (I1, "seed data"). Default rows get Versions from the trigger like any
   write.
 - Hibernate only validates the schema (`ddl-auto: validate`); the schema comes from Flyway alone.
