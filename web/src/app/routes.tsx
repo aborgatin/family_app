@@ -12,7 +12,9 @@ import { CHILD_SETTINGS_PATH, ChildSettingsPage } from '@/features/children';
 import { HOME_PATH, HomePage } from '@/features/home';
 import {
   CategoriesPage,
+  ItemPage,
   LIST_CATEGORIES_PATH,
+  LIST_ITEM_PATH,
   LIST_PATH,
   LIST_SETTINGS_PATH,
   ListPage,
@@ -43,6 +45,7 @@ export const routes: RouteObject[] = [
           { path: LIST_PATH, element: <ListPage homePath={HOME_PATH} /> },
           { path: LIST_SETTINGS_PATH, element: <ListSettingsPage homePath={HOME_PATH} /> },
           { path: LIST_CATEGORIES_PATH, element: <CategoriesPage homePath={HOME_PATH} /> },
+          { path: LIST_ITEM_PATH, element: <ItemPage homePath={HOME_PATH} /> },
           { path: '/setup', element: <SetupPage /> },
           { path: '/login', element: <LoginPage /> },
           { path: RESET_PASSWORD_PATH, element: <ResetPasswordPage /> },

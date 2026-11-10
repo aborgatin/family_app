@@ -17,6 +17,7 @@ import {
   useRowFailures,
   type ReportFailure,
 } from '@/shared/ui';
+import { listItemPath } from './listPaths';
 import { KIND_TEXTS, type Category, type Item, type List } from './listTypes';
 import {
   itemsByCategory,
@@ -456,6 +457,7 @@ function ItemRow({
       }}
       {...(categories !== undefined &&
         categories.length > 0 && { chip: categoryChip(list, categories, item, move, t) })}
+      details={{ label: t('lists.itemDetails'), to: listItemPath(list.id, item.id) }}
       confirm={{ title: t('lists.confirmDeleteItem', { text: item.text }) }}
       onDelete={onDelete}
     />

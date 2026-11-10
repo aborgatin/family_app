@@ -61,6 +61,12 @@
       "todo": "Задача «{{text}}»",
       "wish": "Желание «{{text}}»"
     },
+    "item": {
+      "shopping": "Товар",
+      "todo": "Задача",
+      "wish": "Желание"
+    },
+    "itemDetails": "Подробнее",
     "description": "Описание",
     "itemDescription": "Описание «{{text}}»",
     "newItem": {

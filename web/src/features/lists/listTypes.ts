@@ -103,6 +103,8 @@ export const KIND_TEXTS: Record<
     noItems: ParseKeys;
     /** The header of the List screen's Items. */
     items: ParseKeys;
+    /** One Item of the kind: the Item screen's title. */
+    item: ParseKeys;
     /** An Item's text field, «Товар «{{text}}»». */
     itemText: ParseKeys;
     /** The last row, which adds an Item. */
@@ -118,6 +120,7 @@ export const KIND_TEXTS: Record<
     name: 'lists.kindName.shopping',
     noItems: 'lists.noItems.shopping',
     items: 'lists.items.shopping',
+    item: 'lists.item.shopping',
     itemText: 'lists.itemText.shopping',
     newItem: 'lists.newItem.shopping',
     done: 'lists.done.shopping',
@@ -128,6 +131,7 @@ export const KIND_TEXTS: Record<
     name: 'lists.kindName.todo',
     noItems: 'lists.noItems.todo',
     items: 'lists.items.todo',
+    item: 'lists.item.todo',
     itemText: 'lists.itemText.todo',
     newItem: 'lists.newItem.todo',
     done: 'lists.done.todo',
@@ -138,6 +142,7 @@ export const KIND_TEXTS: Record<
     name: 'lists.kindName.wish',
     noItems: 'lists.noItems.wish',
     items: 'lists.items.wish',
+    item: 'lists.item.wish',
     itemText: 'lists.itemText.wish',
     newItem: 'lists.newItem.wish',
     done: 'lists.done.wish',

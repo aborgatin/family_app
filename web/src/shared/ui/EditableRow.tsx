@@ -5,14 +5,15 @@ import {
   useState,
   type FocusEvent,
   type KeyboardEvent,
-  type MouseEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link as RouterLink } from 'react-router';
 import { ActionSheet } from './ActionSheet';
+import { controlClasses } from './controlStyles';
 import { FIELD_FOCUS } from './fieldFocus';
 import { ROW_FRAME, useEditing, useSectionRow } from './GroupedSection';
 import { Icon } from './Icon';
+import { LinkedText } from './LinkedText';
 import { MenuChip, type MenuChipProps } from './MenuChip';
 import { LEADING_INSET, ROW_LAYOUT, RowInside, TAPPABLE, type RowContentProps } from './ListRow';
 import { RowContextMenu } from './RowContextMenu';
@@ -55,6 +56,12 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
    * Item's Category). The row stays edited while its menu is open.
    */
   chip?: Omit<MenuChipProps, 'onOpenChange'>;
+  /**
+   * With `secondary`: a small text link at the end of the line under the secondary field while the
+   * row is being edited, opening the screen with everything about the row (an Item's «Подробнее»).
+   * What is typed in the row is saved first.
+   */
+  details?: { label: string; to: string };
   /**
    * Points the row out (e.g. an Item added again by name): scrolled into view and tinted with the
    * accent while set (`data-highlighted`), fading back when unset.
@@ -110,6 +117,7 @@ export function EditableRow({
   input,
   secondary,
   chip,
+  details,
   highlighted = false,
   ...content
 }: EditableRowProps) {
@@ -145,7 +153,35 @@ export function EditableRow({
           (active || choosing ? (
             <>
               <SecondaryInput {...secondary} takeFocus={tapped} />
-              {chip !== undefined && <MenuChip {...chip} onOpenChange={setChoosing} />}
+              {(chip !== undefined || details !== undefined) && (
+                <span className="flex items-center gap-3">
+                  {chip !== undefined && (
+                    <span className="flex min-w-0">
+                      <MenuChip {...chip} onOpenChange={setChoosing} />
+                    </span>
+                  )}
+                  {details !== undefined && (
+                    <span className="mt-1.5 ml-auto flex shrink-0">
+                      <RouterLink
+                        to={details.to}
+                        // The fields keep the focus (Safari gives a clicked link none), so the row
+                        // is still being edited, and the link still there, when the click arrives.
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                        }}
+                        // Leaving the row this way fires no blur: save what was typed.
+                        onClick={() => {
+                          input.onCommit();
+                          secondary.onCommit();
+                        }}
+                        className={controlClasses('plain', 'small')}
+                      >
+                        {details.label}
+                      </RouterLink>
+                    </span>
+                  )}
+                </span>
+              )}
             </>
           ) : (
             secondary.value.trim() !== '' && (
@@ -360,40 +396,7 @@ function SecondaryLine({ text, onOpen }: { text: string; onOpen: () => void }) {
       onClick={onOpen}
       className="mt-0.5 block cursor-text truncate text-subhead text-secondary-label"
     >
-      {linkParts(text).map((part, n) =>
-        part.link ? (
-          <a
-            key={n}
-            href={part.text}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event: MouseEvent) => {
-              event.stopPropagation();
-            }}
-            className="text-accent underline"
-          >
-            {part.text}
-          </a>
-        ) : (
-          part.text
-        ),
-      )}
+      <LinkedText text={text} />
     </span>
   );
-}
-
-/** An http(s) address, up to a space; punctuation at its end belongs to the sentence. */
-const LINK = /https?:\/\/\S+?(?=[.,;:!?)»"']*(?:\s|$))/g;
-
-/** The text cut into plain parts and links, in order. */
-function linkParts(text: string): { text: string; link: boolean }[] {
-  const parts: { text: string; link: boolean }[] = [];
-  let last = 0;
-  for (const match of text.matchAll(LINK)) {
-    if (match.index > last) parts.push({ text: text.slice(last, match.index), link: false });
-    parts.push({ text: match[0], link: true });
-    last = match.index + match[0].length;
-  }
-  if (last < text.length) parts.push({ text: text.slice(last), link: false });
-  return parts;
 }
