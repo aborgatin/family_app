@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useRows } from '@/shared/sync';
+import { deleteRow, useRows } from '@/shared/sync';
 import { compare, normalizedName, sortableTime } from './itemKeys';
 import type { ItemHistoryName, List } from './listTypes';
 
@@ -8,8 +8,8 @@ const MAX_NAMES = 5;
 
 /**
  * Autocomplete from a Shopping list's Item history: the only data access for it. It reads the
- * local store (the server writes the history; the device only pulls it), so it works offline.
- * Only a Shopping list's screen uses it (Todo and Wish lists keep no history).
+ * local store (the server writes the names; the device pulls them and may only remove one), so it
+ * works offline. Only a Shopping list's screen uses it (Todo and Wish lists keep no history).
  */
 export function useItemHistory(list: List) {
   const rows = useRows('item_history') as ItemHistoryName[] | undefined;
@@ -44,7 +44,19 @@ export function useItemHistory(list: List) {
     [names],
   );
 
-  return { namesStarting };
+  /**
+   * Removes a name (a typo) from the history at once, through the Outbox, offline too; no
+   * confirmation, since the server remembers it again the next time an Item gets that name.
+   */
+  const remove = useCallback(
+    async (name: string): Promise<void> => {
+      const row = names.find((candidate) => candidate.name === name);
+      if (row !== undefined) await deleteRow('item_history', row.id);
+    },
+    [names],
+  );
+
+  return { namesStarting, remove };
 }
 
 /** Whether `prefix` starts at the beginning of `name` or after a space in it. */

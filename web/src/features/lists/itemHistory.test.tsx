@@ -8,7 +8,7 @@ import { syncServer } from '@/test/syncServer';
 
 // Autocomplete from the Item history (spec #4, ticket #74): while a name is typed in a Shopping
 // list's «Новый товар», up to 5 names from that list's history show under the field; tapping one
-// adds it.
+// adds it. A Member removes a mistyped name with the × on its row (ticket #78).
 
 /** A List row as the pull sends it. */
 function list(n: number, name: string, kind: 'SHOPPING' | 'TODO' | 'WISH') {
@@ -57,6 +57,7 @@ function suggestions() {
     ? []
     : within(group)
         .getAllByRole('button')
+        .filter((button) => !button.getAttribute('aria-label')?.startsWith('Удалить подсказку'))
         .map((button) => button.textContent);
 }
 
@@ -222,6 +223,81 @@ describe('Suggestions from the Item history', () => {
 
     await waitFor(() => {
       expect(suggestions()).toEqual(['Мыло']);
+    });
+  });
+});
+
+describe('Removing a name from the Item history', () => {
+  it('removes a name with its ×, at once and offline too, keeping the typed text and the focus', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item_history', [
+      history(1, 'Малоко', '2026-11-05T10:00:00Z'),
+      history(2, 'Масло', '2026-11-04T10:00:00Z'),
+    ]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    const field = await addField();
+    syncServer.goOffline();
+    await user.type(field, 'ма');
+    await user.click(await screen.findByRole('button', { name: 'Удалить подсказку „Малоко“' }));
+
+    await waitFor(() => {
+      expect(suggestions()).toEqual(['Масло']);
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(field).toHaveValue('ма');
+    expect(field).toHaveFocus();
+    expect(await itemTexts('Товары')).toEqual([]);
+
+    syncServer.goOnline();
+    window.dispatchEvent(new Event('online'));
+
+    await waitFor(() => {
+      expect(syncServer.operations('item_history')).toEqual([
+        { table: 'item_history', id: history(1, '', '').id, op: 'delete' },
+      ]);
+    });
+    expect(syncServer.operations('item')).toEqual([]);
+  });
+
+  it('still adds the name when its row itself is tapped', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item_history', [history(1, 'Малоко', '2026-11-05T10:00:00Z')]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    await user.type(await addField(), 'ма');
+    await user.click(await screen.findByRole('button', { name: 'Малоко' }));
+
+    await waitFor(async () => {
+      expect(await itemTexts('Товары')).toEqual(['Малоко']);
+    });
+    expect(syncServer.operations('item_history')).toEqual([]);
+  });
+
+  it('suggests a removed name again when the pull brings it back, used anew', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item_history', [history(1, 'Малоко', '2026-11-05T10:00:00Z')]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    const field = await addField();
+    await user.type(field, 'ма');
+    await user.click(await screen.findByRole('button', { name: 'Удалить подсказку „Малоко“' }));
+    await waitFor(() => {
+      expect(syncServer.row('item_history', history(1, '', '').id)).toBeUndefined();
+    });
+    expect(suggestions()).toEqual([]);
+
+    syncServer.change('item_history', history(1, '', '').id, {
+      name: 'малоко',
+      lastUsedAt: '2026-11-09T10:00:00Z',
+    });
+    window.dispatchEvent(new Event('online'));
+
+    await waitFor(() => {
+      expect(suggestions()).toEqual(['малоко']);
     });
   });
 });

@@ -131,7 +131,7 @@ function ShoppingItems({ items, add, ...rowContext }: ShoppingItemsProps) {
   const { t } = useTranslation();
   const { list } = rowContext;
   const { categories, add: addCategory } = useCategories(list);
-  const { namesStarting } = useItemHistory(list);
+  const history = useItemHistory(list);
   // A Category whose title is being typed (not saved yet), or saved and not read back yet.
   const [draftState, setDraftState] = useState<{ id: string; name: string; saved: boolean }>();
   // The Category whose «Новый товар» takes the focus when it appears: the one just named.
@@ -176,7 +176,7 @@ function ShoppingItems({ items, add, ...rowContext }: ShoppingItemsProps) {
           header={t(KIND_TEXTS.SHOPPING.items)}
           items={items}
           showEmpty
-          historyNames={namesStarting}
+          history={history}
           onAdd={(text) => {
             add(text);
           }}
@@ -198,7 +198,7 @@ function ShoppingItems({ items, add, ...rowContext }: ShoppingItemsProps) {
           items={items === undefined ? undefined : shown}
           categories={known}
           focusAdd={category !== undefined && category.id === focusAddIn}
-          historyNames={namesStarting}
+          history={history}
           onAdd={(text) => {
             add(text, category?.id);
           }}
@@ -234,8 +234,8 @@ interface OpenItemsProps extends ItemRowContext {
   onAdd: (text: string) => void;
   /** The add field takes the focus when it appears. */
   focusAdd?: boolean;
-  /** Names from the Item history for what is typed in the add field (a Shopping list's). */
-  historyNames?: (typed: string) => readonly string[];
+  /** The Item history: suggestions for what is typed in the add field (a Shopping list's). */
+  history?: ReturnType<typeof useItemHistory>;
   /** The List's named Categories, if any: each Item has the Category chip while edited. */
   categories?: readonly Category[];
 }
@@ -248,7 +248,7 @@ function OpenItems({
   showEmpty = false,
   onAdd,
   focusAdd = false,
-  historyNames,
+  history,
   categories,
   list,
   rename,
@@ -284,7 +284,12 @@ function OpenItems({
             label={t(texts.newItem)}
             onAdd={onAdd}
             focus={focusAdd}
-            {...(historyNames !== undefined && { suggest: historyNames })}
+            {...(history !== undefined && {
+              suggest: history.namesStarting,
+              onRemoveSuggestion: (name: string) => {
+                void history.remove(name);
+              },
+            })}
           />
         )
       }

@@ -16,6 +16,8 @@ interface ItemHistoryRepository extends Repository<ItemHistoryEntity, UUID> {
 
   ItemHistoryEntity saveAndFlush(ItemHistoryEntity row);
 
+  Optional<ItemHistoryEntity> findById(UUID id);
+
   /** The List's row for this normalised name, deleted or not. */
   Optional<ItemHistoryEntity> findByListIdAndNormalizedName(UUID listId, String normalizedName);
 

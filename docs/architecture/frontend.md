@@ -313,8 +313,10 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   Shopping list screen's sections), in the order given; an Item whose Category isn't on the device
   is in the Unnamed category. `UNNAMED_CATEGORY_KEY` stands for the Unnamed category wherever
   Categories are keyed by id (a React key, a `SortableList` id).
-- `useItemHistory(list)` → `{namesStarting(typed)}` (#74): autocomplete from the List's Item
-  history on the local store (pull-only; the server writes it). `namesStarting` gives up to 5 names with a word
+- `useItemHistory(list)` → `{namesStarting(typed), remove(name)}` (#74, #78): autocomplete from
+  the List's Item history on the local store (the server writes it). `remove` deletes the name's
+  row through the Outbox (`deleteRow`), offline too, with no confirmation: the server revives it
+  the next time an Item gets that name. `namesStarting` gives up to 5 names with a word
   (the start of the name, or after a space) that starts with the typed text, both trimmed and
   lower-cased, newest `lastUsedAt` first (fraction padded as for `createdAt`), ties by name. Only a
   Shopping list's screen uses it.
@@ -377,7 +379,8 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   picking another calls `move()`, so the Item goes to that section at once, offline too. Every
   «Новый товар» of a Shopping list has `AddRow` `suggest` from
   `useItemHistory().namesStarting`: while it is focused and has text, the suggestions show under it
-  (`SuggestionRows`), and tapping one calls the same `onAdd` as Enter, so the Item goes into that
+  (`SuggestionRows`; its × calls `remove()` through `AddRow` `onRemoveSuggestion`, keeping the
+  typed text and the focus), and tapping one calls the same `onAdd` as Enter, so the Item goes into that
   field's Category (none for the «Товары» or the untitled section), offline too. Todo and Wish
   lists get no suggestions. When `add` (Enter or a suggestion) resolves with an open Item of that
   name, `ItemsSection` highlights its row for 1.5 s (`EditableRow` `highlighted`: scrolled into

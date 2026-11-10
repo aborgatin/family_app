@@ -120,7 +120,8 @@ spacing `n`).
   password screen («Готово» in the nav bar).
 - **Deleting always asks**, with an action sheet («Удалить „Маша“?» / «Удалить» / «Отменить»),
   whether it starts from a swipe, edit mode ⊖, right-click or a «Удалить …» row. A full swipe only
-  reveals «Удалить».
+  reveals «Удалить». The one exception: the × on a suggestion (`SuggestionRows`) removes the name
+  from the Item history at once, since the name comes back as soon as it is used again (#78).
 
 ## Components
 
@@ -441,7 +442,10 @@ to the suggestions without adding anything; leaving both adds the typed text as 
 Up to 5 plain rows directly under the focused `AddRow` (it places them; a List's autocomplete
 from the Item history): each a name in `label`, a hairline above every row as in any group.
 Tapping or clicking a row picks it; pressing it with the mouse doesn't take the focus from the
-field. A group named «Подсказки» (`ui.suggestions`); each row is a button named by its name, so
+field. With `onRemove` (`AddRow` `onRemoveSuggestion`), each row ends with a × (`clear` icon,
+`tertiary-label`, darker on hover; 44px target on touch, 36px with a mouse) named «Удалить
+подсказку „Малоко“» (`ui.removeSuggestion`): it removes the name at once, with no action sheet,
+and the field keeps its text and the focus, so the other suggestions update in place. A group named «Подсказки» (`ui.suggestions`); each row is a button named by its name, so
 Tab reaches them after the field, Enter or Space picks. Touch: 44px rows; fine pointer: 36px,
 hover tint. Same on narrow and wide windows.
 

@@ -16,6 +16,11 @@ interface AddRowProps {
    * field while it has the focus (`SuggestionRows`); tapping one adds it with `onAdd`.
    */
   suggest?: (typed: string) => readonly string[];
+  /**
+   * With it, each suggestion has a × that calls this with its name; the typed text and the focus
+   * stay, so the other suggestions update in place.
+   */
+  onRemoveSuggestion?: (name: string) => void;
 }
 
 /**
@@ -24,7 +29,7 @@ interface AddRowProps {
  * leaving the field with text in it adds it too; Esc empties it. With `suggest`, the suggested
  * names show under the field while it is focused; picking one adds it instead of the typed text.
  */
-export function AddRow({ label, onAdd, focus = false, suggest }: AddRowProps) {
+export function AddRow({ label, onAdd, focus = false, suggest, onRemoveSuggestion }: AddRowProps) {
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
   const field = useRef<HTMLInputElement>(null);
@@ -95,6 +100,12 @@ export function AddRow({ label, onAdd, focus = false, suggest }: AddRowProps) {
           setText('');
           field.current?.focus();
         }}
+        {...(onRemoveSuggestion !== undefined && {
+          onRemove: (name: string) => {
+            onRemoveSuggestion(name);
+            field.current?.focus();
+          },
+        })}
       />
     </div>
   );
