@@ -86,19 +86,24 @@ check_http_redirects_to_https() {
 }
 
 check_hsts() {
-  curl -ksSI "$base/" | grep -qi '^strict-transport-security: max-age=' ||
+  local headers
+  headers="$(curl -ksSI "$base/")"
+  grep -qi '^strict-transport-security: max-age=' <<<"$headers" ||
     fail "no Strict-Transport-Security header"
   echo "ok   HSTS header set"
 }
 
-# Checked on the bundle's script: Caddy leaves responses under 512 bytes uncompressed.
+# Checked on the bundle's script: Caddy leaves responses under 512 bytes uncompressed. Headers are
+# captured before grepping: `curl | grep -q` fails under pipefail when grep exits on the first match
+# while curl is still writing (curl exit 23).
 check_compression() {
-  local encoding script
+  local encoding script headers
   script="$(curl -ksS "$base/" | grep -o 'src="/assets/[^"]*\.js"' | head -n1 | cut -d'"' -f2)"
   [ -n "$script" ] || fail "index.html references no /assets/*.js script"
   for encoding in gzip zstd; do
-    curl -ksS -o /dev/null -D - -H "Accept-Encoding: $encoding" "$base$script" |
-      grep -qi "^content-encoding: $encoding" || fail "response not compressed with $encoding"
+    headers="$(curl -ksS -o /dev/null -D - -H "Accept-Encoding: $encoding" "$base$script")"
+    grep -qi "^content-encoding: $encoding" <<<"$headers" ||
+      fail "response not compressed with $encoding"
   done
   echo "ok   responses compressed with gzip and zstd"
 }
