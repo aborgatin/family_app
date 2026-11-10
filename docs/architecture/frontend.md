@@ -41,8 +41,9 @@ web/src/
                         listPaths (LIST_PATH, LIST_SETTINGS_PATH, LIST_CATEGORIES_PATH),
                         ListMissing (gone / loading),
                         ItemsSection (the List screen's Items, by Category on a Shopping list),
-                        listTypes (kinds, Visibility, kind texts, Item, Category), useLists(),
-                        useItems(listId), useCategories(list)
+                        listTypes (kinds, Visibility, kind texts, Item, Category,
+                        ItemHistoryEntry), useLists(), useItems(listId), useCategories(list),
+                        useItemHistory(list)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
@@ -58,7 +59,7 @@ web/src/
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
-                        LoadingRow, EditableRow, AddRow, SortableList (dnd-kit), SwipeToDelete,
+                        LoadingRow, EditableRow, AddRow, SuggestionRows, SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
   test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
@@ -186,9 +187,9 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`, `list`, `item`, `category`; `child_field` and `list` came
-  with store version 2, `item`, indexed by `listId`, with version 3, `category`, indexed by
-  `listId`, with version 4),
+  (`member`, `child`, `child_field`, `list`, `item`, `category`, `item_history`; `child_field`
+  and `list` came with store version 2, `item`, indexed by `listId`, with version 3, `category`,
+  indexed by `listId`, with version 4, `item_history`, indexed by `listId`, with version 5),
   `outbox` (`++seq`) and `meta` (the stored Version, the owner: the Member whose data it holds,
   and the owner copy the app starts from offline). Internal to the folder, except
   `claimLocalStore(memberId)` (below) and `saveOwnerCopy(owner)` / `ownerCopy()` (see "Offline
@@ -309,6 +310,11 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   position (the Unnamed one first on a tie); `sectionsInOrder(list, categories, openItems)` gives
   the Shopping list screen's sections in that order, with their open Items in the order given; an
   Item whose Category isn't on the device is in the Unnamed category.
+- `useItemHistory(list)` → `{suggest(typed)}` (#74): autocomplete from the List's Item history
+  on the local store (pull-only; the server writes it). `suggest` gives up to 5 names with a word
+  (the start of the name, or after a space) that starts with the typed text, both trimmed and
+  lower-cased, newest `lastUsedAt` first (fraction padded as for `createdAt`), ties by name. Only a
+  Shopping list's screen uses it.
 - `useItems(listId)` → `{items, doneItems, add(text, categoryId?), rename(item, text),
   describe(item, description), move(item, categoryId), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
@@ -357,7 +363,12 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   `EditableRow` `chip`, a `MenuChip`) under its Description: its Category's name or «Без
   категории», named «Категория: Еда» (`lists.itemCategory`); the menu is `sectionsInOrder()`'s
   sections, «Без категории» (grey) in the Unnamed category's place, the current one ticked, and
-  picking another calls `move()`, so the Item goes to that section at once, offline too.
+  picking another calls `move()`, so the Item goes to that section at once, offline too. Every
+  «Новый товар» of a Shopping list has `AddRow` `suggest` from
+  `useItemHistory`: while it is focused and has text, the suggestions show under it
+  (`SuggestionRows`), and tapping one calls the same `onAdd` as Enter, so the Item goes into that
+  field's Category (none for the «Товары» or the untitled section), offline too. Todo and Wish
+  lists get no suggestions.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `useLogout()` → `{logOut({discardUnsent?}), pending, error, unsentWarning, dismissWarning}`:
   the only data access of `LogoutSection` (Outbox flush, logout request, pending logout, wipe;
@@ -575,9 +586,10 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
 - Every `renderApp` test must mock `GET /api/auth/session` (`sessionHandler({...}).handler`; its
   `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`
   and `/api/invites`.
-- Lists, Items and Categories tests (`lists/lists.test.tsx`, `lists/items.test.tsx`,
-  `lists/categories.test.tsx`, `lists/categoriesScreen.test.tsx`) build their rows inline and seed them with
-  `syncServer.seed('list' | 'item' | 'category', …)`; `items.test.tsx` and `categories.test.tsx`
+- Lists, Items, Categories and Item history tests (`lists/lists.test.tsx`, `lists/items.test.tsx`,
+  `lists/categories.test.tsx`, `lists/categoriesScreen.test.tsx`, `lists/itemHistory.test.tsx`) build
+  their rows inline and seed them with
+  `syncServer.seed('list' | 'item' | 'category' | 'item_history', …)`; `items.test.tsx` and `categories.test.tsx`
   also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for

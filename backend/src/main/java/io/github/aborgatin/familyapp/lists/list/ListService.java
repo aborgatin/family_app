@@ -23,11 +23,17 @@ class ListService implements SyncableTable {
   private final ListRepository lists;
   private final ItemRepository items;
   private final CategoryRepository categories;
+  private final ItemHistoryRepository history;
 
-  ListService(ListRepository lists, ItemRepository items, CategoryRepository categories) {
+  ListService(
+      ListRepository lists,
+      ItemRepository items,
+      CategoryRepository categories,
+      ItemHistoryRepository history) {
     this.lists = lists;
     this.items = items;
     this.categories = categories;
+    this.history = history;
   }
 
   @Override
@@ -81,10 +87,11 @@ class ListService implements SyncableTable {
                     new ListEntity(operation.id(), operation.memberId(), clock.instant(), details));
     lists.saveAndFlush(list);
     if (visibilityChanged) {
-      // The pull sends the Items and Categories again: with their fields to a Member who may now
-      // see the List, as tombstones to one who no longer may.
+      // The pull sends the Items, Categories and Item history again: with their fields to a
+      // Member who may now see the List, as tombstones to one who no longer may.
       items.bumpVersionsInList(list.id());
       categories.bumpVersionsInList(list.id());
+      history.bumpVersionsInList(list.id());
     }
     return Outcome.APPLIED;
   }
@@ -97,6 +104,7 @@ class ListService implements SyncableTable {
     lists.saveAndFlush(list);
     items.markDeletedInList(list.id());
     categories.markDeletedInList(list.id());
+    history.markDeletedInList(list.id());
     return Outcome.APPLIED;
   }
 

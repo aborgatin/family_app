@@ -2,7 +2,7 @@
 
 What exists in `/backend` after Spec #1 (M0 + M1), the M2 sync core (spec #3, tickets #52 and
 #53), live updates (#54), Lists (#55, #56), Items (#57, Done #58) and, from M3 (spec #4),
-Categories (#70). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
+Categories (#70) and Item history (#74). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
 Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`sync.md`](sync.md).
 
 ## Stack
@@ -176,7 +176,8 @@ of its Spring Session id (`SessionRepository.findById`). `LiveUpdates` (not web-
 
 ### `lists`
 
-Lists, Items and Categories: written only by the push, read only by the pull, no REST endpoints. `lists.list`: `ListEntity` (named so it doesn't shadow `java.util.List`), `ListKind`
+Lists, Items and Categories: written only by the push, read only by the pull, no REST endpoints
+(Item history: written only by the server, read only by the pull). `lists.list`: `ListEntity` (named so it doesn't shadow `java.util.List`), `ListKind`
 (`SHOPPING`, `TODO`, `WISH`) and `Visibility` (`PRIVATE`, `SHARED`), both code (S7);
 `ListRepository`; `ListRequest` (merged fields → `validate()`: name 1–100 code points after trim,
 the Child name limits; known kind and Visibility; `unnamedCategoryPosition` a finite number, 0 when
@@ -189,10 +190,11 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   changed the Visibility (the same value is no change), and `list.wish_shared_only` for a Private
   Wish list; a delete by a Member other than the Owner is `list.owner_only` too.
   A create sets the Owner (`operation.memberId()`) and `createdAt`; neither ever changes. A
-  Visibility change also gives the List's Items and Categories a new Version
-  (`ItemRepository.bumpVersionsInList`, `CategoryRepository.bumpVersionsInList`: a no-op UPDATE
-  the trigger stamps), so the pull sends them again with or without their fields. A delete
-  soft-deletes the List, its Items and its Categories (`markDeletedInList` on both). All are bulk
+  Visibility change also gives the List's Items, Categories and Item history a new Version
+  (`bumpVersionsInList` on `ItemRepository`, `CategoryRepository` and `ItemHistoryRepository`: a
+  no-op UPDATE the trigger stamps), so the pull sends them again with or without their fields. A
+  delete soft-deletes the List, its Items, its Categories and its Item history (`markDeletedInList`
+  on the three). All are bulk
   JPQL updates that flush and clear the persistence context, so later operations of the same push
   see them.
 - `changesSince`: `name`, `kind`, `visibility`, `unnamedCategoryPosition`, `ownerId`,
@@ -203,7 +205,7 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
 memberId)` (the List, deleted or not, or `list.not_found`), `rowsVisibleTo(memberId, rows,
 listIdOfRow)` (the pull's `visible` predicate, loading the Lists once with `findAllById`), and the
 static `listId(operation)` / `sameList(operation, listId)` for the create-only `listId` field.
-Items and Categories use it; a new List-owned table (Item history) should too.
+Items, Categories and Item history use it.
 
 Items are in the same package (an Item belongs to its List): `ItemEntity` (`list_id`, `text`,
 `category_id`, `description`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`), `ItemRepository`,
@@ -225,6 +227,8 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
 - Category (`categoryId`, when carried; `ItemEntity.moveTo`): `null` is the Unnamed category; a
   UUID must name a Category of the Item's own List, which must be `SHOPPING`, else
   `item.category_not_found` (`params.categoryId`); a deleted one is stored as `null`.
+- Item history: a create, a changed `text`, and Done → open each call `ItemHistoryService.used(list,
+  text, now)` in the same operation (below). A delete never touches the history.
 - `changesSince`: `listId`, `text`, `categoryId`, `description`, `done`, `doneById`, `doneAt`,
   `creatorId`, `createdAt`; a tombstone for a deleted Item and for one whose List the Member may
   not see (`VisibleLists.rowsVisibleTo`).
@@ -244,6 +248,18 @@ code points after trim, `position` a finite number, both required) → `Category
   sees the List may write.
 - `changesSince`: `listId`, `name`, `position`; a tombstone for a deleted Category and for one
   whose List the Member may not see.
+
+Item history is in the same package: `ItemHistoryEntity` (`list_id`, `normalized_name`, `name`,
+`last_used_at`; the server makes the id), `ItemHistoryRepository` (`findByListIdAndNormalizedName`,
+`markDeletedInList`, `bumpVersionsInList`), `ItemHistoryService`, the `item_history`
+`SyncableTable`:
+
+- `apply` is the interface default: every operation is `sync.read_only`.
+- `used(list, name, at)`: only for a `SHOPPING` List; upserts the row of the List and the name
+  trimmed and lower-cased (`ItemHistoryEntity.normalize`), setting the latest spelling and
+  `last_used_at`. Called by `ItemService` inside the push's operation, so it rolls back with it.
+- `changesSince`: `listId`, `name`, `lastUsedAt`; a tombstone for a deleted row and for one whose
+  List the Member may not see.
 
 ### `command`
 
@@ -449,6 +465,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V6__item.sql`                  | `item` (→ `list`; Creator and done by → `member`), index on `list_id`                              |
 | `V7__item_description.sql`      | renames `item.note` to `description` (the glossary's Description)                                  |
 | `V8__category.sql`              | `category` (→ `list`), index on `list_id`; `list.unnamed_category_position`; `item.category_id`    |
+| `V9__item_history.sql`          | `item_history` (→ `list`), unique on (`list_id`, `normalized_name`)                                |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -507,7 +524,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `lists.ListsSyncTest`, `lists.ItemsSyncTest` and `lists.CategoriesSyncTest` do.
+   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `lists.ListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest` and `lists.ItemHistorySyncTest` do.
 
 ## Testing
 
@@ -526,7 +543,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `putJson`, `patchJson`, `delete`. Login-limit counters live for the whole cached context, so
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
-    (cascading to Invites, resets, Lists, Items and Categories) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
+    (cascading to Invites, resets, Lists, Items, Categories and Item history) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
     `addMember(jdbc, email, password, name, gender)`.
   - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),

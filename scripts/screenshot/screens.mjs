@@ -188,6 +188,34 @@ export default {
       ],
     },
     {
+      // «мо» typed in «Еда»'s «Новый товар»: up to 5 names from the List's Item history under it,
+      // cleared ones included.
+      name: 'list-suggestions',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'мо' },
+        { waitFor: 'role=group[name="Подсказки"]' },
+        { wait: 200 },
+      ],
+    },
+    {
+      // No name in the history starts with «щ»: no suggestions, just the typed text.
+      name: 'list-suggestions-none',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'щ' },
+        { wait: 200 },
+      ],
+    },
+    {
       name: 'list-todo',
       path: '/',
       steps: [{ click: 'role=link[name=/Дела по дому/]' }, { waitFor: 'role=textbox[name^="Задача"]' }],

@@ -21,6 +21,7 @@ table adds it here.
 | `list`        | `V5__list.sql`                  | client (`crypto.randomUUID()`)                 | M2    |
 | `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7) | M2    |
 | `category`    | `V8__category.sql`              | client (`crypto.randomUUID()`)                 | M3    |
+| `item_history` | `V9__item_history.sql`         | server, when an Item is written (pull-only)    | M3    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -92,8 +93,8 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   Shared List),
   `list.not_found` (any operation on another Member's Private List), and the Child name limits on
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
-  is `ignored` (delete wins). Deleting a List soft-deletes its Items and Categories in the same
-  operation.
+  is `ignored` (delete wins). Deleting a List soft-deletes its Items, Categories and Item history
+  in the same operation.
 - **Items** (`item`, tickets #57, #58, #69, #70): an upsert carries `listId` (create only; a later upsert
   naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
   points after trim), `description` (the Description: optional, ≤ 10000 code points, over is
@@ -109,6 +110,11 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   the Item's own List, which must be a Shopping list, else `item.category_not_found`
   (`params.categoryId`); one deleted meanwhile is stored as `null` (the Item is kept, in the
   Unnamed category).
+- **Item history** (`item_history`, ticket #74) is pull-only: every operation on it is
+  `sync.read_only`. The server keeps it inside the Item operation, for Shopping lists only: one
+  row per List and name trimmed and lower-cased, upserted (latest spelling, `lastUsedAt` now) when
+  an Item is created, when its `text` changes, and when it goes from Done back to open. Deleting
+  Items never removes it; deleting the List does. The pull sends `listId`, `name`, `lastUsedAt`.
 - **Categories** (`category`, ticket #70): an upsert carries `listId` (create only; another one
   later is `validation.failed`, `listId` `value.invalid`), `name` (1–100 code points after trim,
   duplicates allowed) and `position` (a number). Rules: `category.list_not_shopping`
@@ -142,10 +148,11 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   fields. Operations on it are rejected with `list.not_found`, as if it
   didn't exist.
 - **Visibility change.** Changing a List's Visibility gives all its Items a new Version (an UPDATE
-  that changes nothing; the trigger still runs), and its Categories too, so the next pull sends
-  them again: with their fields to a Member who may now see the List (a List shared later arrives
-  with its Items and Categories), as tombstones to one who no longer may. An Item or a Category is
-  sent with its fields only when its List is visible to the Member.
+  that changes nothing; the trigger still runs), and its Categories and Item history too, so the
+  next pull sends them again: with their fields to a Member who may now see the List (a List
+  shared later arrives with its Items, Categories and history), as tombstones to one who no longer
+  may. An Item, a Category or a history row is sent with its fields only when its List is visible
+  to the Member.
 
 ## Versions commit in order
 
@@ -230,8 +237,8 @@ auth.required` without one) tells open apps when to pull:
   back with only the pending fields.
 - **Gone rows take their dependents**: a row removed locally because it is gone on the server (a
   tombstone, or `ignored` below) takes the rows that belong to it, declared with the tables in
-  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items and Categories. So a tombstoned List
-  (deleted, or made Private by its Owner) takes its local Items and Categories, and the engine
+  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history. So a tombstoned List
+  (deleted, or made Private by its Owner) takes its local Items, Categories and Item history, and the engine
   names no table. A Category is not a parent: its tombstone leaves its Items, which then show in
   the Unnamed category.
 - **Ignored operation** (delete wins): dropped from the Outbox, and the local row is removed with
@@ -268,4 +275,5 @@ auth.required` without one) tells open apps when to pull:
   group (#58) and List settings (rename, Visibility, delete; #56); Home shows each List's open
   Items count (#58). Categories are on the store, and a Shopping list shows its open Items by
   Category, with «Новая категория» (#70); a Shopping list's «Категории» screen adds, renames,
-  reorders and deletes them (#72).
+  reorders and deletes them (#72). Item history is on the store, and a Shopping list's add fields
+  suggest names from it (#74).

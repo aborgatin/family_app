@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import { ROW_FRAME } from './GroupedSection';
 import { ROW_LAYOUT } from './ListRow';
+import { SuggestionRows } from './SuggestionRows';
 
 interface AddRowProps {
   /** Already translated; the placeholder, and the field's accessible name («Новый товар»). */
@@ -9,15 +10,22 @@ interface AddRowProps {
   onAdd: (text: string) => void;
   /** Takes the focus when it appears with this set (e.g. a new Category's field once named). */
   focus?: boolean;
+  /**
+   * The names to suggest for the text typed so far (as typed, never blank), shown under the
+   * field while it has the focus (`SuggestionRows`); tapping one adds it with `onAdd`.
+   */
+  suggest?: (typed: string) => readonly string[];
 }
 
 /**
  * The last row of a list that adds an entry by typing, as on paper: an empty text field showing
  * `label`. Enter adds the text and empties the field, keeping the focus for the next entry;
- * leaving the field with text in it adds it too; Esc empties it.
+ * leaving the field with text in it adds it too; Esc empties it. With `suggest`, the suggested
+ * names show under the field while it is focused; picking one adds it instead of the typed text.
  */
-export function AddRow({ label, onAdd, focus = false }: AddRowProps) {
+export function AddRow({ label, onAdd, focus = false, suggest }: AddRowProps) {
   const [text, setText] = useState('');
+  const [focused, setFocused] = useState(false);
   const field = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,27 +49,57 @@ export function AddRow({ label, onAdd, focus = false }: AddRowProps) {
     }
   }
 
+  // The field and its suggestions are one place: moving between them (Tab to a suggestion) is
+  // not leaving it.
+  function onBlur(event: FocusEvent<HTMLDivElement>) {
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+    setFocused(false);
+    add();
+  }
+
+  const names = focused && suggest !== undefined && text.trim() !== '' ? suggest(text) : [];
+
   return (
-    <div className={`${ROW_FRAME} ${ROW_LAYOUT}`}>
-      <input
-        ref={field}
-        type="text"
-        aria-label={label}
-        placeholder={label}
-        autoComplete="off"
-        enterKeyHint="enter"
-        value={text}
-        onChange={(event) => {
-          setText(event.target.value);
+    <div
+      className={
+        'relative col-span-full grid grid-cols-subgrid not-first:before:absolute ' +
+        'not-first:before:top-0 not-first:before:right-0 ' +
+        'not-first:before:left-[var(--separator-inset,1rem)] not-first:before:h-px ' +
+        'not-first:before:scale-y-50 not-first:before:bg-separator'
+      }
+      onFocus={() => {
+        setFocused(true);
+      }}
+      onBlur={onBlur}
+    >
+      <div className={`${ROW_FRAME} ${ROW_LAYOUT}`}>
+        <input
+          ref={field}
+          type="text"
+          aria-label={label}
+          placeholder={label}
+          autoComplete="off"
+          enterKeyHint="enter"
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
+          }}
+          onKeyDown={onKeyDown}
+          className={
+            '-mx-1 my-1 block w-[calc(100%+0.5rem)] min-w-0 self-stretch rounded-md bg-transparent ' +
+            'px-1 text-body text-label outline-none placeholder:text-secondary-label ' +
+            'pointer-fine:focus-visible:outline-2 pointer-fine:focus-visible:outline-solid ' +
+            'pointer-fine:focus-visible:outline-accent'
+          }
+        />
+      </div>
+      <SuggestionRows
+        names={names}
+        onPick={(name) => {
+          onAdd(name);
+          setText('');
+          field.current?.focus();
         }}
-        onBlur={add}
-        onKeyDown={onKeyDown}
-        className={
-          '-mx-1 my-1 block w-[calc(100%+0.5rem)] min-w-0 self-stretch rounded-md bg-transparent ' +
-          'px-1 text-body text-label outline-none placeholder:text-secondary-label ' +
-          'pointer-fine:focus-visible:outline-2 pointer-fine:focus-visible:outline-solid ' +
-          'pointer-fine:focus-visible:outline-accent'
-        }
       />
     </div>
   );
