@@ -390,8 +390,8 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   same order; the day is read on every render, so the split follows midnight at the next render.
   On Shopping and Wish lists `doneItems` are all of them and `earlierDoneItems` is empty.
   **A repeating Item marked Done** (#87, ADR-0009): `setDone` sends only `done`, as for any Item;
-  the device never makes the next occurrence. The Item goes to «Выполнено» at once (still with
-  its ↻ until the pull), and the server's next occurrence, a new open Item, arrives with the next
+  the device never makes the next occurrence. The Item goes to «Выполнено» at once (it
+  holds its Repeat until the pull, but a Done row shows no ↻), and the server's next occurrence, a new open Item, arrives with the next
   pull or live update and takes its place in the order by its Due date
   (`features/lists/nextOccurrence.test.tsx`). `add` creates (`listId`, `text`, and
   `categoryId` when added in a Category, `description` when one was typed in the add row's
@@ -438,8 +438,9 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   name alone when there is no Due date; the name is the Member's `displayName` from
   `useFamilyMembers()`, read once per section and passed to the rows. It shows on a Shared list
   only: on a List just made Private the Items may still hold an `assigneeId` until the server's
-  copies arrive, and the row leaves it out at once. Between the two, an Item with a Repeat (#86)
-  has the mark ↻ (`lists.repeat.mark`, a part of its own, never red), shown only with a Due date:
+  copies arrive, and the row leaves it out at once. Between the two, an open Item with a Repeat (#86)
+  has the mark ↻ (a Done one, ticked here and not pulled back yet, may still hold its Repeat until
+  the server hands it on, #87; the row leaves the mark out) (`lists.repeat.mark`, a part of its own, never red), shown only with a Due date:
   «15 нояб., 15:00 ↻ · Даша». Shopping and wish rows have no such line.
   **A Todo list's «Выполнено»** (#88) holds only `doneItems` (the last 7 days) and, while there
   are `earlierDoneItems`, ends with a chevron row «Выполненные ранее» (a `ListRow` as the

@@ -464,7 +464,7 @@ the field. Tab reaches it after the chip.
 row (being edited, edit mode, a `textTo` row). It takes parts (`{text, tone?}`), joined by
 spaces; a part with `tone: 'destructive'` is in `destructive` (`data-tone="destructive"`). A todo
 item's Due date is one: «Завтра, 15:00», red once overdue; then the repeat mark «↻» when it has
-a Repeat (#86), never red; its Assignee's name the next (#85): «· Даша» after a Due date
+a Repeat (#86), never red, and never on a Done item (#87); its Assignee's name the next (#85): «· Даша» after a Due date
 («15 нояб., 15:00 ↻ · Даша»), «Даша» alone without one, never red. No
 parts, no line.
 

@@ -107,8 +107,9 @@ describe('A repeating item marked Done', () => {
     syncServer.goOffline();
     await user.click(toggle);
 
+    // No ↻ on a Done row, though the Item keeps its Repeat until the server takes it off.
     await waitFor(() => {
-      expect(doneRows()).toEqual(['Вынести мусор3 нояб., 19:00 ↻ · Даша']);
+      expect(doneRows()).toEqual(['Вынести мусор3 нояб., 19:00 · Даша']);
     });
     expect(openNames()).toEqual(['Полить цветы', 'Оплатить садик', 'Купить клей']);
 

@@ -380,7 +380,7 @@ export default {
       ],
     },
     {
-      // The same with no connection: the item is in «Выполнено» at once, still with ↻, and the
+      // The same with no connection: the item is in «Выполнено» at once, without ↻, and the
       // next occurrence comes only when the device syncs.
       name: 'list-todo-repeat-done-offline',
       path: '/',

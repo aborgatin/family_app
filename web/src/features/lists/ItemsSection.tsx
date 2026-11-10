@@ -510,8 +510,8 @@ function ItemRow({
 }
 
 /**
- * The small line under a todo item's name and Description: its Due date, the repeat mark ↻ when it
- * has a Repeat, then on a Shared list its Assignee's name («15 нояб., 15:00 ↻ · Даша»), or the name
+ * The small line under a todo item's name and Description: its Due date, the repeat mark ↻ when an
+ * open Item has a Repeat, then on a Shared list its Assignee's name («15 нояб., 15:00 ↻ · Даша»), or the name
  * alone without a Due date. An overdue Due date is red on an open Item. By the device's clock, read
  * when the row renders.
  */
@@ -535,7 +535,9 @@ function itemCaption(
       text: due,
       ...(!item.done && isOverdue(item, now) && { tone: 'destructive' as const }),
     },
-    due !== undefined && item.repeat != null && { text: t('lists.repeat.mark') },
+    // A Done Item's Repeat has gone to its next occurrence (ADR-0009): one ticked here and not
+    // pulled back yet still holds it, and the row leaves the mark out at once.
+    due !== undefined && !item.done && item.repeat != null && { text: t('lists.repeat.mark') },
     assignee !== undefined && {
       text: due === undefined ? assignee : t('lists.assignee.afterDueDate', { name: assignee }),
     },
