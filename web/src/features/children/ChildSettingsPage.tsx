@@ -31,7 +31,7 @@ interface ChildSettingsPageProps {
 }
 
 /**
- * A Child's settings screen (`/settings/children/:id`; not the Child page of M3): Имя, Цвет and День рождения, each saved by itself
+ * A Child's settings screen (`/settings/children/:id`; not the Child page, `ChildPage`): Имя, Цвет and День рождения, each saved by itself
  * (auto-save), and «Удалить ребёнка», which asks first and then goes back to Settings. Data only
  * through `useChildren()`.
  */
