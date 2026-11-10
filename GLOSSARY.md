@@ -46,7 +46,7 @@ One entry in a List. Say "shopping item", "todo item" or "wish item" when the ki
 _Avoid_: Task, product, wish, entry, todo (as a noun for an item)
 
 **Description** — «Описание»:
-Optional free text under an Item's name: details, a link.
+Optional plain text under an Item's name, of any length: details, links.
 _Avoid_: Note, comment, details
 
 **Done** — «Куплено» (shopping) / «Выполнено» (todo) / «Исполнено» (wish):
@@ -66,7 +66,7 @@ The Member who added an Item.
 _Avoid_: Author, added by, owner (for items)
 
 **Wish list** — «Список желаний»:
-A List of kind wish, kept for a Member or a Child; always Shared.
+A List of kind wish; always Shared. Whose wishes it holds is said by its name («Желания Даши»), unless it is a Child list.
 _Avoid_: Wishlist, gift list, registry
 
 ## Shopping
@@ -88,7 +88,7 @@ The part of a Shopping list holding its Done items until someone clears them.
 _Avoid_: Done section, history, archive, cart
 
 **Clear** — «Очистить»:
-Removing all Done items from a Shopping list's Bought section at once.
+Removing all Done items from a Shopping list's Bought section at once. Only a Shopping list has it: a Done todo item is kept until someone deletes it.
 _Avoid_: Reset, archive, empty
 
 **Item history** — —:
@@ -102,15 +102,15 @@ A List of kind todo. Its Items are still «Задача».
 _Avoid_: Task list, checklist, tasks, «Список дел»
 
 **Assignee** — «Ответственный»:
-The Member responsible for a todo item on a Shared list; never a Child.
+The Member responsible for a todo item on a Shared list; never a Child. Optional; making the list Private removes it from every item.
 _Avoid_: Executor, performer, owner
 
 **Due date** — «Срок»:
-The optional moment a todo item should be done by; it triggers a Reminder.
+The optional day a todo item should be done by, with an optional time of day; it triggers a Reminder.
 _Avoid_: Deadline, due time
 
 **Repeat** — «Повтор»:
-An optional rule (daily, weekly, monthly or yearly) that makes a todo item recur.
+An optional rule (daily, weekly, monthly or yearly) that makes a todo item recur; it needs a Due date. Marking the item Done keeps it as Done and adds an open copy carrying the Repeat, due at the next occurrence counted from the old Due date and lying in the future. A Done item put back to open has no Repeat.
 _Avoid_: Recurrence, recurring, schedule, cycle
 
 ## Children
@@ -120,11 +120,11 @@ The color a Child is shown in, picked from the fixed Child color palette. The pa
 _Avoid_: Theme, tag color, label
 
 **Child page** — «Страница ребёнка»:
-The page for one Child, holding their Child profile, Todo list and Wish list.
+The page for one Child, holding their Child profile and their Child lists. It starts with no lists; Members create, rename and delete them there as they do any List.
 _Avoid_: Child dashboard, kid page
 
 **Child list** — —:
-A Todo list or Wish list that is about a Child; always Shared, and the Child is not its Owner.
+A Todo list or Wish list that is about a Child, created on their Child page and tied to that Child for good; always Shared. Its Owner is the Member who created it, not the Child. Deleting the Child deletes it.
 _Avoid_: Child's own list, kid list
 
 **Child profile** — «Профиль»:

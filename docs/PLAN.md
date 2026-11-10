@@ -26,10 +26,12 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
    - Done items move to the "bought" section (Куплено) that can be cleared.
 2. **Todos**
    - Lists are **private** (owner only) or **shared** (both adults).
-   - Item: title, note, optional due date with reminder, optional assignee (a member, on shared lists), simple repeat (daily / weekly / monthly / yearly).
+   - Item: name, Description, optional due date (a day, optionally a time) with reminder, optional assignee (a member, on shared lists), simple repeat (daily / weekly / monthly / yearly). Marking a repeating item done keeps it and adds the next occurrence ([ADR-0009](adr/0009-repeat-by-server-made-copy.md)).
+   - Every item of every kind has its own screen: name, a large Description (plain text, links), who added it, who marked it done.
    - No subtasks, no location reminders.
 3. **Children pages** (one per daughter)
-   - Own todo list and wish list (always shared between members).
+   - Opened from tiles on Home («Дети», above the lists).
+   - Any number of todo lists and wish lists per child, created on the child's page (always shared between members); none to start with.
    - Child profile with **user-defined child fields** (clothes size, shoe size, allergies, teacher's phone, …).
 4. **Wish lists** for adults too — plain shared lists, no special "reserved/hidden" logic.
 5. **Settings (admin) screen**, available to any adult: members, children, child fields. Categories and their order are edited on each shopping list. Fresh install is seeded with sensible defaults ([ADR-0005](adr/0005-configuration-vs-code.md)).
@@ -93,7 +95,7 @@ Chores/rewards, shared expenses, "reserved by" on wish lists, in-app calendar.
 | `ChildField` / `ChildFieldValue` | user-defined profile fields with a value type (`TEXT`/`DATE`), and a timeline of values per child ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)) |
 | `Category` | id, list (shopping only), name, sort order |
 | `List` | id, kind (`SHOPPING`/`TODO`/`WISH`), visibility (`PRIVATE`/`SHARED`), owner, child?, name, Unnamed category position (shopping) |
-| `Item` | id, list, text, description, category? (none = the Unnamed category), done, due_at?, repeat?, assignee? (member), created_by, done_by |
+| `Item` | id, list, text, description, category? (none = the Unnamed category), done, due date?, due time?, repeat?, assignee? (member), created_by, done_by |
 | `ItemHistory` | list + name, last used (autocomplete; names only) |
 | `ListMute` | member, list |
 | `PushSubscription` | member, endpoint, keys |
@@ -147,9 +149,11 @@ Secrets only in the server's `.env`, never in git.
 - [ ] Default Shopping lists, created at first-Member registration, not by a migration, since a List needs an Owner (that Member is Owner, Visibility Shared; no backfill for existing installations): Супермаркет («Еда» → «Бытовая химия») and Аптека ([ADR-0005](adr/0005-configuration-vs-code.md)).
 
 **M4 — Todos & children**
-- [ ] Private/shared todo lists, due dates, assignee, repeat rules.
-- [ ] Child pages: todo list, wish list, child profile. Member wish lists.
-- [ ] Child field values stored as a timeline of entries; the Child profile shows the latest entry and the birthday ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)).
+- [ ] Spec [#81](https://github.com/aborgatin/family_app/issues/81).
+- [ ] Due date (a day, optionally a time), Assignee and Repeat on todo items; Repeat by a server-made copy ([ADR-0009](adr/0009-repeat-by-server-made-copy.md)); open todo items ordered by Due date; «Выполнено» shows the last 7 days, the rest behind «Выполненные ранее».
+- [ ] Item screen for every kind: name, large Description, Done, Creator, and the todo fields.
+- [ ] «Дети» tiles on Home; Child page with the Child profile and Child lists (Todo and Wish lists created there, always Shared, deleted with the Child). Member wish lists stay plain Shared Wish lists: nothing to build.
+- [ ] Child field values stored as a timeline of entries; the Child profile shows the latest entry, edited in place, and the birthday ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)).
 
 **M5 — Notifications**
 - [ ] Web Push subscription (iOS 16.4+ installed PWA), global toggle, per-list mute.
