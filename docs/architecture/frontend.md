@@ -417,7 +417,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   **The Item screen** (`ItemPage`, `/lists/:id/items/:itemId`, `listItemPath(listId, itemId)`,
   #83) is for an Item of every kind, back to its List (the back button shows the List's name),
   titled «Товар» / «Задача» / «Желание» (`KIND_TEXTS[kind].item`). It reads the List through
-  `useLists()` and the Item through the same `useItems(list)` (open and Done ones), so it works
+  `useLists()` and the Item through the same `useItems(list)` (open, Done and, on a Todo list, Done earlier), so it works
   offline and from a deep link. One `GroupedSection` with «Название» (`InputRow`, `rename`,
   required) and the large «Описание» (`TextAreaRow`, `describe`), both `useAutoSaveText` like the
   row's; one with the Done toggle (a `ListRow` titled by the kind's Done word with the
