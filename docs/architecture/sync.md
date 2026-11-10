@@ -19,7 +19,7 @@ table adds it here.
 | `child`       | `V3__child.sql`                 | client (`crypto.randomUUID()`)                 | M1    |
 | `child_field` | `V4__child_field.sql`           | client; Default rows by the migration          | M1    |
 | `list`        | `V5__list.sql`                  | client; Defaults by the server at bootstrap    | M2    |
-| `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7) | M2    |
+| `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7); server for a Repeat's next occurrence (#87) | M2    |
 | `category`    | `V8__category.sql`              | client; Defaults by the server at bootstrap    | M3    |
 | `item_history` | `V9__item_history.sql`         | server, when an Item is written (push: delete) | M3    |
 | `child_field_value` | `V11__child_field_value.sql` | client (`crypto.randomUUID()`)              | M4    |
@@ -53,7 +53,7 @@ deletes a Member yet; `member.deleted` exists, and login, session and `MemberSer
 ignore deleted Members. Email uniqueness counts deleted Members too.
 
 **Client UUIDs** (S3). Children, Child fields, Child field values, Lists, Items and Categories are created with the id the client
-chose; the server never generates one for them. Item ids are UUID version 7 (the first 48 bits are
+chose; the server never generates one for them, except for the next occurrence of a repeating Item, which the server adds (a random UUID, ADR-0009, #87). Item ids are UUID version 7 (the first 48 bits are
 the time), so Items added on one device and not yet pulled back keep the order they were added in. Members get theirs from the server at registration.
 
 **Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move is one upsert carrying
@@ -146,8 +146,21 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   be left without a Due date (none stored, or sent with `dueDate: null`) is
   `item.repeat_without_due_date`. The app never sends the first two; the third happens when one
   device chooses a Repeat while the other removes the Due date and its operation arrives first. A
-  Done Item's Repeat is not locked by the server (the app shows it read-only); what marking a
-  repeating Item Done does is #87 (ADR-0009).
+  Done Item's Repeat is not locked by the server (the app shows it read-only).
+  **Next occurrence** (#87, ADR-0009): when an upsert turns `done` from `false` to `true` on an
+  Item that the operation leaves with a Repeat, the server, in the same operation, clears that
+  Item's `repeat` and inserts a new open Item with a server-generated id in the same List: the same
+  `text`, `description`, `assigneeId`, `repeat`, `dueTime` and `creatorId` (the original Creator,
+  not the Member who ticked), `categoryId` `null`, `createdAt` now, and `dueDate` the old one
+  advanced by the Repeat's period, at least once, until it is after today. Today is the server
+  clock's date in the installation's time zone (`TZ`, the JVM's default zone). A month or year
+  step to a day the month doesn't have lands on its last day, and later steps go on from there
+  (31 Jan → 28 Feb → 28 Mar; 29 Feb → 28 Feb). Both rows get new Versions, so both Members get
+  them through the pull and a live update. `done: true` on an Item already Done changes nothing,
+  so the other device's tick adds no second copy; `done: false` does nothing extra (the Item is
+  open without a Repeat; the copy stays). An Item created already Done gets no copy (the app never
+  sends one). Devices never create the copy: marked Done offline, the Item is in «Выполнено» at
+  once and its next occurrence arrives with the next pull.
   **Assignee** (#85): `assigneeId` is a Member's id or `null` (nobody), only on an Item of a
   Shared Todo list; the pull always sends it. It is its own field for Last write wins (an
   Assignee set on one device and a Due date on the other are both kept). Rejected: the field,

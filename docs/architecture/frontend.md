@@ -388,7 +388,12 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   device clock and time zone (from local midnight six days ago; one ticked off here and not pulled
   back yet has no `doneAt` and counts as done now), and `earlierDoneItems` the older ones, in the
   same order; the day is read on every render, so the split follows midnight at the next render.
-  On Shopping and Wish lists `doneItems` are all of them and `earlierDoneItems` is empty. `add` creates (`listId`, `text`, and
+  On Shopping and Wish lists `doneItems` are all of them and `earlierDoneItems` is empty.
+  **A repeating Item marked Done** (#87, ADR-0009): `setDone` sends only `done`, as for any Item;
+  the device never makes the next occurrence. The Item goes to «Выполнено» at once (still with
+  its ↻ until the pull), and the server's next occurrence, a new open Item, arrives with the next
+  pull or live update and takes its place in the order by its Due date
+  (`features/lists/nextOccurrence.test.tsx`). `add` creates (`listId`, `text`, and
   `categoryId` when added in a Category, `description` when one was typed in the add row's
   «Описание» line, #79; all in one upsert). On a Shopping list `add` first
   looks among the List's Items for one with the same name, both trimmed and lower-cased (#75; an
@@ -750,7 +755,10 @@ a Vite native-config-loader warning).
   installed in `server.ts`, emptied after each test). It behaves like the real one (Versions,
   per-field Last write wins, delete wins, tombstones; a deleted Child or Child field takes its
   Child field values, in `CASCADES`; a Child field value is stamped with `recordedAt`, never
-  changes once recorded, and is `ignored` for a deleted or unknown Child or Child field):
+  changes once recorded, and is `ignored` for a deleted or unknown Child or Child field; a List
+  made Private loses its Items' Assignees; a repeating Item turned Done, pushed or by `change`,
+  loses its Repeat to a new open Item, its next occurrence, counted as the server does from the
+  device's date, #87):
   `seed(table, rows)`, `change(table, id,
 fields | 'deleted')` (the other Member's change), `row(table, id)` (the server's copy),
   `operations(table)` / `pushes` (with `csrf`) / `pulls`, `goOffline()` / `goOnline()` (MSW network
