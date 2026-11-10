@@ -350,7 +350,11 @@ async function rowLine(text: string) {
 describe('A Todo list’s row', () => {
   it('marks a repeating item ↻ after the Due date and time, before the Assignee', async () => {
     syncServer.seed('item', [
-      { ...item(1, 'Оплатить садик', '2026-11-15', 'MONTHLY'), dueTime: '15:00', assigneeId: boris.id },
+      {
+        ...item(1, 'Оплатить садик', '2026-11-15', 'MONTHLY'),
+        dueTime: '15:00',
+        assigneeId: boris.id,
+      },
       item(2, 'Вынести мусор', '2026-11-11', 'WEEKLY'),
       { ...item(3, 'Полить цветы', '2026-11-12'), assigneeId: anna.id },
     ]);

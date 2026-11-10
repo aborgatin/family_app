@@ -66,7 +66,8 @@ class ItemRepeatSyncTest {
         .andExpect(
             jsonPath(
                 "$.results[*].status",
-                contains("applied", "applied", "applied", "applied", "applied", "applied", "applied")));
+                contains(
+                    "applied", "applied", "applied", "applied", "applied", "applied", "applied")));
 
     assertThat(SyncRequests.fields(boris, "item", plain)).containsEntry("repeat", null);
     assertThat(SyncRequests.fields(boris, "item", daily)).containsEntry("repeat", "DAILY");
