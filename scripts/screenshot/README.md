@@ -36,7 +36,9 @@ Ctrl-C). Then it seeds through the real API:
   ending in a link, and two Done), «Аптека» (Покупки) — both the Default Shopping lists the
   bootstrap created, filled by the seed, with Супермаркет's Default Categories deleted so it stays
   a list without Categories — «Гипермаркет» (Покупки with Categories
-  «Еда» (two open, «Молоко» with a Description, one Done), «Бытовая химия» (empty), then the Unnamed category with one Item),
+  «Еда» (two open, «Молоко» with a Description, one Done), «Бытовая химия» (empty), then the
+  Unnamed category with one Item; three more Items added and cleared, so its Item history has
+  names no Item shows),
   «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open, one with a Description, and one Done), «Подарки»
   (Желания, one open and one Done), «Книги» (Желания); Борис's «Гараж» (TODO) and his
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.

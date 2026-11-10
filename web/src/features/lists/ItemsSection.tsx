@@ -18,6 +18,7 @@ import {
 } from '@/shared/ui';
 import { KIND_TEXTS, type Category, type Item, type List } from './listTypes';
 import { newCategoryId, sectionsInOrder, useCategories } from './useCategories';
+import { useItemHistory } from './useItemHistory';
 import { useItems } from './useItems';
 
 interface ItemsSectionProps {
@@ -90,6 +91,7 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
   const { t } = useTranslation();
   const { list } = changes;
   const { categories, add: addCategory } = useCategories(list);
+  const { suggest } = useItemHistory(list);
   // A Category whose title is being typed (not saved yet), or saved and not read back yet.
   const [typed, setDraft] = useState<{ id: string; name: string; saved: boolean }>();
   // The Category whose «Новый товар» takes the focus when it appears: the one just named.
@@ -135,6 +137,7 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
           header={t(KIND_TEXTS.SHOPPING.items)}
           items={items}
           showEmpty
+          suggest={suggest}
           onAdd={(text) => {
             void add(text);
           }}
@@ -156,6 +159,7 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
           items={items === undefined ? undefined : shown}
           categories={known}
           focusAdd={category !== undefined && category.id === focusAddIn}
+          suggest={suggest}
           onAdd={(text) => {
             void add(text, category?.id);
           }}
@@ -191,6 +195,8 @@ interface OpenItemsProps extends ItemChanges {
   onAdd: (text: string) => void;
   /** The add field takes the focus when it appears. */
   focusAdd?: boolean;
+  /** Names from the Item history for what is typed in the add field (a Shopping list's). */
+  suggest?: (typed: string) => readonly string[];
   /** The List's named Categories, if any: each Item has the Category chip while edited. */
   categories?: readonly Category[];
 }
@@ -203,6 +209,7 @@ function OpenItems({
   showEmpty = false,
   onAdd,
   focusAdd = false,
+  suggest,
   categories,
   list,
   rename,
@@ -239,7 +246,12 @@ function OpenItems({
         items === undefined ? (
           <LoadingRow />
         ) : (
-          <AddRow label={t(texts.newItem)} onAdd={onAdd} focus={focusAdd} />
+          <AddRow
+            label={t(texts.newItem)}
+            onAdd={onAdd}
+            focus={focusAdd}
+            {...(suggest !== undefined && { suggest })}
+          />
         )
       }
     >

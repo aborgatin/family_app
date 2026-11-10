@@ -281,6 +281,7 @@
       "moved": "«{{title}}» на месте {{position}} из {{count}}.",
       "dropped": "«{{title}}» поставлена на место {{position}} из {{count}}.",
       "cancelled": "Перемещение отменено, «{{title}}» на прежнем месте."
-    }
+    },
+    "suggestions": "Подсказки"
   }
 }

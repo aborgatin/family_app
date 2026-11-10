@@ -339,6 +339,10 @@ export const SEED = {
           { text: 'Хлеб', category: 'Еда' },
           'Батарейки',
           { text: 'Яблоки', category: 'Еда', done: true },
+          // Cleared: gone from the List, still in its Item history (suggested while typing «мо»).
+          { text: 'Кокосовое молоко', category: 'Еда', cleared: true },
+          { text: 'Морковь', category: 'Еда', cleared: true },
+          { text: 'Моющее средство', category: 'Бытовая химия', cleared: true },
         ],
       },
       { name: 'Ремонт', kind: 'TODO', visibility: 'PRIVATE' },
@@ -391,9 +395,10 @@ async function api(page, method, url, body) {
 /**
  * Creates Lists, their `categories` (`{name, position}`) and their `items` in that order, through
  * the sync push as the Member logged in on `page`. An Item is its text, or `{text, description?,
- * category?, done?}` (`category` a Category's name; Done ones ticked in the same order). A List
- * with `isDefault` is not created: its Items go into the Default List of that name, whose id is in
- * `defaults` (name → id).
+ * category?, done?, cleared?}` (`category` a Category's name; Done ones ticked in the same order;
+ * cleared ones deleted after, so only the Item history keeps their names). A List with `isDefault`
+ * is not created: its Items go into the Default List of that name, whose id is in `defaults`
+ * (name → id).
  */
 async function pushLists(page, lists, defaults = {}) {
   const operations = lists.flatMap(({ items = [], categories = [], isDefault = false, ...fields }) => {
@@ -416,6 +421,7 @@ async function pushLists(page, lists, defaults = {}) {
         fields: { listId, text, description, ...(category && { categoryId: categoryIds[category] }) },
       })),
       ...added.filter((item) => item.done).map(({ id }) => ({ table: 'item', id, op: 'upsert', fields: { done: true } })),
+      ...added.filter((item) => item.cleared).map(({ id }) => ({ table: 'item', id, op: 'delete' })),
     ];
   });
   const pushed = await api(page, 'POST', '/api/sync/push', { operations });
