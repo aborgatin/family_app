@@ -283,6 +283,7 @@
       "cancelled": "Перемещение отменено, «{{title}}» на прежнем месте."
     },
     "suggestions": "Подсказки",
-    "removeSuggestion": "Удалить подсказку „{{name}}“"
+    "removeSuggestion": "Удалить подсказку „{{name}}“",
+    "addDescription": "Добавить описание"
   }
 }

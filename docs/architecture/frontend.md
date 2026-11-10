@@ -333,13 +333,14 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   back on and off again goes on top). Device and server times are never compared: pending ticks
   are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
   so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`, and
-  `categoryId` when added in a Category; adding stays name-only). On a Shopping list `add` first
+  `categoryId` when added in a Category, `description` when one was typed in the add row's
+  «Описание» line, #79; all in one upsert). On a Shopping list `add` first
   looks among the List's Items for one with the same name, both trimmed and lower-cased (#75; an
   open one first, so there are never two open ones): an open one is left as it is and `add`
   resolves with it, writing nothing; with none open, the most recently created Done one (as
   `items` orders them) is set open in the add field's Category
-  in one upsert (`done: false`, `categoryId`, `null` for none; the Outbox sends only what
-  changed), clearing `doneById` / `doneAt` locally like `setDone`, and the server touches its Item
+  in one upsert (`done: false`, `categoryId`, `null` for none, and the typed `description` only
+  when one was typed; the Outbox sends only what changed), clearing `doneById` / `doneAt` locally like `setDone`, and the server touches its Item
   history. Todo and Wish lists may have two Items with one name. `rename` sends only `text`,
   `describe` only `description` (blank as `null`), `move` only `categoryId` (`null` for the
   Unnamed category), `setDone` only `done`, `remove` deletes; all
@@ -351,7 +352,9 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   as the row's `secondary` line (`useAutoSaveText`, named «Описание «Молоко»», placeholder
   «Описание»), deleted from edit
   mode, a swipe or right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая
-  задача» / «Новое желание» (Enter adds and keeps the focus). Footer: «Товаров пока нет» (by
+  задача» / «Новое желание» (Enter adds and keeps the focus) with `descriptionLabel` «Описание» on
+  every List kind (#79): its icon or ↓ opens the one-line Description under the name, and Enter
+  passes both to the same `add`. Footer: «Товаров пока нет» (by
   kind) with no open Items (a rejected new Item leaves the List; «Не удалось сохранить» shows
   app-wide, see `useSaveRejection`). Under it, while there are Done Items, a second `GroupedSection` headed «Куплено» /
   «Выполнено» / «Исполнено» with edit mode: each an `EditableRow`, `muted`, with its ticked

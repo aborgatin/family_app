@@ -71,8 +71,8 @@ export function ItemsSection({ list }: ItemsSectionProps) {
   }, [highlighted]);
 
   const add = useCallback(
-    (text: string, categoryId?: string) => {
-      void addItem(text, categoryId).then((open) => {
+    (text: string, categoryId?: string, description?: string) => {
+      void addItem(text, categoryId, description).then((open) => {
         if (open !== undefined) setHighlighted(open.id);
       });
     },
@@ -89,8 +89,8 @@ export function ItemsSection({ list }: ItemsSectionProps) {
           header={t(texts.items)}
           items={items}
           showEmpty
-          onAdd={(text) => {
-            add(text);
+          onAdd={(text, description) => {
+            add(text, undefined, description);
           }}
         />
       )}
@@ -117,7 +117,7 @@ interface ItemRowContext {
 
 interface ShoppingItemsProps extends ItemRowContext {
   items: Item[] | undefined;
-  add: (text: string, categoryId?: string) => void;
+  add: (text: string, categoryId?: string, description?: string) => void;
 }
 
 /**
@@ -177,8 +177,8 @@ function ShoppingItems({ items, add, ...rowContext }: ShoppingItemsProps) {
           items={items}
           showEmpty
           history={history}
-          onAdd={(text) => {
-            add(text);
+          onAdd={(text, description) => {
+            add(text, undefined, description);
           }}
         />
         {categories !== undefined && newCategory}
@@ -199,8 +199,8 @@ function ShoppingItems({ items, add, ...rowContext }: ShoppingItemsProps) {
           categories={known}
           focusAdd={category !== undefined && category.id === focusAddIn}
           history={history}
-          onAdd={(text) => {
-            add(text, category?.id);
+          onAdd={(text, description) => {
+            add(text, category?.id, description);
           }}
         />
       ))}
@@ -231,7 +231,7 @@ interface OpenItemsProps extends ItemRowContext {
   items: Item[] | undefined;
   /** «Товаров пока нет» in the footer while there are no open Items. */
   showEmpty?: boolean;
-  onAdd: (text: string) => void;
+  onAdd: (text: string, description?: string) => void;
   /** The add field takes the focus when it appears. */
   focusAdd?: boolean;
   /** The Item history: suggestions for what is typed in the add field (a Shopping list's). */
@@ -284,6 +284,7 @@ function OpenItems({
             label={t(texts.newItem)}
             onAdd={onAdd}
             focus={focusAdd}
+            descriptionLabel={t('lists.description')}
             {...(history !== undefined && {
               suggest: history.namesStarting,
               onRemoveSuggestion: (name: string) => {

@@ -23,20 +23,26 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
   );
 
   /**
-   * Adds an Item with this text into this Category (none: the Unnamed category), at the bottom.
+   * Adds an Item with this text, and this Description if given (non-blank), into this Category
+   * (none: the Unnamed category), at the bottom, in one upsert.
    * A Shopping list never gets a second Item with a name it already has (trimmed, lower-cased): an
    * open one is left as it is and resolves, to be shown; with none open, the most recently created
-   * Done one is set open in this Category, sending only `done` and `categoryId`.
+   * Done one is set open in this Category, sending only `done` and `categoryId`, and the
+   * Description if one is given.
    */
   const add = useCallback(
-    async (text: string, categoryId?: string): Promise<Item | undefined> => {
+    async (text: string, categoryId?: string, description?: string): Promise<Item | undefined> => {
       const match = kind === 'SHOPPING' ? sameNamed(rows ?? [], listId, text) : undefined;
       if (match !== undefined && !match.done) return match;
       if (match !== undefined) {
         await upsertRow(
           'item',
           match.id,
-          { done: false, categoryId: categoryId ?? null },
+          {
+            done: false,
+            categoryId: categoryId ?? null,
+            ...(description !== undefined && { description }),
+          },
           { doneById: null, doneAt: null },
         );
         return undefined;
@@ -45,6 +51,7 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
         listId,
         text,
         ...(categoryId !== undefined && { categoryId }),
+        ...(description !== undefined && { description }),
       });
       return undefined;
     },

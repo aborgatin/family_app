@@ -184,7 +184,7 @@ navigating.
 ### Icon
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
-`check` (the chosen colour), `chevron`, `clear` (a circled ×), `home`, `minus` (edit mode's ⊖),
+`check` (the chosen colour), `chevron`, `clear` (a circled ×), `description` (left-aligned lines, `AddRow`'s «Добавить описание»), `home`, `minus` (edit mode's ⊖),
 `expand` (a small ⌄ on a `MenuChip`), `offline` (crossed globe), `reorder` (≡, a drag handle), `settings`, `spinner`; a new icon is added to the
 map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
 colour; default size 22px.
@@ -436,6 +436,18 @@ Same on narrow and wide windows.
 and has text, they show right under it as `SuggestionRows`, and picking one adds it (`onAdd`)
 instead of the typed text, empties the field and keeps the focus there. Tab moves from the field
 to the suggestions without adding anything; leaving both adds the typed text as usual.
+`descriptionLabel` (the line's placeholder and name, «Описание») lets the entry get a description
+while added, without slowing down «type a name, Enter»: while the field has text, an icon button
+(`description`, a lines glyph, `tertiary-label`, darker on hover; 44px target on touch, 36px with
+a mouse; named «Добавить описание», `ui.addDescription`) sits at the trailing end, on touch and
+mouse alike — an icon, not a word, because the phone field is narrow. Tapping it, or ↓ in the
+field, opens a grey one-line field under the name in the same row (`subhead`, `secondary-label`,
+placeholder `tertiary-label`) and moves the focus there; the icon hides while it is open. ↑ (or
+Shift+Tab) goes back to the name. Enter in either field calls `onAdd(text, description)` (the
+description trimmed, absent when blank), empties both, closes the line and focuses the name; Esc
+in the line closes it, discarding its text, and returns to the name; Esc in the name empties
+both. The icon is out of the Tab order, so Tab still goes from the field to the suggestions; the
+suggestions hide while the line has the focus, and picking one adds just the name.
 
 ### SuggestionRows
 
