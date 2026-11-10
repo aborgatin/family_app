@@ -245,6 +245,9 @@ export function EditableRow({
     onFocus: (event: FocusEvent<HTMLDivElement>) => {
       // A link in the line takes the focus on press: editing now would remove it before the click.
       if (event.target instanceof HTMLAnchorElement) return;
+      // The leading control (the Done circle) is a control of its own: opening the row on its press
+      // would grow the row and move the circle away before the release, so the click would miss.
+      if (event.target.closest('[data-row-leading]') !== null) return;
       setActive(true);
     },
     onBlur: (event: FocusEvent<HTMLDivElement>) => {

@@ -541,6 +541,28 @@ function doneItem(n: number, text: string, doneAt: string, listId = groceries.id
 }
 
 describe('Done', () => {
+  it('does not open the row for editing when the Done circle is pressed, so the circle stays under the pointer', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item', [
+      { ...item(1, 'Молоко', '2026-11-01T09:00:00Z'), description: '3,2%' },
+    ]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    const toggle = await screen.findByRole('checkbox', { name: 'Куплено «Молоко»' });
+    // The press focuses the circle; the release (the click) comes after.
+    await user.pointer({ keys: '[MouseLeft>]', target: toggle });
+
+    expect(toggle).toHaveFocus();
+    expect(screen.queryByRole('textbox', { name: 'Описание «Молоко»' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Подробнее' })).not.toBeInTheDocument();
+
+    await user.pointer({ keys: '[/MouseLeft]', target: toggle });
+    await waitFor(async () => {
+      expect(await doneTexts()).toEqual(['Молоко']);
+    });
+  });
+
   it('ticks an Item off offline at once, under «Куплено», and sends only Done on reconnect', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.seed('item', [

@@ -439,7 +439,8 @@ a fine pointer the focused field gets the accent outline. In edit mode the row s
 
 `secondary` (with `input`) adds a grey secondary line under the title, in `subhead`
 `secondary-label` (an Item's Description). While the row is being edited (the focus is anywhere
-in it) it is a multi-line text field that grows with its text, with a `placeholder` («Описание»)
+in it but its `leading` control: pressing the Done circle doesn't open the row, which would move
+the circle away before the release) it is a multi-line text field that grows with its text, with a `placeholder` («Описание»)
 in `tertiary-label`: Enter starts a new line, blur saves, Esc puts the saved text back. Out of it a
 non-empty value is up to two lines cut with «…» (#83; line breaks read as spaces, a long address
 wraps), its http(s) addresses links in `accent` that open in a

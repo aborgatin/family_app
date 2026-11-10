@@ -371,9 +371,7 @@ export default {
       steps: [
         { click: 'role=link[name=/Дела по дому/]' },
         { waitFor: 'role=link[name="Выполненные ранее"]' },
-        // A dispatched click: a mouse press focuses the toggle, which opens the row for editing and
-        // moves the toggle down before the release, so a real click misses it in Chromium.
-        async (page) => page.locator('role=checkbox[name="Выполнено «Оплатить садик»"]').first().dispatchEvent('click'),
+        { click: 'role=checkbox[name="Выполнено «Оплатить садик»"]' },
         { waitFor: 'role=region[name="Выполнено"] >> role=checkbox[name="Выполнено «Оплатить садик»"]' },
         { waitFor: 'role=region[name="Задачи"] >> role=textbox[name="Задача «Оплатить садик»"]' },
         { wait: 200 },
@@ -389,9 +387,7 @@ export default {
       steps: [
         { click: 'role=link[name=/Дела по дому/]' },
         { waitFor: 'role=link[name="Выполненные ранее"]' },
-        // A dispatched click: a mouse press focuses the toggle, which opens the row for editing and
-        // moves the toggle down before the release, so a real click misses it in Chromium.
-        async (page) => page.locator('role=checkbox[name="Выполнено «Оплатить садик»"]').first().dispatchEvent('click'),
+        { click: 'role=checkbox[name="Выполнено «Оплатить садик»"]' },
         { waitFor: 'role=region[name="Выполнено"] >> role=checkbox[name="Выполнено «Оплатить садик»"]' },
         { wait: 200 },
       ],
