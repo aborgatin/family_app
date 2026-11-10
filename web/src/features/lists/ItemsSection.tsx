@@ -40,8 +40,38 @@ interface ItemsSectionProps {
 export function ItemsSection({ list }: ItemsSectionProps) {
   const { t } = useTranslation();
   const texts = KIND_TEXTS[list.kind];
-  const { items, doneItems, add, rename, describe, move, setDone, remove } = useItems(list.id);
-  const changes = { list, rename, describe, move, setDone, remove };
+  const {
+    items,
+    doneItems,
+    add: addItem,
+    rename,
+    describe,
+    move,
+    setDone,
+    remove,
+  } = useItems(list);
+  // The open Item just added again by name: highlighted for a moment.
+  const [highlighted, setHighlighted] = useState<string>();
+  const changes = { list, rename, describe, move, setDone, remove, highlighted };
+
+  useEffect(() => {
+    if (highlighted === undefined) return;
+    const timer = setTimeout(() => {
+      setHighlighted(undefined);
+    }, HIGHLIGHT_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [highlighted]);
+
+  const add = useCallback(
+    (text: string, categoryId?: string) => {
+      void addItem(text, categoryId).then((open) => {
+        if (open !== undefined) setHighlighted(open.id);
+      });
+    },
+    [addItem],
+  );
 
   return (
     <>
@@ -54,7 +84,7 @@ export function ItemsSection({ list }: ItemsSectionProps) {
           items={items}
           showEmpty
           onAdd={(text) => {
-            void add(text);
+            add(text);
           }}
         />
       )}
@@ -65,9 +95,13 @@ export function ItemsSection({ list }: ItemsSectionProps) {
   );
 }
 
-/** What changes an Item, from `useItems()`. */
+/** How long an open Item added again by name stays highlighted. */
+const HIGHLIGHT_MS = 1500;
+
+/** What changes an Item, from `useItems()`, and which open Item is highlighted. */
 interface ItemChanges {
   list: List;
+  highlighted: string | undefined;
   rename: (item: Item, text: string) => Promise<string>;
   describe: (item: Item, description: string) => Promise<string>;
   move: (item: Item, categoryId: string | null) => Promise<void>;
@@ -77,7 +111,7 @@ interface ItemChanges {
 
 interface CategorySectionsProps extends ItemChanges {
   items: Item[] | undefined;
-  add: (text: string, categoryId?: string) => Promise<void>;
+  add: (text: string, categoryId?: string) => void;
 }
 
 /**
@@ -139,7 +173,7 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
           showEmpty
           suggest={suggest}
           onAdd={(text) => {
-            void add(text);
+            add(text);
           }}
         />
         {categories !== undefined && newCategory}
@@ -161,7 +195,7 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
           focusAdd={category !== undefined && category.id === focusAddIn}
           suggest={suggest}
           onAdd={(text) => {
-            void add(text, category?.id);
+            add(text, category?.id);
           }}
         />
       ))}
@@ -217,6 +251,7 @@ function OpenItems({
   move,
   setDone,
   remove,
+  highlighted,
 }: OpenItemsProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
@@ -265,6 +300,7 @@ function OpenItems({
           categories={categories}
           move={move}
           setDone={setDone}
+          highlighted={highlighted === item.id}
           onFailure={reportFailure}
           busy={editable.deleting === item.id}
           onDelete={() => {
@@ -359,6 +395,8 @@ interface ItemRowProps {
   categories: readonly Category[] | undefined;
   move: (item: Item, categoryId: string | null) => Promise<void>;
   setDone: (item: Item, done: boolean) => Promise<void>;
+  /** Just added again by name: scrolled to and highlighted. */
+  highlighted: boolean;
   /** Tells the section about this row's failed save (or that it cleared), for its footer. */
   onFailure: (id: string, failure: SaveFailure | undefined) => void;
   busy: boolean;
@@ -373,6 +411,7 @@ function ItemRow({
   categories,
   move,
   setDone,
+  highlighted,
   onFailure,
   busy,
   onDelete,
@@ -412,6 +451,7 @@ function ItemRow({
         />
       }
       busy={busy}
+      highlighted={highlighted}
       input={{ ...text.input, label: t(KIND_TEXTS[list.kind].itemText, { text: item.text }) }}
       secondary={{
         ...description.input,

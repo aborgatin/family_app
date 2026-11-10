@@ -216,6 +216,39 @@ export default {
       ],
     },
     {
+      // «молоко» added again (in «Бытовая химия»): no duplicate, the open «Молоко» in «Еда» is
+      // highlighted, and the add field is empty and keeps the focus.
+      name: 'list-re-adding-open',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]', value: ' молоко' },
+        { press: 'Enter' },
+        { waitFor: '[data-highlighted]' },
+        { wait: 100 },
+      ],
+    },
+    {
+      // The bought «Яблоки» added again in «Бытовая химия», offline: it leaves «Куплено» and is open
+      // in «Бытовая химия» at once.
+      name: 'list-re-adding-bought-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]', value: 'яблоки' },
+        { press: 'Enter' },
+        { waitFor: 'role=region[name="Бытовая химия"] >> role=textbox[name="Товар «Яблоки»"]' },
+        { wait: 200 },
+      ],
+    },
+    {
       name: 'list-todo',
       path: '/',
       steps: [{ click: 'role=link[name=/Дела по дому/]' }, { waitFor: 'role=textbox[name^="Задача"]' }],

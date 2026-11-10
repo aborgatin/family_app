@@ -34,10 +34,10 @@ export function useItemHistory(list: List) {
    */
   const suggest = useCallback(
     (typed: string): readonly string[] => {
-      const prefix = normalize(typed);
+      const prefix = normalizedName(typed);
       if (prefix === '') return [];
       return entries
-        .filter(({ name }) => startsAWord(normalize(name), prefix))
+        .filter(({ name }) => startsAWord(normalizedName(name), prefix))
         .slice(0, SUGGESTIONS)
         .map(({ name }) => name);
     },
@@ -47,8 +47,8 @@ export function useItemHistory(list: List) {
   return { suggest };
 }
 
-/** A name as the history keys it: trimmed and lower-cased. */
-function normalize(name: string): string {
+/** A name as the history keys it, and as adding compares Items: trimmed and lower-cased. */
+export function normalizedName(name: string): string {
   return name.trim().toLowerCase();
 }
 

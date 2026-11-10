@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -53,6 +54,11 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
    * Item's Category). The row stays edited while its menu is open.
    */
   chip?: Omit<MenuChipProps, 'onOpenChange'>;
+  /**
+   * Points the row out (e.g. an Item added again by name): scrolled into view and tinted while set
+   * (`data-highlighted`), fading back when unset.
+   */
+  highlighted?: boolean;
 }
 
 /** An `EditableRow`'s title as a text field (`useAutoSaveText()`'s `input`, plus a `label`). */
@@ -101,6 +107,7 @@ export function EditableRow({
   input,
   secondary,
   chip,
+  highlighted = false,
   ...content
 }: EditableRowProps) {
   const { t } = useTranslation();
@@ -115,6 +122,10 @@ export function EditableRow({
   const ask = () => {
     setAsking(true);
   };
+  const row = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (highlighted) row.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [highlighted]);
   const deletable = confirm !== undefined && onDelete !== undefined;
   const link = to !== undefined && !editing;
   const withSecondary = input !== undefined && secondary !== undefined && !editing;
@@ -166,10 +177,15 @@ export function EditableRow({
   return (
     <div
       role="listitem"
-      ref={sortable?.ref}
+      ref={(element) => {
+        row.current = element;
+        sortable?.ref(element);
+      }}
       style={sortable?.style}
+      data-highlighted={highlighted || undefined}
       className={
-        `${ROW_FRAME} flex px-0! not-first:before:z-10 ` +
+        `${ROW_FRAME} flex px-0! not-first:before:z-10 transition-colors duration-700 ` +
+        (highlighted ? 'bg-fill duration-150 ' : '') +
         (content.leading === undefined ? '' : LEADING_INSET) +
         (sortable?.dragging === true ? ' z-20 shadow-lg before:hidden' : '')
       }
