@@ -150,6 +150,38 @@ export default {
       ],
     },
     {
+      // The Item being edited: its grey «Описание» line, empty, under the title.
+      name: 'list-item-description-empty',
+      path: '/',
+      fullPage: false,
+      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { click: ITEM }, { waitFor: 'role=textbox[name="Описание «Молоко 3,2%»"]' }],
+    },
+    {
+      // Tapping the cut Description line opens it in full; Enter started a second line.
+      name: 'list-item-description-editing',
+      path: '/',
+      isolate: true,
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { click: 'text=Нарезанный, половинку' },
+        { waitFor: 'role=textbox[name="Описание «Хлеб бородинский»"]' },
+        async (page) => page.keyboard.type('\nВитрина справа от кассы'),
+        { wait: 200 },
+      ],
+    },
+    {
+      // A Todo Item's Description being edited.
+      name: 'list-todo-description-editing',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { click: 'text=Детская стоматология' },
+        { waitFor: 'role=textbox[name="Описание «Записать Машу к стоматологу»"]' },
+      ],
+    },
+    {
       name: 'list-item-empty-text',
       path: '/',
       fullPage: false,
@@ -230,6 +262,34 @@ export default {
       path: '/',
       fullPage: false,
       steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: ITEM }, editIn('Куплено'), toSection('Куплено', 0)],
+    },
+    {
+      // «Очистить» on «Куплено»: the plural action sheet.
+      name: 'list-clear-confirm',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: `${section('Куплено')} >> role=button[name="Очистить"]` },
+        { waitFor: 'role=dialog' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // Cleared offline: «Куплено» goes at once, with the offline indicator as the only sign.
+      name: 'list-cleared-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: `${section('Куплено')} >> role=button[name="Очистить"]` },
+        { click: 'role=dialog >> role=button[name="Очистить"]' },
+        async (page) => page.locator(section('Куплено')).waitFor({ state: 'detached' }),
+        { wait: 300 },
+      ],
     },
     {
       name: 'list-wish',

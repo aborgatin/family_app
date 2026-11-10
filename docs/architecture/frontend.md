@@ -307,18 +307,26 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   back on and off again goes on top). Device and server times are never compared: pending ticks
   are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
   so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`, and
-  `categoryId` when added in a Category),
-  `rename` sends only `text`, `setDone` only `done`, `remove` deletes; all resolve at once,
+  `categoryId` when added in a Category; adding stays name-only), `rename` sends only `text`,
+  `describe` only `description` (blank as `null`), `setDone` only `done`, `remove` deletes; all
+  resolve at once,
   offline too. `ItemsSection` on the List screen: a `GroupedSection` headed «Товары» / «Задачи» /
   «Желания» with edit mode («Изменить») while it has open Items; each Item an `EditableRow` with a
   `DoneToggle` (named «Куплено «Молоко»» / «Выполнено «…»» / «Исполнено «…»») as `leading`, its
-  text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), deleted from edit
+  text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), its Description
+  as the row's `secondary` line (`useAutoSaveText`, named «Описание «Молоко»», placeholder
+  «Описание»), deleted from edit
   mode, a swipe or right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая
   задача» / «Новое желание» (Enter adds and keeps the focus). Footer: «Товаров пока нет» (by
   kind) with no open Items (a rejected new Item leaves the List; «Не удалось сохранить» shows
   app-wide, see `useSaveRejection`). Under it, while there are Done Items, a second `GroupedSection` headed «Куплено» /
   «Выполнено» / «Исполнено» with edit mode: each an `EditableRow`, `muted`, with its ticked
-  `DoneToggle` (untick puts it back among the open ones), deleted the same ways.
+  `DoneToggle` (untick puts it back among the open ones), deleted the same ways. A Shopping
+  list's is headed by «Очистить» too (the `GroupedSection` `action`; Todo and Wish lists get
+  none): an `ActionSheet` «Очистить 3 товара?» (`lists.confirmClearBought`, plural by `count`) /
+  «Очистить» (destructive) / «Отменить», then `remove()` for every Done Item shown, so one Item
+  delete each and no list-level operation (spec #67, ticket #71). An Item the other Member ticked
+  off that no pull has brought yet isn't shown, so it stays.
   **A Shopping list** (`CategorySections`, #70) shows the same «Товары» section while it has no
   named Categories. With some, the open Items are in one section per `sectionsInOrder()` entry:
   a Category's headed by its name (edit mode while it has Items), the Unnamed category's untitled

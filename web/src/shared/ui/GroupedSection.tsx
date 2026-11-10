@@ -56,6 +56,11 @@ interface GroupedSectionProps {
    */
   edit?: { editing: boolean; onEditingChange: (editing: boolean) => void };
   /**
+   * A small text button at the right of the header, before «Изменить» (e.g. «Очистить»). Needs a
+   * `header`.
+   */
+  action?: { label: string; onClick: () => void };
+  /**
    * Rows after an edit-mode list's rows, on the same cell but not part of the list (e.g.
    * «Добавить ребёнка»).
    */
@@ -110,6 +115,7 @@ export function GroupedSection({
   label,
   messages = [],
   edit,
+  action,
   after,
   children,
 }: GroupedSectionProps) {
@@ -139,15 +145,24 @@ export function GroupedSection({
           <h2 id={headerId} className="text-footnote text-secondary-label uppercase">
             {header}
           </h2>
-          {edit !== undefined && (
-            <Button
-              size="small"
-              onClick={() => {
-                edit.onEditingChange(!edit.editing);
-              }}
-            >
-              {edit.editing ? t('ui.done') : t('ui.edit')}
-            </Button>
+          {(action !== undefined || edit !== undefined) && (
+            <div className="flex gap-4">
+              {action !== undefined && (
+                <Button size="small" onClick={action.onClick}>
+                  {action.label}
+                </Button>
+              )}
+              {edit !== undefined && (
+                <Button
+                  size="small"
+                  onClick={() => {
+                    edit.onEditingChange(!edit.editing);
+                  }}
+                >
+                  {edit.editing ? t('ui.done') : t('ui.edit')}
+                </Button>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -94,10 +94,11 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
   is `ignored` (delete wins). Deleting a List soft-deletes its Items and Categories in the same
   operation.
-- **Items** (`item`, tickets #57, #58): an upsert carries `listId` (create only; a later upsert
+- **Items** (`item`, tickets #57, #58, #69, #70): an upsert carries `listId` (create only; a later upsert
   naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
-  points after trim), `note` (optional, ≤ 10000, no UI yet), `categoryId` (optional; `null` is
-  the Unnamed category; #70) and `done` (`true` / `false`; another
+  points after trim), `description` (the Description: optional, ≤ 10000 code points, over is
+  `too_long`; blank is stored as none, `null`), `categoryId` (optional; `null` is the Unnamed
+  category) and `done` (`true` / `false`; another
   type is `value.invalid`, `null` is `required`); the pull also sends the server-set `doneById`,
   `doneAt`, `creatorId` (the Member who pushed the create) and `createdAt`. When `done` turns
   true the server sets `doneById` to the pushing Member and `doneAt` to now; when it turns false

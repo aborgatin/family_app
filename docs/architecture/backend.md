@@ -206,12 +206,12 @@ static `listId(operation)` / `sameList(operation, listId)` for the create-only `
 Items and Categories use it; a new List-owned table (Item history) should too.
 
 Items are in the same package (an Item belongs to its List): `ItemEntity` (`list_id`, `text`,
-`category_id`, `note`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`), `ItemRepository`,
-`ItemRequest` (text 1–1000 code points after trim, note ≤ 10000 or blank = none) → `ItemDetails`;
+`category_id`, `description`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`), `ItemRepository`,
+`ItemRequest` (text 1–1000 code points after trim, description ≤ 10000 or blank = none) → `ItemDetails`;
 `ItemService`, the `item` `SyncableTable`:
 
 - `apply`: a known Item: deleted → `IGNORED`; its List not visible to the Member →
-  `list.not_found`; upsert merges `text` / `note` over the stored ones and validates (`listId`
+  `list.not_found`; upsert merges `text` / `description` over the stored ones and validates (`listId`
   naming another List → `validation.failed`), then sets Done when it carries `done`
   (`ItemEntity.markDone`), delete soft-deletes. An unknown Item: delete →
   `IGNORED`; upsert needs `listId` (`required` / `value.invalid`), whose List must exist and be
@@ -225,7 +225,7 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
 - Category (`categoryId`, when carried; `ItemEntity.moveTo`): `null` is the Unnamed category; a
   UUID must name a Category of the Item's own List, which must be `SHOPPING`, else
   `item.category_not_found` (`params.categoryId`); a deleted one is stored as `null`.
-- `changesSince`: `listId`, `text`, `categoryId`, `note`, `done`, `doneById`, `doneAt`,
+- `changesSince`: `listId`, `text`, `categoryId`, `description`, `done`, `doneById`, `doneAt`,
   `creatorId`, `createdAt`; a tombstone for a deleted Item and for one whose List the Member may
   not see (`VisibleLists.rowsVisibleTo`).
 
@@ -445,6 +445,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V4__child_field.sql`           | `child_field` + Default Child fields «Вес», «Рост» (`TEXT`, positions 1.0, 2.0)                    |
 | `V5__list.sql`                  | `list` (Owner → `member`)                                                                          |
 | `V6__item.sql`                  | `item` (→ `list`; Creator and done by → `member`), index on `list_id`                              |
+| `V7__item_description.sql`      | renames `item.note` to `description` (the glossary's Description)                                  |
 | `V8__category.sql`              | `category` (→ `list`), index on `list_id`; `list.unnamed_category_position`; `item.category_id`    |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher

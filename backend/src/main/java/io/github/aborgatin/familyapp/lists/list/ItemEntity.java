@@ -32,7 +32,7 @@ class ItemEntity implements SyncedRecord {
   /** The Item's Category; {@code null} is the Unnamed category. */
   @Nullable private UUID categoryId;
 
-  @Nullable private String note;
+  @Nullable private String description;
 
   @Column(nullable = false)
   private boolean done;
@@ -71,7 +71,7 @@ class ItemEntity implements SyncedRecord {
   /** Sets the fields an operation may change. */
   void replace(ItemDetails details) {
     this.text = details.text();
-    this.note = details.note();
+    this.description = details.description();
   }
 
   /** Puts the Item in this Category of its List; {@code null} is the Unnamed category. */
@@ -116,8 +116,8 @@ class ItemEntity implements SyncedRecord {
   }
 
   @Nullable
-  String note() {
-    return note;
+  String description() {
+    return description;
   }
 
   boolean done() {

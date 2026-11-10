@@ -70,6 +70,7 @@ const GLOSSARY_AVOID = [
   { word: 'recurrence', use: 'Repeat' },
   { word: 'completed', use: 'Done' },
   { word: 'author', use: 'Creator (or Owner)' },
+  { word: 'note', use: 'Description' },
 ];
 
 /** A regex matching `word` as one word of an identifier: camelCase, PascalCase or SNAKE_CASE. */

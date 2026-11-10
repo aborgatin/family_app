@@ -4,16 +4,16 @@ import io.github.aborgatin.familyapp.error.FieldErrors;
 import org.springframework.lang.Nullable;
 
 /**
- * An Item's fields as an upsert leaves them: {@code {text, note}}. The List is checked by {@code
- * ItemService}, since it is set once, on create.
+ * An Item's fields as an upsert leaves them: {@code {text, description}}. The List is checked by
+ * {@code ItemService}, since it is set once, on create.
  */
-record ItemRequest(@Nullable String text, @Nullable String note) {
+record ItemRequest(@Nullable String text, @Nullable String description) {
 
   /** An Item's text: 1–1000 code points after trim. */
   private static final int MAX_TEXT_LENGTH = 1000;
 
-  /** A note: up to 10000 code points; blank is no note. */
-  private static final int MAX_NOTE_LENGTH = 10_000;
+  /** A Description: up to 10000 code points; blank is none. */
+  private static final int MAX_DESCRIPTION_LENGTH = 10_000;
 
   /** Returns the normalized fields, or throws {@code 400 validation.failed}. */
   ItemDetails validate() {
@@ -24,12 +24,12 @@ record ItemRequest(@Nullable String text, @Nullable String note) {
     } else if (length(trimmedText) > MAX_TEXT_LENGTH) {
       errors.add("text", FieldErrors.TOO_LONG);
     }
-    String checkedNote = note == null || note.isBlank() ? null : note;
-    if (checkedNote != null && length(checkedNote) > MAX_NOTE_LENGTH) {
-      errors.add("note", FieldErrors.TOO_LONG);
+    String checkedDescription = description == null || description.isBlank() ? null : description;
+    if (checkedDescription != null && length(checkedDescription) > MAX_DESCRIPTION_LENGTH) {
+      errors.add("description", FieldErrors.TOO_LONG);
     }
     errors.throwIfAny();
-    return new ItemDetails(trimmedText, checkedNote);
+    return new ItemDetails(trimmedText, checkedDescription);
   }
 
   private static int length(String value) {

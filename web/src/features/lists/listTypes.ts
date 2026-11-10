@@ -40,7 +40,8 @@ export interface Item {
   text: string;
   /** The Item's Category in a Shopping list; none (`null` or absent) is the Unnamed category. */
   categoryId?: string | null;
-  note: string | null;
+  /** The Description: details or a link, several lines; `null` when there is none. */
+  description: string | null;
   /** Done, and who marked it Done and when (set by the server when Done changes). */
   done: boolean;
   doneById?: string | null;

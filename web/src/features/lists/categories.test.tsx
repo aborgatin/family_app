@@ -46,7 +46,7 @@ function item(n: number, text: string, categoryId: string | null, createdAt: str
     listId: groceries.id,
     text,
     categoryId,
-    note: null,
+    description: null,
     done: false,
     doneById: null,
     doneAt: null,
