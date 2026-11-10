@@ -98,7 +98,7 @@ class ItemService implements SyncableTable {
     UUID categoryId = operation.has("categoryId") ? categoryId(operation, list) : null;
     DueDate dueDate = dueDate(operation, DueDate.NONE, list);
     Repeat repeat = repeat(operation, null, dueDate, list);
-    UUID assigneeId = operation.has("assigneeId") ? assigneeId(operation, list) : null;
+    UUID assigneeId = assigneeId(operation, null, list);
     Instant now = clock.instant();
     ItemEntity item = new ItemEntity(operation.id(), listId, operation.memberId(), now, details);
     item.moveTo(categoryId);
@@ -123,7 +123,7 @@ class ItemService implements SyncableTable {
     UUID categoryId = operation.has("categoryId") ? categoryId(operation, list) : item.categoryId();
     DueDate dueDate = dueDate(operation, item.dueDate(), list);
     Repeat repeat = repeat(operation, item.repeat(), dueDate, list);
-    UUID assigneeId = operation.has("assigneeId") ? assigneeId(operation, list) : item.assigneeId();
+    UUID assigneeId = assigneeId(operation, item.assigneeId(), list);
     // The history keeps a name when it is given (a new text) or used again (Done → open).
     boolean nameUsed = !details.text().equals(item.text()) || (item.done() && !done);
     boolean turnsDone = done && !item.done();
@@ -206,19 +206,16 @@ class ItemService implements SyncableTable {
    * value.invalid}), and a time left without a day ({@code item.due_time_without_due_date}).
    */
   private static DueDate dueDate(Operation operation, DueDate stored, ListEntity list) {
-    boolean carriesDay = operation.has("dueDate");
-    boolean carriesTime = operation.has("dueTime");
-    if (!carriesDay && !carriesTime) {
+    if (!carriesTodoField(operation, list, "dueDate", "dueTime")) {
       return stored;
-    }
-    if (list.kind() != ListKind.TODO) {
-      throw listNotTodo(list);
     }
     FieldErrors errors = new FieldErrors();
     LocalDate day =
-        carriesDay ? parsed(operation, "dueDate", LocalDate::parse, errors) : stored.day();
+        operation.has("dueDate")
+            ? parsed(operation, "dueDate", LocalDate::parse, errors)
+            : stored.day();
     LocalTime time = day == null ? null : stored.time();
-    if (carriesTime) {
+    if (operation.has("dueTime")) {
       time = parsed(operation, "dueTime", text -> LocalTime.parse(text, DUE_TIME), errors);
     }
     errors.throwIfAny();
@@ -240,11 +237,8 @@ class ItemService implements SyncableTable {
   @Nullable
   private static Repeat repeat(
       Operation operation, @Nullable Repeat stored, DueDate dueDate, ListEntity list) {
-    if (!operation.has("repeat")) {
+    if (!carriesTodoField(operation, list, "repeat")) {
       return dueDate.day() == null ? null : stored;
-    }
-    if (list.kind() != ListKind.TODO) {
-      throw listNotTodo(list);
     }
     String text = operation.text("repeat");
     if (text == null) {
@@ -265,17 +259,18 @@ class ItemService implements SyncableTable {
   }
 
   /**
-   * The operation's {@code assigneeId} for an Item of {@code list}: a Member's id, or {@code null}
-   * for nobody. Rejected: the field, even {@code null}, on an Item of a List that is not a Todo
-   * list ({@code item.list_not_todo}); a Member on a Private list ({@code
+   * The Assignee the operation leaves on an Item of {@code list} that had {@code stored}: {@code
+   * assigneeId} is a Member's id, or {@code null} for nobody; without the field the stored one
+   * stays. Rejected: the field, even {@code null}, on an Item of a List that is not a Todo list
+   * ({@code item.list_not_todo}); a Member on a Private list ({@code
    * item.assignee_on_private_list}); an id that names no Member ({@code item.assignee_not_found}).
    * {@code null} on a Private list is accepted and changes nothing: its Items have no Assignee, and
    * the Owner's other device may remove one while the List is being made Private.
    */
   @Nullable
-  private UUID assigneeId(Operation operation, ListEntity list) {
-    if (list.kind() != ListKind.TODO) {
-      throw listNotTodo(list);
+  private UUID assigneeId(Operation operation, @Nullable UUID stored, ListEntity list) {
+    if (!carriesTodoField(operation, list, "assigneeId")) {
+      return stored;
     }
     UUID assigneeId = RequestFields.uuid(operation, "assigneeId");
     if (assigneeId == null) {
@@ -296,10 +291,19 @@ class ItemService implements SyncableTable {
     return assigneeId;
   }
 
-  /** A todo field on an Item of a Shopping or Wish list. */
-  private static ApiException listNotTodo(ListEntity list) {
-    return new ApiException(
-        HttpStatus.CONFLICT, "item.list_not_todo", Map.of("listId", list.id().toString()));
+  /**
+   * Whether the operation carries any of these todo fields (even as {@code null}); one on an Item
+   * of a Shopping or Wish list is {@code item.list_not_todo}.
+   */
+  private static boolean carriesTodoField(Operation operation, ListEntity list, String... fields) {
+    if (Arrays.stream(fields).noneMatch(operation::has)) {
+      return false;
+    }
+    if (list.kind() != ListKind.TODO) {
+      throw new ApiException(
+          HttpStatus.CONFLICT, "item.list_not_todo", Map.of("listId", list.id().toString()));
+    }
+    return true;
   }
 
   /** The operation's {@code field} parsed, {@code null} for none; {@code value.invalid} if bad. */
