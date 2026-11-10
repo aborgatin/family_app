@@ -393,6 +393,45 @@ export default {
       ],
     },
     {
+      // «Скрыть» pressed (#93): «Выполнено» is only the row «Выполненные ранее», without «Скрыть».
+      name: 'list-todo-hidden',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]' },
+        { waitFor: 'role=region[name="Выполнено"] >> role=link[name="Выполненные ранее"]' },
+        async (page) => page.locator('role=button[name="Скрыть"]').waitFor({ state: 'detached' }),
+        { wait: 200 },
+      ],
+    },
+    {
+      // The same with no connection: «Выполнено» empties at once.
+      name: 'list-todo-hidden-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]' },
+        async (page) => page.locator('role=button[name="Скрыть"]').waitFor({ state: 'detached' }),
+        { wait: 200 },
+      ],
+    },
+    {
+      // «Выполненные ранее» after «Скрыть»: the hidden Items of the last 7 days with the older
+      // ones, most recent first.
+      name: 'done-earlier-hidden',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]' },
+        { click: 'role=region[name="Выполнено"] >> role=link[name="Выполненные ранее"]' },
+        { waitFor: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
+      ],
+    },
+    {
       name: 'list-todo-empty',
       path: '/',
       steps: [{ click: 'role=link[name=/Ремонт/]' }, { waitFor: 'text=Задач пока нет' }],

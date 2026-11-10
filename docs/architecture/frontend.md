@@ -246,14 +246,17 @@ code that touches IndexedDB or the sync API:
     of which only those that differ from the local row are written and sent (read in the same
     transaction; nothing differs, nothing written), so a screen passes just the changed field and
     a change the other Member made meanwhile stays; `local` fields go only into the local row and the Outbox entry, never to the server,
-    until the server's copy replaces them (an Item's `doneHereAt`); `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
+    until the server's copy replaces them (an Item's `doneHereAt`); `requestUpsert(table, id,
+    fields, local?)`: the same upsert sent every time, whatever the local row holds, for a field
+    that asks the server to act rather than one stored (a List's `hideDone`, #93; nothing for a
+    row the device doesn't have); `deleteRow(table, id)`. All three write the row and the Outbox in one transaction and resolve at
     once, online or not;
   - `useSaveRejection()` → `{message, dismiss}`: the message about the last operation the server
     rejected (`saveRejection.ts`, I3: `list.not_found`, `list.owner_only`, `list.kind_immutable`,
     `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only`,
     `item.list_not_todo`, `item.due_time_without_due_date`, `item.repeat_without_due_date`,
     `item.assignee_on_private_list`,
-    `item.assignee_not_found` map to
+    `item.assignee_not_found`, `list.hide_done_not_todo` map to
     `sync.rejected.*`, «Не удалось сохранить: …» with the reason; any other code to
     `sync.saveRejected`, plain «Не удалось сохранить»). It is recorded whatever screen is open and
     cleared by the Member's next change, `dismiss()` or a logout. Its one user is
@@ -457,6 +460,19 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   Todo list, is unknown or disappears shows `ListMissing`, as «Категории» does for a List that is
   not a Shopping list. Nothing is ever removed by the window: a Done todo item leaves both places
   only when a Member deletes it.
+  **«Скрыть»** (#93) heads a Todo list's «Выполнено» while it has Items (the `GroupedSection`
+  `action`, where a Shopping list has «Очистить»; never on «Выполненные ранее», a Wish or a
+  Shopping list) and acts at once, with no question: `useItems().hideDone()` sends the List
+  upsert `{hideDone: true}` through `requestUpsert` (every press is sent) with the device-only
+  `doneHiddenHereAt` (a `tickTime()`, the clock that also orders `doneHereAt`) as a `local`
+  field. `doneItems` leave out the hidden ones and `earlierDoneItems` take them, most recent
+  first with the older ones (`hidden()` in `useItems.ts`): with the server's `doneHiddenAt`, an
+  Item whose `doneAt` is not after it; while a press made here is pending, every Item with a
+  server `doneAt` (the server's moment will be later) and every one ticked here before the press
+  (`doneHereAt` ≤ `doneHiddenHereAt`). An Item ticked here after the press, or after a moment the
+  server already stamped, stays in «Выполнено». So it works offline at once and across a
+  restart, and the split is the same once the server's copies arrive. Unticked in «Выполненные
+  ранее», an Item is open again; ticked again, its new Done time is after the moment.
   **A Shopping list** (`ShoppingItems`, #70) shows the same «Товары» section while it has no
   named Categories. With some, the open Items are in one section per `itemsByCategory()` entry:
   a Category's headed by its name (edit mode while it has Items), the Unnamed category's untitled
