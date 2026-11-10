@@ -42,6 +42,8 @@ Ctrl-C). Then it seeds through the real API:
   «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open, one with a Description, and one Done), «Подарки»
   (Желания, one open and one Done), «Книги» (Желания); Борис's «Гараж» (TODO) and his
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.
+- Child lists, on Маша's Child page only (never on Home): «Школа» (TODO, two open Items and one
+  Done) and «Желания» (Желания, one Item). Петя and Соня have none.
 - One active Invite.
 
 Browser context: installed Google Chrome (`SHOOT_CHANNEL` to override), locale `ru-RU`,
