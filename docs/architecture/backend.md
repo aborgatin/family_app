@@ -307,8 +307,9 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
   `item.repeat_without_due_date` for a Repeat on an Item left without a Due date (none stored, or
   `dueDate: null` in the same upsert). An upsert not carrying the field keeps the Repeat, unless
   it leaves the Item without a Due date: then the Repeat goes too.
-- Next occurrence (#87, ADR-0009; `ItemService.change` → `ItemEntity.nextOccurrence`): when a
-  change turns Done from false to true and leaves a Repeat, the same operation clears the Done
+- Next occurrence (#87, ADR-0009; `ItemService.save` → `ItemEntity.nextOccurrence`): when an
+  upsert turns Done true (a change from false to true, or a create carrying `done: true`) and
+  leaves a Repeat, the same operation clears the Done
   Item's Repeat and saves a new open `ItemEntity` (id `UUID.randomUUID()`, the one Item id the
   server makes) with the same List, text, Description, Assignee, Repeat, time of day and Creator,
   created now. Its day is `Repeat.next(oldDay, today)`: one period on (`plusDays` / `plusWeeks` /
@@ -316,7 +317,7 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
   until after today. Today is `LocalDate.ofInstant(clock.instant(), ZoneId.systemDefault())`: the
   JVM's default zone is the installation's, from the container's `TZ`
   ([`deployment.md`](deployment.md)); no new setting. Done set to its current value is no turn, so
-  a second tick adds nothing; a create carrying `done: true` adds no copy. Tested by
+  a second tick adds nothing. Tested by
   `lists.ItemRepeatCopySyncTest`, with Due dates relative to today in the JVM's zone (the test
   runs in the server's JVM; a test starting under a minute before midnight waits past it, so the
   test and the server agree on today), so no fixed clock is needed: the month-end cases start from a past

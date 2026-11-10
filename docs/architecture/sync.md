@@ -147,8 +147,9 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `item.repeat_without_due_date`. The app never sends the first two; the third happens when one
   device chooses a Repeat while the other removes the Due date and its operation arrives first. A
   Done Item's Repeat is not locked by the server (the app shows it read-only).
-  **Next occurrence** (#87, ADR-0009): when an upsert turns `done` from `false` to `true` on an
-  Item that the operation leaves with a Repeat, the server, in the same operation, clears that
+  **Next occurrence** (#87, ADR-0009): when an upsert turns `done` true on an Item that the
+  operation leaves with a Repeat (a change from `false` to `true`, or a create carrying `done:
+  true`), the server, in the same operation, clears that
   Item's `repeat` and inserts a new open Item with a server-generated id in the same List: the same
   `text`, `description`, `assigneeId`, `repeat`, `dueTime` and `creatorId` (the original Creator,
   not the Member who ticked), `categoryId` `null`, `createdAt` now, and `dueDate` the old one
@@ -158,8 +159,7 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   (31 Jan → 28 Feb → 28 Mar; 29 Feb → 28 Feb). Both rows get new Versions, so both Members get
   them through the pull and a live update. `done: true` on an Item already Done changes nothing,
   so the other device's tick adds no second copy; `done: false` does nothing extra (the Item is
-  open without a Repeat; the copy stays). An Item created already Done gets no copy (the app never
-  sends one). Devices never create the copy: marked Done offline, the Item is in «Выполнено» at
+  open without a Repeat; the copy stays). Devices never create the copy: marked Done offline, the Item is in «Выполнено» at
   once and its next occurrence arrives with the next pull.
   **Assignee** (#85): `assigneeId` is a Member's id or `null` (nobody), only on an Item of a
   Shared Todo list; the pull always sends it. It is its own field for Last write wins (an

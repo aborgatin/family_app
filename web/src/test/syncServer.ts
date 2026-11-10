@@ -10,7 +10,7 @@ import { network } from './network';
  * (`CASCADES`), and a Child field value is a timeline entry (stamped with `recordedAt`, never
  * changed, ignored for a deleted Child or Child field), a List made Private loses the Assignee
  * of every one of its Items, and a repeating Item turned Done (pushed, or by `change`) hands its
- * Repeat on to its next occurrence, a new open Item (ADR-0009). Tests seed rows, read what was pushed, and switch it offline or make it
+ * Repeat on to its next occurrence, a new open Item (ADR-0009); a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
@@ -117,7 +117,7 @@ class FakeSyncServer {
       );
     }
     for (const { id, ...fields } of rows) {
-      this.write(table, id, fields, false);
+      this.put(table, id, fields, false);
     }
   }
 
@@ -247,24 +247,24 @@ class FakeSyncServer {
     if (table === 'child') this.deleteChildLists(id);
   }
 
+  /** Stores the row with a new Version, as it is: no table rule runs (a seeded row). */
+  private put(table: string, id: string, fields: Record<string, unknown>, deleted: boolean) {
+    this.version += 1;
+    this.stored.set(key(table, id), { table, id, version: this.version, deleted, fields });
+  }
+
+  /** Stores the row as a write by a Member does, with the table rules the server applies. */
   private write(table: string, id: string, fields: Record<string, unknown>, deleted: boolean) {
     const before = this.stored.get(key(table, id));
+    // Turned Done: created Done, or changed from open (ADR-0009).
     const repeating =
       table === 'item' &&
       !deleted &&
-      before !== undefined &&
-      before.fields.done !== true &&
+      before?.fields.done !== true &&
       fields.done === true &&
       typeof fields.repeat === 'string' &&
       typeof fields.dueDate === 'string';
-    this.version += 1;
-    this.stored.set(key(table, id), {
-      table,
-      id,
-      version: this.version,
-      deleted,
-      fields: repeating ? { ...fields, repeat: null } : fields,
-    });
+    this.put(table, id, repeating ? { ...fields, repeat: null } : fields, deleted);
     if (repeating) this.addNextOccurrence(fields);
     if (
       table === 'list' &&

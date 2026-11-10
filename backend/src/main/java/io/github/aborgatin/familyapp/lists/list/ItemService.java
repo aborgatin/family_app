@@ -106,7 +106,7 @@ class ItemService implements SyncableTable {
     item.repeat(repeat);
     item.assignTo(assigneeId);
     item.markDone(done, operation.memberId(), now);
-    items.saveAndFlush(item);
+    save(item, done, now);
     history.used(list, item.text(), now);
     return Outcome.APPLIED;
   }
@@ -134,18 +134,27 @@ class ItemService implements SyncableTable {
     item.repeat(repeat);
     item.assignTo(assigneeId);
     item.markDone(done, operation.memberId(), now);
-    // A repeating Item marked Done hands its Repeat on to a new open Item (ADR-0009). Turning Done
-    // true again (the other device's tick) is no turn, so it adds no second one.
-    ItemEntity next =
-        turnsDone && repeat != null ? item.nextOccurrence(UUID.randomUUID(), now, today()) : null;
-    items.saveAndFlush(item);
-    if (next != null) {
-      items.saveAndFlush(next);
-    }
+    // Turning Done true again (the other device's tick) is no turn, so it adds no second copy.
+    save(item, turnsDone, now);
     if (nameUsed) {
       history.used(list, item.text(), now);
     }
     return Outcome.APPLIED;
+  }
+
+  /**
+   * Saves the Item. One that this operation turns Done (created Done, or changed from open) and
+   * leaves with a Repeat hands its Repeat on to a new open Item, its next occurrence (ADR-0009).
+   */
+  private void save(ItemEntity item, boolean turnsDone, Instant now) {
+    ItemEntity next =
+        turnsDone && item.repeat() != null
+            ? item.nextOccurrence(UUID.randomUUID(), now, today())
+            : null;
+    items.saveAndFlush(item);
+    if (next != null) {
+      items.saveAndFlush(next);
+    }
   }
 
   /**

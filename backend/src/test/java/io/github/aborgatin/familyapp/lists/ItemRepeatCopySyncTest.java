@@ -174,6 +174,26 @@ class ItemRepeatCopySyncTest {
   }
 
   @Test
+  void anItemCreatedAlreadyDoneWithARepeatAddsTheNextOccurrence() throws Exception {
+    UUID rubbish = UUID.randomUUID();
+
+    SyncRequests.push(
+            anna,
+            SyncRequests.upsert(
+                "item",
+                rubbish,
+                "{\"listId\":\"%s\",\"text\":\"Вынести мусор\",\"dueDate\":\"%s\",\"repeat\":\"WEEKLY\",\"done\":true}"
+                    .formatted(chores, today)))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    assertThat(SyncRequests.fields(boris, "item", rubbish))
+        .containsEntry("done", true)
+        .containsEntry("doneById", annaId)
+        .containsEntry("repeat", null);
+    assertThat(nextDueDate(rubbish)).isEqualTo(today.plusDays(7).toString());
+  }
+
+  @Test
   void aSecondTickFromTheOtherDeviceAddsNoSecondOccurrence() throws Exception {
     UUID rubbish = UUID.randomUUID();
     SyncRequests.push(
