@@ -40,11 +40,6 @@ export interface ListDetails {
   childId?: string;
 }
 
-/** The id of the Child a Child list is about; `undefined` for every other List. */
-export function childIdOf(list: List): string | undefined {
-  return list.childId ?? undefined;
-}
-
 /** How often a todo item recurs (GLOSSARY: Repeat). */
 export type Repeat = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GroupedSection, ListRow, LoadingRow } from '@/shared/ui';
 import { listPath } from './listPaths';
-import { childIdOf, KIND_TEXTS, type List } from './listTypes';
+import { KIND_TEXTS, type List } from './listTypes';
 import { NewListSheet } from './NewListSheet';
 import { useOpenItemCounts } from './useItems';
 import { newListId, useLists } from './useLists';
@@ -26,7 +26,9 @@ export function ListsSection({ childId }: ListsSectionProps) {
   const [addingId, setAddingId] = useState<string>();
 
   const lists =
-    load.status === 'ready' ? load.value.filter((list) => childIdOf(list) === childId) : [];
+    load.status === 'ready'
+      ? load.value.filter((list) => (list.childId ?? undefined) === childId)
+      : [];
 
   function subtitle(list: List) {
     const kind = t(KIND_TEXTS[list.kind].name);

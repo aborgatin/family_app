@@ -17,7 +17,6 @@ import {
 import { ListMissing, useRouteList } from './ListMissing';
 import { listCategoriesPath, listPath } from './listPaths';
 import {
-  childIdOf,
   hasVisibility,
   type List,
   type ListDetails,
@@ -109,7 +108,7 @@ function ListDetailsSection({ list, owned, save }: ListDetailsSectionProps) {
   return (
     <GroupedSection messages={autoSaveMessages([name.failure, visibility.failure])}>
       <InputRow label={t('lists.name')} autoComplete="off" {...name.input} />
-      {owned && hasVisibility(list.kind) && childIdOf(list) === undefined && (
+      {owned && hasVisibility(list.kind) && list.childId == null && (
         <SegmentedControl
           label={t('lists.visibility.label')}
           options={visibilities}

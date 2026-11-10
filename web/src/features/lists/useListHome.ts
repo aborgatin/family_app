@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { childPath, useChildren } from '@/features/children';
-import { childIdOf, type List } from './listTypes';
+import type { List } from './listTypes';
 
 /**
  * Where a List lives, which is where its screen goes back to and where the app goes once the List
@@ -13,7 +13,7 @@ export function useListHome(
 ): { to: string; title: string } {
   const { t } = useTranslation();
   const { load } = useChildren();
-  const childId = list === undefined ? undefined : childIdOf(list);
+  const childId = list?.childId ?? undefined;
   if (childId === undefined) {
     return { to: homePath, title: t('app.name') };
   }

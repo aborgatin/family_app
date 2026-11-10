@@ -328,7 +328,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   Home subtitle, empty state, Items header, «Новый товар», «Товар «…»», the Done label and the
   Done toggle's name) are in `KIND_TEXTS`. Each Home row's value is the List's count of open
   Items (`useOpenItemCounts()`, 0 included).
-  **Child lists** (#90): a List row may carry `childId` (`childIdOf(list)`; `null` or absent for an
+  **Child lists** (#90): a List row may carry `childId` (`null` or absent for an
   ordinary List). `ListsSection` takes an optional `childId`: without it, it is Home's «Списки» and
   leaves out every List with a Child; with it, it is «Списки» on that Child's page (the routes
   pass it to `ChildPage` as `lists`): only that Child's lists, the same rows (kind as subtitle,
