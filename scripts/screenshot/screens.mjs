@@ -10,7 +10,16 @@ const listSettings = (name) => [
   { click: 'role=link[name="Настройки списка"]' },
   { waitFor: 'role=textbox[name="Название"]' },
 ];
-const showInvites = async (page) => {
+/** Steps on /setup of a fresh installation: Анна registers and lands on Home with the Defaults. */
+const registerFirstMember = [
+  { fill: 'role=textbox[name="Электронная почта"]', value: 'anna@example.com' },
+  { fill: 'input[type=password]', value: 'password123' },
+  { fill: 'role=textbox[name="Имя"]', value: 'Анна' },
+  { click: 'text=Женский' },
+  { click: 'role=button[name="Зарегистрироваться"]' },
+  { waitFor: 'role=link[name=/Аптека/]' },
+];
+const showInvites =async (page) => {
   await page.locator(INVITE).scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, 200));
 };
@@ -54,6 +63,19 @@ export default {
     // Home
     { name: 'home', path: '/', steps: [{ waitFor: 'text=Супермаркет' }] },
     { name: 'home-empty', path: '/', initScript: noLists, steps: [{ waitFor: 'text=Списков пока нет' }] },
+    // A fresh installation right after the first Member registers: the Default Shopping lists.
+    { name: 'home-defaults', path: '/setup', auth: 'fresh', isolate: true, steps: [...registerFirstMember] },
+    {
+      name: 'list-defaults-supermarket',
+      path: '/setup',
+      auth: 'fresh',
+      isolate: true,
+      steps: [
+        ...registerFirstMember,
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: 'role=button[name="Новая категория"]' },
+      ],
+    },
     {
       name: 'home-scrolled',
       path: '/',
