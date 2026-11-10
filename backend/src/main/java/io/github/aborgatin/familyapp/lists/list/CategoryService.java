@@ -59,7 +59,7 @@ class CategoryService implements SyncableTable {
   }
 
   private Outcome create(Operation operation) {
-    UUID listId = VisibleLists.listId(operation);
+    UUID listId = RequestFields.listId(operation);
     ListEntity list = visibleLists.find(listId, operation.memberId());
     if (list.deleted()) {
       return Outcome.IGNORED;
@@ -75,7 +75,7 @@ class CategoryService implements SyncableTable {
   }
 
   private Outcome change(Operation operation, CategoryEntity category) {
-    VisibleLists.sameList(operation, category.listId());
+    RequestFields.sameList(operation, category.listId());
     CategoryDetails details =
         new CategoryRequest(
                 operation.has("name") ? operation.text("name") : category.name(),

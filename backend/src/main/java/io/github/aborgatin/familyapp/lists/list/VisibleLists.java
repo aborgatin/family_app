@@ -1,7 +1,5 @@
 package io.github.aborgatin.familyapp.lists.list;
 
-import io.github.aborgatin.familyapp.error.FieldErrors;
-import io.github.aborgatin.familyapp.sync.Operation;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
@@ -44,27 +42,5 @@ class VisibleLists {
       ListEntity list = listsById.get(listIdOfRow.apply(row));
       return list != null && list.visibleTo(memberId);
     };
-  }
-
-  /** The operation's {@code listId}: required, a UUID ({@code validation.failed} otherwise). */
-  static UUID listId(Operation operation) {
-    String value = operation.text("listId");
-    FieldErrors errors = new FieldErrors();
-    if (value == null || value.isBlank()) {
-      errors.add("listId", FieldErrors.REQUIRED).throwIfAny();
-    }
-    try {
-      return UUID.fromString(String.valueOf(value));
-    } catch (IllegalArgumentException e) {
-      errors.add("listId", FieldErrors.VALUE_INVALID).throwIfAny();
-      throw e;
-    }
-  }
-
-  /** {@code validation.failed} when an upsert of a known row names another List than its own. */
-  static void sameList(Operation operation, UUID listId) {
-    if (operation.has("listId") && !listId.equals(listId(operation))) {
-      new FieldErrors().add("listId", FieldErrors.VALUE_INVALID).throwIfAny();
-    }
   }
 }

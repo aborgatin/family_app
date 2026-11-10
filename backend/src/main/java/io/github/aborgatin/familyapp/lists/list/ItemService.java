@@ -56,18 +56,21 @@ class ItemService implements SyncableTable {
   @Override
   public Outcome apply(Operation operation) {
     Optional<ItemEntity> existing = items.findById(operation.id());
-    if (existing.isPresent() && !existing.get().deleted()) {
-      visibleLists.find(existing.get().listId(), operation.memberId());
-    }
+    // Looked up once: a change needs the List again for its Category and Item history.
+    Optional<ListEntity> list =
+        existing
+            .filter(item -> !item.deleted())
+            .map(item -> visibleLists.find(item.listId(), operation.memberId()));
     return Outcome.deleteWins(
         operation,
         existing,
-        (upsert, item) -> item.isPresent() ? change(upsert, item.get()) : create(upsert),
+        (upsert, item) ->
+            item.isPresent() ? change(upsert, item.get(), list.orElseThrow()) : create(upsert),
         this::delete);
   }
 
   private Outcome create(Operation operation) {
-    UUID listId = VisibleLists.listId(operation);
+    UUID listId = RequestFields.listId(operation);
     ListEntity list = visibleLists.find(listId, operation.memberId());
     if (list.deleted()) {
       return Outcome.IGNORED;
@@ -85,18 +88,16 @@ class ItemService implements SyncableTable {
     return Outcome.APPLIED;
   }
 
-  private Outcome change(Operation operation, ItemEntity item) {
-    VisibleLists.sameList(operation, item.listId());
+  /** Changes a live Item of {@code list} (its own, checked visible by {@link #apply}). */
+  private Outcome change(Operation operation, ItemEntity item, ListEntity list) {
+    RequestFields.sameList(operation, item.listId());
     ItemDetails details =
         new ItemRequest(
                 operation.has("text") ? operation.text("text") : item.text(),
                 operation.has("description") ? operation.text("description") : item.description())
             .validate();
     boolean done = operation.has("done") ? done(operation) : item.done();
-    UUID categoryId =
-        operation.has("categoryId")
-            ? categoryId(operation, visibleLists.find(item.listId(), operation.memberId()))
-            : item.categoryId();
+    UUID categoryId = operation.has("categoryId") ? categoryId(operation, list) : item.categoryId();
     // The history keeps a name when it is given (a new text) or used again (Done → open).
     boolean nameUsed = !details.text().equals(item.text()) || (item.done() && !done);
     Instant now = clock.instant();
@@ -105,7 +106,7 @@ class ItemService implements SyncableTable {
     item.markDone(done, operation.memberId(), now);
     items.saveAndFlush(item);
     if (nameUsed) {
-      history.used(visibleLists.find(item.listId(), operation.memberId()), item.text(), now);
+      history.used(list, item.text(), now);
     }
     return Outcome.APPLIED;
   }
@@ -124,16 +125,9 @@ class ItemService implements SyncableTable {
    */
   @Nullable
   private UUID categoryId(Operation operation, ListEntity list) {
-    String value = operation.text("categoryId");
-    if (value == null) {
+    UUID categoryId = RequestFields.uuid(operation, "categoryId");
+    if (categoryId == null) {
       return null;
-    }
-    UUID categoryId;
-    try {
-      categoryId = UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      new FieldErrors().add("categoryId", FieldErrors.VALUE_INVALID).throwIfAny();
-      throw e;
     }
     CategoryEntity category =
         categories

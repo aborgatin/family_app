@@ -215,9 +215,12 @@ a failing Defaults listener rolls the registration back, by `lists.ShoppingListD
 
 `VisibleLists` (a bean) is A1 for the tables whose rows belong to a List: `find(listId,
 memberId)` (the List, deleted or not, or `list.not_found`), `rowsVisibleTo(memberId, rows,
-listIdOfRow)` (the pull's `visible` predicate, loading the Lists once with `findAllById`), and the
-static `listId(operation)` / `sameList(operation, listId)` for the create-only `listId` field.
-Items, Categories and Item history use it.
+listIdOfRow)` (the pull's `visible` predicate, loading the Lists once with `findAllById`).
+Items, Categories and Item history use it. `RequestFields` holds the field checks Lists,
+Categories and Items share: `name` (1–100 code points after trim), `position` (required, finite),
+`uuid(operation, field)` (absent or `null` is none, else `value.invalid` unless a UUID), and
+`listId(operation)` / `sameList(operation, listId)` for the create-only `listId` field.
+`ItemService` looks an Item's List up once per operation and passes it on.
 
 Items are in the same package (an Item belongs to its List): `ItemEntity` (`list_id`, `text`,
 `category_id`, `description`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`), `ItemRepository`,

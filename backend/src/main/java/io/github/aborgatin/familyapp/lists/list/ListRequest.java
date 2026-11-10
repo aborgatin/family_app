@@ -15,34 +15,19 @@ record ListRequest(
     @Nullable String visibility,
     @Nullable Double unnamedCategoryPosition) {
 
-  /** The same limits as a Child's name: 1–100 code points after trim. */
-  private static final int MAX_NAME_LENGTH = 100;
-
   /**
-   * Returns the normalized fields (name trimmed), or throws {@code 400 validation.failed} listing
-   * every bad field.
+   * Returns the normalized fields (name trimmed: 1–100 code points, the same limits as a Child's
+   * name), or throws {@code 400 validation.failed} listing every bad field.
    */
   ListDetails validate() {
     FieldErrors errors = new FieldErrors();
-    String trimmedName = name == null ? "" : name.trim();
-    if (trimmedName.isEmpty()) {
-      errors.add("name", FieldErrors.REQUIRED);
-    } else if (trimmedName.codePointCount(0, trimmedName.length()) > MAX_NAME_LENGTH) {
-      errors.add("name", FieldErrors.TOO_LONG);
-    }
+    String checkedName = RequestFields.name("name", name, errors);
     ListKind checkedKind = choice("kind", kind, ListKind.values(), errors);
     Visibility checkedVisibility = choice("visibility", visibility, Visibility.values(), errors);
-    if (unnamedCategoryPosition == null) {
-      errors.add("unnamedCategoryPosition", FieldErrors.REQUIRED);
-    } else if (!Double.isFinite(unnamedCategoryPosition)) {
-      errors.add("unnamedCategoryPosition", FieldErrors.VALUE_INVALID);
-    }
+    double checkedPosition =
+        RequestFields.position("unnamedCategoryPosition", unnamedCategoryPosition, errors);
     errors.throwIfAny();
-    return new ListDetails(
-        trimmedName,
-        checkedKind,
-        checkedVisibility,
-        unnamedCategoryPosition == null ? 0 : unnamedCategoryPosition);
+    return new ListDetails(checkedName, checkedKind, checkedVisibility, checkedPosition);
   }
 
   /** One of {@code values} by its exact name: {@code required} when missing, else invalid. */
