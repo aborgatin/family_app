@@ -53,7 +53,7 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
   /**
    * With `input`: a grey multi-line secondary line under the title (an Item's Description). While
    * the row is being edited (the focus is in it) it is a text field with `placeholder`; out of it a
-   * non-empty value is one line cut with «…», its links opening in a new tab, and tapping it starts
+   * non-empty value is up to two lines cut with «…», its links opening in a new tab, and tapping it starts
    * editing. Not in edit mode.
    */
   secondary?: RowSecondaryProps;
@@ -413,14 +413,14 @@ function SecondaryInput({
 }
 
 /**
- * The secondary line out of editing: one grey line cut with «…», its links opening in a new tab;
+ * The secondary line out of editing: up to two grey lines cut with «…», its links opening in a new tab;
  * a tap beside them starts editing.
  */
 function SecondaryLine({ text, onOpen }: { text: string; onOpen: () => void }) {
   return (
     <span
       onClick={onOpen}
-      className="mt-0.5 block cursor-text truncate text-subhead text-secondary-label"
+      className="mt-0.5 line-clamp-2 cursor-text wrap-anywhere text-subhead text-secondary-label"
     >
       <LinkedText text={text} />
     </span>

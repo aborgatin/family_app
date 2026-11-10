@@ -105,6 +105,13 @@ export const KIND_TEXTS: Record<
     items: ParseKeys;
     /** One Item of the kind: the Item screen's title. */
     item: ParseKeys;
+    /** The Item screen without its Item. */
+    itemNotFound: ParseKeys;
+    /**
+     * Who marked an Item Done and when, with the kind's Done verb («Купила {{name}}, {{day}}»);
+     * takes the Member's Grammatical gender as `context`.
+     */
+    doneBy: 'lists.doneBy.shopping' | 'lists.doneBy.todo' | 'lists.doneBy.wish';
     /** An Item's text field, «Товар «{{text}}»». */
     itemText: ParseKeys;
     /** The last row, which adds an Item. */
@@ -121,6 +128,8 @@ export const KIND_TEXTS: Record<
     noItems: 'lists.noItems.shopping',
     items: 'lists.items.shopping',
     item: 'lists.item.shopping',
+    itemNotFound: 'lists.itemNotFound.shopping',
+    doneBy: 'lists.doneBy.shopping',
     itemText: 'lists.itemText.shopping',
     newItem: 'lists.newItem.shopping',
     done: 'lists.done.shopping',
@@ -132,6 +141,8 @@ export const KIND_TEXTS: Record<
     noItems: 'lists.noItems.todo',
     items: 'lists.items.todo',
     item: 'lists.item.todo',
+    itemNotFound: 'lists.itemNotFound.todo',
+    doneBy: 'lists.doneBy.todo',
     itemText: 'lists.itemText.todo',
     newItem: 'lists.newItem.todo',
     done: 'lists.done.todo',
@@ -143,6 +154,8 @@ export const KIND_TEXTS: Record<
     noItems: 'lists.noItems.wish',
     items: 'lists.items.wish',
     item: 'lists.item.wish',
+    itemNotFound: 'lists.itemNotFound.wish',
+    doneBy: 'lists.doneBy.wish',
     itemText: 'lists.itemText.wish',
     newItem: 'lists.newItem.wish',
     done: 'lists.done.wish',

@@ -361,7 +361,7 @@ describe('An Item’s Description', () => {
     });
   });
 
-  it('shows as one line cut with «…» when not edited, its links opening in a new tab', async () => {
+  it('shows as up to two lines cut with «…» when not edited, its links opening in a new tab', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.seed('item', [
       {
@@ -377,7 +377,8 @@ describe('An Item’s Description', () => {
     expect(link).toHaveAttribute('target', '_blank');
     expect(link.getAttribute('rel')).toContain('noopener');
     const line = screen.getByText(/Любое, 3,2%/);
-    expect(line).toHaveClass('truncate');
+    expect(line).toHaveClass('line-clamp-2');
+    expect(line).not.toHaveClass('truncate');
     expect(line).toHaveTextContent('Любое, 3,2% вот такое: https://shop.example/milk?id=7.');
     expect(screen.queryByRole('textbox', { name: 'Описание «Молоко»' })).not.toBeInTheDocument();
   });
