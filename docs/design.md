@@ -255,6 +255,9 @@ With `edit` (`{editing, onEditingChange}`) the group is an **edit-mode list**: �
 `list` named by the header, and its rows are `EditableRow`s. Leave edit mode when the last row
 goes. Same on every device; on touch it is how you delete besides swiping, with a fine pointer
 besides right-click, and with the keyboard the only way.
+`action` (`{label, onClick}`) puts one more small text `Button` at the right of the header,
+before «Изменить»: «Очистить» on a Shopping list's «Куплено», which asks with an `ActionSheet`
+first.
 `after` puts rows on the same cell after the list but outside it (an accent «Добавить …» row):
 they stay when the list is empty, and the «Изменить» button is left out then (pass no `edit`).
 

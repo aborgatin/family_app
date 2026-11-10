@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActionSheet,
   AddRow,
   autoSaveMessages,
   DoneToggle,
@@ -96,41 +97,70 @@ interface DoneItemsProps {
   remove: (item: Item) => Promise<void>;
 }
 
-/** The Done Items, most recently done first, ticked; deleted like the open ones. */
+/**
+ * The Done Items, most recently done first, ticked; deleted like the open ones. A Shopping list's
+ * are headed by «Очистить», which asks, then deletes every one shown here (one Item delete each;
+ * one ticked off elsewhere and not pulled yet stays).
+ */
 function DoneItems({ list, items, setDone, remove }: DoneItemsProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const texts = KIND_TEXTS[list.kind];
   const editable = useEditableList();
+  const [clearing, setClearing] = useState(false);
 
   return (
-    <GroupedSection
-      header={t(texts.done)}
-      edit={editable.edit}
-      messages={[lines.failure(editable.error)]}
-    >
-      {items.map((item) => (
-        <EditableRow
-          key={item.id}
-          title={item.text}
-          muted
-          leading={
-            <DoneToggle
-              label={t(texts.doneToggle, { text: item.text })}
-              done
-              onChange={(done) => {
-                void setDone(item, done);
-              }}
-            />
-          }
-          busy={editable.deleting === item.id}
-          confirm={{ title: t('lists.confirmDeleteItem', { text: item.text }) }}
-          onDelete={() => {
-            void editable.remove(item.id, items.length === 1, () => remove(item));
-          }}
-        />
-      ))}
-    </GroupedSection>
+    <>
+      <GroupedSection
+        header={t(texts.done)}
+        edit={editable.edit}
+        {...(list.kind === 'SHOPPING' && {
+          action: {
+            label: t('lists.clearBought'),
+            onClick: () => {
+              setClearing(true);
+            },
+          },
+        })}
+        messages={[lines.failure(editable.error)]}
+      >
+        {items.map((item) => (
+          <EditableRow
+            key={item.id}
+            title={item.text}
+            muted
+            leading={
+              <DoneToggle
+                label={t(texts.doneToggle, { text: item.text })}
+                done
+                onChange={(done) => {
+                  void setDone(item, done);
+                }}
+              />
+            }
+            busy={editable.deleting === item.id}
+            confirm={{ title: t('lists.confirmDeleteItem', { text: item.text }) }}
+            onDelete={() => {
+              void editable.remove(item.id, items.length === 1, () => remove(item));
+            }}
+          />
+        ))}
+      </GroupedSection>
+      <ActionSheet
+        open={clearing}
+        onOpenChange={setClearing}
+        title={t('lists.confirmClearBought', { count: items.length })}
+        actions={[
+          {
+            label: t('lists.clearBought'),
+            destructive: true,
+            onSelect: () => {
+              for (const item of items) void remove(item);
+            },
+          },
+        ]}
+      />
+    </>
   );
 }
 
