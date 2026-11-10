@@ -1,6 +1,7 @@
 package io.github.aborgatin.familyapp.lists;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.MAP;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
@@ -323,6 +324,57 @@ class CategoriesSyncTest {
     assertThat(SyncRequests.fields(anna, "item", milk))
         .containsEntry("text", "Молоко")
         .containsEntry("categoryId", null);
+  }
+
+  @Test
+  void deletingACategoryMovesItsOpenAndDoneItemsToTheUnnamedCategoryWithNewVersions()
+      throws Exception {
+    UUID food = UUID.randomUUID();
+    UUID chemistry = UUID.randomUUID();
+    UUID milk = UUID.randomUUID();
+    UUID bread = UUID.randomUUID();
+    UUID soap = UUID.randomUUID();
+    SyncRequests.push(
+        anna,
+        category(food, groceries, "Еда", 1),
+        category(chemistry, groceries, "Бытовая химия", 2),
+        addIn(milk, groceries, "Молоко", food),
+        addIn(bread, groceries, "Хлеб", food),
+        ItemsSyncTest.done(bread, true),
+        addIn(soap, groceries, "Мыло", chemistry));
+    long since = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    SyncRequests.push(anna, SyncRequests.delete("category", food))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    assertThat(SyncRequests.change(boris, since, "item", milk))
+        .extracting("fields")
+        .asInstanceOf(MAP)
+        .containsEntry("text", "Молоко")
+        .containsEntry("categoryId", null);
+    assertThat(SyncRequests.change(boris, since, "item", bread))
+        .extracting("fields")
+        .asInstanceOf(MAP)
+        .containsEntry("done", true)
+        .containsEntry("categoryId", null);
+    assertThat(SyncRequests.change(boris, since, "item", soap)).isNull();
+    assertThat(SyncRequests.fields(boris, "item", soap))
+        .containsEntry("categoryId", chemistry.toString());
+  }
+
+  @Test
+  void twoDevicesMovingDifferentCategoriesAreBothKept() throws Exception {
+    UUID food = UUID.randomUUID();
+    UUID chemistry = UUID.randomUUID();
+    SyncRequests.push(
+        anna, category(food, groceries, "Еда", 1), category(chemistry, groceries, "Химия", 2));
+
+    SyncRequests.push(anna, SyncRequests.upsert("category", food, "{\"position\":3}"));
+    SyncRequests.push(boris, SyncRequests.upsert("category", chemistry, "{\"position\":0.5}"))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    assertThat(SyncRequests.fields(anna, "category", food)).containsEntry("position", 3.0);
+    assertThat(SyncRequests.fields(anna, "category", chemistry)).containsEntry("position", 0.5);
   }
 
   @Test

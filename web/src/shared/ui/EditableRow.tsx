@@ -22,10 +22,14 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
   title: string;
   /** Opens another screen (chevron), as a `ListRow` with `to`; not in edit mode. */
   to?: string;
-  /** The action sheet that asks before deleting: the question, and an optional explanation. */
-  confirm: { title: string; message?: string };
+  /**
+   * The action sheet that asks before deleting: the question, and an optional explanation. Without
+   * it (and `onDelete`) the row can't be deleted: no ⊖, swipe or right-click menu (e.g. the
+   * Unnamed category, which can only be moved).
+   */
+  confirm?: { title: string; message?: string };
   /** Deletes, after the action sheet. */
-  onDelete: () => void;
+  onDelete?: () => void;
   /**
    * From a `SortableList` around the rows (a list that can be reordered, e.g. Child fields): the
    * drag handle shown at the right in edit mode, and what moves the row while dragging.
@@ -111,6 +115,7 @@ export function EditableRow({
   const ask = () => {
     setAsking(true);
   };
+  const deletable = confirm !== undefined && onDelete !== undefined;
   const link = to !== undefined && !editing;
   const withSecondary = input !== undefined && secondary !== undefined && !editing;
 
@@ -170,11 +175,12 @@ export function EditableRow({
       }
     >
       <RowContextMenu
-        disabled={editing}
+        disabled={editing || !deletable}
         items={[{ label: t('ui.delete'), destructive: true, onSelect: ask }]}
       >
-        <SwipeToDelete label={t('ui.delete')} onDelete={ask} disabled={editing}>
-          {editing && (
+        <SwipeToDelete label={t('ui.delete')} onDelete={ask} disabled={editing || !deletable}>
+          {editing && !deletable && <span aria-hidden className={DELETE_SLOT} />}
+          {editing && deletable && (
             <button
               type="button"
               aria-label={t('ui.deleteRow', { title })}
@@ -205,16 +211,24 @@ export function EditableRow({
           )}
         </SwipeToDelete>
       </RowContextMenu>
-      <ActionSheet
-        open={asking}
-        onOpenChange={setAsking}
-        title={confirm.title}
-        message={confirm.message}
-        actions={[{ label: t('ui.delete'), destructive: true, onSelect: onDelete }]}
-      />
+      {deletable && (
+        <ActionSheet
+          open={asking}
+          onOpenChange={setAsking}
+          title={confirm.title}
+          message={confirm.message}
+          actions={[{ label: t('ui.delete'), destructive: true, onSelect: onDelete }]}
+        />
+      )}
     </div>
   );
 }
+
+/**
+ * Where an edit-mode row's ⊖ goes (`pl-4` and a 22px circle, at least 44px wide on touch): left
+ * empty on a row that can't be deleted, so its title lines up with the others.
+ */
+const DELETE_SLOT = 'shrink-0 pl-4 w-[calc(1rem+1.375rem)] pointer-coarse:min-w-11';
 
 /** The title of a row renamed in place: a text field that looks like the title. */
 function RowInput({ label, name, value, onChange, onCommit, onRevert }: RowInputProps) {

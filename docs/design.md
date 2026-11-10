@@ -376,6 +376,10 @@ screen, chevron; not in edit mode), `confirm` (`{title, message}` of the action 
 - **Touch**: `SwipeToDelete` (below).
 - **Fine pointer**: `RowContextMenu` with «Удалить» (below).
 
+Without `confirm` and `onDelete` the row can't be deleted: no ⊖ (its place stays empty, so the
+title lines up with the other rows), no swipe and no right-click menu; in a `SortableList` it can
+still be dragged. The Unnamed category's «Без категории» row on «Категории» is one (`muted`).
+
 `input` renames in place: out of edit mode the title is a text field (spread `input` of
 `useAutoSaveText()` and add a translated `label`, its accessible name, e.g. «Название поля
 «Вес»»), auto-saved like an `InputRow`: blur or Enter saves, Esc puts the saved text back, `busy`
@@ -395,8 +399,8 @@ Leaving the row with it empty hides it. Spread `useAutoSaveText()`'s `input` and
 (an Item's Category); the row stays edited while the chip's menu is open, and the focus goes back
 to the chip when it closes.
 
-Children use it for delete only (`to` their screen), Child fields with `input` and `sortable`,
-Items with `input`, `secondary` (the Description), on a Shopping list with named Categories a
+Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
+`sortable`, Items with `input`, `secondary` (the Description), on a Shopping list with named Categories a
 `chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
 Invites plain.
 

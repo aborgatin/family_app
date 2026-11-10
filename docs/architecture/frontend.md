@@ -37,7 +37,9 @@ web/src/
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
     home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
     lists/              ListsSection («Списки» on Home), NewListSheet, ListPage, ListSettingsPage,
-                        listPaths (LIST_PATH, LIST_SETTINGS_PATH), ListMissing (gone / loading),
+                        CategoriesPage («Категории» of a Shopping list),
+                        listPaths (LIST_PATH, LIST_SETTINGS_PATH, LIST_CATEGORIES_PATH),
+                        ListMissing (gone / loading),
                         ItemsSection (the List screen's Items, by Category on a Shopping list),
                         listTypes (kinds, Visibility, kind texts, Item, Category), useLists(),
                         useItems(listId), useCategories(list)
@@ -95,6 +97,7 @@ frame around every screen and the place a sidebar goes later.
 | `/`                      | `HomePage`          | logged in                      |
 | `/lists/:id`             | `ListPage`          | logged in                      |
 | `/lists/:id/settings`    | `ListSettingsPage`  | logged in                      |
+| `/lists/:id/categories`  | `CategoriesPage`    | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
@@ -277,7 +280,15 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   name): a `GroupedSection` with the auto-saved «Название» and Visibility
   «Личный» / «Общий» only when the Member is the Owner, or `ownerId` is still unset, and never for
   a Wish list: `hasVisibility(kind)`; the segments are `VISIBILITY_CHOICES`, both in
-  `listTypes.ts` and shared with «Новый список»), then, again only for the Owner (or while
+  `listTypes.ts` and shared with «Новый список»), then on a Shopping list a «Категории» row
+  opening `CategoriesPage` (`/lists/:id/categories`, `listCategoriesPath(id)`, #72): a `Page`
+  «Категории» back to the settings, one `GroupedSection` with `edit` whose `SortableList` has the
+  Categories and the Unnamed category («Без категории», `muted`, no `confirm`: it can only be
+  moved) in `walkingOrder()`, each Category renamed in place (auto-saved, «Категория „…“») and
+  deleted after «Удалить „…“?» with «N товар останется / товара останутся / товаров останутся в
+  списке без категории» (open and Done Items; no message when empty), and an `AddRow` «Новая
+  категория» that adds at the end. Any Member who sees the List may do it all, offline too. Then,
+  again only for the Owner (or while
   `ownerId` is unset), «Удалить список» in its own `GroupedSection` (`DeleteListSection`, a `ConfirmRow`, «Удалить „{{name}}“ со всем
   содержимым?», then back to Home). A List that is unknown, or disappears while either screen is
   open (deleted, or made Private by its Owner: the pull's tombstone removes it), shows «Такого
@@ -285,15 +296,19 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   Home subtitle, empty state, Items header, «Новый товар», «Товар «…»», the Done label and the
   Done toggle's name) are in `KIND_TEXTS`. Each Home row's value is the List's count of open
   Items (`useOpenItemCounts()`, 0 included).
-- `useCategories(list)` → `{categories, add(id, name)}` (#70; #72 adds rename, move and remove
-  in the `useChildFields()` way): the List's Categories on the local store, by position, ties by
-  id, `undefined` until the first read. `add` puts the new one one past the largest position of
-  its Categories and its Unnamed category (`list.unnamedCategoryPosition`, 0 when absent), so it
-  goes last; `newCategoryId()` makes its id once its title starts being typed.
-  `sectionsInOrder(list, categories, openItems)` gives the Shopping list screen's sections: each
-  Category and the Unnamed category (no `category`) by position (the Unnamed one first on a tie),
-  with their open Items in the order given; an Item whose Category isn't on the device is in the
-  Unnamed category.
+- `useCategories(list)` → `{categories, add(id, name), rename(category, name), move(category |
+  undefined, to), remove(category)}` (#70, #72): the List's Categories on the local store, by
+  position, ties by id, `undefined` until the first read. `add` puts the new one one past the
+  largest position of its Categories and its Unnamed category (`list.unnamedCategoryPosition`, 0
+  when absent), so it goes last; `newCategoryId()` makes its id once its title starts being
+  typed. `move` takes a Category, or `undefined` for the Unnamed category, to index `to` of the
+  walking order and writes only its position (the midpoint between its new neighbours, as
+  `useChildFields().move`): the Category's `position`, or the List's `unnamedCategoryPosition`.
+  `remove` deletes the Category only; the server moves its Items to the Unnamed category.
+  `walkingOrder(list, categories)` is the Categories and the Unnamed category (`undefined`) by
+  position (the Unnamed one first on a tie); `sectionsInOrder(list, categories, openItems)` gives
+  the Shopping list screen's sections in that order, with their open Items in the order given; an
+  Item whose Category isn't on the device is in the Unnamed category.
 - `useItems(listId)` → `{items, doneItems, add(text, categoryId?), rename(item, text),
   describe(item, description), move(item, categoryId), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
@@ -561,7 +576,7 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`
   and `/api/invites`.
 - Lists, Items and Categories tests (`lists/lists.test.tsx`, `lists/items.test.tsx`,
-  `lists/categories.test.tsx`) build their rows inline and seed them with
+  `lists/categories.test.tsx`, `lists/categoriesScreen.test.tsx`) build their rows inline and seed them with
   `syncServer.seed('list' | 'item' | 'category', …)`; `items.test.tsx` and `categories.test.tsx`
   also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
