@@ -247,6 +247,13 @@ class ItemDueDateSyncTest {
 
     SyncRequests.push(boris, SyncRequests.upsert("item", flowers, "{\"dueDate\":\"2026-11-20\"}"));
     SyncRequests.push(anna, SyncRequests.upsert("item", flowers, "{\"text\":\"Полить фикус\"}"));
+
+    // A new day alone keeps the time, and a new text alone keeps both.
+    assertThat(SyncRequests.fields(anna, "item", flowers))
+        .containsEntry("text", "Полить фикус")
+        .containsEntry("dueDate", "2026-11-20")
+        .containsEntry("dueTime", "15:00");
+
     SyncRequests.push(boris, SyncRequests.upsert("item", flowers, "{\"dueTime\":\"09:30\"}"));
 
     assertThat(SyncRequests.fields(anna, "item", flowers))

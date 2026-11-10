@@ -439,8 +439,8 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `list.child_not_shopping`, `list.child_shared_only`, `list.child_immutable` and
 `list.child_not_found` (`params.childId`), for Categories
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
-(`params.categoryId`), `item.list_not_todo` (`params.listId`: a Due date on an Item of a Shopping
-or Wish list) and `item.due_time_without_due_date` (a time of day without a Due date). An operation on a deleted Child, Child field, List,
+(`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field, so far a Due date, on an Item of a Shopping
+or Wish list; later todo fields reuse it, so its client message names no field) and `item.due_time_without_due_date` (a time of day without a Due date). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
 (`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a

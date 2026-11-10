@@ -412,7 +412,7 @@ describe('A Due date the server rejects', () => {
     expect(screen.getByLabelText('Время')).toBeDisabled();
   });
 
-  it('says a Due date is only for a todo item', async () => {
+  it('says a todo field is only for a todo item', async () => {
     const flowers = item(1, 'Полить цветы');
     syncServer.seed('item', [flowers]);
     const user = userEvent.setup();
@@ -423,7 +423,7 @@ describe('A Due date the server rejects', () => {
     await user.tab();
 
     expect(
-      await screen.findByText('Не удалось сохранить: срок бывает только у задач'),
+      await screen.findByText('Не удалось сохранить: это можно указать только у задачи'),
     ).toBeInTheDocument();
   });
 });
