@@ -23,6 +23,10 @@ const REJECTION_KEYS = {
   // list): plain «Не удалось сохранить».
   'category.list_not_shopping': 'sync.saveRejected',
   'item.category_not_found': 'sync.saveRejected',
+  // A Child field value for a Child or a Child field the server never had: the Outbox sends them
+  // first, so the app never causes it.
+  'child.not_found': 'sync.saveRejected',
+  'child_field.not_found': 'sync.saveRejected',
 } as const satisfies Readonly<Record<string, ErrorMessage['key']>>;
 
 export function rejectionMessage(code: string): ErrorMessage {

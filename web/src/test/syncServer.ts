@@ -5,7 +5,9 @@ import { network } from './network';
  * A fake of the server's sync API (`POST /api/sync/push`, `GET /api/sync/pull`) for MSW, installed
  * for every test by `server.ts` and emptied after each. It behaves like the real one where the
  * client can tell: a global Version, per-field Last write wins by arrival, delete wins, tombstones
- * after a first sync. Tests seed rows, read what was pushed, and switch it offline or make it
+ * after a first sync, and the table rules a screen relies on: a deleted Child or Child field takes
+ * its Child field values (`CASCADES`), and a Child field value is a timeline entry (stamped with
+ * `recordedAt`, never changed, ignored for a deleted Child or Child field). Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns

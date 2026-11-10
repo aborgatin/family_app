@@ -370,6 +370,17 @@ export const SEED = {
     ],
   },
   extraChildFields: [{ name: 'Размер обуви', valueType: 'TEXT', position: 3 }, { name: 'Последний визит к врачу', valueType: 'DATE', position: 4 }],
+  // Child field values by Child: [Child field, value] entries in the order saved. Маша has a value
+  // for every field («Размер обуви» saved twice: the profile shows the latest); Петя and Соня none.
+  childFieldValues: {
+    Маша: [
+      ['Вес', '25 кг'],
+      ['Рост', '121 см'],
+      ['Размер обуви', '30'],
+      ['Размер обуви', '31'],
+      ['Последний визит к врачу', '2026-10-03'],
+    ],
+  },
 };
 
 /** Calls the API from inside the page, the way the app does (same origin, XSRF header). */
@@ -443,6 +454,26 @@ async function prepareDefaultLists(page) {
   return defaults;
 }
 
+/**
+ * The Child field values of `SEED.childFieldValues`: an entry per value, in order (a Child field
+ * named twice for a Child gets a timeline, the last one being the latest). Children and Child
+ * fields are found by name in a pull, since the Default Child fields have server-made ids.
+ */
+async function pushChildFieldValues(page) {
+  const { changes } = await api(page, 'GET', '/api/sync/pull?since=0');
+  const idOf = (table, name) => changes.find((c) => c.table === table && c.fields.name === name).id;
+  const operations = Object.entries(SEED.childFieldValues).flatMap(([child, values]) =>
+    values.map(([field, value]) => ({
+      table: 'child_field_value',
+      id: crypto.randomUUID(),
+      op: 'upsert',
+      fields: { childId: idOf('child', child), childFieldId: idOf('child_field', field), value },
+    })),
+  );
+  const pushed = await api(page, 'POST', '/api/sync/push', { operations });
+  if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed values: ${JSON.stringify(pushed.results)}`);
+}
+
 async function seed(browser, baseUrl) {
   log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, active Invite');
   const ctx = await browser.newContext({ baseURL: baseUrl });
@@ -469,6 +500,7 @@ async function seed(browser, baseUrl) {
   ];
   const pushed = await api(page, 'POST', '/api/sync/push', { operations });
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed: ${JSON.stringify(pushed.results)}`);
+  await pushChildFieldValues(page);
   const inv2 = await api(page, 'POST', '/api/invites'); // stays active: shows in Settings, used as {inviteToken}
   const storageState = await ctx.storageState();
   await ctx.close();

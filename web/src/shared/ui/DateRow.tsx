@@ -53,10 +53,7 @@ export function DateRow({
 
   return (
     <div className={ROW_CLASSES}>
-      <label
-        htmlFor={id}
-        className={`py-2.5 whitespace-nowrap ${invalid ? 'text-destructive' : ''}`}
-      >
+      <label htmlFor={id} className={`py-2.5 wrap-break-word ${invalid ? 'text-destructive' : ''}`}>
         {label}
       </label>
       <span className="flex min-w-0 items-center justify-end gap-2">

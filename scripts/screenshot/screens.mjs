@@ -4,6 +4,7 @@ import {
   editIn,
   failClipboard,
   hang,
+  noChildFields,
   noLists,
   onlyChildren,
   rejectPushes,
@@ -779,15 +780,41 @@ export default {
 
     // The Child page, opened from a tile of «Дети» on Home
     {
+      // Маша has a value for every Child field (text and date).
       name: 'child-page',
       path: '/',
-      steps: [{ click: childTile('Маша') }, { waitFor: 'role=region[name="Профиль"]' }],
+      steps: [
+        { click: childTile('Маша') },
+        { waitFor: `${section('Профиль')} >> role=textbox[name="Размер обуви"]` },
+      ],
     },
     {
-      // Петя has no birthday: «Не указан».
+      // Петя has no birthday («Не указан») and no values: every Child field is empty.
       name: 'child-page-no-birthday',
       path: '/',
-      steps: [{ click: childTile('Петя') }, { waitFor: 'text=Не указан' }],
+      steps: [
+        { click: childTile('Петя') },
+        { waitFor: 'text=Не указан' },
+        { waitFor: `${section('Профиль')} >> role=textbox[name="Размер обуви"]` },
+      ],
+    },
+    {
+      // No Child fields defined: the hint to add them in Settings.
+      name: 'child-page-no-fields',
+      path: '/',
+      initScript: noChildFields,
+      steps: [{ click: childTile('Маша') }, { waitFor: 'text=Полей профиля нет' }],
+    },
+    {
+      // A text value over 1000 characters is refused: the footer says so about its row.
+      name: 'child-page-value-too-long',
+      path: '/',
+      steps: [
+        { click: childTile('Маша') },
+        { fill: `${section('Профиль')} >> role=textbox[name="Размер обуви"]`, value: '31 '.repeat(334) },
+        { press: 'Enter' },
+        { waitFor: `${section('Профиль')} >> role=alert` },
+      ],
     },
     {
       name: 'child-page-not-found',

@@ -18,7 +18,7 @@ record ChildFieldValueRequest(
    * Whose value of which Child field this is, and the value trimmed; or {@code 400
    * validation.failed} listing every missing field and bad id.
    */
-  Entry validate() {
+  Valid validate() {
     FieldErrors errors = new FieldErrors();
     UUID child = uuid("childId", childId, errors);
     UUID childField = uuid("childFieldId", childFieldId, errors);
@@ -26,7 +26,7 @@ record ChildFieldValueRequest(
       errors.add("value", FieldErrors.REQUIRED);
     }
     errors.throwIfAny();
-    return new Entry(child, childField, value.strip());
+    return new Valid(child, childField, value.strip());
   }
 
   @Nullable
@@ -44,7 +44,7 @@ record ChildFieldValueRequest(
   }
 
   /** A request whose fields are all there; {@code value} is trimmed. */
-  record Entry(UUID childId, UUID childFieldId, String value) {
+  record Valid(UUID childId, UUID childFieldId, String value) {
 
     /** The longest {@code TEXT} value, in code points. */
     private static final int MAX_TEXT_LENGTH = 1000;

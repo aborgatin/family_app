@@ -173,7 +173,7 @@ export function GroupedSection({
         </div>
       )}
       {(hasRows(children) || hasRows(after)) && (
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 overflow-hidden rounded-xl bg-cell">
+        <div className="grid grid-cols-[fit-content(50%)_minmax(0,1fr)] gap-x-4 overflow-hidden rounded-xl bg-cell">
           <EditContext value={edit?.editing ?? false}>
             <SectionContext value={rows}>
               {edit === undefined

@@ -62,26 +62,26 @@ class ChildFieldValueService implements SyncableTable {
       // Already recorded (a repeated push, S3): an entry never changes.
       return Outcome.APPLIED;
     }
-    ChildFieldValueRequest.Entry entry =
+    ChildFieldValueRequest.Valid valid =
         new ChildFieldValueRequest(
                 operation.text("childId"), operation.text("childFieldId"), operation.text("value"))
             .validate();
     SyncedRecord child =
         children
-            .find(entry.childId())
-            .orElseThrow(() -> notFound("child.not_found", "childId", entry.childId()));
+            .find(valid.childId())
+            .orElseThrow(() -> notFound("child.not_found", "childId", valid.childId()));
     ChildField field =
         childFields
-            .findById(entry.childFieldId())
+            .findById(valid.childFieldId())
             .orElseThrow(
-                () -> notFound("child_field.not_found", "childFieldId", entry.childFieldId()));
+                () -> notFound("child_field.not_found", "childFieldId", valid.childFieldId()));
     if (child.deleted() || field.deleted()) {
       return Outcome.IGNORED;
     }
-    String value = entry.valueOf(field.valueType());
+    String value = valid.valueOf(field.valueType());
     values.saveAndFlush(
         new ChildFieldValue(
-            operation.id(), entry.childId(), entry.childFieldId(), value, clock.instant()));
+            operation.id(), valid.childId(), valid.childFieldId(), value, clock.instant()));
     return Outcome.APPLIED;
   }
 

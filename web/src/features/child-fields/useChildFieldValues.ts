@@ -41,7 +41,7 @@ export function useChildFieldValues(childId: string) {
     async (field: ChildField, value: string): Promise<string> => {
       const saved = value.trim();
       if (saved === (values?.get(field.id) ?? '')) return saved;
-      if (field.valueType === 'TEXT' && [...saved].length > MAX_TEXT_LENGTH) {
+      if (field.valueType === 'TEXT' && Array.from(saved).length > MAX_TEXT_LENGTH) {
         throw new ApiError(400, 'validation.failed', {
           errors: [{ field: 'value', code: 'too_long' }],
         });

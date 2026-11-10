@@ -22,6 +22,7 @@ table adds it here.
 | `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7) | M2    |
 | `category`    | `V8__category.sql`              | client; Defaults by the server at bootstrap    | M3    |
 | `item_history` | `V9__item_history.sql`         | server, when an Item is written (push: delete) | M3    |
+| `child_field_value` | `V10__child_field_value.sql` | client (`crypto.randomUUID()`)              | M4    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -51,7 +52,7 @@ repositories extend Spring Data's bare `Repository` and declare no delete method
 deletes a Member yet; `member.deleted` exists, and login, session and `MemberService` lookups
 ignore deleted Members. Email uniqueness counts deleted Members too.
 
-**Client UUIDs** (S3). Children, Child fields, Lists, Items and Categories are created with the id the client
+**Client UUIDs** (S3). Children, Child fields, Child field values, Lists, Items and Categories are created with the id the client
 chose; the server never generates one for them. Item ids are UUID version 7 (the first 48 bits are
 the time), so Items added on one device and not yet pulled back keep the order they were added in. Members get theirs from the server at registration.
 
@@ -132,6 +133,23 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   them in the Unnamed category (until then the client shows them there anyway). A move sends only
   the moved Category's `position`, or only the List's `unnamedCategoryPosition`, so two devices
   moving different Categories are both kept.
+- **Child field values** (`child_field_value`, ticket #91; ADR-0007): a timeline. An upsert of an
+  unknown id appends an entry and carries `childId`, `childFieldId` and `value` (text, trimmed; all
+  three required, the ids UUIDs, else `validation.failed`); the pull also sends the server-set
+  `recordedAt` (now). The value is checked by the Child field's Value type: `TEXT` up to 1000 code
+  points (`too_long`), `DATE` written `YYYY-MM-DD` and a day that exists (`value.invalid`); empty
+  is a cleared value, allowed for both. An entry never changes: an upsert of a known id is
+  `applied` and leaves it as it is, with its Version (S3: a repeated push). An entry for a deleted
+  Child or Child field is `ignored` (delete wins), before its value is checked; for a Child or
+  Child field that never existed it is `child.not_found` (`params.childId`) /
+  `child_field.not_found` (`params.childFieldId`), which the app never causes: the Outbox sends
+  them first. The **latest** entry of a Child and a Child field is the one with the highest
+  Version, so the one the server received last, never a client time and not `recordedAt`: two
+  devices saving the same value keep both entries and agree on the latest. A `delete` soft-deletes
+  an entry (the app sends none yet).
+- **Deleting a Child** soft-deletes its Child field values in the same operation; **deleting a
+  Child field** soft-deletes its values for every Child. They get new Versions, so devices pull
+  their tombstones.
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
   reach other devices through the pull.
 
@@ -212,8 +230,10 @@ auth.required` without one) tells open apps when to pull:
 ## Client
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
-  table (`member`, `child`, `child_field`, `list`, `item`, `category`), the Outbox (`++seq`) and the stored
-  Version. The app asks for persistent storage at start. Dexie upgrades keep every table not
+  table (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`,
+  `item_history`), the Outbox (`++seq`) and the stored
+  Version. A row is the fields the pull sent plus `version`, the Version it was pulled with (absent
+  on a row created here and not pulled back yet): what tells the latest Child field value. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives
   store upgrades.
 - **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
@@ -243,7 +263,8 @@ auth.required` without one) tells open apps when to pull:
   back with only the pending fields.
 - **Gone rows take their dependents**: a row removed locally because it is gone on the server (a
   tombstone, or `ignored` below) takes the rows that belong to it, declared with the tables in
-  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history. So a tombstoned List
+  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history, and the Child
+  field values of a Child and of a Child field. So a tombstoned List
   (deleted, or made Private by its Owner) takes its local Items, Categories and Item history, and the engine
   names no table. A Category is not a parent: its tombstone leaves its Items, which then show in
   the Unnamed category.
@@ -254,7 +275,7 @@ auth.required` without one) tells open apps when to pull:
   wherever the Member is by then (`useSaveRejection`, a `Toast` placed by the app), with the
   reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
   `list.kind_immutable`, `list.wish_shared_only`, `child_field.value_type_immutable`,
-  `sync.read_only`; anything else plain, including `category.list_not_shopping` and
+  `sync.read_only`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping` and
   `item.category_not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.
@@ -276,6 +297,11 @@ auth.required` without one) tells open apps when to pull:
   added to) without starting the engine; once the server answers the session again, the engine
   starts for the same Member, or the app goes to `/login` (store and Outbox kept for the same
   Member) or `/setup` (`frontend.md`, "Offline cold start").
+- **Child field values** (#91): a save appends an entry with a new id, and only when the value
+  differs from the latest one (`useChildFieldValues`). The latest is the local entry with the
+  highest `version`; an entry not pulled back yet has none and is later than every pulled one,
+  the last saved first among them by a device-only `savedHereAt` (an `upsertRow` `local` field,
+  never sent). Device and server order are never compared.
 - Children, Child fields, Lists and Items are on the store, and live updates (`changed` → pull)
   run. The List screen has its open Items (add, edit in place, delete; #57), Done and its Done
   group (#58) and List settings (rename, Visibility, delete; #56); Home shows each List's open
