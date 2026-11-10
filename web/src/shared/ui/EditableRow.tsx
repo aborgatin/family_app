@@ -55,8 +55,8 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
    */
   chip?: Omit<MenuChipProps, 'onOpenChange'>;
   /**
-   * Points the row out (e.g. an Item added again by name): scrolled into view and tinted while set
-   * (`data-highlighted`), fading back when unset.
+   * Points the row out (e.g. an Item added again by name): scrolled into view and tinted with the
+   * accent while set (`data-highlighted`), fading back when unset.
    */
   highlighted?: boolean;
 }
@@ -184,8 +184,8 @@ export function EditableRow({
       style={sortable?.style}
       data-highlighted={highlighted || undefined}
       className={
-        `${ROW_FRAME} flex px-0! not-first:before:z-10 transition-colors duration-700 ` +
-        (highlighted ? 'bg-fill duration-150 ' : '') +
+        `${ROW_FRAME} flex px-0! not-first:before:z-10 ${HIGHLIGHT} ` +
+        (highlighted ? 'after:opacity-100 after:duration-150 ' : '') +
         (content.leading === undefined ? '' : LEADING_INSET) +
         (sortable?.dragging === true ? ' z-20 shadow-lg before:hidden' : '')
       }
@@ -239,6 +239,11 @@ export function EditableRow({
     </div>
   );
 }
+
+/** A tint over the whole row (above its swipe layer), shown while `highlighted`. */
+const HIGHLIGHT =
+  'after:pointer-events-none after:absolute after:inset-0 after:z-10 after:bg-accent/15 ' +
+  'after:opacity-0 after:transition-opacity after:duration-700';
 
 /**
  * Where an edit-mode row's ⊖ goes (`pl-4` and a 22px circle, at least 44px wide on touch): left
