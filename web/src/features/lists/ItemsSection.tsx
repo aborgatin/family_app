@@ -16,8 +16,10 @@ import {
   useReportFailure,
   useRowFailures,
   type ReportFailure,
+  type RowCaptionPart,
   type SectionMessage,
 } from '@/shared/ui';
+import { dueDateText, isOverdue } from './dueDates';
 import { listDoneEarlierPath, listItemPath } from './listPaths';
 import { KIND_TEXTS, type Category, type Item, type List } from './listTypes';
 import {
@@ -391,6 +393,7 @@ export function DoneItems({
             title={item.text}
             textTo={listItemPath(list.id, item.id)}
             muted
+            caption={itemCaption(list, item, t)}
             leading={
               <DoneToggle
                 label={t(texts.doneToggle, { text: item.text })}
@@ -492,10 +495,25 @@ function ItemRow({
       {...(categories !== undefined &&
         categories.length > 0 && { chip: categoryChip(list, categories, item, move, t) })}
       details={{ label: t('lists.itemDetails'), to: listItemPath(list.id, item.id) }}
+      caption={itemCaption(list, item, t)}
       confirm={{ title: t('lists.confirmDeleteItem', { text: item.text }) }}
       onDelete={onDelete}
     />
   );
+}
+
+/**
+ * The small line under a todo item's name and Description: its Due date («Завтра, 15:00»). Later
+ * todo fields (the repeat mark, the Assignee) are further parts of it. An overdue one is red on an
+ * open Item. By the device's clock, read when the row renders.
+ */
+function itemCaption(list: List, item: Item, t: TFunction): RowCaptionPart[] {
+  if (list.kind !== 'TODO') return [];
+  const now = new Date();
+  const due = dueDateText(t, item, now);
+  if (due === undefined) return [];
+  // Overdue is red on an open Item only: a Done one is no longer late.
+  return [{ text: due, ...(!item.done && isOverdue(item, now) && { tone: 'destructive' }) }];
 }
 
 /**

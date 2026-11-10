@@ -6,6 +6,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 import org.hibernate.annotations.Generated;
 import org.hibernate.generator.EventType;
@@ -40,6 +42,12 @@ class ItemEntity implements SyncedRecord {
   @Nullable private UUID doneById;
 
   @Nullable private Instant doneAt;
+
+  /** The Due date's day; {@code null} is no Due date. Only on a Todo list. */
+  @Nullable private LocalDate dueDate;
+
+  /** The Due date's time of day; only with a day. */
+  @Nullable private LocalTime dueTime;
 
   @Column(nullable = false, updatable = false)
   private UUID creatorId;
@@ -77,6 +85,12 @@ class ItemEntity implements SyncedRecord {
   /** Puts the Item in this Category of its List; {@code null} is the Unnamed category. */
   void moveTo(@Nullable UUID categoryId) {
     this.categoryId = categoryId;
+  }
+
+  /** Sets the Due date; {@link DueDate#NONE} removes it. */
+  void due(DueDate dueDate) {
+    this.dueDate = dueDate.day();
+    this.dueTime = dueDate.time();
   }
 
   /**
@@ -132,6 +146,10 @@ class ItemEntity implements SyncedRecord {
   @Nullable
   Instant doneAt() {
     return doneAt;
+  }
+
+  DueDate dueDate() {
+    return new DueDate(dueDate, dueTime);
   }
 
   UUID creatorId() {

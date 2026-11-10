@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { deleteRow, upsertRow, useRows } from '@/shared/sync';
-import type { Item, List } from './listTypes';
+import type { Item, List, ListKind } from './listTypes';
 import { compare, normalizedName, sortableTime } from './itemKeys';
 
 /**
@@ -16,8 +16,8 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
   const rows = useRows('item') as Item[] | undefined;
 
   const items = useMemo(
-    () => (rows === undefined ? undefined : openInOrder(rows, listId)),
-    [rows, listId],
+    () => (rows === undefined ? undefined : openInOrder(rows, listId, kind)),
+    [rows, listId, kind],
   );
   const allDoneItems = useMemo(
     () => (rows === undefined ? undefined : doneInOrder(rows, listId)),
@@ -92,6 +92,19 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
   }, []);
 
   /**
+   * Sets a todo item's Due date to this day (`YYYY-MM-DD`), sending only `dueDate`; `null` removes
+   * the Due date, and its time with it (the server clears the time too).
+   */
+  const setDueDate = useCallback(async (item: Item, dueDate: string | null): Promise<void> => {
+    await upsertRow('item', item.id, dueDate === null ? { dueDate, dueTime: null } : { dueDate });
+  }, []);
+
+  /** Sets the time of day (`HH:MM`) of a todo item's Due date, or removes it (`null`). */
+  const setDueTime = useCallback(async (item: Item, dueTime: string | null): Promise<void> => {
+    await upsertRow('item', item.id, { dueTime });
+  }, []);
+
+  /**
    * Ticks the Item off, or back on (`done` false); the server records who did it and when. Until
    * its copy arrives, the old done by / done at are cleared locally (never sent), so an Item ticked
    * back on and off again goes on top, not where it was last done.
@@ -118,6 +131,8 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
     rename,
     describe,
     move,
+    setDueDate,
+    setDueTime,
     setDone,
     remove,
   };
@@ -140,18 +155,30 @@ export function useOpenItemCounts(): ReadonlyMap<string, number> | undefined {
 }
 
 /**
- * The List's open Items in the order added, newest at the bottom (spec #3, List screen): by the
+ * The List's open Items. In the order added, newest at the bottom (spec #3, List screen): by the
  * server's created at, ties by id. An Item added on this device and not yet pulled back has no
  * created at; it is newer than every pulled one, and its time-ordered id keeps those in the order
- * they were added.
+ * they were added. On a Todo list (spec #81) the ones with a Due date come first, soonest on top:
+ * by day, on one day those with a time before those without, by time, then in the order added;
+ * the ones without a Due date follow in the order added.
  */
-function openInOrder(rows: Item[], listId: string): Item[] {
+function openInOrder(rows: Item[], listId: string, kind: ListKind): Item[] {
   return rows
     .filter((item) => item.listId === listId && !item.done)
     .sort(
       (a, b) =>
-        compare(sortableTime(a.createdAt), sortableTime(b.createdAt)) || compare(a.id, b.id),
+        (kind === 'TODO' ? compare(dueKey(a), dueKey(b)) : 0) ||
+        compare(sortableTime(a.createdAt), sortableTime(b.createdAt)) ||
+        compare(a.id, b.id),
     );
+}
+
+/**
+ * Orders Items by Due date as text: `YYYY-MM-DD` and `HH:MM` sort as they read; a day without a
+ * time goes after that day's times, and no Due date after every day.
+ */
+function dueKey(item: Item): string {
+  return item.dueDate == null ? '~' : `${item.dueDate} ${item.dueTime ?? '~'}`;
 }
 
 /**

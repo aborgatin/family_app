@@ -19,6 +19,10 @@ const REJECTION_KEYS = {
   'list.wish_shared_only': 'sync.rejected.listWishSharedOnly',
   'child_field.value_type_immutable': 'sync.rejected.childFieldValueTypeImmutable',
   'sync.read_only': 'sync.rejected.readOnly',
+  // A Due date on a shopping or wish Item is never offered; a time without a Due date happens
+  // when the other Member removes the Due date while this one sets the time.
+  'item.list_not_todo': 'sync.rejected.itemListNotTodo',
+  'item.due_time_without_due_date': 'sync.rejected.itemDueTimeWithoutDueDate',
   // Not something the Member can cause from the app (another List's Category, a Category on a Todo
   // list): plain «Не удалось сохранить».
   'category.list_not_shopping': 'sync.saveRejected',
