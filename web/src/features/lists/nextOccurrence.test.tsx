@@ -24,7 +24,12 @@ const chores = {
 };
 
 /** An open Item row as the pull sends it, the `n`th added, with this Due date and Repeat. */
-function item(n: number, text: string, dueDate: string | null = null, repeat: string | null = null) {
+function item(
+  n: number,
+  text: string,
+  dueDate: string | null = null,
+  repeat: string | null = null,
+) {
   return {
     id: `17e40000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`,
     listId: chores.id,
@@ -111,7 +116,12 @@ describe('A repeating item marked Done', () => {
 
     // Counted from the old Due date: 3 → 10 (today, not after it) → 17 November, at 19:00.
     await waitFor(() => {
-      expect(openNames()).toEqual(['Полить цветы', 'Вынести мусор', 'Оплатить садик', 'Купить клей']);
+      expect(openNames()).toEqual([
+        'Полить цветы',
+        'Вынести мусор',
+        'Оплатить садик',
+        'Купить клей',
+      ]);
     });
     expect(rowLine('Вынести мусор')).toBe('17 нояб., 19:00 ↻ · Даша');
     // The Done item keeps no Repeat: it moved to the next occurrence.
@@ -142,9 +152,9 @@ describe('A repeating item marked Done', () => {
 
     await waitFor(() => {
       expect(doneRows()).toEqual(['Вынести мусорСегодня']);
+      expect(rowLine('Вынести мусор')).toBe('Завтра ↻');
     });
     expect(openNames()).toEqual(['Вынести мусор', 'Полить цветы']);
-    expect(rowLine('Вынести мусор')).toBe('Завтра ↻');
   });
 
   it('comes back on the first day after today, landing on the month’s last day when it must', async () => {
@@ -164,17 +174,18 @@ describe('A repeating item marked Done', () => {
     // One next occurrence however overdue; one step on when ticked early; 31 Jan → 28 Feb → 28
     // Mar → … → 28 Nov; 29 Feb 2024 → 28 Feb 2025 → 28 Feb 2026 → 28 Feb 2027.
     await waitFor(() => {
-      expect(openNames()).toEqual([
-        'Давно просрочено',
-        'Раньше срока',
-        'Тридцать первое',
-        'Високосный день',
-      ]);
+      expect(doneRows()).toHaveLength(4);
+      expect(rowLine('Давно просрочено')).toBe('Завтра ↻');
+      expect(rowLine('Раньше срока')).toBe('19 нояб. ↻');
+      expect(rowLine('Тридцать первое')).toBe('28 нояб. ↻');
+      expect(rowLine('Високосный день')).toBe('28 февр. 2027 г. ↻');
     });
-    expect(rowLine('Давно просрочено')).toBe('Завтра ↻');
-    expect(rowLine('Раньше срока')).toBe('19 нояб. ↻');
-    expect(rowLine('Тридцать первое')).toBe('28 нояб. ↻');
-    expect(rowLine('Високосный день')).toBe('28 февр. 2027 г. ↻');
+    expect(openNames()).toEqual([
+      'Давно просрочено',
+      'Раньше срока',
+      'Тридцать первое',
+      'Високосный день',
+    ]);
   });
 
   it('ticked back on is an ordinary open item, and the next occurrence stays', async () => {
@@ -183,10 +194,11 @@ describe('A repeating item marked Done', () => {
 
     renderApp(`/lists/${chores.id}`);
     await user.click(await screen.findByRole('checkbox', { name: 'Выполнено «Вынести мусор»' }));
+    // The open row is the next occurrence once the pull has brought it.
     await waitFor(() => {
       expect(openNames()).toEqual(['Вынести мусор']);
+      expect(rowLine('Вынести мусор')).toBe('17 нояб. ↻');
     });
-    expect(rowLine('Вынести мусор')).toBe('17 нояб. ↻');
 
     const doneToggle = within(screen.getByRole('region', { name: 'Выполнено' })).getByRole(
       'checkbox',
