@@ -37,10 +37,10 @@ web/src/
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
     home/               HomePage: Page «Семья» with «Дети» (tiles), then «Списки», gear → Settings; HOME_PATH
     lists/              ListsSection («Списки» on Home), NewListSheet, ListPage, ListSettingsPage,
-                        CategoriesPage («Категории» of a Shopping list),
+                        CategoriesPage («Категории» of a Shopping list), ItemPage (the Item screen),
                         DoneEarlierPage («Выполненные ранее» of a Todo list),
                         listPaths (LIST_PATH, LIST_SETTINGS_PATH, LIST_CATEGORIES_PATH,
-                        LIST_DONE_EARLIER_PATH),
+                        LIST_ITEM_PATH, LIST_DONE_EARLIER_PATH),
                         ListMissing (gone / loading),
                         ItemsSection (the List screen's Items, by Category on a Shopping list),
                         listTypes (kinds, Visibility, kind texts, Item, Category,
@@ -48,7 +48,8 @@ web/src/
                         useItemHistory(list), itemKeys (normalizedName, sortableTime, compare:
                         shared by useItems and useItemHistory)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
-    members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
+    members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage;
+                        useFamilyMembers() (the Members on the local store, by id)
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(),
                         ChildrenTiles («Дети» on Home), ChildPage (the Child page, CHILD_PATH)
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields()
@@ -62,7 +63,8 @@ web/src/
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
-                        InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
+                        InputRow, TextAreaRow (+ LinkedText, not exported), DateRow,
+                        SegmentedControl, ColorChoice, Swatch, ListRow,
                         LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         TileGrid + Tile,
@@ -104,6 +106,7 @@ frame around every screen and the place a sidebar goes later.
 | `/lists/:id`             | `ListPage`          | logged in                      |
 | `/lists/:id/settings`    | `ListSettingsPage`  | logged in                      |
 | `/lists/:id/categories`  | `CategoriesPage`    | logged in                      |
+| `/lists/:id/items/:itemId` | `ItemPage`        | logged in                      |
 | `/lists/:id/done-earlier` | `DoneEarlierPage`  | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
@@ -411,6 +414,31 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   lists get no suggestions. When `add` (Enter or a suggestion) resolves with an open Item of that
   name, `ItemsSection` highlights its row for 1.5 s (`EditableRow` `highlighted`: scrolled into
   view and tinted); the add field is emptied and keeps the focus as after any add.
+  **The Item screen** (`ItemPage`, `/lists/:id/items/:itemId`, `listItemPath(listId, itemId)`,
+  #83) is for an Item of every kind, back to its List (the back button shows the List's name),
+  titled «Товар» / «Задача» / «Желание» (`KIND_TEXTS[kind].item`). It reads the List through
+  `useLists()` and the Item through the same `useItems(list)` (open, Done and, on a Todo list, Done earlier), so it works
+  offline and from a deep link. One `GroupedSection` with «Название» (`InputRow`, `rename`,
+  required) and the large «Описание» (`TextAreaRow`, `describe`), both `useAutoSaveText` like the
+  row's; one with the Done toggle (a `ListRow` titled by the kind's Done word with the
+  `DoneToggle` as `leading`; `setDone`), whose footer says who added the Item and, when Done, who
+  marked it Done: «Добавила Анна, 12 нояб.», «Купила / Выполнила / Исполнила Анна, 14 нояб.»
+  (`lists.addedBy`, `KIND_TEXTS[kind].doneBy`, by the Member's Grammatical gender, see i18n; the
+  day by the device's clock, with the year when it isn't this one); then «Удалить» (`ConfirmRow`,
+  «Удалить „Молоко“?», `remove`, back to the List replacing the history entry). The Member comes
+  from `useFamilyMembers()`; a line shows only once the server's `creatorId` / `createdAt`
+  (`doneById` / `doneAt`) are on the device, so an Item added or ticked on this device gets it
+  with the next pull. Name and Description stay editable on a Done Item. An Item that is unknown,
+  belongs to another List, or disappears while the screen is open (deleted, also by the other
+  Member) shows «Такого товара нет: возможно, его удалили.» (by kind,
+  `KIND_TEXTS[kind].itemNotFound`) with the back link to the List; a missing List shows
+  `ListMissing` as on its other screens. The screen is opened from the List screen: an open
+  Item's row being edited ends with «Подробнее» (`EditableRow` `details`, which first saves what
+  was typed in the row), and a Done row's text is a link to it (`EditableRow` `textTo`; plain
+  text in edit mode). Out of editing, a row shows up to two lines of its Description.
+- `useFamilyMembers()` (`@/features/members`) → the Family's Members on the local store (the
+  pulled `member` rows: `displayName`, `grammaticalGender`) as a `Map` by id, `undefined` until
+  the first local read: for saying who did something, offline too. Read-only.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `useLogout()` → `{logOut({discardUnsent?}), pending, error, unsentWarning, dismissWarning}`:
   the only data access of `LogoutSection` (Outbox flush, logout request, pending logout, wipe;
@@ -462,7 +490,8 @@ against the same file (see [`backend.md`](backend.md#stack)). Each code's Russia
 - **Grammatical gender**: a sentence about a Member's action uses i18next `context` with the
   Member's `grammaticalGender` lower-cased (`masculine` / `feminine`), i.e. keys `<key>_masculine`
   and `<key>_feminine`, plus the plain `<key>` as the neutral fallback when the value is missing.
-  No such key exists yet; the first one arrives with M2/M3 messages. The choice itself is asked
+  The Item screen's footer lines are the first (`lists.addedBy`, `lists.doneBy.<kind>`; their
+  neutral form is «Добавлено: Анна, 12 нояб.»). The choice itself is asked
   as «Пол» with «Мужской» / «Женский» (keys `grammaticalGender.label`, `.masculine`,
   `.feminine`; nothing pre-selected): `GrammaticalGenderRow` (a `SegmentedControl`) from
   `features/auth`, at registration and in «Ваш профиль».
@@ -651,7 +680,8 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   and `/api/invites`.
 - Lists, Items, Categories and Item history tests (`lists/lists.test.tsx`, `lists/items.test.tsx`,
   `lists/categories.test.tsx`, `lists/categoriesScreen.test.tsx`, `lists/itemHistory.test.tsx`,
-  `lists/reAdding.test.tsx`, `lists/doneEarlier.test.tsx`) build
+  `lists/reAdding.test.tsx`, `lists/doneEarlier.test.tsx`, `lists/itemScreen.test.tsx`: the Item
+  screen, which also seeds `member` rows for its footer lines) build
   their rows inline and seed them with
   `syncServer.seed('list' | 'item' | 'category' | 'item_history', …)`; `items.test.tsx` and `categories.test.tsx`
   also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).

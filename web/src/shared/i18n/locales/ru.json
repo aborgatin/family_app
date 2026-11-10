@@ -61,6 +61,31 @@
       "todo": "Задача «{{text}}»",
       "wish": "Желание «{{text}}»"
     },
+    "item": {
+      "shopping": "Товар",
+      "todo": "Задача",
+      "wish": "Желание"
+    },
+    "itemDetails": "Подробнее",
+    "itemNotFound": {
+      "shopping": "Такого товара нет: возможно, его удалили.",
+      "todo": "Такой задачи нет: возможно, её удалили.",
+      "wish": "Такого желания нет: возможно, его удалили."
+    },
+    "addedBy": "Добавлено: {{name}}, {{day}}",
+    "addedBy_masculine": "Добавил {{name}}, {{day}}",
+    "addedBy_feminine": "Добавила {{name}}, {{day}}",
+    "doneBy": {
+      "shopping": "Куплено: {{name}}, {{day}}",
+      "shopping_masculine": "Купил {{name}}, {{day}}",
+      "shopping_feminine": "Купила {{name}}, {{day}}",
+      "todo": "Выполнено: {{name}}, {{day}}",
+      "todo_masculine": "Выполнил {{name}}, {{day}}",
+      "todo_feminine": "Выполнила {{name}}, {{day}}",
+      "wish": "Исполнено: {{name}}, {{day}}",
+      "wish_masculine": "Исполнил {{name}}, {{day}}",
+      "wish_feminine": "Исполнила {{name}}, {{day}}"
+    },
     "description": "Описание",
     "itemDescription": "Описание «{{text}}»",
     "newItem": {

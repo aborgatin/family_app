@@ -18,7 +18,7 @@ import {
   type ReportFailure,
   type SectionMessage,
 } from '@/shared/ui';
-import { listDoneEarlierPath } from './listPaths';
+import { listDoneEarlierPath, listItemPath } from './listPaths';
 import { KIND_TEXTS, type Category, type Item, type List } from './listTypes';
 import {
   itemsByCategory,
@@ -389,6 +389,7 @@ export function DoneItems({
           <EditableRow
             key={item.id}
             title={item.text}
+            textTo={listItemPath(list.id, item.id)}
             muted
             leading={
               <DoneToggle
@@ -490,6 +491,7 @@ function ItemRow({
       }}
       {...(categories !== undefined &&
         categories.length > 0 && { chip: categoryChip(list, categories, item, move, t) })}
+      details={{ label: t('lists.itemDetails'), to: listItemPath(list.id, item.id) }}
       confirm={{ title: t('lists.confirmDeleteItem', { text: item.text }) }}
       onDelete={onDelete}
     />

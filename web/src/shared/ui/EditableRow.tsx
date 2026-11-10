@@ -5,14 +5,15 @@ import {
   useState,
   type FocusEvent,
   type KeyboardEvent,
-  type MouseEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link as RouterLink } from 'react-router';
 import { ActionSheet } from './ActionSheet';
+import { controlClasses } from './controlStyles';
 import { FIELD_FOCUS } from './fieldFocus';
 import { ROW_FRAME, useEditing, useSectionRow } from './GroupedSection';
 import { Icon } from './Icon';
+import { LinkedText } from './LinkedText';
 import { MenuChip, type MenuChipProps } from './MenuChip';
 import { LEADING_INSET, ROW_LAYOUT, RowInside, TAPPABLE, type RowContentProps } from './ListRow';
 import { RowContextMenu } from './RowContextMenu';
@@ -24,6 +25,12 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
   title: string;
   /** Opens another screen (chevron), as a `ListRow` with `to`; not in edit mode. */
   to?: string;
+  /**
+   * Makes only the title a link to another screen, with no chevron: for a row whose `leading` is a
+   * control of its own (a Done Item: the toggle unticks, the text opens the Item screen). Not in
+   * edit mode, and not with `input`.
+   */
+  textTo?: string;
   /**
    * The action sheet that asks before deleting: the question, and an optional explanation. Without
    * it (and `onDelete`) the row can't be deleted: no ⊖, swipe or right-click menu (e.g. the
@@ -46,7 +53,7 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
   /**
    * With `input`: a grey multi-line secondary line under the title (an Item's Description). While
    * the row is being edited (the focus is in it) it is a text field with `placeholder`; out of it a
-   * non-empty value is one line cut with «…», its links opening in a new tab, and tapping it starts
+   * non-empty value is up to two lines cut with «…», its links opening in a new tab, and tapping it starts
    * editing. Not in edit mode.
    */
   secondary?: RowSecondaryProps;
@@ -55,6 +62,12 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
    * Item's Category). The row stays edited while its menu is open.
    */
   chip?: Omit<MenuChipProps, 'onOpenChange'>;
+  /**
+   * With `secondary`: a small text link at the end of the line under the secondary field while the
+   * row is being edited, opening the screen with everything about the row (an Item's «Подробнее»).
+   * What is typed in the row is saved first.
+   */
+  details?: { label: string; to: string };
   /**
    * Points the row out (e.g. an Item added again by name): scrolled into view and tinted with the
    * accent while set (`data-highlighted`), fading back when unset.
@@ -104,12 +117,14 @@ export interface RowSecondaryProps {
 export function EditableRow({
   title,
   to,
+  textTo,
   confirm,
   onDelete,
   sortable,
   input,
   secondary,
   chip,
+  details,
   highlighted = false,
   ...content
 }: EditableRowProps) {
@@ -134,7 +149,17 @@ export function EditableRow({
   const withSecondary = input !== undefined && secondary !== undefined && !editing;
 
   const inside =
-    input === undefined || editing ? (
+    textTo !== undefined && input === undefined && !editing ? (
+      <RowInside
+        {...content}
+        title={
+          <RouterLink to={textTo} className={TEXT_LINK}>
+            {title}
+          </RouterLink>
+        }
+        field
+      />
+    ) : input === undefined || editing ? (
       <RowInside title={title} chevron={link} {...content} />
     ) : (
       <RowInside
@@ -145,7 +170,35 @@ export function EditableRow({
           (active || choosing ? (
             <>
               <SecondaryInput {...secondary} takeFocus={tapped} />
-              {chip !== undefined && <MenuChip {...chip} onOpenChange={setChoosing} />}
+              {(chip !== undefined || details !== undefined) && (
+                <span className="flex items-center gap-3">
+                  {chip !== undefined && (
+                    <span className="flex min-w-0">
+                      <MenuChip {...chip} onOpenChange={setChoosing} />
+                    </span>
+                  )}
+                  {details !== undefined && (
+                    <span className="mt-1.5 ml-auto flex shrink-0">
+                      <RouterLink
+                        to={details.to}
+                        // The fields keep the focus (Safari gives a clicked link none), so the row
+                        // is still being edited, and the link still there, when the click arrives.
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                        }}
+                        // Leaving the row this way fires no blur: save what was typed.
+                        onClick={() => {
+                          input.onCommit();
+                          secondary.onCommit();
+                        }}
+                        className={controlClasses('plain', 'small')}
+                      >
+                        {details.label}
+                      </RouterLink>
+                    </span>
+                  )}
+                </span>
+              )}
             </>
           ) : (
             secondary.value.trim() !== '' && (
@@ -242,6 +295,15 @@ export function EditableRow({
     </div>
   );
 }
+
+/**
+ * A title that is a link (`textTo`): it looks like the title, cut with «…», and its target is the
+ * whole height of the row beside the leading control.
+ */
+const TEXT_LINK =
+  '-my-2.5 block cursor-pointer truncate rounded-md py-2.5 text-inherit no-underline ' +
+  'pointer-fine:-my-1.5 pointer-fine:py-1.5 active:opacity-50 focus-visible:outline-2 ' +
+  'focus-visible:-outline-offset-2 focus-visible:outline-accent';
 
 /** A tint over the whole row (above its swipe layer), shown while `highlighted`. */
 const HIGHLIGHT =
@@ -351,49 +413,16 @@ function SecondaryInput({
 }
 
 /**
- * The secondary line out of editing: one grey line cut with «…», its links opening in a new tab;
+ * The secondary line out of editing: up to two grey lines cut with «…», its links opening in a new tab;
  * a tap beside them starts editing.
  */
 function SecondaryLine({ text, onOpen }: { text: string; onOpen: () => void }) {
   return (
     <span
       onClick={onOpen}
-      className="mt-0.5 block cursor-text truncate text-subhead text-secondary-label"
+      className="mt-0.5 line-clamp-2 cursor-text wrap-anywhere text-subhead text-secondary-label"
     >
-      {linkParts(text).map((part, n) =>
-        part.link ? (
-          <a
-            key={n}
-            href={part.text}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event: MouseEvent) => {
-              event.stopPropagation();
-            }}
-            className="text-accent underline"
-          >
-            {part.text}
-          </a>
-        ) : (
-          part.text
-        ),
-      )}
+      <LinkedText text={text} />
     </span>
   );
-}
-
-/** An http(s) address, up to a space; punctuation at its end belongs to the sentence. */
-const LINK = /https?:\/\/\S+?(?=[.,;:!?)»"']*(?:\s|$))/g;
-
-/** The text cut into plain parts and links, in order. */
-function linkParts(text: string): { text: string; link: boolean }[] {
-  const parts: { text: string; link: boolean }[] = [];
-  let last = 0;
-  for (const match of text.matchAll(LINK)) {
-    if (match.index > last) parts.push({ text: text.slice(last, match.index), link: false });
-    parts.push({ text: match[0], link: true });
-    last = match.index + match[0].length;
-  }
-  if (last < text.length) parts.push({ text: text.slice(last), link: false });
-  return parts;
 }
