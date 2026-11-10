@@ -210,7 +210,8 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
 `ShoppingListDefaults` listens for `family.FirstMemberRegistered` and creates the Default Shopping
 lists with server-made ids: Супермаркет (Shared, Owner the new Member, Categories «Еда» position 1,
 «Бытовая химия» 2, `unnamedCategoryPosition` 3) and Аптека (Shared, `unnamedCategoryPosition` 0).
-Afterwards they are ordinary Lists and Categories. Tested by `lists.ShoppingListDefaultsTest`.
+Afterwards they are ordinary Lists and Categories. Tested by `lists.ShoppingListDefaultsTest`; that
+a failing Defaults listener rolls the registration back, by `lists.ShoppingListDefaultsRollbackTest`.
 
 `VisibleLists` (a bean) is A1 for the tables whose rows belong to a List: `find(listId,
 memberId)` (the List, deleted or not, or `list.not_found`), `rowsVisibleTo(memberId, rows,
