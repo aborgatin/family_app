@@ -45,6 +45,10 @@ _Avoid_: List type, template, mode
 One entry in a List. Say "shopping item", "todo item" or "wish item" when the kind matters.
 _Avoid_: Task, product, wish, entry, todo (as a noun for an item)
 
+**Description** — «Описание»:
+Optional free text under an Item's name: details, a link.
+_Avoid_: Note, comment, details
+
 **Done** — «Куплено» (shopping) / «Выполнено» (todo) / «Исполнено» (wish):
 The checked-off state of an Item, recorded together with who marked it done.
 _Avoid_: Completed, bought, checked, finished, closed
@@ -72,8 +76,12 @@ A List of kind shopping, named after where you buy (e.g. «Супермарке�
 _Avoid_: Store, store type, shop, cart, basket
 
 **Category** — «Категория»:
-A group within one Shopping list (e.g. vegetables → dairy → bread); its position sets the order the list is shown in, matching the walk through the store.
+A group within one Shopping list (e.g. «Еда», «Бытовая химия»); its position sets the order the list is shown in, matching the walk through the store.
 _Avoid_: Aisle, department, section, store type
+
+**Unnamed category** — «Без категории» (only where Categories are edited; the Shopping list shows it with no title):
+The one Category every Shopping list has without a name. It holds the Items that have no named Category, takes its place in the order like any Category, and can never be renamed or deleted.
+_Avoid_: Default category, uncategorised, other
 
 **Bought section** — «Куплено»:
 The part of a Shopping list holding its Done items until someone clears them.
@@ -84,7 +92,7 @@ Removing all Done items from a Shopping list's Bought section at once.
 _Avoid_: Reset, archive, empty
 
 **Item history** — —:
-The item names remembered per Shopping list, each with the Category it last had; the source of autocomplete and auto-categorisation.
+The item names remembered per Shopping list, kept after their Items are cleared; the source of autocomplete. It remembers names only: no Category, no Description.
 _Avoid_: Catalog, product database, dictionary, suggestions
 
 ## Todos

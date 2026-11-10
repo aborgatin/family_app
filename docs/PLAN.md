@@ -20,8 +20,9 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 
 1. **Shopping lists**
    - Several shopping lists, named after where you buy (Супермаркет, Аптека, Хозтовары, Онлайн, …) ([ADR-0006](adr/0006-shopping-lists-replace-store-types.md)), each with optional **ordered categories** (e.g. Супермаркет: vegetables → dairy → bread …).
-   - Item: name, free-text quantity ("2 кг"), note, category, creator (who added it).
-   - Autocomplete from item history per list; category is remembered per item name and applied automatically.
+   - Item: name, optional description (details, a link), category, creator (who added it). No quantity.
+   - Every shopping list has an unnamed category for ungrouped items, ordered among its categories; each category has its own add field.
+   - Autocomplete from item history per list (names only; no auto-categorisation).
    - Done items move to the "bought" section (Куплено) that can be cleared.
 2. **Todos**
    - Lists are **private** (owner only) or **shared** (both adults).
@@ -52,6 +53,8 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 - Child field history: a per-field «Хранить историю» switch showing past values (e.g. a growth chart for «Рост»/«Вес»), built on the M4 value timeline ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)).
 - Google Calendar integration — purpose TBD.
 - Documents vault — first evaluate ready solutions (Paperless-ngx for scanned documents, Vaultwarden for secrets); drop from backlog if one fits.
+- Move an Item to another List.
+- Delete a single suggestion (a mistyped name) from Item history.
 - Migrate the net-worth tracker from Google Sheets into the app.
 - Native SwiftUI app (iPhone + Mac) on the same API, if PWA limitations become annoying.
 
@@ -90,9 +93,9 @@ Chores/rewards, shared expenses, "reserved by" on wish lists, in-app calendar.
 | `Child` | id, family, name, color, birthday |
 | `ChildField` / `ChildFieldValue` | user-defined profile fields with a value type (`TEXT`/`DATE`), and a timeline of values per child ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)) |
 | `Category` | id, list (shopping only), name, sort order |
-| `List` | id, kind (`SHOPPING`/`TODO`/`WISH`), visibility (`PRIVATE`/`SHARED`), owner, child?, name |
-| `Item` | id, list, text, quantity, note, category?, done, due_at?, repeat?, assignee? (member), created_by, done_by |
-| `ItemHistory` | list + name → last category (autocomplete + auto-categorisation) |
+| `List` | id, kind (`SHOPPING`/`TODO`/`WISH`), visibility (`PRIVATE`/`SHARED`), owner, child?, name, Unnamed category position (shopping) |
+| `Item` | id, list, text, description, category? (none = the Unnamed category), done, due_at?, repeat?, assignee? (member), created_by, done_by |
+| `ItemHistory` | list + name, last used (autocomplete; names only) |
 | `ListMute` | member, list |
 | `PushSubscription` | member, endpoint, keys |
 
@@ -137,9 +140,12 @@ Secrets only in the server's `.env`, never in git.
 - [ ] Faster CI: on a pull request, run the `backend` job only when `backend/` changed and the `web` job only when `web/` changed (plus the workflow file itself). Skip per job (e.g. a changes job with `dorny/paths-filter`, then `if:`), not with workflow-level `paths:`: once `main` requires these checks (#17), a skipped workflow leaves them pending forever, while a skipped job counts as passed. The `image` job still runs whenever either changed, and every job still runs on pushes to `main`.
 
 **M3 — Shopping**
-- [ ] Multiple shopping lists, ordered categories per list, bought section + clear.
-- [ ] Autocomplete & auto-categorisation from `ItemHistory`.
-- [ ] Default Shopping lists with their Categories, created at first-Member registration (that Member is Owner, Visibility Shared) ([ADR-0005](adr/0005-configuration-vs-code.md)).
+- [ ] Spec [#67](https://github.com/aborgatin/family_app/issues/67).
+- [ ] Ordered Categories per Shopping list, the Unnamed category, an add field per Category, the «Категории» screen.
+- [ ] Description on Items of every kind, written inline under the name.
+- [ ] Bought section + Clear.
+- [ ] Autocomplete from `ItemHistory` (names only).
+- [ ] Default Shopping lists, created at first-Member registration (that Member is Owner, Visibility Shared): Супермаркет («Еда» → «Бытовая химия») and Аптека ([ADR-0005](adr/0005-configuration-vs-code.md)).
 
 **M4 — Todos & children**
 - [ ] Private/shared todo lists, due dates, assignee, repeat rules.
