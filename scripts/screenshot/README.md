@@ -34,8 +34,9 @@ Ctrl-C). Then it seeds through the real API:
   визит к врачу» (date).
 - Lists: Анна's «Супермаркет» (Покупки, three open Items, «Хлеб бородинский» with a Description
   ending in a link, and two Done), «Аптека» (Покупки), «Гипермаркет» (Покупки with Categories
-  «Еда» (two open, one Done), «Бытовая химия» (empty), then the Unnamed category with one Item;
-  three more Items added and cleared, so its Item history has names no Item shows),
+  «Еда» (two open, «Молоко» with a Description, one Done), «Бытовая химия» (empty), then the
+  Unnamed category with one Item; three more Items added and cleared, so its Item history has
+  names no Item shows),
   «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open, one with a Description, and one Done), «Подарки»
   (Желания, one open and one Done), «Книги» (Желания); Борис's «Гараж» (TODO) and his
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.

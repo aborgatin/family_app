@@ -48,6 +48,11 @@ export function useItems(listId: string) {
     return saved ?? '';
   }, []);
 
+  /** Moves the Item to this Category (`null`: the Unnamed category), sending only `categoryId`. */
+  const move = useCallback(async (item: Item, categoryId: string | null): Promise<void> => {
+    await upsertRow('item', item.id, { categoryId });
+  }, []);
+
   /**
    * Ticks the Item off, or back on (`done` false); the server records who did it and when. Until
    * its copy arrives, the old done by / done at are cleared locally (never sent), so an Item ticked
@@ -73,6 +78,7 @@ export function useItems(listId: string) {
     add,
     rename,
     describe,
+    move,
     setDone,
     remove,
   };

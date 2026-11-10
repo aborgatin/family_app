@@ -301,7 +301,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   lower-cased, newest `lastUsedAt` first (fraction padded as for `createdAt`), ties by name. Only a
   Shopping list's screen uses it.
 - `useItems(listId)` → `{items, doneItems, add(text, categoryId?), rename(item, text),
-  setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
+  describe(item, description), move(item, categoryId), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
   by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
   after them, ordered by its id, which `newItemId()` makes time-ordered (UUID v7); an Item ticked
@@ -314,7 +314,8 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
   so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`, and
   `categoryId` when added in a Category; adding stays name-only), `rename` sends only `text`,
-  `describe` only `description` (blank as `null`), `setDone` only `done`, `remove` deletes; all
+  `describe` only `description` (blank as `null`), `move` only `categoryId` (`null` for the
+  Unnamed category), `setDone` only `done`, `remove` deletes; all
   resolve at once,
   offline too. `ItemsSection` on the List screen: a `GroupedSection` headed «Товары» / «Задачи» /
   «Желания» with edit mode («Изменить») while it has open Items; each Item an `EditableRow` with a
@@ -343,7 +344,12 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   «Название категории»); Enter (or leaving it) with a name adds the Category and focuses its
   «Новый товар» (`AddRow` `focus`), an empty one or Esc adds nothing. The Done section stays one
   flat group; an Item ticked back on returns to its Category. Todo and Wish lists show no
-  Categories. Every «Новый товар» of a Shopping list has `AddRow` `suggest` from
+  Categories. With named Categories, an open Item being edited has the Category chip (#73,
+  `EditableRow` `chip`, a `MenuChip`) under its Description: its Category's name or «Без
+  категории», named «Категория: Еда» (`lists.itemCategory`); the menu is `sectionsInOrder()`'s
+  sections, «Без категории» (grey) in the Unnamed category's place, the current one ticked, and
+  picking another calls `move()`, so the Item goes to that section at once, offline too. Every
+  «Новый товар» of a Shopping list has `AddRow` `suggest` from
   `useItemHistory`: while it is focused and has text, the suggestions show under it
   (`SuggestionRows`), and tapping one calls the same `onAdd` as Enter, so the Item goes into that
   field's Category (none for the «Товары» or the untitled section), offline too. Todo and Wish
