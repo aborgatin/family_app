@@ -187,7 +187,9 @@ describe('Suggestions from the Item history', () => {
   it.each(['TODO', 'WISH'] as const)('suggests nothing on a %s List', async (kind) => {
     const chores = list(3, 'Дела', kind);
     syncServer.seed('list', [chores]);
-    syncServer.seed('item_history', [history(1, 'Пропылесосить', '2026-11-05T10:00:00Z', chores.id)]);
+    syncServer.seed('item_history', [
+      history(1, 'Пропылесосить', '2026-11-05T10:00:00Z', chores.id),
+    ]);
     const user = userEvent.setup();
 
     renderApp(`/lists/${chores.id}`);

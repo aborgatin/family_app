@@ -24,8 +24,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * Item history through the sync pull (spec #4; ticket #74): the names ever added to a Shopping
- * list, kept by the server as Items are written. Two {@code Browser}s play Anna's phone and
- * Boris's phone.
+ * list, kept by the server as Items are written. Two {@code Browser}s play Anna's phone and Boris's
+ * phone.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -141,7 +141,9 @@ class ItemHistorySyncTest {
             SyncRequests.upsert(
                 "list", chores, "{\"name\":\"Дела\",\"kind\":\"TODO\",\"visibility\":\"SHARED\"}"),
             SyncRequests.upsert(
-                "list", wishes, "{\"name\":\"Хотелки\",\"kind\":\"WISH\",\"visibility\":\"SHARED\"}"),
+                "list",
+                wishes,
+                "{\"name\":\"Хотелки\",\"kind\":\"WISH\",\"visibility\":\"SHARED\"}"),
             ItemsSyncTest.add(vacuum, chores, "Пропылесосить"),
             ItemsSyncTest.add(UUID.randomUUID(), wishes, "Велосипед"),
             SyncRequests.upsert("item", vacuum, "{\"text\":\"Помыть пол\"}"),
@@ -244,8 +246,7 @@ class ItemHistorySyncTest {
 
   /** The {@code item_history} changes a pull since {@code version} returns. */
   static List<Map<String, Object>> history(Browser device, long version) throws Exception {
-    String body =
-        SyncRequests.pull(device, version).andReturn().getResponse().getContentAsString();
+    String body = SyncRequests.pull(device, version).andReturn().getResponse().getContentAsString();
     return JsonPath.read(body, "$.changes[?(@.table=='item_history')]");
   }
 
