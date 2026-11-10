@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { useFamilyMembers, type FamilyMember } from '@/features/members';
@@ -13,7 +13,9 @@ import {
   ListRow,
   Page,
   Sections,
+  SelectRow,
   TextAreaRow,
+  useAutoSaveChoice,
   useAutoSaveText,
 } from '@/shared/ui';
 import { dueDayText, shortDay } from './dueDates';
@@ -59,6 +61,7 @@ function ListItem({ list }: { list: List }) {
     describe,
     setDueDate,
     setDueTime,
+    setAssignee,
     setDone,
     remove,
   } = useItems(list);
@@ -84,13 +87,15 @@ function ListItem({ list }: { list: List }) {
           <DoneSection list={list} item={item} setDone={setDone} />
           {list.kind === 'TODO' &&
             (item.done ? (
-              <DoneTodoFields item={item} />
+              <DoneTodoFields item={item} assignable={assignable(list)} />
             ) : (
               <TodoFields
                 key={`${item.id}-todo`}
                 item={item}
+                assignable={assignable(list)}
                 setDueDate={setDueDate}
                 setDueTime={setDueTime}
+                setAssignee={setAssignee}
               />
             ))}
           <GroupedSection>
@@ -142,18 +147,29 @@ function ItemFields({ item, rename, describe }: ItemFieldsProps) {
   );
 }
 
+/** Whether the List's todo items may have an Assignee: only on a Shared list. */
+function assignable(list: List): boolean {
+  return list.visibility === 'SHARED';
+}
+
 interface TodoFieldsProps {
   item: Item;
+  /** Whether «Ответственный» is offered. */
+  assignable: boolean;
   setDueDate: (item: Item, dueDate: string | null) => Promise<void>;
   setDueTime: (item: Item, dueTime: string | null) => Promise<void>;
+  setAssignee: (item: Item, assigneeId: string | null) => Promise<void>;
 }
 
 /**
  * A todo item's own fields: its Due date as «Срок» (the day) and «Время» (a time of day, only
- * with a day), auto-saved. Removing the day removes the time. Later todo fields go here too.
+ * with a day), auto-saved; removing the day removes the time. On a Shared list also its Assignee
+ * as «Ответственный»: «Никто», then each Member by name, saved when chosen. Later todo fields go
+ * here too.
  */
-function TodoFields({ item, setDueDate, setDueTime }: TodoFieldsProps) {
+function TodoFields({ item, assignable, setDueDate, setDueTime, setAssignee }: TodoFieldsProps) {
   const { t } = useTranslation();
+  const members = useFamilyMembers();
   const dueDate = useAutoSaveText({
     name: 'dueDate',
     saved: item.dueDate ?? '',
@@ -176,9 +192,29 @@ function TodoFields({ item, setDueDate, setDueTime }: TodoFieldsProps) {
       [item, setDueTime],
     ),
   });
+  const assignee = useAutoSaveChoice<string>({
+    name: 'assignee',
+    saved: item.assigneeId ?? NOBODY,
+    save: useCallback(
+      async (value: string) => {
+        await setAssignee(item, value === NOBODY ? null : value);
+        return value;
+      },
+      [item, setAssignee],
+    ),
+  });
+  const assignees = useMemo(
+    () => [
+      { value: NOBODY, label: t('lists.assignee.none') },
+      ...membersByName(members).map(({ id, displayName }) => ({ value: id, label: displayName })),
+    ],
+    [members, t],
+  );
 
   return (
-    <GroupedSection messages={autoSaveMessages([dueDate.failure, dueTime.failure])}>
+    <GroupedSection
+      messages={autoSaveMessages([dueDate.failure, dueTime.failure, assignee.failure])}
+    >
       <DateRow label={t('lists.dueDate')} {...dueDate.input} />
       <DateRow
         label={t('lists.dueTime')}
@@ -186,13 +222,28 @@ function TodoFields({ item, setDueDate, setDueTime }: TodoFieldsProps) {
         disabled={item.dueDate == null}
         {...dueTime.input}
       />
+      {assignable && (
+        <SelectRow label={t('lists.assignee.label')} options={assignees} {...assignee.control} />
+      )}
     </GroupedSection>
   );
 }
 
+/** «Никто» among the choices of «Ответственный»: no Member's id. */
+const NOBODY = '';
+
+/** The Members in the order «Ответственный» offers them: by name, ties by id. */
+function membersByName(members: ReadonlyMap<string, FamilyMember> | undefined): FamilyMember[] {
+  return [...(members?.values() ?? [])].sort(
+    (a, b) => a.displayName.localeCompare(b.displayName, 'ru') || a.id.localeCompare(b.id),
+  );
+}
+
 /** A Done todo item's own fields, read-only: nobody schedules what is already done. */
-function DoneTodoFields({ item }: { item: Item }) {
+function DoneTodoFields({ item, assignable }: { item: Item; assignable: boolean }) {
   const { t } = useTranslation();
+  const members = useFamilyMembers();
+  const assignee = item.assigneeId == null ? undefined : members?.get(item.assigneeId);
   const none = t('lists.due.none');
   return (
     <GroupedSection>
@@ -201,6 +252,12 @@ function DoneTodoFields({ item }: { item: Item }) {
         value={item.dueDate == null ? none : dueDayText(t, item.dueDate, new Date())}
       />
       <ListRow title={t('lists.dueTime')} value={item.dueTime ?? none} />
+      {assignable && (
+        <ListRow
+          title={t('lists.assignee.label')}
+          value={assignee?.displayName ?? t('lists.assignee.none')}
+        />
+      )}
     </GroupedSection>
   );
 }

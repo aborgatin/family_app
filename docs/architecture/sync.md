@@ -96,7 +96,9 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `list.not_found` (any operation on another Member's Private List), and the Child name limits on
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
   is `ignored` (delete wins). Deleting a List soft-deletes its Items, Categories and Item history
-  in the same operation.
+  in the same operation. Changing a List to `PRIVATE` removes the Assignee (`assigneeId` becomes
+  `null`) from all its Items, Done ones included, in the same operation, each with a new Version
+  (#85); making it `SHARED` again restores nothing.
 - **Child lists** (`list` with a `childId`, ticket #90): a List upsert may carry `childId` (a
   Child's id) on create only; the pull sends `childId` for every List, `null` for an ordinary
   one. The link never changes: a later upsert may repeat the stored value (`null` on an ordinary
@@ -108,11 +110,11 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   create is the Owner, only the Owner deletes, either Member renames. **Deleting a Child**
   soft-deletes, in the same operation, its Child lists with their Items (as a List delete does),
   whoever owns them and whichever Member deletes the Child: the pull sends their tombstones.
-- **Items** (`item`, tickets #57, #58, #69, #70, #84): an upsert carries `listId` (create only; a later upsert
+- **Items** (`item`, tickets #57, #58, #69, #70, #84, #85): an upsert carries `listId` (create only; a later upsert
   naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
   points after trim), `description` (the Description: optional, ≤ 10000 code points, over is
   `too_long`; blank is stored as none, `null`), `categoryId` (optional; `null` is the Unnamed
-  category), `dueDate` and `dueTime` (a todo item's Due date, below) and `done` (`true` / `false`; another
+  category), `dueDate` and `dueTime` (a todo item's Due date, below), `assigneeId` (its Assignee, below) and `done` (`true` / `false`; another
   type is `value.invalid`, `null` is `required`); the pull also sends the server-set `doneById`,
   `doneAt`, `creatorId` (the Member who pushed the create) and `createdAt`. When `done` turns
   true the server sets `doneById` to the pushing Member and `doneAt` to now; when it turns false
@@ -135,6 +137,18 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `item.due_time_without_due_date`. The app never sends the first two; the third happens when one
   device sets a time while the other removes the Due date and its operation arrives first. A Done
   Item's Due date is not locked by the server (the app shows it read-only).
+  **Assignee** (#85): `assigneeId` is a Member's id or `null` (nobody), only on an Item of a
+  Shared Todo list; the pull always sends it. It is its own field for Last write wins (an
+  Assignee set on one device and a Due date on the other are both kept). Rejected: the field,
+  even as `null`, on an Item of a Shopping or Wish list is `item.list_not_todo`
+  (`params.listId`); a value that isn't a UUID is `validation.failed` with `value.invalid`; a
+  Member on an Item of a Private list is `item.assignee_on_private_list` (`params.listId`); an id
+  that names no Member, or a removed one, is `item.assignee_not_found` (`params.assigneeId`).
+  `null` on a Private Todo list is applied and changes nothing: its Items have no Assignee (see
+  Lists: making a List Private removes them), and the Owner's other device may send it meanwhile.
+  The app never offers the first three; the Private one happens when a device chooses an
+  Assignee while the Owner makes the List Private elsewhere and that arrives first. A Done Item's
+  Assignee is not locked by the server (the app shows it read-only).
 - **Item history** (`item_history`, tickets #74, #78): the server writes it; the push may only
   delete a row (a Member removing a mistyped name), and every upsert is `sync.read_only`. Rules
   of the delete: a row of another Member's Private List is `list.not_found`; deleting a deleted or
@@ -258,7 +272,7 @@ auth.required` without one) tells open apps when to pull:
   Version. A row is the fields the pull sent plus `version`, the Version it was pulled with (absent
   on a row created here and not pulled back yet): what tells the latest Child field value. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives
-  store upgrades. A new field of an existing table (an Item's `dueDate` / `dueTime`, #84) needs no
+  store upgrades. A new field of an existing table (an Item's `dueDate` / `dueTime`, #84, and `assigneeId`, #85) needs no
   store version: rows are stored whole, and one pulled before the field existed simply has none
   until the server sends it again.
 - **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
@@ -302,7 +316,7 @@ auth.required` without one) tells open apps when to pull:
   reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
   `list.kind_immutable`, `list.wish_shared_only`, the four `list.child_*` codes,
   `child_field.value_type_immutable`, `sync.read_only`, `item.list_not_todo`,
-  `item.due_time_without_due_date`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping` and
+  `item.due_time_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping` and
   `item.category_not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.

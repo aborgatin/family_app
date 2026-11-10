@@ -28,6 +28,10 @@ const REJECTION_KEYS = {
   // when the other Member removes the Due date while this one sets the time.
   'item.list_not_todo': 'sync.rejected.itemListNotTodo',
   'item.due_time_without_due_date': 'sync.rejected.itemDueTimeWithoutDueDate',
+  // An Assignee chosen while the Owner was making the List Private on another device, and one
+  // who is no longer a Member.
+  'item.assignee_on_private_list': 'sync.rejected.itemAssigneeOnPrivateList',
+  'item.assignee_not_found': 'sync.rejected.itemAssigneeNotFound',
   // Not something the Member can cause from the app (another List's Category, a Category on a Todo
   // list): plain «Не удалось сохранить».
   'category.list_not_shopping': 'sync.saveRejected',

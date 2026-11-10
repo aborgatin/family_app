@@ -67,7 +67,7 @@ web/src/
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, TextAreaRow (+ LinkedText, not exported), DateRow,
-                        SegmentedControl, ColorChoice, Swatch, ListRow,
+                        SegmentedControl, SelectRow, ColorChoice, Swatch, ListRow,
                         LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         TileGrid + Tile,
@@ -250,7 +250,8 @@ code that touches IndexedDB or the sync API:
   - `useSaveRejection()` → `{message, dismiss}`: the message about the last operation the server
     rejected (`saveRejection.ts`, I3: `list.not_found`, `list.owner_only`, `list.kind_immutable`,
     `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only`,
-    `item.list_not_todo`, `item.due_time_without_due_date` map to
+    `item.list_not_todo`, `item.due_time_without_due_date`, `item.assignee_on_private_list`,
+    `item.assignee_not_found` map to
     `sync.rejected.*`, «Не удалось сохранить: …» with the reason; any other code to
     `sync.saveRejected`, plain «Не удалось сохранить»). It is recorded whatever screen is open and
     cleared by the Member's next change, `dismiss()` or a logout. Its one user is
@@ -363,7 +364,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   Shopping list's screen uses it.
 - `useItems(list)` → `{items, doneItems, earlierDoneItems, add(text, categoryId?), rename(item, text),
   describe(item, description), move(item, categoryId), setDueDate(item, day | null),
-  setDueTime(item, time | null), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
+  setDueTime(item, time | null), setAssignee(item, memberId | null), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
   by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
   after them, ordered by its id, which `newItemId()` makes time-ordered (UUID v7); an Item ticked
@@ -372,7 +373,8 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   before those without, then in the order added; the ones without a Due date follow in the order
   added (`dueKey`: the two fields sort as text). Shopping and Wish lists keep the order added.
   `setDueDate` sends only `dueDate` (`YYYY-MM-DD`), or `dueDate: null` with `dueTime: null` to
-  remove the Due date and its time; `setDueTime` only `dueTime` (`HH:MM` or `null`). `doneItems` are the Done ones, most recently done
+  remove the Due date and its time; `setDueTime` only `dueTime` (`HH:MM` or `null`);
+  `setAssignee` (#85) only `assigneeId` (a Member's id, or `null` for nobody). `doneItems` are the Done ones, most recently done
   first: by the server's `doneAt` (fraction padded as for `createdAt`), ties by id; one ticked off
   on this device and not pulled back yet has no `doneAt` and goes on top, the last ticked first,
   by its device-only `doneHereAt` (a monotonic ms time written with `upsertRow`'s `local`, never
@@ -424,8 +426,13 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   (`tone: 'destructive'`; `isOverdue`: without a time from the next day's midnight, with a time
   once the clock is past it); a Done Item's is never red. Everything is by the device's clock and
   time zone, read when the row renders, so a row turns red at its next render after the moment
-  passes (as the Done window follows midnight). Assignee and Repeat (#85–#87) add their parts to
-  the same line. Shopping and wish rows have no such line.
+  passes (as the Done window follows midnight). After the Due date comes the Assignee's name
+  (#85): «15 нояб. · Даша» (`lists.assignee.afterDueDate`, a part of its own, never red), or the
+  name alone when there is no Due date; the name is the Member's `displayName` from
+  `useFamilyMembers()`, read once per section and passed to the rows. It shows on a Shared list
+  only: on a List just made Private the Items may still hold an `assigneeId` until the server's
+  copies arrive, and the row leaves it out at once. Repeat (#86–#87) adds its mark between the
+  two. Shopping and wish rows have no such line.
   **A Todo list's «Выполнено»** (#88) holds only `doneItems` (the last 7 days) and, while there
   are `earlierDoneItems`, ends with a chevron row «Выполненные ранее» (a `ListRow` as the
   section's `after`, so not part of the edit-mode list); with only older Done Items the section is
@@ -476,9 +483,13 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   with the todo fields (`TodoFields`, #84): «Срок» (`DateRow`, `setDueDate`) and «Время»
   (`DateRow` `type="time"`, `setDueTime`; `disabled` while there is no «Срок»), each auto-saved
   with `useAutoSaveText` (blur, Enter, or its ⊗), offline too; a date without a time is fine, and
-  clearing «Срок» clears «Время» with it. On a Done Item they are read-only (`DoneTodoFields`:
-  plain `ListRow`s with the day as on the row and the time, «Нет» for none) and editable again
-  once it is ticked back on; later todo fields (#85–#87) join this section and follow the same
+  clearing «Срок» clears «Время» with it. On a Shared list (`list.visibility === 'SHARED'`, so
+  on every Child list) the section also has «Ответственный» (#85): a `SelectRow` with «Никто»
+  and then each Member of `useFamilyMembers()` by name, saved when chosen (`useAutoSaveChoice`,
+  `setAssignee`), offline too; a Private list has no such row. On a Done Item they are read-only
+  (`DoneTodoFields`: plain `ListRow`s with the day as on the row, the time, and on a Shared list
+  the Assignee's name; «Нет» / «Никто» for none) and editable again
+  once it is ticked back on; later todo fields (#86–#87) join this section and follow the same
   rule. Then «Удалить» (`ConfirmRow`,
   «Удалить „Молоко“?», `remove`, back to the List replacing the history entry). The Member comes
   from `useFamilyMembers()`; a line shows only once the server's `creatorId` / `createdAt`
@@ -757,12 +768,14 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   `lists/reAdding.test.tsx`, `lists/doneEarlier.test.tsx`, `lists/itemScreen.test.tsx`: the Item
   screen, which also seeds `member` rows for its footer lines; `lists/dueDate.test.tsx`: a todo
   item's Due date on the Item screen and the row, overdue, the order, with the device clock
-  fixed) build
+  fixed; `lists/assignee.test.tsx`: a todo item's Assignee on the Item screen and the row, and
+  what making the List Private does to it) build
   their rows inline and seed them with
   `syncServer.seed('list' | 'item' | 'category' | 'item_history', …)`; `items.test.tsx` and `categories.test.tsx`
   also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent),
   and `dueDate.test.tsx` that a version 5 store from before Due dates still sends its unsent
-  operation and its Items take a Due date; the fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, as on the real server.
+  operation and its Items take a Due date, and `assignee.test.tsx` the same for a version 7 store from
+  before Assignees (a new Item field needs no store version); the fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, and making a List Private there removes the Assignee from all its Items, as on the real server.
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,

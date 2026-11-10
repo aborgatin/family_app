@@ -8,7 +8,8 @@ import { network } from './network';
  * after a first sync, and the table rules a screen relies on: deleting a Child deletes its Child
  * lists with their Items, a deleted Child or Child field takes its Child field values
  * (`CASCADES`), and a Child field value is a timeline entry (stamped with `recordedAt`, never
- * changed, ignored for a deleted Child or Child field). Tests seed rows, read what was pushed, and switch it offline or make it
+ * changed, ignored for a deleted Child or Child field), and a List made Private loses the Assignee
+ * of every one of its Items. Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
@@ -246,8 +247,30 @@ class FakeSyncServer {
   }
 
   private write(table: string, id: string, fields: Record<string, unknown>, deleted: boolean) {
+    const before = this.stored.get(key(table, id));
     this.version += 1;
     this.stored.set(key(table, id), { table, id, version: this.version, deleted, fields });
+    if (
+      table === 'list' &&
+      before !== undefined &&
+      before.fields.visibility !== 'PRIVATE' &&
+      fields.visibility === 'PRIVATE'
+    ) {
+      this.clearAssignees(id);
+    }
+  }
+
+  /**
+   * Making a List Private removes the Assignee from every one of its Items in the same operation,
+   * each with a new Version (spec #81), as the real server does; making it Shared again restores
+   * nothing.
+   */
+  private clearAssignees(listId: string) {
+    for (const item of [...this.stored.values()]) {
+      if (item.table === 'item' && !item.deleted && item.fields.listId === listId) {
+        this.write('item', item.id, { ...item.fields, assigneeId: null }, false);
+      }
+    }
   }
 
   /**

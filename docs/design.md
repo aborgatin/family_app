@@ -376,6 +376,21 @@ and gives the segments the whole row, for a choice whose options say it all (Vis
 «Личный» / «Общий» in «Новый список», named «Видимость»); not for auto-saved rows yet, since the
 spinner sits with the label.
 
+### SelectRow
+
+One of several choices as a row (#85), for more choices than a `SegmentedControl` holds or ones
+whose number and length aren't known (the Members' names): `label` inline at the left, the
+current choice at the right in a grey pill with a small ⌄ (`Icon` `expand`), as an iOS pop-up
+button. It is the browser's own `select`: a tap or click opens its menu (a pop-up menu with the
+current choice ticked on the iPhone and the Mac); with the keyboard Tab reaches it, Space or the
+arrows open and move, Enter picks. `options` are `{value, label}` in order, `value` is one of
+them; a choice that stands for "none" («Никто») is simply the first option. Its `name` links it
+to footer messages. Auto-saved with `useAutoSaveChoice()` (spread `control`): a pick saves at
+once, `busy` shows the `Spinner` left of the pill, and a failed pick goes back to the previous
+choice. `disabled` dims the label and the pill to 40%. Touch: the pill is 32px tall in a 44px
+row. Fine pointer: tighter, like a `DateRow`'s pill; the focused pill gets the accent outline.
+A todo item's «Ответственный» is one.
+
 ### ListRow
 
 A row of a `GroupedSection` that isn't a field: `title`, optional `subtitle` (second, smaller line), `leading` (an
@@ -448,7 +463,9 @@ the field. Tab reaches it after the chip.
 `secondary-label`, cut with «…»: facts about the row in a few words, shown in every state of the
 row (being edited, edit mode, a `textTo` row). It takes parts (`{text, tone?}`), joined by
 spaces; a part with `tone: 'destructive'` is in `destructive` (`data-tone="destructive"`). A todo
-item's Due date is one: «Завтра, 15:00», red once overdue. No parts, no line.
+item's Due date is one: «Завтра, 15:00», red once overdue; its Assignee's name the next (#85):
+«· Даша» after a Due date («Завтра, 15:00 · Даша»), «Даша» alone without one, never red. No
+parts, no line.
 
 `textTo` (#83) makes just the title a link to another screen, for a row whose `leading` is a
 control of its own: a Done Item's text opens the Item screen while its `DoneToggle` still
@@ -461,7 +478,7 @@ scrolled into view (nearest edge, smooth) and covered by a 15% `accent` tint abo
 layer (`data-highlighted`); unset, the tint fades out over 0.7 s. The caller unsets it after a moment (1.5 s for Items).
 
 Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
-`sortable`, Items with `input`, `secondary` (the Description), `details` («Подробнее»), on a Todo list a `caption` (the Due date), on a Shopping list with named Categories a
+`sortable`, Items with `input`, `secondary` (the Description), `details` («Подробнее»), on a Todo list a `caption` (the Due date and the Assignee), on a Shopping list with named Categories a
 `chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`, with `textTo`),
 Invites plain.
 

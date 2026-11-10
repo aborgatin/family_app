@@ -601,12 +601,26 @@ export default {
     { name: 'item-shopping', path: '/', steps: openItem('Супермаркет', 'Товар', 'Хлеб бородинский') },
     // A Done one: ticked, with «Купила Анна, …» under «Добавила Анна, …».
     { name: 'item-shopping-done', path: '/', steps: openDoneItem('Супермаркет', 'Сыр') },
-    // A todo item with a Due date (#84): «Срок» and «Время» under the Done toggle.
+    // A todo item on a Shared list with a Due date (#84) and an Assignee (#85): «Срок», «Время» and
+    // «Ответственный» under the Done toggle.
     { name: 'item-todo', path: '/', steps: openItem('Дела по дому', 'Задача', 'Записать Машу к стоматологу') },
-    // One without: «Срок» empty, «Время» dimmed until there is a day.
+    // One without: «Срок» empty, «Время» dimmed until there is a day, «Ответственный» «Никто».
     { name: 'item-todo-no-due-date', path: '/', steps: openItem('Дела по дому', 'Задача', 'Поменять лампочку в коридоре') },
-    // A Done one: «Срок» and «Время» read-only.
+    // A Done one: «Срок», «Время» and «Ответственный» read-only.
     { name: 'item-todo-done', path: '/', steps: openDoneItem('Дела по дому', 'Оплатить интернет') },
+    {
+      // A todo item on a Private list (#85), added here since the seed's «Ремонт» is empty: no
+      // «Ответственный».
+      name: 'item-todo-private',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Ремонт/]' },
+        { fill: 'role=textbox[name="Новая задача"]', value: 'Купить краску' },
+        { press: 'Enter' },
+        ...openItem('Ремонт', 'Задача', 'Купить краску').slice(1),
+      ],
+    },
     // A wish without a Description: the empty large field.
     { name: 'item-wish', path: '/', steps: openItem('Подарки', 'Желание', 'Самокат') },
     { name: 'item-wish-done', path: '/', steps: openDoneItem('Подарки', 'Набор фломастеров') },

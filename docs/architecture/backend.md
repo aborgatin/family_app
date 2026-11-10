@@ -52,8 +52,9 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
 `sync → error`, `command → family`. (`lists` reaches Members through `Operation.memberId()`, and
-`family` for the `FirstMemberRegistered` and `ChildDeleted` events and for `Children` (Child
-lists, #90); the spec also allows `Members` and `FamilyLock` when a ticket needs them.) The Version
+`family` for the `FirstMemberRegistered` and `ChildDeleted` events, for `Children` (Child
+lists, #90) and for `Members.byId` (an Item's Assignee must be a Member, #85); the spec also
+allows `FamilyLock` when a ticket needs it.) The Version
 sequence and trigger are database objects from `V1`; `sync` only reads `version_seq` for the push
 answer (see [`sync.md`](sync.md)).
 
@@ -229,6 +230,9 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   Visibility change also gives the List's Items, Categories and Item history a new Version
   (`bumpVersionsInList` on `ItemRepository`, `CategoryRepository` and `ItemHistoryRepository`: a
   no-op UPDATE the trigger stamps), so the pull sends them again with or without their fields. A
+  change to `PRIVATE` first removes the Assignee from every Item of the List, Done ones included
+  (#85; `ItemRepository.clearAssigneesInList`), in the same operation; a change back to `SHARED`
+  restores nothing. A
   delete soft-deletes the List, its Items, its Categories and its Item history (`markDeletedInList`
   on the three). All are bulk
   JPQL updates that flush and clear the persistence context, so later operations of the same push
@@ -267,7 +271,7 @@ Categories and Items share: `name` (1–100 code points after trim), `position` 
 `ItemService` looks an Item's List up once per operation and passes it on.
 
 Items are in the same package (an Item belongs to its List): `ItemEntity` (`list_id`, `text`,
-`category_id`, `description`, `due_date`, `due_time`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`),
+`category_id`, `description`, `due_date`, `due_time`, `assignee_id`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`),
 `DueDate` (a record of the day and the optional time of day, `NONE` for no Due date), `ItemRepository`,
 `ItemRequest` (text 1–1000 code points after trim, description ≤ 10000 or blank = none) → `ItemDetails`;
 `ItemService`, the `item` `SyncableTable`:
@@ -295,10 +299,20 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
   `value.invalid` for a day that isn't ISO `YYYY-MM-DD` or a time that isn't strict `HH:mm`;
   `item.due_time_without_due_date` when a time is left without a day. An upsert carrying neither
   field leaves the Due date alone on every kind of List.
+- Assignee (#85; `assigneeId`, when carried; `ItemService.assigneeId` → `ItemEntity.assignTo`):
+  column `assignee_id` (→ `member`), a Member's id or `null` for nobody. In this order:
+  `item.list_not_todo` (`params.listId`) unless the List is `TODO`, even for `null`;
+  `validation.failed` / `value.invalid` for a value that isn't a UUID; `null` is then accepted on
+  any Todo list (on a Private one it changes nothing, so the Owner's other device removing an
+  Assignee while the List is made Private is not rejected); `item.assignee_on_private_list`
+  (`params.listId`) for a Member on a `PRIVATE` List; `item.assignee_not_found`
+  (`params.assigneeId`) when `family.Members.byId` finds no Member (none, or a removed one). An
+  upsert not carrying the field leaves the Assignee alone. Making the List Private removes it
+  (`ListService`, above).
 - Item history: a create, a changed `text`, and Done → open each call `ItemHistoryService.used(list,
   text, now)` in the same operation (below). A delete never touches the history.
 - `changesSince`: `listId`, `text`, `categoryId`, `description`, `dueDate` (`YYYY-MM-DD`),
-  `dueTime` (`HH:MM`), `done`, `doneById`, `doneAt`, `creatorId`, `createdAt`; a tombstone for a deleted Item and for one whose List the Member may
+  `dueTime` (`HH:MM`), `assigneeId`, `done`, `doneById`, `doneAt`, `creatorId`, `createdAt`; a tombstone for a deleted Item and for one whose List the Member may
   not see (`VisibleLists.rowsVisibleTo`).
 
 Categories are in the same package too: `CategoryEntity` (`list_id`, `name`, `position`),
@@ -439,8 +453,9 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `list.child_not_shopping`, `list.child_shared_only`, `list.child_immutable` and
 `list.child_not_found` (`params.childId`), for Categories
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
-(`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field, so far a Due date, on an Item of a Shopping
-or Wish list; later todo fields reuse it, so its client message names no field) and `item.due_time_without_due_date` (a time of day without a Due date). An operation on a deleted Child, Child field, List,
+(`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field, so far a Due date or an Assignee, on an Item of a Shopping
+or Wish list; later todo fields reuse it, so its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
+`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
 (`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a
@@ -546,6 +561,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V10__list_child.sql`           | `list.child_id` (→ `child`, nullable: a Child list), partial index on it                           |
 | `V11__child_field_value.sql`    | `child_field_value` (→ `child`, `child_field`), indexes on `child_id` and `child_field_id`         |
 | `V12__item_due_date.sql`        | `item.due_date` (`DATE`), `item.due_time` (`TIME`): a todo item's Due date, nullable, no backfill  |
+| `V13__item_assignee.sql`        | `item.assignee_id` (→ `member`): a todo item's Assignee, nullable, no backfill                     |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -607,7 +623,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest` and `lists.ItemDueDateSyncTest` do.
+   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest`, `lists.ItemDueDateSyncTest` and `lists.ItemAssigneeSyncTest` do.
 
 ## Testing
 
