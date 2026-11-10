@@ -25,6 +25,12 @@ const categories = (name) => [
   { click: 'role=link[name="Категории"]' },
   { waitFor: 'role=list[name="Категории"]' },
 ];
+/** Steps from Home to the «Выполненные ранее» screen of «Дела по дому». */
+const doneEarlier = [
+  { click: 'role=link[name=/Дела по дому/]' },
+  { click: 'role=link[name="Выполненные ранее"]' },
+  { waitFor: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
+];
 const showInvites = async (page) => {
   await page.locator(INVITE).scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, 200));
@@ -288,14 +294,49 @@ export default {
       ],
     },
     {
+      // «Выполнено» holds the last 7 days (today and 6 days ago); the row under it opens the rest.
       name: 'list-todo',
       path: '/',
-      steps: [{ click: 'role=link[name=/Дела по дому/]' }, { waitFor: 'role=textbox[name^="Задача"]' }],
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { waitFor: 'role=textbox[name^="Задача"]' },
+        { waitFor: 'role=link[name="Выполненные ранее"]' },
+      ],
     },
     {
       name: 'list-todo-empty',
       path: '/',
       steps: [{ click: 'role=link[name=/Ремонт/]' }, { waitFor: 'text=Задач пока нет' }],
+    },
+    // «Выполненные ранее»: the Done Items older than 7 days, most recent first.
+    { name: 'done-earlier', path: '/', steps: doneEarlier },
+    { name: 'done-earlier-edit', path: '/', steps: [...doneEarlier, editIn('Выполненные ранее')] },
+    { name: 'done-earlier-row-actions', path: '/', fullPage: false, steps: [...doneEarlier, rowActions('Выполненные ранее')] },
+    {
+      // Both ticked back on, offline: they are open again, and the screen says nothing is left.
+      name: 'done-earlier-empty',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        ...doneEarlier,
+        { click: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
+        { click: 'role=checkbox[name="Выполнено «Сдать батарейки в переработку»"]' },
+        { waitFor: 'text=Выполненных ранее задач нет' },
+      ],
+    },
+    {
+      // A Shopping list has no such screen.
+      name: 'done-earlier-not-todo',
+      path: '/',
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        async (page) => {
+          await page.goto(`${page.url()}/done-earlier`);
+        },
+        { waitFor: 'role=alert' },
+      ],
     },
     {
       // Enter added «Масло» and keeps the focus in «Новый товар» for the next Item.

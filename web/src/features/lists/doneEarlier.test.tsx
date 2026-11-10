@@ -391,10 +391,16 @@ describe('The «Выполненные ранее» screen', () => {
     syncServer.seed('list', [other]);
     syncServer.seed('item', [doneItem(1, 'Месяц назад', daysAgo(30), other.id)]);
 
+    // The List and its Item are on the device before the screen is asked for (an app restart).
+    const first = renderApp(`/lists/${other.id}`);
+    await screen.findByText('Месяц назад');
+    first.unmount();
+
     renderApp(`/lists/${other.id}/done-earlier`);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Такого списка нет');
     expect(screen.queryByText('Месяц назад')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Выполненные ранее' })).not.toBeInTheDocument();
   });
 
   it('says the List is gone for an unknown one', async () => {

@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { anna, boris, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
@@ -70,6 +70,9 @@ beforeEach(() => {
   document.cookie = 'XSRF-TOKEN=token-from-server';
   server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
 });
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('«Очистить» on the Bought section', () => {
   it('heads a Shopping list’s «Куплено»', async () => {
@@ -88,6 +91,8 @@ describe('«Очистить» on the Bought section', () => {
     ['TODO', 'Выполнено'],
     ['WISH', 'Исполнено'],
   ] as const)('is not on a %s List’s «%s»', async (kind, done) => {
+    // A Todo list shows only what was done in the last 7 days: the device's day is the next one.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-03T12:00:00Z') });
     const shown = list(5, 'Мой список', kind);
     syncServer.seed('list', [shown]);
     syncServer.seed('item', [doneItem(1, 'Первое', shown.id)]);

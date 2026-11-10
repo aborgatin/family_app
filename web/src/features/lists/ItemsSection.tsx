@@ -42,7 +42,9 @@ interface ItemsSectionProps {
  * нет». A Shopping list with named Categories shows its open Items in one section per Category
  * instead (`ShoppingItems`). The Done ones follow in their own group, headed by the kind's
  * Done («Куплено» / «Выполнено» / «Исполнено»), ticked; ticking one off again puts it back among
- * the open ones; a Shopping list's are headed by «Очистить». All data access goes through
+ * the open ones; a Shopping list's are headed by «Очистить». A Todo list's «Выполнено» has only
+ * those done in the last 7 days and, while there are older ones, ends with the row «Выполненные
+ * ранее», which opens them (`DoneEarlierPage`). All data access goes through
  * `useItems()` and `useCategories()` (the local store + Outbox).
  */
 export function ItemsSection({ list }: ItemsSectionProps) {

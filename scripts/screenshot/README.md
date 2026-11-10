@@ -39,7 +39,7 @@ Ctrl-C). Then it seeds through the real API:
   «Еда» (two open, «Молоко» with a Description, one Done), «Бытовая химия» (empty), then the
   Unnamed category with one Item; three more Items added and cleared, so its Item history has
   names no Item shows),
-  «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open, one with a Description, and one Done), «Подарки»
+  «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open, one with a Description, and four Done: today, 6, 8 and 40 days ago, so two are in «Выполненные ранее»), «Подарки»
   (Желания, one open and one Done), «Книги» (Желания); Борис's «Гараж» (TODO) and his
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.
 - One active Invite.
