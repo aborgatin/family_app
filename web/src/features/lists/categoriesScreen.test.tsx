@@ -336,6 +336,34 @@ describe('Deleting a Category', () => {
     expect(screen.queryByRole('region', { name: 'Еда' })).not.toBeInTheDocument();
   });
 
+  it('shows «Без категории» on the chip of an Item still naming the deleted Category', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('category', [food, chemicals]);
+    syncServer.seed('item', [item(1, 'Молоко', food.id)]);
+    const user = userEvent.setup();
+
+    renderApp(categoriesPath);
+    await showing(['Еда', 'Без категории', 'Бытовая химия']);
+    syncServer.goOffline();
+    await startEditing(user);
+    await user.click(screen.getByRole('button', { name: 'Удалить «Еда»' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Удалить „Еда“?' })).getByRole('button', {
+        name: 'Удалить',
+      }),
+    );
+    await showing(['Без категории', 'Бытовая химия']);
+    await user.click(screen.getByRole('link', { name: 'Настройки списка' }));
+    await user.click(await screen.findByRole('link', { name: 'Супермаркет' }));
+    await user.click(await screen.findByRole('textbox', { name: 'Товар «Молоко»' }));
+
+    expect(screen.getByRole('button', { name: 'Категория: Без категории' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Категория: Без категории' }));
+    const choices = within(await screen.findByRole('menu')).getAllByRole('menuitemradio');
+    expect(choices.map((choice) => choice.textContent)).toEqual(['Без категории', 'Бытовая химия']);
+    expect(screen.getByRole('menuitemradio', { name: 'Без категории' })).toBeChecked();
+  });
+
   it('shows an Item moved to the Unnamed category by the other device’s delete there after a pull', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.seed('category', [food, chemicals]);
