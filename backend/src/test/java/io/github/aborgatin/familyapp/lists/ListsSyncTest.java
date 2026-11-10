@@ -1,11 +1,11 @@
 package io.github.aborgatin.familyapp.lists;
 
+import static io.github.aborgatin.familyapp.ListOperations.list;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.jayway.jsonpath.JsonPath;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
@@ -63,7 +63,7 @@ class ListsSyncTest {
         .containsEntry("name", "Супермаркет")
         .containsEntry("kind", "SHOPPING")
         .containsEntry("visibility", "SHARED")
-        .containsEntry("ownerId", memberId(anna));
+        .containsEntry("ownerId", SyncRequests.memberId(anna));
     assertThat(Instant.parse((String) fields.get("createdAt"))).isAfter(before.minusSeconds(1));
   }
 
@@ -71,7 +71,7 @@ class ListsSyncTest {
   void aPrivateListReachesOnlyItsOwner() throws Exception {
     UUID gifts = UUID.randomUUID();
 
-    SyncRequests.push(boris, create(gifts, "Подарки Анне", "TODO", "PRIVATE"))
+    SyncRequests.push(boris, list(gifts, "Подарки Анне", "TODO", "PRIVATE"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
 
     assertThat(SyncRequests.fields(boris, "list", gifts))
@@ -85,7 +85,7 @@ class ListsSyncTest {
     UUID gifts = UUID.randomUUID();
     long since = SyncRequests.version(SyncRequests.pull(anna, 0));
 
-    SyncRequests.push(boris, create(gifts, "Подарки Анне", "TODO", "PRIVATE"));
+    SyncRequests.push(boris, list(gifts, "Подарки Анне", "TODO", "PRIVATE"));
 
     Map<String, Object> change = SyncRequests.change(anna, since, "list", gifts);
     assertThat(change).containsEntry("deleted", true).doesNotContainKey("fields");
@@ -94,7 +94,7 @@ class ListsSyncTest {
   @Test
   void anUpsertOfAKnownListChangesOnlyTheFieldsItCarriesAndKeepsTheOwner() throws Exception {
     UUID groceries = UUID.randomUUID();
-    SyncRequests.push(anna, create(groceries, "Супермаркет", "SHOPPING", "SHARED"));
+    SyncRequests.push(anna, list(groceries, "Супермаркет", "SHOPPING", "SHARED"));
     Map<String, Object> created = SyncRequests.fields(anna, "list", groceries);
 
     SyncRequests.push(boris, SyncRequests.upsert("list", groceries, "{\"name\":\"Ашан\"}"))
@@ -104,14 +104,14 @@ class ListsSyncTest {
         .containsEntry("name", "Ашан")
         .containsEntry("kind", "SHOPPING")
         .containsEntry("visibility", "SHARED")
-        .containsEntry("ownerId", memberId(anna))
+        .containsEntry("ownerId", SyncRequests.memberId(anna))
         .containsEntry("createdAt", created.get("createdAt"));
   }
 
   @Test
   void onlyTheOwnerChangesAListsVisibility() throws Exception {
     UUID groceries = UUID.randomUUID();
-    SyncRequests.push(anna, create(groceries, "Супермаркет", "SHOPPING", "SHARED"));
+    SyncRequests.push(anna, list(groceries, "Супермаркет", "SHOPPING", "SHARED"));
 
     SyncRequests.push(
             boris,
@@ -128,7 +128,7 @@ class ListsSyncTest {
   @Test
   void aListItsOwnerMakesPrivateLeavesTheOtherPhoneAndComesBackWhenSharedAgain() throws Exception {
     UUID gifts = UUID.randomUUID();
-    SyncRequests.push(anna, create(gifts, "Подарки", "TODO", "SHARED"));
+    SyncRequests.push(anna, list(gifts, "Подарки", "TODO", "SHARED"));
     long shared = SyncRequests.version(SyncRequests.pull(boris, 0));
 
     SyncRequests.push(anna, SyncRequests.upsert("list", gifts, "{\"visibility\":\"PRIVATE\"}"))
@@ -161,8 +161,8 @@ class ListsSyncTest {
     SyncRequests.push(
             anna,
             SyncRequests.upsert("list", nameless, "{\"name\":\"   \",\"kind\":\"BOOKS\"}"),
-            create(tooLong, "я".repeat(101), "TODO", "SHARED"),
-            create(longest, "я".repeat(100), "TODO", "SHARED"))
+            list(tooLong, "я".repeat(101), "TODO", "SHARED"),
+            list(longest, "я".repeat(100), "TODO", "SHARED"))
         .andExpect(jsonPath("$.results[*].status", contains("rejected", "rejected", "applied")))
         .andExpect(jsonPath("$.results[0].code").value("validation.failed"))
         .andExpect(
@@ -181,7 +181,7 @@ class ListsSyncTest {
   @Test
   void aListsKindNeverChanges() throws Exception {
     UUID groceries = UUID.randomUUID();
-    SyncRequests.push(anna, create(groceries, "Супермаркет", "SHOPPING", "SHARED"));
+    SyncRequests.push(anna, list(groceries, "Супермаркет", "SHOPPING", "SHARED"));
 
     SyncRequests.push(
             boris,
@@ -202,8 +202,8 @@ class ListsSyncTest {
 
     SyncRequests.push(
             anna,
-            create(secretWishes, "Тайные желания", "WISH", "PRIVATE"),
-            create(wishes, "Желания Маши", "WISH", "SHARED"),
+            list(secretWishes, "Тайные желания", "WISH", "PRIVATE"),
+            list(wishes, "Желания Маши", "WISH", "SHARED"),
             SyncRequests.upsert("list", wishes, "{\"visibility\":\"PRIVATE\"}"))
         .andExpect(jsonPath("$.results[*].status", contains("rejected", "applied", "rejected")))
         .andExpect(jsonPath("$.results[0].code").value("list.wish_shared_only"))
@@ -216,12 +216,12 @@ class ListsSyncTest {
   @Test
   void theOtherMembersPrivateListIsUnknownToEveryOperation() throws Exception {
     UUID gifts = UUID.randomUUID();
-    SyncRequests.push(boris, create(gifts, "Подарки Анне", "TODO", "PRIVATE"));
+    SyncRequests.push(boris, list(gifts, "Подарки Анне", "TODO", "PRIVATE"));
 
     SyncRequests.push(
             anna,
             SyncRequests.upsert("list", gifts, "{\"name\":\"Моё\"}"),
-            create(gifts, "Моё", "TODO", "SHARED"),
+            list(gifts, "Моё", "TODO", "SHARED"),
             SyncRequests.delete("list", gifts))
         .andExpect(jsonPath("$.results[*].status", contains("rejected", "rejected", "rejected")))
         .andExpect(jsonPath("$.results[*].code", contains(notFound(), notFound(), notFound())));
@@ -235,7 +235,7 @@ class ListsSyncTest {
   void repeatingAWholePushLeavesTheSameState() throws Exception {
     UUID groceries = UUID.randomUUID();
     String[] push = {
-      create(groceries, "Супермаркет", "SHOPPING", "SHARED"),
+      list(groceries, "Супермаркет", "SHOPPING", "SHARED"),
       SyncRequests.upsert("list", groceries, "{\"name\":\"Ашан\"}")
     };
 
@@ -250,7 +250,7 @@ class ListsSyncTest {
   @Test
   void onlyTheOwnerDeletesAList() throws Exception {
     UUID groceries = UUID.randomUUID();
-    SyncRequests.push(anna, create(groceries, "Супермаркет", "SHOPPING", "SHARED"));
+    SyncRequests.push(anna, list(groceries, "Супермаркет", "SHOPPING", "SHARED"));
 
     SyncRequests.push(boris, SyncRequests.delete("list", groceries))
         .andExpect(jsonPath("$.results[*].status", contains("rejected")))
@@ -267,7 +267,7 @@ class ListsSyncTest {
   @Test
   void aDeletedListIsATombstoneAndDeleteWinsOverALaterChange() throws Exception {
     UUID groceries = UUID.randomUUID();
-    SyncRequests.push(anna, create(groceries, "Супермаркет", "SHOPPING", "SHARED"));
+    SyncRequests.push(anna, list(groceries, "Супермаркет", "SHOPPING", "SHARED"));
     long since = SyncRequests.version(SyncRequests.pull(boris, 0));
 
     SyncRequests.push(anna, SyncRequests.delete("list", groceries))
@@ -287,18 +287,5 @@ class ListsSyncTest {
 
   private static String notFound() {
     return "list.not_found";
-  }
-
-  private static String create(UUID id, String name, String kind, String visibility) {
-    return SyncRequests.upsert(
-        "list",
-        id,
-        "{\"name\":\"%s\",\"kind\":\"%s\",\"visibility\":\"%s\"}"
-            .formatted(name, kind, visibility));
-  }
-
-  private static String memberId(Browser device) throws Exception {
-    String body = device.openApp().andReturn().getResponse().getContentAsString();
-    return JsonPath.read(body, "$.member.id");
   }
 }

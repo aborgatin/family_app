@@ -655,7 +655,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest`, `lists.ItemDueDateSyncTest`, `lists.ItemRepeatSyncTest`, `lists.ItemRepeatCopySyncTest` and `lists.ItemAssigneeSyncTest` do.
+   `pull`, `change`, `fields`, `version`, `memberId`) and `ListOperations`, as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest`, `lists.ItemDueDateSyncTest`, `lists.ItemRepeatSyncTest`, `lists.ItemRepeatCopySyncTest` and `lists.ItemAssigneeSyncTest` do.
 
 ## Testing
 
@@ -678,8 +678,12 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `addMember(jdbc, email, password, name, gender)`.
   - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),
-    `fields(device, table, id)` (as a first pull returns them), `version(result)`, and the two
-    devices most sync tests start from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.
+    `fields(device, table, id)` (as a first pull returns them), `version(result)`,
+    `memberId(device)` (the logged-in Member's id), and the two devices most sync tests start
+    from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.
+  - `ListOperations`: the Lists' operations most `lists.*SyncTest`s push, statically imported:
+    `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`.
+    A helper one test class needs stays in it; one a second class needs moves here.
 - Concurrency (`PullNeverSkipsASlowerWriteTest`, `MemberWritesTakeTheFamilyLockTest`): a raw JDBC
   connection holds a row lock, a request runs on another thread, and the test waits until it is
   blocked (`LockWaits.transactionsWaitingOnALock(jdbc)` reads `pg_stat_activity`,

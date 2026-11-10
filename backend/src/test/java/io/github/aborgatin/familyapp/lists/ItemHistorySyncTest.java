@@ -1,5 +1,8 @@
 package io.github.aborgatin.familyapp.lists;
 
+import static io.github.aborgatin.familyapp.ListOperations.add;
+import static io.github.aborgatin.familyapp.ListOperations.done;
+import static io.github.aborgatin.familyapp.ListOperations.list;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,13 +48,13 @@ class ItemHistorySyncTest {
     anna = SyncRequests.bootstrapAnna(mvc);
     boris = SyncRequests.loginBoris(mvc, jdbc);
     groceries = UUID.randomUUID();
-    SyncRequests.push(anna, ItemsSyncTest.list(groceries, "Супермаркет", "SHARED"))
+    SyncRequests.push(anna, list(groceries, "Супермаркет", "SHOPPING", "SHARED"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
   }
 
   @Test
   void addingAnItemPutsItsNameInTheListsHistoryForEveryoneWhoSeesTheList() throws Exception {
-    SyncRequests.push(boris, ItemsSyncTest.add(UUID.randomUUID(), groceries, "Молоко"))
+    SyncRequests.push(boris, add(UUID.randomUUID(), groceries, "Молоко"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
 
     List<Map<String, Object>> history = history(anna, 0);
@@ -65,7 +68,7 @@ class ItemHistorySyncTest {
   @Test
   void renamingAnItemPutsTheNewNameInTheHistoryAndKeepsTheOldOne() throws Exception {
     UUID milk = UUID.randomUUID();
-    SyncRequests.push(anna, ItemsSyncTest.add(milk, groceries, "Молоко"));
+    SyncRequests.push(anna, add(milk, groceries, "Молоко"));
 
     SyncRequests.push(boris, SyncRequests.upsert("item", milk, "{\"text\":\"Кефир\"}"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
@@ -76,12 +79,12 @@ class ItemHistorySyncTest {
   @Test
   void settingADoneItemOpenAgainUsesItsNameAgain() throws Exception {
     UUID milk = UUID.randomUUID();
-    SyncRequests.push(anna, ItemsSyncTest.add(milk, groceries, "Молоко"));
-    SyncRequests.push(anna, ItemsSyncTest.done(milk, true));
+    SyncRequests.push(anna, add(milk, groceries, "Молоко"));
+    SyncRequests.push(anna, done(milk, true));
     Map<String, Object> before = history(anna, 0).get(0);
     long since = SyncRequests.version(SyncRequests.pull(anna, 0));
 
-    SyncRequests.push(boris, ItemsSyncTest.done(milk, false))
+    SyncRequests.push(boris, done(milk, false))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
 
     List<Map<String, Object>> after = history(anna, since);
@@ -93,12 +96,12 @@ class ItemHistorySyncTest {
   @Test
   void tickingAnItemOrChangingOnlyItsDescriptionLeavesTheHistoryAlone() throws Exception {
     UUID milk = UUID.randomUUID();
-    SyncRequests.push(anna, ItemsSyncTest.add(milk, groceries, "Молоко"));
+    SyncRequests.push(anna, add(milk, groceries, "Молоко"));
     long since = SyncRequests.version(SyncRequests.pull(anna, 0));
 
     SyncRequests.push(
             boris,
-            ItemsSyncTest.done(milk, true),
+            done(milk, true),
             SyncRequests.upsert("item", milk, "{\"description\":\"2,5%\",\"text\":\"Молоко\"}"))
         .andExpect(jsonPath("$.results[*].status", contains("applied", "applied")));
 
@@ -107,10 +110,10 @@ class ItemHistorySyncTest {
 
   @Test
   void oneRowPerNormalisedNameWithTheLatestSpellingAndANewerLastUse() throws Exception {
-    SyncRequests.push(anna, ItemsSyncTest.add(UUID.randomUUID(), groceries, "Молоко"));
+    SyncRequests.push(anna, add(UUID.randomUUID(), groceries, "Молоко"));
     Map<String, Object> first = history(anna, 0).get(0);
 
-    SyncRequests.push(boris, ItemsSyncTest.add(UUID.randomUUID(), groceries, "  молоко "))
+    SyncRequests.push(boris, add(UUID.randomUUID(), groceries, "  молоко "))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
 
     List<Map<String, Object>> history = history(anna, 0);
@@ -123,7 +126,7 @@ class ItemHistorySyncTest {
   @Test
   void deletingTheItemKeepsItsNameInTheHistory() throws Exception {
     UUID milk = UUID.randomUUID();
-    SyncRequests.push(anna, ItemsSyncTest.add(milk, groceries, "Молоко"));
+    SyncRequests.push(anna, add(milk, groceries, "Молоко"));
 
     SyncRequests.push(boris, SyncRequests.delete("item", milk))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
@@ -144,11 +147,11 @@ class ItemHistorySyncTest {
                 "list",
                 wishes,
                 "{\"name\":\"Хотелки\",\"kind\":\"WISH\",\"visibility\":\"SHARED\"}"),
-            ItemsSyncTest.add(vacuum, chores, "Пропылесосить"),
-            ItemsSyncTest.add(UUID.randomUUID(), wishes, "Велосипед"),
+            add(vacuum, chores, "Пропылесосить"),
+            add(UUID.randomUUID(), wishes, "Велосипед"),
             SyncRequests.upsert("item", vacuum, "{\"text\":\"Помыть пол\"}"),
-            ItemsSyncTest.done(vacuum, true),
-            ItemsSyncTest.done(vacuum, false))
+            done(vacuum, true),
+            done(vacuum, false))
         .andExpect(
             jsonPath(
                 "$.results[*].status",
@@ -160,7 +163,7 @@ class ItemHistorySyncTest {
 
   @Test
   void aMemberRemovesANameAndTheOtherMemberPullsItsTombstone() throws Exception {
-    SyncRequests.push(anna, ItemsSyncTest.add(UUID.randomUUID(), groceries, "Малоко"));
+    SyncRequests.push(anna, add(UUID.randomUUID(), groceries, "Малоко"));
     UUID row = historyId(anna, "Малоко");
     long since = SyncRequests.version(SyncRequests.pull(boris, 0));
 
@@ -179,13 +182,13 @@ class ItemHistorySyncTest {
   @Test
   void usingARemovedNameAgainRevivesItsRowForBothMembers() throws Exception {
     UUID milk = UUID.randomUUID();
-    SyncRequests.push(anna, ItemsSyncTest.add(milk, groceries, "Малоко"));
+    SyncRequests.push(anna, add(milk, groceries, "Малоко"));
     UUID row = historyId(anna, "Малоко");
     Map<String, Object> before = history(anna, 0).get(0);
     SyncRequests.push(anna, SyncRequests.delete("item_history", row));
     long since = SyncRequests.version(SyncRequests.pull(boris, 0));
 
-    SyncRequests.push(boris, ItemsSyncTest.add(UUID.randomUUID(), groceries, " малоко "))
+    SyncRequests.push(boris, add(UUID.randomUUID(), groceries, " малоко "))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
 
     for (Browser device : List.of(anna, boris)) {
@@ -204,19 +207,14 @@ class ItemHistorySyncTest {
     UUID milk = UUID.randomUUID();
     UUID bread = UUID.randomUUID();
     SyncRequests.push(
-        anna,
-        ItemsSyncTest.add(milk, groceries, "Малоко"),
-        ItemsSyncTest.add(bread, groceries, "Хлеб"),
-        ItemsSyncTest.done(milk, true));
+        anna, add(milk, groceries, "Малоко"), add(bread, groceries, "Хлеб"), done(milk, true));
     SyncRequests.push(
         anna,
         SyncRequests.delete("item_history", historyId(anna, "Малоко")),
         SyncRequests.delete("item_history", historyId(anna, "Хлеб")));
 
     SyncRequests.push(
-            boris,
-            ItemsSyncTest.done(milk, false),
-            SyncRequests.upsert("item", bread, "{\"text\":\"хлеб\"}"))
+            boris, done(milk, false), SyncRequests.upsert("item", bread, "{\"text\":\"хлеб\"}"))
         .andExpect(jsonPath("$.results[*].status", contains("applied", "applied")));
 
     assertThat(names(history(boris, 0))).containsExactlyInAnyOrder("Малоко", "хлеб");
@@ -224,7 +222,7 @@ class ItemHistorySyncTest {
 
   @Test
   void removingANameTwiceIsIgnored() throws Exception {
-    SyncRequests.push(anna, ItemsSyncTest.add(UUID.randomUUID(), groceries, "Малоко"));
+    SyncRequests.push(anna, add(UUID.randomUUID(), groceries, "Малоко"));
     UUID row = historyId(anna, "Малоко");
     SyncRequests.push(anna, SyncRequests.delete("item_history", row));
 
@@ -240,8 +238,8 @@ class ItemHistorySyncTest {
     UUID secret = UUID.randomUUID();
     SyncRequests.push(
         boris,
-        ItemsSyncTest.list(secret, "Подарки Анне", "PRIVATE"),
-        ItemsSyncTest.add(UUID.randomUUID(), secret, "Серьги"));
+        list(secret, "Подарки Анне", "SHOPPING", "PRIVATE"),
+        add(UUID.randomUUID(), secret, "Серьги"));
     UUID row = historyId(boris, "Серьги");
 
     SyncRequests.push(anna, SyncRequests.delete("item_history", row))
@@ -253,7 +251,7 @@ class ItemHistorySyncTest {
 
   @Test
   void thePushCannotUpsertTheHistory() throws Exception {
-    SyncRequests.push(anna, ItemsSyncTest.add(UUID.randomUUID(), groceries, "Молоко"));
+    SyncRequests.push(anna, add(UUID.randomUUID(), groceries, "Молоко"));
     UUID row = historyId(anna, "Молоко");
 
     SyncRequests.push(
@@ -271,7 +269,7 @@ class ItemHistorySyncTest {
 
   @Test
   void deletingAListDeletesItsHistory() throws Exception {
-    SyncRequests.push(anna, ItemsSyncTest.add(UUID.randomUUID(), groceries, "Молоко"));
+    SyncRequests.push(anna, add(UUID.randomUUID(), groceries, "Молоко"));
     long since = SyncRequests.version(SyncRequests.pull(boris, 0));
 
     SyncRequests.push(anna, SyncRequests.delete("list", groceries))
@@ -289,8 +287,8 @@ class ItemHistorySyncTest {
     UUID gifts = UUID.randomUUID();
     SyncRequests.push(
         anna,
-        ItemsSyncTest.list(gifts, "Подарки", "PRIVATE"),
-        ItemsSyncTest.add(UUID.randomUUID(), gifts, "Конструктор"));
+        list(gifts, "Подарки", "SHOPPING", "PRIVATE"),
+        add(UUID.randomUUID(), gifts, "Конструктор"));
     long hidden = SyncRequests.version(SyncRequests.pull(boris, 0));
     assertThat(history(boris, 0)).isEmpty();
 
@@ -314,8 +312,8 @@ class ItemHistorySyncTest {
 
     SyncRequests.push(
         boris,
-        ItemsSyncTest.list(secret, "Подарки Анне", "PRIVATE"),
-        ItemsSyncTest.add(UUID.randomUUID(), secret, "Серьги"));
+        list(secret, "Подарки Анне", "SHOPPING", "PRIVATE"),
+        add(UUID.randomUUID(), secret, "Серьги"));
 
     assertThat(history(anna, 0)).isEmpty();
     List<Map<String, Object>> changes = history(anna, since);

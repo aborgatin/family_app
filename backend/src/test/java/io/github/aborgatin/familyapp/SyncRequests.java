@@ -75,6 +75,12 @@ public final class SyncRequests {
     return change == null ? null : (Map<String, Object>) change.get("fields");
   }
 
+  /** The id of the Member logged in on the device. */
+  public static String memberId(Browser device) throws Exception {
+    String body = device.openApp().andReturn().getResponse().getContentAsString();
+    return JsonPath.read(body, "$.member.id");
+  }
+
   /** A device on which Anna has just set up a fresh installation (she is its first Member). */
   public static Browser bootstrapAnna(MockMvc mvc) throws Exception {
     Browser anna = new Browser(mvc);

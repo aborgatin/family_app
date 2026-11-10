@@ -1,10 +1,11 @@
 package io.github.aborgatin.familyapp.lists;
 
+import static io.github.aborgatin.familyapp.ListOperations.add;
+import static io.github.aborgatin.familyapp.ListOperations.list;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
-import com.jayway.jsonpath.JsonPath;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
@@ -55,7 +56,7 @@ class ChildListsSyncTest {
     SyncRequests.push(
             anna,
             childList(school, "Школа", "TODO", masha),
-            create(groceries, "Супермаркет", "SHOPPING", "SHARED"))
+            list(groceries, "Супермаркет", "SHOPPING", "SHARED"))
         .andExpect(jsonPath("$.results[*].status", contains("applied", "applied")));
 
     assertThat(SyncRequests.fields(boris, "list", school))
@@ -63,7 +64,7 @@ class ChildListsSyncTest {
         .containsEntry("kind", "TODO")
         .containsEntry("visibility", "SHARED")
         .containsEntry("childId", masha.toString())
-        .containsEntry("ownerId", memberId(anna));
+        .containsEntry("ownerId", SyncRequests.memberId(anna));
     assertThat(SyncRequests.fields(boris, "list", groceries)).containsEntry("childId", null);
   }
 
@@ -71,7 +72,7 @@ class ChildListsSyncTest {
   void aWishListCreatedWithoutAChildIsSharedAndTiedToNobody() throws Exception {
     UUID wishes = UUID.randomUUID();
 
-    SyncRequests.push(anna, create(wishes, "Желания Даши", "WISH", "SHARED"))
+    SyncRequests.push(anna, list(wishes, "Желания Даши", "WISH", "SHARED"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
 
     assertThat(SyncRequests.fields(boris, "list", wishes))
@@ -114,7 +115,7 @@ class ChildListsSyncTest {
     UUID school = UUID.randomUUID();
     UUID chores = UUID.randomUUID();
     SyncRequests.push(
-        anna, childList(school, "Школа", "TODO", masha), create(chores, "Дела", "TODO", "SHARED"));
+        anna, childList(school, "Школа", "TODO", masha), list(chores, "Дела", "TODO", "SHARED"));
 
     SyncRequests.push(
             anna,
@@ -185,7 +186,7 @@ class ChildListsSyncTest {
 
     assertThat(SyncRequests.fields(anna, "list", wishes))
         .containsEntry("name", "Подарки Маше")
-        .containsEntry("ownerId", memberId(boris));
+        .containsEntry("ownerId", SyncRequests.memberId(boris));
 
     SyncRequests.push(boris, SyncRequests.delete("list", wishes))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
@@ -207,13 +208,13 @@ class ChildListsSyncTest {
     SyncRequests.push(
         anna,
         childList(school, "Школа", "TODO", masha),
-        item(homework, school, "Уроки"),
+        add(homework, school, "Уроки"),
         childList(petyasWishes, "Желания Пети", "WISH", petya),
-        item(robot, petyasWishes, "Робот"),
-        create(chores, "Дела", "TODO", "SHARED"),
-        item(dishes, chores, "Посуда"));
+        add(robot, petyasWishes, "Робот"),
+        list(chores, "Дела", "TODO", "SHARED"),
+        add(dishes, chores, "Посуда"));
     SyncRequests.push(
-        boris, childList(wishes, "Желания Маши", "WISH", masha), item(doll, wishes, "Кукла"));
+        boris, childList(wishes, "Желания Маши", "WISH", masha), add(doll, wishes, "Кукла"));
     long since = SyncRequests.version(SyncRequests.pull(boris, 0));
 
     SyncRequests.push(anna, SyncRequests.delete("child", masha))
@@ -241,14 +242,9 @@ class ChildListsSyncTest {
     SyncRequests.push(
             boris,
             SyncRequests.upsert("list", wishes, "{\"name\":\"Подарки\"}"),
-            item(UUID.randomUUID(), wishes, "Мяч"),
+            add(UUID.randomUUID(), wishes, "Мяч"),
             SyncRequests.upsert("item", doll, "{\"text\":\"Большая кукла\"}"))
         .andExpect(jsonPath("$.results[*].status", contains("ignored", "ignored", "ignored")));
-  }
-
-  private static String item(UUID id, UUID listId, String text) {
-    return SyncRequests.upsert(
-        "item", id, "{\"listId\":\"%s\",\"text\":\"%s\"}".formatted(listId, text));
   }
 
   private UUID child(String name) throws Exception {
@@ -272,19 +268,5 @@ class ChildListsSyncTest {
         id,
         "{\"name\":\"%s\",\"kind\":\"%s\",\"visibility\":\"%s\",\"childId\":\"%s\"}"
             .formatted(name, kind, visibility, childId));
-  }
-
-  private static String create(UUID id, String name, String kind, String visibility) {
-    return SyncRequests.upsert(
-        "list",
-        id,
-        "{\"name\":\"%s\",\"kind\":\"%s\",\"visibility\":\"%s\"}"
-            .formatted(name, kind, visibility));
-  }
-
-  private static String memberId(Browser device) throws Exception {
-    return JsonPath.read(
-        device.get("/api/auth/session").andReturn().getResponse().getContentAsString(),
-        "$.member.id");
   }
 }

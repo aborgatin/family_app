@@ -1,10 +1,11 @@
 package io.github.aborgatin.familyapp.lists;
 
+import static io.github.aborgatin.familyapp.ListOperations.add;
+import static io.github.aborgatin.familyapp.ListOperations.list;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
-import com.jayway.jsonpath.JsonPath;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
@@ -42,8 +43,8 @@ class ItemAssigneeSyncTest {
     FreshInstallation.reset(jdbc);
     anna = SyncRequests.bootstrapAnna(mvc);
     boris = SyncRequests.loginBoris(mvc, jdbc);
-    annaId = memberId(anna);
-    borisId = memberId(boris);
+    annaId = SyncRequests.memberId(anna);
+    borisId = SyncRequests.memberId(boris);
     chores = UUID.randomUUID();
     SyncRequests.push(anna, list(chores, "Дела по дому", "TODO", "SHARED"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
@@ -261,29 +262,11 @@ class ItemAssigneeSyncTest {
         .containsEntry("dueDate", null);
   }
 
-  static String list(UUID id, String name, String kind, String visibility) {
-    return SyncRequests.upsert(
-        "list",
-        id,
-        "{\"name\":\"%s\",\"kind\":\"%s\",\"visibility\":\"%s\"}"
-            .formatted(name, kind, visibility));
-  }
-
-  static String add(UUID id, UUID listId, String text) {
-    return SyncRequests.upsert(
-        "item", id, "{\"listId\":\"%s\",\"text\":\"%s\"}".formatted(listId, text));
-  }
-
   /** Sets the Item's Assignee; {@code null} is nobody. */
   static String assign(UUID id, String memberId) {
     return SyncRequests.upsert(
         "item",
         id,
         memberId == null ? "{\"assigneeId\":null}" : "{\"assigneeId\":\"%s\"}".formatted(memberId));
-  }
-
-  private static String memberId(Browser device) throws Exception {
-    String body = device.openApp().andReturn().getResponse().getContentAsString();
-    return JsonPath.read(body, "$.member.id");
   }
 }

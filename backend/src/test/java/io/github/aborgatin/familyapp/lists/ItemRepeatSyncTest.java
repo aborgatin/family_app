@@ -1,5 +1,7 @@
 package io.github.aborgatin.familyapp.lists;
 
+import static io.github.aborgatin.familyapp.ListOperations.add;
+import static io.github.aborgatin.familyapp.ListOperations.list;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -41,7 +43,7 @@ class ItemRepeatSyncTest {
     anna = SyncRequests.bootstrapAnna(mvc);
     boris = SyncRequests.loginBoris(mvc, jdbc);
     chores = UUID.randomUUID();
-    SyncRequests.push(anna, list(chores, "Дела по дому", "TODO"))
+    SyncRequests.push(anna, list(chores, "Дела по дому", "TODO", "SHARED"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
   }
 
@@ -95,8 +97,8 @@ class ItemRepeatSyncTest {
     UUID lego = UUID.randomUUID();
     SyncRequests.push(
         anna,
-        list(groceries, "Супермаркет", "SHOPPING"),
-        list(wishes, "Желания", "WISH"),
+        list(groceries, "Супермаркет", "SHOPPING", "SHARED"),
+        list(wishes, "Желания", "WISH", "SHARED"),
         add(milk, groceries, "Молоко"),
         add(lego, wishes, "Лего"));
 
@@ -233,17 +235,5 @@ class ItemRepeatSyncTest {
         id,
         "{\"listId\":\"%s\",\"text\":\"%s\",\"dueDate\":\"2026-11-15\",\"repeat\":\"%s\"}"
             .formatted(chores, text, repeat));
-  }
-
-  static String list(UUID id, String name, String kind) {
-    return SyncRequests.upsert(
-        "list",
-        id,
-        "{\"name\":\"%s\",\"kind\":\"%s\",\"visibility\":\"SHARED\"}".formatted(name, kind));
-  }
-
-  static String add(UUID id, UUID listId, String text) {
-    return SyncRequests.upsert(
-        "item", id, "{\"listId\":\"%s\",\"text\":\"%s\"}".formatted(listId, text));
   }
 }

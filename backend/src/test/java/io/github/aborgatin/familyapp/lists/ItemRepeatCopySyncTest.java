@@ -1,5 +1,7 @@
 package io.github.aborgatin.familyapp.lists;
 
+import static io.github.aborgatin.familyapp.ListOperations.done;
+import static io.github.aborgatin.familyapp.ListOperations.list;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -52,10 +54,10 @@ class ItemRepeatCopySyncTest {
     FreshInstallation.reset(jdbc);
     anna = SyncRequests.bootstrapAnna(mvc);
     boris = SyncRequests.loginBoris(mvc, jdbc);
-    annaId = memberId(anna);
-    borisId = memberId(boris);
+    annaId = SyncRequests.memberId(anna);
+    borisId = SyncRequests.memberId(boris);
     chores = UUID.randomUUID();
-    SyncRequests.push(anna, list(chores))
+    SyncRequests.push(anna, list(chores, "Дела по дому", "TODO", "SHARED"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
     today = todayWellBeforeMidnight();
   }
@@ -282,19 +284,5 @@ class ItemRepeatCopySyncTest {
         body,
         "$.changes[?(@.table=='item' && @.id!='%s' && @.fields.listId=='%s' && @.fields.text=='%s')]"
             .formatted(original, chores, text));
-  }
-
-  static String done(UUID id, boolean done) {
-    return SyncRequests.upsert("item", id, "{\"done\":%s}".formatted(done));
-  }
-
-  static String list(UUID id) {
-    return SyncRequests.upsert(
-        "list", id, "{\"name\":\"Дела по дому\",\"kind\":\"TODO\",\"visibility\":\"SHARED\"}");
-  }
-
-  private static String memberId(Browser device) throws Exception {
-    String body = device.openApp().andReturn().getResponse().getContentAsString();
-    return JsonPath.read(body, "$.member.id");
   }
 }
