@@ -284,7 +284,7 @@ function OpenItems({
             label={t(texts.newItem)}
             onAdd={onAdd}
             focus={focusAdd}
-            description={t('lists.description')}
+            descriptionLabel={t('lists.description')}
             {...(history !== undefined && {
               suggest: history.namesStarting,
               onRemoveSuggestion: (name: string) => {

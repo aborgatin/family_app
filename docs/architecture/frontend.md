@@ -352,7 +352,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   as the row's `secondary` line (`useAutoSaveText`, named «Описание «Молоко»», placeholder
   «Описание»), deleted from edit
   mode, a swipe or right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая
-  задача» / «Новое желание» (Enter adds and keeps the focus) with `description` «Описание» on
+  задача» / «Новое желание» (Enter adds and keeps the focus) with `descriptionLabel` «Описание» on
   every List kind (#79): its icon or ↓ opens the one-line Description under the name, and Enter
   passes both to the same `add`. Footer: «Товаров пока нет» (by
   kind) with no open Items (a rejected new Item leaves the List; «Не удалось сохранить» shows

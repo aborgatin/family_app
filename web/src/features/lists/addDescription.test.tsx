@@ -99,14 +99,14 @@ describe('Adding an Item with a Description', () => {
     const field = await addField();
     await user.type(field, 'Молоко');
     syncServer.goOffline();
-    await user.click(descriptionButton()!);
+    await user.click(screen.getByRole('button', { name: 'Добавить описание' }));
 
-    const line = descriptionField();
+    const line = screen.getByRole('textbox', { name: 'Описание' });
     expect(line).toHaveFocus();
     expect(line).toHaveAttribute('placeholder', 'Описание');
     expect(descriptionButton()).not.toBeInTheDocument();
 
-    await user.type(line!, 'Безлактозное{Enter}');
+    await user.type(line, 'Безлактозное{Enter}');
 
     expect(
       await within(await items()).findByRole('textbox', { name: 'Товар «Молоко»' }),
@@ -133,7 +133,7 @@ describe('Adding an Item with a Description', () => {
     await user.type(field, 'Хлеб{ArrowDown}');
 
     expect(descriptionField()).toHaveFocus();
-    await user.type(descriptionField()!, '  Бородинский  {ArrowUp}');
+    await user.type(screen.getByRole('textbox', { name: 'Описание' }), '  Бородинский  {ArrowUp}');
     expect(field).toHaveFocus();
     expect(descriptionField()).toHaveValue('  Бородинский  ');
 
@@ -194,7 +194,7 @@ describe('Adding an Item with a Description', () => {
     renderApp(`/lists/${chores.id}`);
     const field = await addField('Новая задача');
     await user.type(field, 'Позвонить врачу');
-    await user.click(descriptionButton()!);
+    await user.click(screen.getByRole('button', { name: 'Добавить описание' }));
     await user.keyboard('После 10:00{Enter}');
 
     await waitFor(() => {

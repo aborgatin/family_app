@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { FIELD_FOCUS } from './fieldFocus';
 import { Icon } from './Icon';
@@ -11,7 +18,7 @@ interface AddRowProps {
   label: string;
   /**
    * Adds an entry with the typed text, trimmed; never called with a blank one. With
-   * `description`, the trimmed text of the «Описание» line comes too (none when blank).
+   * `descriptionLabel`, the trimmed text of the «Описание» line comes too (none when blank).
    */
   onAdd: (text: string, description?: string) => void;
   /** Takes the focus when it appears with this set (e.g. a new Category's field once named). */
@@ -30,7 +37,7 @@ interface AddRowProps {
    * Already translated; with it, the entry can be given a description while added: the line's
    * placeholder and accessible name («Описание»).
    */
-  description?: string;
+  descriptionLabel?: string;
 }
 
 /**
@@ -38,7 +45,7 @@ interface AddRowProps {
  * `label`. Enter adds the text and empties the field, keeping the focus for the next entry;
  * leaving the field with text in it adds it too; Esc empties it. With `suggest`, the suggested
  * names show under the field while it is focused; picking one adds it instead of the typed text.
- * With `description`, an icon button at the end of a field with text (or ↓ in it) opens a grey
+ * With `descriptionLabel`, an icon button at the end of a field with text (or ↓ in it) opens a grey
  * one-line «Описание» field under it and focuses it: ↑ goes back, Enter in either adds both, Esc
  * closes it; suggestions hide while it has the focus.
  */
@@ -48,43 +55,43 @@ export function AddRow({
   focus = false,
   suggest,
   onRemoveSuggestion,
-  description,
+  descriptionLabel,
 }: AddRowProps) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
   // The «Описание» line: `undefined` while closed.
-  const [note, setNote] = useState<string>();
-  const [inNote, setInNote] = useState(false);
+  const [description, setDescription] = useState<string>();
+  const [inDescription, setInDescription] = useState(false);
   // Bumped to move the focus to the line, once it is there.
-  const [noteFocus, setNoteFocus] = useState(0);
+  const [descriptionFocus, setDescriptionFocus] = useState(0);
   const field = useRef<HTMLInputElement>(null);
-  const noteField = useRef<HTMLInputElement>(null);
+  const descriptionField = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (focus) field.current?.focus();
   }, [focus]);
 
   useLayoutEffect(() => {
-    if (noteFocus > 0) noteField.current?.focus();
-  }, [noteFocus]);
+    if (descriptionFocus > 0) descriptionField.current?.focus();
+  }, [descriptionFocus]);
 
   function clear() {
     setText('');
-    setNote(undefined);
+    setDescription(undefined);
   }
 
   function add() {
     const trimmed = text.trim();
     if (trimmed === '') return;
-    const described = note?.trim() ?? '';
+    const described = description?.trim() ?? '';
     onAdd(trimmed, described === '' ? undefined : described);
     clear();
   }
 
-  function openNote() {
-    setNote((open) => open ?? '');
-    setNoteFocus((times) => times + 1);
+  function openDescription() {
+    setDescription((open) => open ?? '');
+    setDescriptionFocus((times) => times + 1);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -94,20 +101,20 @@ export function AddRow({
     } else if (event.key === 'Escape') {
       event.preventDefault();
       clear();
-    } else if (event.key === 'ArrowDown' && description !== undefined && text.trim() !== '') {
+    } else if (event.key === 'ArrowDown' && descriptionLabel !== undefined && text.trim() !== '') {
       event.preventDefault();
-      openNote();
+      openDescription();
     }
   }
 
-  function onNoteKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function onDescriptionKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter') {
       event.preventDefault();
       add();
       field.current?.focus();
     } else if (event.key === 'Escape') {
       event.preventDefault();
-      setNote(undefined);
+      setDescription(undefined);
       field.current?.focus();
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
@@ -124,7 +131,7 @@ export function AddRow({
   }
 
   const names =
-    focused && !inNote && suggest !== undefined && text.trim() !== '' ? suggest(text) : [];
+    focused && !inDescription && suggest !== undefined && text.trim() !== '' ? suggest(text) : [];
 
   return (
     <div
@@ -152,29 +159,29 @@ export function AddRow({
               '-mx-1 my-1 block w-[calc(100%+0.5rem)] min-w-0 flex-1 rounded-md bg-transparent ' +
               'px-1 text-body text-label placeholder:text-secondary-label ' +
               // With the «Описание» line open, the two sit as an Item's title and Description do.
-              (note === undefined ? 'pointer-coarse:min-h-9 ' : 'pointer-coarse:min-h-8 ') +
+              (description === undefined ? 'pointer-coarse:min-h-9 ' : 'pointer-coarse:min-h-8 ') +
               'pointer-fine:min-h-7 ' +
               FIELD_FOCUS
             }
           />
-          {description !== undefined && note !== undefined && (
+          {descriptionLabel !== undefined && description !== undefined && (
             <input
-              ref={noteField}
+              ref={descriptionField}
               type="text"
-              aria-label={description}
-              placeholder={description}
+              aria-label={descriptionLabel}
+              placeholder={descriptionLabel}
               autoComplete="off"
               enterKeyHint="enter"
-              value={note}
+              value={description}
               onChange={(event) => {
-                setNote(event.target.value);
+                setDescription(event.target.value);
               }}
-              onKeyDown={onNoteKeyDown}
+              onKeyDown={onDescriptionKeyDown}
               onFocus={() => {
-                setInNote(true);
+                setInDescription(true);
               }}
               onBlur={() => {
-                setInNote(false);
+                setInDescription(false);
               }}
               className={
                 '-mx-1 -mt-1 mb-2 block w-[calc(100%+0.5rem)] min-w-0 rounded-md bg-transparent ' +
@@ -184,7 +191,7 @@ export function AddRow({
             />
           )}
         </div>
-        {description !== undefined && note === undefined && text !== '' && (
+        {descriptionLabel !== undefined && description === undefined && text !== '' && (
           <button
             type="button"
             aria-label={t('ui.addDescription')}
@@ -194,7 +201,7 @@ export function AddRow({
               // Pressing it with the mouse doesn't take the focus from the field first.
               event.preventDefault();
             }}
-            onClick={openNote}
+            onClick={openDescription}
             className={DESCRIBE}
           >
             <Icon name="description" size={20} />

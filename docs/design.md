@@ -436,7 +436,7 @@ Same on narrow and wide windows.
 and has text, they show right under it as `SuggestionRows`, and picking one adds it (`onAdd`)
 instead of the typed text, empties the field and keeps the focus there. Tab moves from the field
 to the suggestions without adding anything; leaving both adds the typed text as usual.
-`description` (the line's placeholder and name, «Описание») lets the entry get a description
+`descriptionLabel` (the line's placeholder and name, «Описание») lets the entry get a description
 while added, without slowing down «type a name, Enter»: while the field has text, an icon button
 (`description`, a lines glyph, `tertiary-label`, darker on hover; 44px target on touch, 36px with
 a mouse; named «Добавить описание», `ui.addDescription`) sits at the trailing end, on touch and
