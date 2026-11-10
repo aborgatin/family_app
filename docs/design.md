@@ -110,22 +110,29 @@ spacing `n`).
   as saved; spreads `input` onto an `InputRow` / `control` onto a `SegmentedControl`; and passes
   `messages={autoSaveMessages([a.failure, b.failure])}` to the `GroupedSection`. Those footer
   lines are about their rows, announced (`alert`), and carry «Повторить»; rows that failed for
-  the same reason share one line, whose «Повторить» retries them all. No screen writes its own
-  saving state.
+  the same reason share one line, whose «Повторить» retries them all. When each row saves in
+  its own component (an edit-mode list), the section takes `useRowFailures()` → `{messages,
+  report}`, passes `messages` on, and each row calls `useReportFailure(report, name, failure)`
+  for each of its auto-saved fields (cleared when the row goes). No screen writes its own saving
+  state.
 - **Explicit confirm** only for: auth forms (full-width primary button), creating something
   (a «Новый …» sheet with «Отмена» / «Готово», so a half-filled item is never saved), and the
   password screen («Готово» in the nav bar).
 - **Deleting always asks**, with an action sheet («Удалить „Маша“?» / «Удалить» / «Отменить»),
   whether it starts from a swipe, edit mode ⊖, right-click or a «Удалить …» row. A full swipe only
-  reveals «Удалить».
+  reveals «Удалить». The one exception: the × on a suggestion (`SuggestionRows`) removes the name
+  from the Item history at once, since the name comes back as soon as it is used again (#78).
 
 ## Components
 
 All in `web/src/shared/ui`, exported from its `index.ts` (except `OfflineIndicator`,
-`Spinner` and `RowContextMenu`, which only other components place). Feature code uses nothing
+`Spinner`, `RowContextMenu` and `SuggestionRows`, which only other components place). Text fields
+share their focus sign (`FIELD_FOCUS`), and rows their hairline (`ROW_SEPARATOR`, part of
+`ROW_FRAME`). Feature code uses nothing
 else to draw: no raw `button` / `input` / `select` / `textarea` / `form` / `a`, no `className` or
 `style`, no UI library (CODING_STANDARDS U1, enforced by lint). The auto-save hooks
-`useAutoSaveText()`, `useAutoSaveChoice()` and `autoSaveMessages()` are described under
+`useAutoSaveText()`, `useAutoSaveChoice()`, `autoSaveMessages()`, `useRowFailures()` and
+`useReportFailure()` are described under
 [Saving and deleting](#saving-and-deleting).
 
 Two more hooks keep screens from writing the same state twice:
@@ -177,8 +184,8 @@ navigating.
 ### Icon
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
-`check` (the chosen colour), `chevron`, `clear` (a circled ×), `home`, `minus` (edit mode's ⊖),
-`offline` (crossed globe), `reorder` (≡, a drag handle), `settings`, `spinner`; a new icon is added to the
+`check` (the chosen colour), `chevron`, `clear` (a circled ×), `description` (left-aligned lines, `AddRow`'s «Добавить описание»), `home`, `minus` (edit mode's ⊖),
+`expand` (a small ⌄ on a `MenuChip`), `offline` (crossed globe), `reorder` (≡, a drag handle), `settings`, `spinner`; a new icon is added to the
 map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
 colour; default size 22px.
 
@@ -250,11 +257,24 @@ row's error an `alert` too (a save that failed after the field was left), and a 
 screen, «Ссылка скопирована» for a few seconds); `action` adds a small
 text `Button` after the line («Повторить»). A `header` also names the section (a region).
 
+**Untitled group**: with no `header`, the group is just the gap above its cell (the Unnamed
+category on a Shopping list); `label` names it for assistive technology only, so it is still a
+region («Без категории»). **Header being typed**: `headerField` (`{label, value, onChange,
+onCommit, onCancel}`) puts a text field in the header's place and look, focused when it appears,
+with `label` as its placeholder and the group's name: for a group the Member has just asked for
+(a new Category, «Название категории»). Enter or leaving it commits, Esc cancels; the screen
+decides what an empty one means.
+
 With `edit` (`{editing, onEditingChange}`) the group is an **edit-mode list**: «Изменить» /
 «Готово» (a small `Button`) at the right of the header turns edit mode on and off, the cell is a
 `list` named by the header, and its rows are `EditableRow`s. Leave edit mode when the last row
 goes. Same on every device; on touch it is how you delete besides swiping, with a fine pointer
-besides right-click, and with the keyboard the only way.
+besides right-click, and with the keyboard the only way. An untitled group can be an edit-mode
+list too: «Изменить» then sits alone at the right, where the header would be, and the `list` is
+named by `label` (the Unnamed category's Items).
+`action` (`{label, onClick}`) puts one more small text `Button` at the right of the header,
+before «Изменить»: «Очистить» on a Shopping list's «Куплено», which asks with an `ActionSheet`
+first.
 `after` puts rows on the same cell after the list but outside it (an accent «Добавить …» row):
 they stay when the list is empty, and the «Изменить» button is left out then (pass no `edit`).
 
@@ -365,14 +385,37 @@ screen, chevron; not in edit mode), `confirm` (`{title, message}` of the action 
 - **Touch**: `SwipeToDelete` (below).
 - **Fine pointer**: `RowContextMenu` with «Удалить» (below).
 
+Without `confirm` and `onDelete` the row can't be deleted: no ⊖ (its place stays empty, so the
+title lines up with the other rows), no swipe and no right-click menu; in a `SortableList` it can
+still be dragged. The Unnamed category's «Без категории» row on «Категории» is one (`muted`).
+
 `input` renames in place: out of edit mode the title is a text field (spread `input` of
 `useAutoSaveText()` and add a translated `label`, its accessible name, e.g. «Название поля
 «Вес»»), auto-saved like an `InputRow`: blur or Enter saves, Esc puts the saved text back, `busy`
 shows the spinner, and its `name` links it to the footer messages. It looks like the title; with
 a fine pointer the focused field gets the accent outline. In edit mode the row shows `title`.
 
-Children use it for delete only (`to` their screen), Child fields with `input` and `sortable`,
-Items with `input` and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
+`secondary` (with `input`) adds a grey secondary line under the title, in `subhead`
+`secondary-label` (an Item's Description). While the row is being edited (the focus is anywhere
+in it) it is a multi-line text field that grows with its text, with a `placeholder` («Описание»)
+in `tertiary-label`: Enter starts a new line, blur saves, Esc puts the saved text back. Out of it a
+non-empty value is one line cut with «…», its http(s) addresses links in `accent` that open in a
+new tab; tapping the line beside them starts editing with the full text and the caret at the end.
+Leaving the row with it empty hides it. Spread `useAutoSaveText()`'s `input` and add `label` and
+`placeholder`; its `name` must differ from the title's, so a footer line about a failed save is
+tied to the field that failed.
+
+`chip` (with `secondary`) adds a `MenuChip` under the secondary line while the row is being edited
+(an Item's Category); the row stays edited while the chip's menu is open, and the focus goes back
+to the chip when it closes.
+
+`highlighted` points the row out (an open Item added again by name): while set the row is
+scrolled into view (nearest edge, smooth) and covered by a 15% `accent` tint above its swipe
+layer (`data-highlighted`); unset, the tint fades out over 0.7 s. The caller unsets it after a moment (1.5 s for Items).
+
+Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
+`sortable`, Items with `input`, `secondary` (the Description), on a Shopping list with named Categories a
+`chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
 Invites plain.
 
 `muted` (on `ListRow` and `EditableRow`) shows the title in `secondary-label`: something set
@@ -385,8 +428,38 @@ empty text field showing `label` as its placeholder (secondary colour), which is
 accessible name. Enter calls `onAdd(text)` with the trimmed text and empties the field, keeping
 the focus for the next entry; leaving the field with text in it adds it too; blank text adds
 nothing; Esc empties the field. Goes in a `GroupedSection`'s `after`, under an edit-mode list.
+`focus` makes it take the focus when it appears (a new Category's field, once its title is
+typed).
 Touch: 44px row, the caret is the focus sign; fine pointer: 36px row, accent outline when focused.
 Same on narrow and wide windows.
+`suggest(typed)` gives names to suggest for the text typed so far: while the field is focused
+and has text, they show right under it as `SuggestionRows`, and picking one adds it (`onAdd`)
+instead of the typed text, empties the field and keeps the focus there. Tab moves from the field
+to the suggestions without adding anything; leaving both adds the typed text as usual.
+`descriptionLabel` (the line's placeholder and name, «Описание») lets the entry get a description
+while added, without slowing down «type a name, Enter»: while the field has text, an icon button
+(`description`, a lines glyph, `tertiary-label`, darker on hover; 44px target on touch, 36px with
+a mouse; named «Добавить описание», `ui.addDescription`) sits at the trailing end, on touch and
+mouse alike — an icon, not a word, because the phone field is narrow. Tapping it, or ↓ in the
+field, opens a grey one-line field under the name in the same row (`subhead`, `secondary-label`,
+placeholder `tertiary-label`) and moves the focus there; the icon hides while it is open. ↑ (or
+Shift+Tab) goes back to the name. Enter in either field calls `onAdd(text, description)` (the
+description trimmed, absent when blank), empties both, closes the line and focuses the name; Esc
+in the line closes it, discarding its text, and returns to the name; Esc in the name empties
+both. The icon is out of the Tab order, so Tab still goes from the field to the suggestions; the
+suggestions hide while the line has the focus, and picking one adds just the name.
+
+### SuggestionRows
+
+Up to 5 plain rows directly under the focused `AddRow` (it places them; a List's autocomplete
+from the Item history): each a name in `label`, a hairline above every row as in any group.
+Tapping or clicking a row picks it; pressing it with the mouse doesn't take the focus from the
+field. With `onRemove` (`AddRow` `onRemoveSuggestion`), each row ends with a × (`clear` icon,
+`tertiary-label`, darker on hover; 44px target on touch, 36px with a mouse) named «Удалить
+подсказку „Малоко“» (`ui.removeSuggestion`): it removes the name at once, with no action sheet,
+and the field keeps its text and the focus, so the other suggestions update in place. A group named «Подсказки» (`ui.suggestions`); each row is a button named by its name, so
+Tab reaches them after the field, Enter or Space picks. Touch: 44px rows; fine pointer: 36px,
+hover tint. Same on narrow and wide windows.
 
 ### DoneToggle
 
@@ -425,6 +498,17 @@ deleting is a separate tap, which then asks. Swiping right, tapping the row or t
 else closes it; edit mode closes it too. A vertical move scrolls the page as usual. Touch only
 (`pointerType === 'touch'`): mouse and pen never move the row. Not reachable by keyboard (edit
 mode is).
+
+### MenuChip
+
+A small pill in `fill` with `footnote` text and a ⌄ (`expand`) that opens a menu of choices, the
+current one ticked (✓): the Category chip under a shopping Item being edited (`EditableRow`'s
+`chip`, ticket #73), «Еда ⌄», named «Категория: Еда» (`accessibleLabel`). The menu opens under
+the chip, aligned to its left edge, in `cell` with a hairline border, rows in `body`; a `muted`
+choice is `secondary-label` («Без категории»), the highlighted one `accent` with white text.
+Picking calls the choice's `onSelect`. Tap, click, Enter or Space opens it; arrows move, Enter
+picks, Esc closes and the focus goes back to the chip. Touch: 28px chip, 44px menu rows; fine
+pointer: compact rows. Built on Radix DropdownMenu (non-modal, a radio group).
 
 ### RowContextMenu
 

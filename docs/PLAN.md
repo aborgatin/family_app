@@ -54,7 +54,6 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 - Google Calendar integration — purpose TBD.
 - Documents vault — first evaluate ready solutions (Paperless-ngx for scanned documents, Vaultwarden for secrets); drop from backlog if one fits.
 - Move an Item to another List.
-- Delete a single suggestion (a mistyped name) from Item history.
 - Migrate the net-worth tracker from Google Sheets into the app.
 - Native SwiftUI app (iPhone + Mac) on the same API, if PWA limitations become annoying.
 
@@ -144,8 +143,8 @@ Secrets only in the server's `.env`, never in git.
 - [ ] Ordered Categories per Shopping list, the Unnamed category, an add field per Category, the «Категории» screen.
 - [ ] Description on Items of every kind, written inline under the name.
 - [ ] Bought section + Clear.
-- [ ] Autocomplete from `ItemHistory` (names only).
-- [ ] Default Shopping lists, created at first-Member registration (that Member is Owner, Visibility Shared): Супермаркет («Еда» → «Бытовая химия») and Аптека ([ADR-0005](adr/0005-configuration-vs-code.md)).
+- [ ] Autocomplete from `ItemHistory` (names only); a name can be removed from it (#78).
+- [ ] Default Shopping lists, created at first-Member registration, not by a migration, since a List needs an Owner (that Member is Owner, Visibility Shared; no backfill for existing installations): Супермаркет («Еда» → «Бытовая химия») and Аптека ([ADR-0005](adr/0005-configuration-vs-code.md)).
 
 **M4 — Todos & children**
 - [ ] Private/shared todo lists, due dates, assignee, repeat rules.

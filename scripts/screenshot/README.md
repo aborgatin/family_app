@@ -32,8 +32,14 @@ Ctrl-C). Then it seeds through the real API:
 - Children **Маша** (coral, born 2019-04-12), **Петя** (blue, no birthday), **Соня** (green,
   2022-09-01). Child fields: the Defaults (Вес, Рост) plus «Размер обуви» (text) and «Последний
   визит к врачу» (date).
-- Lists: Анна's «Супермаркет» (Покупки, three open Items and two Done), «Аптека» (Покупки),
-  «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open and one Done), «Подарки»
+- Lists: Анна's «Супермаркет» (Покупки, three open Items, «Хлеб бородинский» with a Description
+  ending in a link, and two Done), «Аптека» (Покупки) — both the Default Shopping lists the
+  bootstrap created, filled by the seed, with Супермаркет's Default Categories deleted so it stays
+  a list without Categories — «Гипермаркет» (Покупки with Categories
+  «Еда» (two open, «Молоко» with a Description, one Done), «Бытовая химия» (empty), then the
+  Unnamed category with one Item; three more Items added and cleared, so its Item history has
+  names no Item shows),
+  «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open, one with a Description, and one Done), «Подарки»
   (Желания, one open and one Done), «Книги» (Желания); Борис's «Гараж» (TODO) and his
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.
 - One active Invite.
@@ -48,7 +54,9 @@ or update its route there, so the next change shoots it too. A route has:
 
 - `name`, `path`. In the path, `{inviteToken}` is the active Invite's token and `{resetToken}` a
   password reset token made with the backend's `reset-password` command.
-- `auth`: `member` (default), `loggedOut`, or `fresh` (before anything is seeded, for `/setup`).
+- `auth`: `member` (default), `loggedOut`, or `fresh` (before anything is seeded, for `/setup`;
+  with `isolate: true` each variant starts from an empty database, so its steps may register the
+  first Member, as `home-defaults` does).
 - `isolate: true` for a route that changes data (creates, deletes, saves): each of its variants
   starts from a freshly seeded database, so the four shots match and later routes see the seed.
 - `offline`: `start` (API requests fail from the first one) or `afterLoad` (the page loads, then

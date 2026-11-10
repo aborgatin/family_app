@@ -92,7 +92,7 @@ Removing all Done items from a Shopping list's Bought section at once.
 _Avoid_: Reset, archive, empty
 
 **Item history** — —:
-The item names remembered per Shopping list, kept after their Items are cleared; the source of autocomplete. It remembers names only: no Category, no Description.
+The item names remembered per Shopping list, kept after their Items are cleared; the source of autocomplete. It remembers names only: no Category, no Description. Any Member who sees the list can remove a name from it (a typo); the name comes back the next time it is used.
 _Avoid_: Catalog, product database, dictionary, suggestions
 
 ## Todos

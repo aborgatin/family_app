@@ -18,8 +18,10 @@ table adds it here.
 | `member`      | `V1__family_member_session.sql` | server, at registration (`Member` constructor) | M1    |
 | `child`       | `V3__child.sql`                 | client (`crypto.randomUUID()`)                 | M1    |
 | `child_field` | `V4__child_field.sql`           | client; Default rows by the migration          | M1    |
-| `list`        | `V5__list.sql`                  | client (`crypto.randomUUID()`)                 | M2    |
+| `list`        | `V5__list.sql`                  | client; Defaults by the server at bootstrap    | M2    |
 | `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7) | M2    |
+| `category`    | `V8__category.sql`              | client; Defaults by the server at bootstrap    | M3    |
+| `item_history` | `V9__item_history.sql`         | server, when an Item is written (push: delete) | M3    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -40,7 +42,8 @@ shown), `invite`, `password_reset`, `spring_session`, `spring_session_attributes
   calling `bump_version()`. No code path can write a row without a new Version, and Java never
   sets these columns: entities map them with `@Generated(event = {INSERT, UPDATE})`,
   `insertable = false, updatable = false`, and Hibernate reads them back after each write.
-- Default rows (the two Child fields in `V4`) get Versions from the trigger too.
+- Default rows (the two Child fields in `V4`; the Default Shopping lists and their Categories,
+  written at the first Member's registration) get Versions from the trigger too.
 - Tested: `everyWriteGetsAHigherVersion…` in `ChildrenSyncTest`.
 
 **Soft deletes.** Removing a row sets `deleted = true` (an UPDATE, so the Version advances). The
@@ -48,7 +51,7 @@ repositories extend Spring Data's bare `Repository` and declare no delete method
 deletes a Member yet; `member.deleted` exists, and login, session and `MemberService` lookups
 ignore deleted Members. Email uniqueness counts deleted Members too.
 
-**Client UUIDs** (S3). Children, Child fields, Lists and Items are created with the id the client
+**Client UUIDs** (S3). Children, Child fields, Lists, Items and Categories are created with the id the client
 chose; the server never generates one for them. Item ids are UUID version 7 (the first 48 bits are
 the time), so Items added on one device and not yet pulled back keep the order they were added in. Members get theirs from the server at registration.
 
@@ -56,6 +59,9 @@ the time), so Items added on one device and not yet pulled back keep the order t
 only the moved field's `position` (midpoint between its new neighbours, computed by the client in
 `positionAfterMove`), so a reorder is a single-record change. The client sorts by position, ties
 by id (`useChildFields`); the pull sends rows in Version order. Children have no manual order (birthday, then name, then id).
+`category.position` works the same way; the Unnamed category is not a row, and its place is the
+List's `unnamedCategoryPosition` (0 for a new List), ordered with the Categories' positions (on a
+tie it comes first). A new Category goes one past the largest of them (`useCategories`).
 
 ## Push: the only write path
 
@@ -79,25 +85,53 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   carrying another one is rejected with `child_field.value_type_immutable`.
 - Codes of the push itself: `sync.table_unknown` (`params.table`), `sync.read_only` (a pull-only
   table such as `member`), `request.invalid` (no valid id or `op`).
-- **Lists** (`list`, tickets #55, #56): an upsert carries `name`, `kind` (`SHOPPING` / `TODO` / `WISH`)
-  and `visibility` (`PRIVATE` / `SHARED`); the pull also sends the server-set `ownerId` (the
+- **Lists** (`list`, tickets #55, #56): an upsert carries `name`, `kind` (`SHOPPING` / `TODO` / `WISH`),
+  `visibility` (`PRIVATE` / `SHARED`) and `unnamedCategoryPosition` (a number, optional on create:
+  0; `null` is `required`; #70); the pull also sends the server-set `ownerId` (the
   Member who pushed the create) and `createdAt`. Rules: `list.kind_immutable` (kind changed),
   `list.wish_shared_only` (a Private Wish list, on create or later), `list.owner_only` (a Member
   other than the Owner changing `visibility` or deleting the List; either Member may rename a
   Shared List),
   `list.not_found` (any operation on another Member's Private List), and the Child name limits on
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
-  is `ignored` (delete wins). Deleting a List soft-deletes its Items in the same operation.
-- **Items** (`item`, tickets #57, #58): an upsert carries `listId` (create only; a later upsert
+  is `ignored` (delete wins). Deleting a List soft-deletes its Items, Categories and Item history
+  in the same operation.
+- **Items** (`item`, tickets #57, #58, #69, #70): an upsert carries `listId` (create only; a later upsert
   naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
-  points after trim), `note` (optional, ≤ 10000, no UI yet) and `done` (`true` / `false`; another
+  points after trim), `description` (the Description: optional, ≤ 10000 code points, over is
+  `too_long`; blank is stored as none, `null`), `categoryId` (optional; `null` is the Unnamed
+  category) and `done` (`true` / `false`; another
   type is `value.invalid`, `null` is `required`); the pull also sends the server-set `doneById`,
   `doneAt`, `creatorId` (the Member who pushed the create) and `createdAt`. When `done` turns
   true the server sets `doneById` to the pushing Member and `doneAt` to now; when it turns false
   it clears both; setting it to its current value changes nothing, not even the Version (S3).
   Done on one device and a text edit on the other are both kept (different fields). Rules: an Item of another Member's Private List, or in an unknown List, is
   `list.not_found` (`params.listId`) for every operation; creating an Item in a deleted List, and
-  anything on a deleted Item, is `ignored` (delete wins).
+  anything on a deleted Item, is `ignored` (delete wins). A `categoryId` must name a Category of
+  the Item's own List, which must be a Shopping list, else `item.category_not_found`
+  (`params.categoryId`); one deleted meanwhile is stored as `null` (the Item is kept, in the
+  Unnamed category).
+- **Item history** (`item_history`, tickets #74, #78): the server writes it; the push may only
+  delete a row (a Member removing a mistyped name), and every upsert is `sync.read_only`. Rules
+  of the delete: a row of another Member's Private List is `list.not_found`; deleting a deleted or
+  unknown row is `ignored`. The server keeps it inside the Item operation, for Shopping lists only:
+  one row per List and name trimmed and lower-cased, upserted (latest spelling, `lastUsedAt` now)
+  when an Item is created, when its `text` changes, and when it goes from Done back to open. A
+  removed (soft-deleted) row is **revived** by that upsert (not deleted, new Version) rather than
+  a second row inserted: the one place where a later use beats an earlier delete, so a removed name
+  comes back the next time anyone uses it. Deleting Items never removes it; deleting the List
+  does. The pull sends `listId`, `name`, `lastUsedAt`.
+- **Categories** (`category`, ticket #70): an upsert carries `listId` (create only; another one
+  later is `validation.failed`, `listId` `value.invalid`), `name` (1–100 code points after trim,
+  duplicates allowed) and `position` (a number). Rules: `category.list_not_shopping`
+  (`params.listId`) for a List not of kind `SHOPPING`; `list.not_found` for a Category of another
+  Member's Private List, or in an unknown one, for every operation; creating one in a deleted
+  List, and anything on a deleted Category, is `ignored`. Any Member who sees the List may write
+  its Categories. Deleting one soft-deletes it and sets `categoryId` to `null` on all its Items,
+  Done ones included, in the same transaction (#72): the Items get new Versions, so devices pull
+  them in the Unnamed category (until then the client shows them there anyway). A move sends only
+  the moved Category's `position`, or only the List's `unnamedCategoryPosition`, so two devices
+  moving different Categories are both kept.
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
   reach other devices through the pull.
 
@@ -120,10 +154,11 @@ by id (`useChildFields`); the pull sends rows in Version order. Children have no
   fields. Operations on it are rejected with `list.not_found`, as if it
   didn't exist.
 - **Visibility change.** Changing a List's Visibility gives all its Items a new Version (an UPDATE
-  that changes nothing; the trigger still runs), so the next pull sends them again: with their
-  fields to a Member who may now see the List (a List shared later arrives with its Items), as
-  tombstones to one who no longer may. An Item is sent with its fields only when its List is
-  visible to the Member.
+  that changes nothing; the trigger still runs), and its Categories and Item history too, so the
+  next pull sends them again: with their fields to a Member who may now see the List (a List
+  shared later arrives with its Items, Categories and history), as tombstones to one who no longer
+  may. An Item, a Category or a history row is sent with its fields only when its List is visible
+  to the Member.
 
 ## Versions commit in order
 
@@ -177,7 +212,7 @@ auth.required` without one) tells open apps when to pull:
 ## Client
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
-  table (`member`, `child`, `child_field`, `list`, `item`), the Outbox (`++seq`) and the stored
+  table (`member`, `child`, `child_field`, `list`, `item`, `category`), the Outbox (`++seq`) and the stored
   Version. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives
   store upgrades.
@@ -208,8 +243,10 @@ auth.required` without one) tells open apps when to pull:
   back with only the pending fields.
 - **Gone rows take their dependents**: a row removed locally because it is gone on the server (a
   tombstone, or `ignored` below) takes the rows that belong to it, declared with the tables in
-  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items. So a tombstoned List (deleted, or made
-  Private by its Owner) takes its local Items, and the engine names no table.
+  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history. So a tombstoned List
+  (deleted, or made Private by its Owner) takes its local Items, Categories and Item history, and the engine
+  names no table. A Category is not a parent: its tombstone leaves its Items, which then show in
+  the Unnamed category.
 - **Ignored operation** (delete wins): dropped from the Outbox, and the local row is removed with
   its dependents: the record is deleted on the server, and a pull may not send its tombstone
   again (it was already pulled, or a full pull left it out).
@@ -217,7 +254,8 @@ auth.required` without one) tells open apps when to pull:
   wherever the Member is by then (`useSaveRejection`, a `Toast` placed by the app), with the
   reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
   `list.kind_immutable`, `list.wish_shared_only`, `child_field.value_type_immutable`,
-  `sync.read_only`; anything else plain), until closed or the Member's next change; and the next
+  `sync.read_only`; anything else plain, including `category.list_not_shopping` and
+  `item.category_not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.
 - **Owner and logout**: the store records the Member whose data it holds. At login (and at start
@@ -241,4 +279,9 @@ auth.required` without one) tells open apps when to pull:
 - Children, Child fields, Lists and Items are on the store, and live updates (`changed` → pull)
   run. The List screen has its open Items (add, edit in place, delete; #57), Done and its Done
   group (#58) and List settings (rename, Visibility, delete; #56); Home shows each List's open
-  Items count (#58).
+  Items count (#58). Categories are on the store, and a Shopping list shows its open Items by
+  Category, with «Новая категория» (#70); a Shopping list's «Категории» screen adds, renames,
+  reorders and deletes them (#72). Item history is on the store, and a Shopping list's add fields
+  suggest names from it (#74); the × on a suggestion removes the name, offline too (#78). Adding a name a Shopping list already has never makes a duplicate:
+  an open Item is highlighted (preferred to a Done one), else the most recently created Done one
+  is set open in that field's Category, offline too (#75).

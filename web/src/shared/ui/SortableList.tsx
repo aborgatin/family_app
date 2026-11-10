@@ -17,14 +17,14 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useState, type CSSProperties, type ReactNode, type Ref } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEditing } from './GroupedSection';
 import { Icon } from './Icon';
 
 /** What a `SortableList` gives each row: pass it to the `EditableRow` as `sortable`. */
 export interface SortableRow {
-  ref: Ref<HTMLDivElement>;
+  ref: (element: HTMLDivElement | null) => void;
   style: CSSProperties;
   /** The drag handle, shown at the right of the row in edit mode. */
   handle: ReactNode;

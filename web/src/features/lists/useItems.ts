@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { deleteRow, upsertRow, useRows } from '@/shared/sync';
-import type { Item } from './listTypes';
+import type { Item, List } from './listTypes';
+import { compare, normalizedName, sortableTime } from './itemKeys';
 
 /**
  * One List's open and Done Items and the ways to change them: the only data access for Items. It reads the
@@ -8,7 +9,8 @@ import type { Item } from './listTypes';
  * `undefined` until the first local read. `saveFailure` is «Не удалось сохранить» after the server
  * rejected a change; the next pull has already put the server's copy back.
  */
-export function useItems(listId: string) {
+export function useItems(list: Pick<List, 'id' | 'kind'>) {
+  const { id: listId, kind } = list;
   const rows = useRows('item') as Item[] | undefined;
 
   const items = useMemo(
@@ -20,18 +22,61 @@ export function useItems(listId: string) {
     [rows, listId],
   );
 
-  /** Adds an Item with this text at the bottom. */
+  /**
+   * Adds an Item with this text, and this Description if given (non-blank), into this Category
+   * (none: the Unnamed category), at the bottom, in one upsert.
+   * A Shopping list never gets a second Item with a name it already has (trimmed, lower-cased): an
+   * open one is left as it is and resolves, to be shown; with none open, the most recently created
+   * Done one is set open in this Category, sending only `done` and `categoryId`, and the
+   * Description if one is given.
+   */
   const add = useCallback(
-    async (text: string): Promise<void> => {
-      await upsertRow('item', newItemId(), { listId, text });
+    async (text: string, categoryId?: string, description?: string): Promise<Item | undefined> => {
+      const match = kind === 'SHOPPING' ? sameNamed(rows ?? [], listId, text) : undefined;
+      if (match !== undefined && !match.done) return match;
+      if (match !== undefined) {
+        await upsertRow(
+          'item',
+          match.id,
+          {
+            done: false,
+            categoryId: categoryId ?? null,
+            ...(description !== undefined && { description }),
+          },
+          { doneById: null, doneAt: null },
+        );
+        return undefined;
+      }
+      await upsertRow('item', newItemId(), {
+        listId,
+        text,
+        ...(categoryId !== undefined && { categoryId }),
+        ...(description !== undefined && { description }),
+      });
+      return undefined;
     },
-    [listId],
+    [rows, listId, kind],
   );
 
   /** Changes the Item's text, sending only the text; resolves with it as saved. */
   const rename = useCallback(async (item: Item, text: string): Promise<string> => {
     await upsertRow('item', item.id, { text });
     return text;
+  }, []);
+
+  /**
+   * Changes the Item's Description, sending only it: a blank one as `null` (none). Resolves with
+   * it as saved (`''` for none).
+   */
+  const describe = useCallback(async (item: Item, description: string): Promise<string> => {
+    const saved = description.trim() === '' ? null : description;
+    await upsertRow('item', item.id, { description: saved });
+    return saved ?? '';
+  }, []);
+
+  /** Moves the Item to this Category (`null`: the Unnamed category), sending only `categoryId`. */
+  const move = useCallback(async (item: Item, categoryId: string | null): Promise<void> => {
+    await upsertRow('item', item.id, { categoryId });
   }, []);
 
   /**
@@ -58,6 +103,8 @@ export function useItems(listId: string) {
     doneItems,
     add,
     rename,
+    describe,
+    move,
     setDone,
     remove,
   };
@@ -111,6 +158,22 @@ function doneInOrder(rows: Item[], listId: string): Item[] {
     );
 }
 
+/**
+ * The List's Item named `text` (both trimmed and lower-cased) to add again: an open one if there
+ * is one, else the most recently created Done one (one not pulled back yet is newer than every
+ * pulled one).
+ */
+function sameNamed(rows: Item[], listId: string, text: string): Item | undefined {
+  const name = normalizedName(text);
+  const named = rows
+    .filter((item) => item.listId === listId && normalizedName(item.text) === name)
+    .sort(
+      (a, b) =>
+        compare(sortableTime(b.createdAt), sortableTime(a.createdAt)) || compare(b.id, a.id),
+    );
+  return named.find((item) => !item.done) ?? named[0];
+}
+
 let lastTickTime = 0;
 
 /** Now in ms, at least a millisecond after the last tick, so two quick ticks keep their order. */
@@ -122,24 +185,6 @@ function tickTime(): number {
 /** When this device ticked the Item off (ms); 0 once the server's copy with done at is here. */
 function doneHere(item: Item): number {
   return item.doneAt == null ? (item.doneHereAt ?? 0) : 0;
-}
-
-/**
- * An ISO-8601 UTC time that sorts as text: the server prints 0, 3, 6 or 9 fraction digits
- * (`…:00Z`, `…:00.123Z`, `…:00.123456Z`), so the fraction is padded to 9.
- */
-function sortableTime(time: string | undefined): string | undefined {
-  if (time === undefined) return undefined;
-  const [, seconds = time, fraction = ''] = /^(.*?)(?:\.(\d+))?Z$/.exec(time) ?? [];
-  return `${seconds}.${fraction.padEnd(9, '0')}Z`;
-}
-
-/** Ascending; a missing value after every present one. */
-function compare(a: string | undefined, b: string | undefined): number {
-  if (a === b) return 0;
-  if (a === undefined) return 1;
-  if (b === undefined) return -1;
-  return a < b ? -1 : 1;
 }
 
 let lastIdTime = 0;

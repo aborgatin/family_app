@@ -1,5 +1,6 @@
 import {
   Check,
+  ChevronDown,
   ChevronLeft,
   CircleX,
   ChevronRight,
@@ -9,6 +10,7 @@ import {
   Menu,
   Minus,
   Settings,
+  TextAlignStart,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -21,6 +23,8 @@ const ICONS = {
   check: Check,
   chevron: ChevronRight,
   clear: CircleX,
+  description: TextAlignStart,
+  expand: ChevronDown,
   home: House,
   minus: Minus,
   offline: GlobeOff,

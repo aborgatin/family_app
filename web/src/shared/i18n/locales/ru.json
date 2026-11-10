@@ -61,6 +61,8 @@
       "todo": "Задача «{{text}}»",
       "wish": "Желание «{{text}}»"
     },
+    "description": "Описание",
+    "itemDescription": "Описание «{{text}}»",
     "newItem": {
       "shopping": "Новый товар",
       "todo": "Новая задача",
@@ -77,10 +79,26 @@
       "wish": "Исполнено «{{text}}»"
     },
     "confirmDeleteItem": "Удалить „{{text}}“?",
+    "clearBought": "Очистить",
+    "confirmClearBought_one": "Очистить {{count}} товар?",
+    "confirmClearBought_few": "Очистить {{count}} товара?",
+    "confirmClearBought_many": "Очистить {{count}} товаров?",
+    "confirmClearBought_other": "Очистить {{count}} товара?",
     "notFound": "Такого списка нет: возможно, его удалили.",
     "settings": "Настройки списка",
     "delete": "Удалить список",
-    "confirmDelete": "Удалить „{{name}}“ со всем содержимым?"
+    "confirmDelete": "Удалить „{{name}}“ со всем содержимым?",
+    "unnamedCategory": "Без категории",
+    "newCategory": "Новая категория",
+    "categoryName": "Название категории",
+    "itemCategory": "Категория: {{name}}",
+    "categories": "Категории",
+    "categoryNamed": "Категория „{{name}}“",
+    "confirmDeleteCategory": "Удалить „{{name}}“?",
+    "categoryItemsStay_one": "{{count}} товар останется в списке без категории",
+    "categoryItemsStay_few": "{{count}} товара останутся в списке без категории",
+    "categoryItemsStay_many": "{{count}} товаров останутся в списке без категории",
+    "categoryItemsStay_other": "{{count}} товара останутся в списке без категории"
   },
   "setup": {
     "title": "Регистрация первого взрослого",
@@ -263,6 +281,9 @@
       "moved": "«{{title}}» на месте {{position}} из {{count}}.",
       "dropped": "«{{title}}» поставлена на место {{position}} из {{count}}.",
       "cancelled": "Перемещение отменено, «{{title}}» на прежнем месте."
-    }
+    },
+    "suggestions": "Подсказки",
+    "removeSuggestion": "Удалить подсказку „{{name}}“",
+    "addDescription": "Добавить описание"
   }
 }

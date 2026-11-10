@@ -18,6 +18,9 @@ beforeAll(() => {
   // After MSW has patched fetch: `network.goOffline()` fails every request (network.ts).
   installNetwork();
 });
+// jsdom lays nothing out, so it has no scrolling.
+Element.prototype.scrollIntoView = () => undefined;
+
 beforeEach(() => {
   globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
 });

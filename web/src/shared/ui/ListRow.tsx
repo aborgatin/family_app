@@ -128,11 +128,14 @@ export function RowInside({
   tone = 'label',
   chevron = false,
   field = false,
+  below,
 }: RowContentProps & {
   tone?: keyof typeof TONES;
   chevron?: boolean;
   /** The title is a text field: it scrolls its own text, and its focus outline mustn't be cut. */
   field?: boolean;
+  /** Under the title, as is (an `EditableRow`'s secondary line). */
+  below?: ReactNode;
 }) {
   return (
     <>
@@ -143,6 +146,7 @@ export function RowInside({
         className={`min-w-0 flex-1 py-2.5 pointer-fine:py-1.5 ${muted ? 'text-secondary-label' : TONES[tone]}`}
       >
         <span className={field ? 'block' : 'block truncate'}>{title}</span>
+        {below}
         {subtitle !== undefined && (
           <span
             className={`block text-subhead text-secondary-label ${wrapSubtitle ? 'break-all select-text' : 'truncate'}`}

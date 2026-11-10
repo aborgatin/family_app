@@ -10,6 +10,21 @@ const listSettings = (name) => [
   { click: 'role=link[name="Настройки списка"]' },
   { waitFor: 'role=textbox[name="Название"]' },
 ];
+/** Steps on /setup of a fresh installation: Анна registers and lands on Home with the Defaults. */
+const registerFirstMember = [
+  { fill: 'role=textbox[name="Электронная почта"]', value: 'anna@example.com' },
+  { fill: 'input[type=password]', value: 'password123' },
+  { fill: 'role=textbox[name="Имя"]', value: 'Анна' },
+  { click: 'text=Женский' },
+  { click: 'role=button[name="Зарегистрироваться"]' },
+  { waitFor: 'role=link[name=/Аптека/]' },
+];
+/** Steps from Home to the «Категории» screen of the Shopping list with this name. */
+const categories = (name) => [
+  ...listSettings(name),
+  { click: 'role=link[name="Категории"]' },
+  { waitFor: 'role=list[name="Категории"]' },
+];
 const showInvites = async (page) => {
   await page.locator(INVITE).scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, 200));
@@ -54,6 +69,19 @@ export default {
     // Home
     { name: 'home', path: '/', steps: [{ waitFor: 'text=Супермаркет' }] },
     { name: 'home-empty', path: '/', initScript: noLists, steps: [{ waitFor: 'text=Списков пока нет' }] },
+    // A fresh installation right after the first Member registers: the Default Shopping lists.
+    { name: 'home-defaults', path: '/setup', auth: 'fresh', isolate: true, steps: [...registerFirstMember] },
+    {
+      name: 'list-defaults-supermarket',
+      path: '/setup',
+      auth: 'fresh',
+      isolate: true,
+      steps: [
+        ...registerFirstMember,
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: 'role=button[name="Новая категория"]' },
+      ],
+    },
     {
       name: 'home-scrolled',
       path: '/',
@@ -123,6 +151,143 @@ export default {
       steps: [{ click: 'role=link[name=/Аптека/]' }, { waitFor: 'text=Товаров пока нет' }],
     },
     {
+      // A Shopping list with Categories: «Еда», «Бытовая химия» (empty), then the untitled Unnamed
+      // category, each with its own «Новый товар»; «Новая категория» above «Куплено».
+      name: 'list-categories',
+      path: '/',
+      steps: [{ click: 'role=link[name=/Гипермаркет/]' }, { waitFor: 'role=textbox[name="Товар «Батарейки»"]' }],
+    },
+    {
+      // «Новая категория» tapped: a new section at the end with its title being typed.
+      name: 'list-category-naming',
+      path: '/',
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=button[name="Новая категория"]' },
+        { fill: 'role=textbox[name="Название категории"]', value: 'Напит' },
+        { wait: 200 },
+      ],
+    },
+    {
+      // Enter named it «Напитки»: the focus is in its own «Новый товар».
+      name: 'list-category-added',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=button[name="Новая категория"]' },
+        { fill: 'role=textbox[name="Название категории"]', value: 'Напитки' },
+        { press: 'Enter' },
+        { waitFor: 'role=region[name="Напитки"] >> role=textbox[name="Новый товар"]' },
+        { wait: 300 },
+      ],
+    },
+    {
+      // A shopping Item being edited on a list with Categories: its Description, then the
+      // Category chip «Еда ⌄».
+      name: 'list-item-category-chip',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: 'role=textbox[name="Товар «Молоко»"]' },
+        { waitFor: 'role=button[name="Категория: Еда"]' },
+      ],
+    },
+    {
+      // The chip's menu: the Categories in order, «Без категории» in its place, «Еда» ticked.
+      name: 'list-item-category-menu',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: 'role=textbox[name="Товар «Молоко»"]' },
+        { click: 'role=button[name="Категория: Еда"]' },
+        { waitFor: 'role=menu' },
+        { wait: 200 },
+      ],
+    },
+    {
+      // «мо» typed in «Еда»'s «Новый товар»: up to 5 names from the List's Item history under it,
+      // cleared ones included.
+      name: 'list-suggestions',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'мо' },
+        { waitFor: 'role=group[name="Подсказки"]' },
+        { wait: 200 },
+      ],
+    },
+    {
+      // No name in the history starts with «щ»: no suggestions, just the typed text.
+      name: 'list-suggestions-none',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'щ' },
+        { wait: 200 },
+      ],
+    },
+    {
+      // «Морковь» removed from the Item history with its ×, offline (#78): gone from the suggestions
+      // at once, no action sheet; «мо» stays typed and the field keeps the focus.
+      name: 'list-suggestion-removed-offline',
+      path: '/',
+      fullPage: false,
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'мо' },
+        { click: 'role=button[name="Удалить подсказку „Морковь“"]' },
+        { wait: 300 },
+      ],
+    },
+    {
+      // «молоко» added again (in «Бытовая химия»): no duplicate, the open «Молоко» in «Еда» is
+      // highlighted, and the add field is empty and keeps the focus.
+      name: 'list-re-adding-open',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]', value: ' молоко' },
+        { press: 'Enter' },
+        { waitFor: '[data-highlighted]' },
+        { wait: 100 },
+      ],
+    },
+    {
+      // The bought «Яблоки» added again in «Бытовая химия», offline: it leaves «Куплено» and is open
+      // in «Бытовая химия» at once.
+      name: 'list-re-adding-bought-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]', value: 'яблоки' },
+        { press: 'Enter' },
+        { waitFor: 'role=region[name="Бытовая химия"] >> role=textbox[name="Товар «Яблоки»"]' },
+        { wait: 200 },
+      ],
+    },
+    {
       name: 'list-todo',
       path: '/',
       steps: [{ click: 'role=link[name=/Дела по дому/]' }, { waitFor: 'role=textbox[name^="Задача"]' }],
@@ -147,6 +312,68 @@ export default {
         { fill: 'role=textbox[name="Новый товар"]', value: 'Ке' },
         toSection('Товары', 120),
         { wait: 300 },
+      ],
+    },
+    {
+      // «Масло» typed in «Новый товар»: the Description icon button at the field's end (#79).
+      name: 'list-add-description-button',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: 'role=textbox[name="Новый товар"]' },
+        { fill: 'role=textbox[name="Новый товар"]', value: 'Масло сливочное 82,5%' },
+        toSection('Товары', 120),
+        { wait: 300 },
+      ],
+    },
+    {
+      // The icon tapped in «Еда»'s «Новый товар»: the grey one-line «Описание» under the typed
+      // name, focused, being typed in; the suggestions hidden (#79).
+      name: 'list-add-description-open',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'Мука' },
+        { click: 'role=region[name="Еда"] >> role=button[name="Добавить описание"]' },
+        { fill: 'role=region[name="Еда"] >> role=textbox[name="Описание"]', value: 'Цельнозерновая' },
+        { wait: 300 },
+      ],
+    },
+    {
+      // The Item being edited: its grey «Описание» line, empty, under the title.
+      name: 'list-item-description-empty',
+      path: '/',
+      fullPage: false,
+      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { click: ITEM }, { waitFor: 'role=textbox[name="Описание «Молоко 3,2%»"]' }],
+    },
+    {
+      // Tapping the cut Description line opens it in full; Enter started a second line.
+      name: 'list-item-description-editing',
+      path: '/',
+      isolate: true,
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { click: 'text=Нарезанный, половинку' },
+        { waitFor: 'role=textbox[name="Описание «Хлеб бородинский»"]' },
+        async (page) => page.keyboard.type('\nВитрина справа от кассы'),
+        { wait: 200 },
+      ],
+    },
+    {
+      // A Todo Item's Description being edited.
+      name: 'list-todo-description-editing',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { click: 'text=Детская стоматология' },
+        { waitFor: 'role=textbox[name="Описание «Записать Машу к стоматологу»"]' },
       ],
     },
     {
@@ -232,6 +459,34 @@ export default {
       steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: ITEM }, editIn('Куплено'), toSection('Куплено', 0)],
     },
     {
+      // «Очистить» on «Куплено»: the plural action sheet.
+      name: 'list-clear-confirm',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: `${section('Куплено')} >> role=button[name="Очистить"]` },
+        { waitFor: 'role=dialog' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // Cleared offline: «Куплено» goes at once, with the offline indicator as the only sign.
+      name: 'list-cleared-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        { click: `${section('Куплено')} >> role=button[name="Очистить"]` },
+        { click: 'role=dialog >> role=button[name="Очистить"]' },
+        async (page) => page.locator(section('Куплено')).waitFor({ state: 'detached' }),
+        { wait: 300 },
+      ],
+    },
+    {
       name: 'list-wish',
       path: '/',
       steps: [{ click: 'role=link[name=/Подарки/]' }, { waitFor: 'text=Исполнено' }],
@@ -287,6 +542,69 @@ export default {
           await other.close();
         },
         { waitFor: 'role=alert' },
+      ],
+    },
+
+    // «Категории», from a Shopping list's «Настройки списка»
+    // «Еда», «Бытовая химия», then «Без категории» (grey), and «Новая категория».
+    { name: 'categories', path: '/', steps: categories('Гипермаркет') },
+    // A Shopping list without Categories: only «Без категории».
+    { name: 'categories-empty', path: '/', steps: categories('Аптека') },
+    // Edit mode: ⊖ and drag handles; «Без категории» has a handle but no ⊖.
+    { name: 'categories-edit', path: '/', steps: [...categories('Гипермаркет'), editIn('Категории')] },
+    { name: 'categories-row-actions', path: '/', fullPage: false, steps: [...categories('Гипермаркет'), rowActions('Категории')] },
+    {
+      // «Еда» has three Items (two open, one Done): they stay in the list without a Category.
+      name: 'categories-delete-confirm',
+      path: '/',
+      fullPage: false,
+      steps: [
+        ...categories('Гипермаркет'),
+        editIn('Категории'),
+        { click: 'role=button[name="Удалить «Еда»"]' },
+        { waitFor: 'role=dialog' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Бытовая химия» is empty: the sheet has no message.
+      name: 'categories-delete-confirm-empty',
+      path: '/',
+      fullPage: false,
+      steps: [
+        ...categories('Гипермаркет'),
+        editIn('Категории'),
+        { click: 'role=button[name="Удалить «Бытовая химия»"]' },
+        { waitFor: 'role=dialog' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A name can't be empty: the footer says so and the saved name comes back on blur.
+      name: 'categories-name-required',
+      path: '/',
+      steps: [
+        ...categories('Гипермаркет'),
+        { fill: 'role=textbox[name="Категория „Еда“"]', value: '' },
+        { press: 'Enter' },
+        { wait: 300 },
+      ],
+    },
+    {
+      // After deleting «Еда»: its Items are in the Unnamed category on the List screen.
+      name: 'categories-deleted-list',
+      path: '/',
+      isolate: true,
+      steps: [
+        ...categories('Гипермаркет'),
+        editIn('Категории'),
+        { click: 'role=button[name="Удалить «Еда»"]' },
+        { click: 'role=dialog >> role=button[name="Удалить"]' },
+        { waitFor: 'role=button[name="Удалить «Бытовая химия»"]' },
+        { click: 'role=link[name="Настройки списка"]' },
+        { click: 'role=link[name="Гипермаркет"]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { wait: 300 },
       ],
     },
     {

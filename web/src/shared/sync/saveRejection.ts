@@ -19,6 +19,10 @@ const REJECTION_KEYS = {
   'list.wish_shared_only': 'sync.rejected.listWishSharedOnly',
   'child_field.value_type_immutable': 'sync.rejected.childFieldValueTypeImmutable',
   'sync.read_only': 'sync.rejected.readOnly',
+  // Not something the Member can cause from the app (another List's Category, a Category on a Todo
+  // list): plain «Не удалось сохранить».
+  'category.list_not_shopping': 'sync.saveRejected',
+  'item.category_not_found': 'sync.saveRejected',
 } as const satisfies Readonly<Record<string, ErrorMessage['key']>>;
 
 export function rejectionMessage(code: string): ErrorMessage {

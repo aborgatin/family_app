@@ -11,7 +11,15 @@ import Dexie, { type Table } from 'dexie';
  */
 
 /** The syncable tables the client keeps, named as the server's sync API names them. */
-export const SYNCED_TABLES = ['member', 'child', 'child_field', 'list', 'item'] as const;
+export const SYNCED_TABLES = [
+  'member',
+  'child',
+  'child_field',
+  'list',
+  'item',
+  'category',
+  'item_history',
+] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 
 export function isSyncedTable(name: string): name is SyncedTable {
@@ -52,7 +60,11 @@ export interface Operation {
  * local rows go with it. Declared with the tables, so the engine needs no table's name.
  */
 export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTable; key: string }[] =
-  [{ parent: 'list', table: 'item', key: 'listId' }];
+  [
+    { parent: 'list', table: 'item', key: 'listId' },
+    { parent: 'list', table: 'category', key: 'listId' },
+    { parent: 'list', table: 'item_history', key: 'listId' },
+  ];
 
 interface Meta {
   key: string;
@@ -69,6 +81,10 @@ class LocalStore extends Dexie {
     this.version(2).stores({ child_field: 'id', list: 'id' });
     // Items are indexed by their List: a tombstoned List takes its local Items with it.
     this.version(3).stores({ item: 'id, listId' });
+    // Categories of a Shopping list, indexed by their List like Items (a dependent table).
+    this.version(4).stores({ category: 'id, listId' });
+    // A Shopping list's Item history (names for autocomplete), a dependent table of the List too.
+    this.version(5).stores({ item_history: 'id, listId' });
   }
 
   rows(table: SyncedTable): Table<Row, string> {

@@ -37,9 +37,14 @@ web/src/
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
     home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
     lists/              ListsSection («Списки» on Home), NewListSheet, ListPage, ListSettingsPage,
-                        listPaths (LIST_PATH, LIST_SETTINGS_PATH), ListMissing (gone / loading),
-                        ItemsSection (the List screen's Items), listTypes (kinds, Visibility,
-                        kind texts, Item), useLists(), useItems(listId)
+                        CategoriesPage («Категории» of a Shopping list),
+                        listPaths (LIST_PATH, LIST_SETTINGS_PATH, LIST_CATEGORIES_PATH),
+                        ListMissing (gone / loading),
+                        ItemsSection (the List screen's Items, by Category on a Shopping list),
+                        listTypes (kinds, Visibility, kind texts, Item, Category,
+                        ItemHistoryName), useLists(), useItems(list), useCategories(list),
+                        useItemHistory(list), itemKeys (normalizedName, sortableTime, compare:
+                        shared by useItems and useItemHistory)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
@@ -55,7 +60,7 @@ web/src/
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
-                        LoadingRow, EditableRow, AddRow, SortableList (dnd-kit), SwipeToDelete,
+                        LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
   test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
@@ -94,6 +99,7 @@ frame around every screen and the place a sidebar goes later.
 | `/`                      | `HomePage`          | logged in                      |
 | `/lists/:id`             | `ListPage`          | logged in                      |
 | `/lists/:id/settings`    | `ListSettingsPage`  | logged in                      |
+| `/lists/:id/categories`  | `CategoriesPage`    | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
@@ -182,8 +188,9 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`, `list`, `item`; `child_field` and `list` came with store
-  version 2, `item`, indexed by `listId`, with version 3),
+  (`member`, `child`, `child_field`, `list`, `item`, `category`, `item_history`; `child_field`
+  and `list` came with store version 2, `item`, indexed by `listId`, with version 3, `category`,
+  indexed by `listId`, with version 4, `item_history`, indexed by `listId`, with version 5),
   `outbox` (`++seq`) and `meta` (the stored Version, the owner: the Member whose data it holds,
   and the owner copy the app starts from offline). Internal to the folder, except
   `claimLocalStore(memberId)` (below) and `saveOwnerCopy(owner)` / `ownerCopy()` (see "Offline
@@ -275,7 +282,15 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   name): a `GroupedSection` with the auto-saved «Название» and Visibility
   «Личный» / «Общий» only when the Member is the Owner, or `ownerId` is still unset, and never for
   a Wish list: `hasVisibility(kind)`; the segments are `VISIBILITY_CHOICES`, both in
-  `listTypes.ts` and shared with «Новый список»), then, again only for the Owner (or while
+  `listTypes.ts` and shared with «Новый список»), then on a Shopping list a «Категории» row
+  opening `CategoriesPage` (`/lists/:id/categories`, `listCategoriesPath(id)`, #72): a `Page`
+  «Категории» back to the settings, one `GroupedSection` with `edit` whose `SortableList` has the
+  Categories and the Unnamed category («Без категории», `muted`, no `confirm`: it can only be
+  moved) in `categoryOrder()`, each Category renamed in place (auto-saved, «Категория „…“») and
+  deleted after «Удалить „…“?» with «N товар останется / товара останутся / товаров останутся в
+  списке без категории» (open and Done Items; no message when empty), and an `AddRow` «Новая
+  категория» that adds at the end. Any Member who sees the List may do it all, offline too. Then,
+  again only for the Owner (or while
   `ownerId` is unset), «Удалить список» in its own `GroupedSection` (`DeleteListSection`, a `ConfirmRow`, «Удалить „{{name}}“ со всем
   содержимым?», then back to Home). A List that is unknown, or disappears while either screen is
   open (deleted, or made Private by its Owner: the pull's tombstone removes it), shows «Такого
@@ -283,8 +298,30 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   Home subtitle, empty state, Items header, «Новый товар», «Товар «…»», the Done label and the
   Done toggle's name) are in `KIND_TEXTS`. Each Home row's value is the List's count of open
   Items (`useOpenItemCounts()`, 0 included).
-- `useItems(listId)` → `{items, doneItems, add(text), rename(item, text), setDone(item, done),
-  remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
+- `useCategories(list)` → `{categories, add(id, name), rename(category, name), move(category |
+  undefined, to), remove(category)}` (#70, #72): the List's Categories on the local store, by
+  position, ties by id, `undefined` until the first read. `add` puts the new one one past the
+  largest position of its Categories and its Unnamed category (`list.unnamedCategoryPosition`, 0
+  when absent), so it goes last; `newCategoryId()` makes its id once its title starts being
+  typed. `move` takes a Category, or `undefined` for the Unnamed category, to index `to` of the
+  Category order and writes only its position (the midpoint between its new neighbours, as
+  `useChildFields().move`): the Category's `position`, or the List's `unnamedCategoryPosition`.
+  `remove` deletes the Category only; the server moves its Items to the Unnamed category.
+  `categoryOrder(list, categories)` is the Categories and the Unnamed category (`undefined`) by
+  position (the Unnamed one first on a tie; `list.unnamedCategoryPosition`, 0 when absent);
+  `itemsByCategory(list, categories, openItems)` gives each one's open Items in that order (the
+  Shopping list screen's sections), in the order given; an Item whose Category isn't on the device
+  is in the Unnamed category. `UNNAMED_CATEGORY_KEY` stands for the Unnamed category wherever
+  Categories are keyed by id (a React key, a `SortableList` id).
+- `useItemHistory(list)` → `{namesStarting(typed), remove(name)}` (#74, #78): autocomplete from
+  the List's Item history on the local store (the server writes it). `remove` deletes the name's
+  row through the Outbox (`deleteRow`), offline too, with no confirmation: the server revives it
+  the next time an Item gets that name. `namesStarting` gives up to 5 names with a word
+  (the start of the name, or after a space) that starts with the typed text, both trimmed and
+  lower-cased, newest `lastUsedAt` first (fraction padded as for `createdAt`), ties by name. Only a
+  Shopping list's screen uses it.
+- `useItems(list)` → `{items, doneItems, add(text, categoryId?), rename(item, text),
+  describe(item, description), move(item, categoryId), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
   by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
   after them, ordered by its id, which `newItemId()` makes time-ordered (UUID v7); an Item ticked
@@ -295,18 +332,62 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   sent; `setDone` also clears the old `doneById` / `doneAt` locally the same way, so an Item ticked
   back on and off again goes on top). Device and server times are never compared: pending ticks
   are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
-  so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`),
-  `rename` sends only `text`, `setDone` only `done`, `remove` deletes; all resolve at once,
+  so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`, and
+  `categoryId` when added in a Category, `description` when one was typed in the add row's
+  «Описание» line, #79; all in one upsert). On a Shopping list `add` first
+  looks among the List's Items for one with the same name, both trimmed and lower-cased (#75; an
+  open one first, so there are never two open ones): an open one is left as it is and `add`
+  resolves with it, writing nothing; with none open, the most recently created Done one (as
+  `items` orders them) is set open in the add field's Category
+  in one upsert (`done: false`, `categoryId`, `null` for none, and the typed `description` only
+  when one was typed; the Outbox sends only what changed), clearing `doneById` / `doneAt` locally like `setDone`, and the server touches its Item
+  history. Todo and Wish lists may have two Items with one name. `rename` sends only `text`,
+  `describe` only `description` (blank as `null`), `move` only `categoryId` (`null` for the
+  Unnamed category), `setDone` only `done`, `remove` deletes; all
+  resolve at once,
   offline too. `ItemsSection` on the List screen: a `GroupedSection` headed «Товары» / «Задачи» /
   «Желания» with edit mode («Изменить») while it has open Items; each Item an `EditableRow` with a
   `DoneToggle` (named «Куплено «Молоко»» / «Выполнено «…»» / «Исполнено «…»») as `leading`, its
-  text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), deleted from edit
+  text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), its Description
+  as the row's `secondary` line (`useAutoSaveText`, named «Описание «Молоко»», placeholder
+  «Описание»), deleted from edit
   mode, a swipe or right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая
-  задача» / «Новое желание» (Enter adds and keeps the focus). Footer: «Товаров пока нет» (by
+  задача» / «Новое желание» (Enter adds and keeps the focus) with `descriptionLabel` «Описание» on
+  every List kind (#79): its icon or ↓ opens the one-line Description under the name, and Enter
+  passes both to the same `add`. Footer: «Товаров пока нет» (by
   kind) with no open Items (a rejected new Item leaves the List; «Не удалось сохранить» shows
   app-wide, see `useSaveRejection`). Under it, while there are Done Items, a second `GroupedSection` headed «Куплено» /
   «Выполнено» / «Исполнено» with edit mode: each an `EditableRow`, `muted`, with its ticked
-  `DoneToggle` (untick puts it back among the open ones), deleted the same ways.
+  `DoneToggle` (untick puts it back among the open ones), deleted the same ways. A Shopping
+  list's is headed by «Очистить» too (the `GroupedSection` `action`; Todo and Wish lists get
+  none): an `ActionSheet` «Очистить 3 товара?» (`lists.confirmClearBought`, plural by `count`) /
+  «Очистить» (destructive) / «Отменить», then `remove()` for every Done Item shown, so one Item
+  delete each and no list-level operation (spec #67, ticket #71). An Item the other Member ticked
+  off that no pull has brought yet isn't shown, so it stays.
+  **A Shopping list** (`ShoppingItems`, #70) shows the same «Товары» section while it has no
+  named Categories. With some, the open Items are in one section per `itemsByCategory()` entry:
+  a Category's headed by its name (edit mode while it has Items), the Unnamed category's untitled
+  (`GroupedSection` `label` «Без категории», with edit mode while it has Items all the same, its
+  «Изменить» alone above the cell); every section shows even with no
+  open Items, ends with its own «Новый товар» that adds into it, and has no «Товаров пока нет».
+  Under them, on every Shopping list, a «Новая категория» row (`ListRow`, accent) in an untitled
+  group: tapping it shows a new section at the end whose title is being typed (`headerField`,
+  «Название категории»); Enter (or leaving it) with a name adds the Category and focuses its
+  «Новый товар» (`AddRow` `focus`), an empty one or Esc adds nothing. The Done section stays one
+  flat group; an Item ticked back on returns to its Category. Todo and Wish lists show no
+  Categories. With named Categories, an open Item being edited has the Category chip (#73,
+  `EditableRow` `chip`, a `MenuChip`) under its Description: its Category's name or «Без
+  категории», named «Категория: Еда» (`lists.itemCategory`); the menu is `itemsByCategory()`'s
+  entries, «Без категории» (grey) in the Unnamed category's place, the current one ticked, and
+  picking another calls `move()`, so the Item goes to that section at once, offline too. Every
+  «Новый товар» of a Shopping list has `AddRow` `suggest` from
+  `useItemHistory().namesStarting`: while it is focused and has text, the suggestions show under it
+  (`SuggestionRows`; its × calls `remove()` through `AddRow` `onRemoveSuggestion`, keeping the
+  typed text and the focus), and tapping one calls the same `onAdd` as Enter, so the Item goes into that
+  field's Category (none for the «Товары» or the untitled section), offline too. Todo and Wish
+  lists get no suggestions. When `add` (Enter or a suggestion) resolves with an open Item of that
+  name, `ItemsSection` highlights its row for 1.5 s (`EditableRow` `highlighted`: scrolled into
+  view and tinted); the add field is emptied and keeps the focus as after any add.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `useLogout()` → `{logOut({discardUnsent?}), pending, error, unsentWarning, dismissWarning}`:
   the only data access of `LogoutSection` (Outbox flush, logout request, pending logout, wipe;
@@ -437,7 +518,7 @@ rejected change).
 `SortableList`: each row's name is a text field (`input`, `useAutoSaveText`, named «Название поля
 «Вес»»; empty is refused without a request) that renames the field in place on blur or Enter,
 with the value type («Текст» / «Дата») on the right; it can't be changed (ADR-0007). Each row
-reports its save failure up to the section's footer (`autoSaveMessages`). Edit mode shows ⊖ and a
+reports its save failure up to the section's footer (`useRowFailures`). Edit mode shows ⊖ and a
 drag handle: dragging (mouse, touch or keyboard) calls `move(field, to)`, which writes only that
 field's position. A swipe and right-click delete too; every delete asks («Удалить поле „Вес“?»).
 «Добавить поле» opens `NewChildFieldSheet`: a `Sheet` «Новое поле» with «Название» (`InputRow`)
@@ -524,9 +605,12 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
 - Every `renderApp` test must mock `GET /api/auth/session` (`sessionHandler({...}).handler`; its
   `calls` counts requests). Every test that renders `/settings` must also mock `/api/members`
   and `/api/invites`.
-- Lists and Items tests (`lists/lists.test.tsx`, `lists/items.test.tsx`) build their rows inline
-  and seed them with `syncServer.seed('list' | 'item', …)`; `items.test.tsx` also guards the store
-  upgrade to version 3 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).
+- Lists, Items, Categories and Item history tests (`lists/lists.test.tsx`, `lists/items.test.tsx`,
+  `lists/categories.test.tsx`, `lists/categoriesScreen.test.tsx`, `lists/itemHistory.test.tsx`,
+  `lists/reAdding.test.tsx`) build
+  their rows inline and seed them with
+  `syncServer.seed('list' | 'item' | 'category' | 'item_history', …)`; `items.test.tsx` and `categories.test.tsx`
+  also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,
@@ -535,6 +619,8 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   `document.cookie = 'XSRF-TOKEN=…'` to check the CSRF header.
 - To test copying, stub `ClipboardItem` (`vi.stubGlobal`) and `navigator.clipboard` (`write`,
   `writeText`) after `userEvent.setup()`, which installs its own clipboard (`invites.test.tsx`).
+- jsdom lays nothing out: `test/setup.ts` stubs `scrollIntoView` (a no-op); a highlighted row is
+  checked by its `data-highlighted` (`reAdding.test.tsx`), the tint by screenshots.
 - Right-click: `user.pointer({keys: '[MouseRight]', target})`, then the `menuitem`. jsdom has no
   `matchMedia`, so `RowContextMenu` treats the pointer as fine there. Swipes can't be tested in
   jsdom (screenshots instead).

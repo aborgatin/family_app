@@ -7,7 +7,7 @@ export { EmptyState } from './EmptyState';
 export { StatusScreen } from './StatusScreen';
 export { CenteredPage } from './CenteredPage';
 export { Form } from './Form';
-export { GroupedSection, type SectionMessage } from './GroupedSection';
+export { GroupedSection, type SectionHeaderField, type SectionMessage } from './GroupedSection';
 export { InputRow } from './InputRow';
 export { SegmentedControl } from './SegmentedControl';
 export { Sections } from './Sections';
@@ -17,10 +17,19 @@ export { Avatar } from './Avatar';
 export { ActionSheet } from './ActionSheet';
 export { ConfirmRow } from './ConfirmRow';
 export { EditableRow } from './EditableRow';
+export { MenuChip, type MenuChipChoice, type MenuChipProps } from './MenuChip';
 export { AddRow } from './AddRow';
 export { DoneToggle } from './DoneToggle';
 export { SwipeToDelete } from './SwipeToDelete';
-export { useAutoSaveText, useAutoSaveChoice, autoSaveMessages, type SaveFailure } from './autoSave';
+export {
+  useAutoSaveText,
+  useAutoSaveChoice,
+  autoSaveMessages,
+  useRowFailures,
+  useReportFailure,
+  type ReportFailure,
+  type SaveFailure,
+} from './autoSave';
 export { useFooterLines } from './footerLines';
 export { useEditableList } from './editableList';
 export { Swatch } from './Swatch';
