@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import {
   ActionSheet,
@@ -9,12 +10,13 @@ import {
   GroupedSection,
   ListRow,
   LoadingRow,
+  type MenuChipProps,
   useAutoSaveText,
   useEditableList,
   useFooterLines,
   type SaveFailure,
 } from '@/shared/ui';
-import { KIND_TEXTS, type Item, type List } from './listTypes';
+import { KIND_TEXTS, type Category, type Item, type List } from './listTypes';
 import { newCategoryId, sectionsInOrder, useCategories } from './useCategories';
 import { useItems } from './useItems';
 
@@ -37,8 +39,8 @@ interface ItemsSectionProps {
 export function ItemsSection({ list }: ItemsSectionProps) {
   const { t } = useTranslation();
   const texts = KIND_TEXTS[list.kind];
-  const { items, doneItems, add, rename, describe, setDone, remove } = useItems(list.id);
-  const changes = { list, rename, describe, setDone, remove };
+  const { items, doneItems, add, rename, describe, move, setDone, remove } = useItems(list.id);
+  const changes = { list, rename, describe, move, setDone, remove };
 
   return (
     <>
@@ -67,6 +69,7 @@ interface ItemChanges {
   list: List;
   rename: (item: Item, text: string) => Promise<string>;
   describe: (item: Item, description: string) => Promise<string>;
+  move: (item: Item, categoryId: string | null) => Promise<void>;
   setDone: (item: Item, done: boolean) => Promise<void>;
   remove: (item: Item) => Promise<void>;
 }
@@ -151,6 +154,7 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
             ? { label: t('lists.unnamedCategory') }
             : { header: category.name })}
           items={items === undefined ? undefined : shown}
+          categories={known}
           focusAdd={category !== undefined && category.id === focusAddIn}
           onAdd={(text) => {
             void add(text, category?.id);
@@ -187,6 +191,8 @@ interface OpenItemsProps extends ItemChanges {
   onAdd: (text: string) => void;
   /** The add field takes the focus when it appears. */
   focusAdd?: boolean;
+  /** The List's named Categories, if any: each Item has the Category chip while edited. */
+  categories?: readonly Category[];
 }
 
 /** One section of open Items, ending with the field that adds one. */
@@ -197,9 +203,11 @@ function OpenItems({
   showEmpty = false,
   onAdd,
   focusAdd = false,
+  categories,
   list,
   rename,
   describe,
+  move,
   setDone,
   remove,
 }: OpenItemsProps) {
@@ -242,6 +250,8 @@ function OpenItems({
           list={list}
           rename={rename}
           describe={describe}
+          categories={categories}
+          move={move}
           setDone={setDone}
           onFailure={reportFailure}
           busy={editable.deleting === item.id}
@@ -333,6 +343,9 @@ interface ItemRowProps {
   list: List;
   rename: (item: Item, text: string) => Promise<string>;
   describe: (item: Item, description: string) => Promise<string>;
+  /** The List's named Categories, if any: the Category chip. */
+  categories: readonly Category[] | undefined;
+  move: (item: Item, categoryId: string | null) => Promise<void>;
   setDone: (item: Item, done: boolean) => Promise<void>;
   /** Tells the section about this row's failed save (or that it cleared), for its footer. */
   onFailure: (id: string, failure: SaveFailure | undefined) => void;
@@ -345,6 +358,8 @@ function ItemRow({
   list,
   rename,
   describe,
+  categories,
+  move,
   setDone,
   onFailure,
   busy,
@@ -391,8 +406,40 @@ function ItemRow({
         label: t('lists.itemDescription', { text: item.text }),
         placeholder: t('lists.description'),
       }}
+      {...(categories !== undefined &&
+        categories.length > 0 && { chip: categoryChip(list, categories, item, move, t) })}
       confirm={{ title: t('lists.confirmDeleteItem', { text: item.text }) }}
       onDelete={onDelete}
     />
   );
+}
+
+/**
+ * The Category chip of an Item being edited: its Category's name or «Без категории»; the menu has
+ * the Categories in walking order, «Без категории» in the Unnamed category's place, the current one
+ * ticked, and picking one moves the Item there.
+ */
+function categoryChip(
+  list: List,
+  categories: readonly Category[],
+  item: Item,
+  move: (item: Item, categoryId: string | null) => Promise<void>,
+  t: TFunction,
+): MenuChipProps {
+  const unnamed = t('lists.unnamedCategory');
+  const sections = sectionsInOrder(list, categories, [item]);
+  const current = sections.find(({ items }) => items.length > 0)?.category;
+  const label = current?.name ?? unnamed;
+  return {
+    label,
+    accessibleLabel: t('lists.itemCategory', { name: label }),
+    choices: sections.map(({ category }) => ({
+      label: category?.name ?? unnamed,
+      checked: category === current,
+      muted: category === undefined,
+      onSelect: () => {
+        if (category !== current) void move(item, category?.id ?? null);
+      },
+    })),
+  };
 }

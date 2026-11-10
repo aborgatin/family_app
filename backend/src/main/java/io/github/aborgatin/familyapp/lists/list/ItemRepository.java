@@ -35,4 +35,14 @@ interface ItemRepository extends Repository<ItemEntity, UUID> {
   @Modifying(flushAutomatically = true, clearAutomatically = true)
   @Query("UPDATE ItemEntity i SET i.text = i.text WHERE i.listId = :listId AND i.deleted = FALSE")
   void bumpVersionsInList(@Param("listId") UUID listId);
+
+  /**
+   * Moves the Category's Items, Done ones included, to the Unnamed category when the Category is
+   * deleted: each gets a new Version from the trigger, so devices pull them there.
+   */
+  @Modifying(flushAutomatically = true, clearAutomatically = true)
+  @Query(
+      "UPDATE ItemEntity i SET i.categoryId = NULL WHERE i.categoryId = :categoryId"
+          + " AND i.deleted = FALSE")
+  void moveToUnnamedCategory(@Param("categoryId") UUID categoryId);
 }

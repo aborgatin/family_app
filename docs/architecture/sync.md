@@ -116,8 +116,11 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   (`params.listId`) for a List not of kind `SHOPPING`; `list.not_found` for a Category of another
   Member's Private List, or in an unknown one, for every operation; creating one in a deleted
   List, and anything on a deleted Category, is `ignored`. Any Member who sees the List may write
-  its Categories. Deleting one is a soft delete (its Items keep `categoryId`; the client shows
-  them in the Unnamed category).
+  its Categories. Deleting one soft-deletes it and sets `categoryId` to `null` on all its Items,
+  Done ones included, in the same transaction (#72): the Items get new Versions, so devices pull
+  them in the Unnamed category (until then the client shows them there anyway). A move sends only
+  the moved Category's `position`, or only the List's `unnamedCategoryPosition`, so two devices
+  moving different Categories are both kept.
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
   reach other devices through the pull.
 
@@ -265,4 +268,5 @@ auth.required` without one) tells open apps when to pull:
   run. The List screen has its open Items (add, edit in place, delete; #57), Done and its Done
   group (#58) and List settings (rename, Visibility, delete; #56); Home shows each List's open
   Items count (#58). Categories are on the store, and a Shopping list shows its open Items by
-  Category, with «Новая категория» (#70).
+  Category, with «Новая категория» (#70); a Shopping list's «Категории» screen adds, renames,
+  reorders and deletes them (#72).

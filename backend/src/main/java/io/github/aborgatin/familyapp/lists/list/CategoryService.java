@@ -22,10 +22,12 @@ import org.springframework.stereotype.Service;
 class CategoryService implements SyncableTable {
 
   private final CategoryRepository categories;
+  private final ItemRepository items;
   private final VisibleLists visibleLists;
 
-  CategoryService(CategoryRepository categories, VisibleLists visibleLists) {
+  CategoryService(CategoryRepository categories, ItemRepository items, VisibleLists visibleLists) {
     this.categories = categories;
+    this.items = items;
     this.visibleLists = visibleLists;
   }
 
@@ -37,9 +39,10 @@ class CategoryService implements SyncableTable {
   /**
    * An upsert creates the Category ({@code listId}, {@code name} and {@code position} required; the
    * List must be a Shopping list: {@code category.list_not_shopping}) or changes only the fields it
-   * carries; the List never changes. A delete soft-deletes. Delete wins: anything on a deleted
-   * Category, creating one in a deleted List, and deleting an unknown one, is ignored. A Category
-   * of another Member's Private List, or in an unknown List, is {@code list.not_found}.
+   * carries; the List never changes. A delete soft-deletes and moves the Category's Items, Done
+   * ones included, to the Unnamed category in the same transaction. Delete wins: anything on a
+   * deleted Category, creating one in a deleted List, and deleting an unknown one, is ignored. A
+   * Category of another Member's Private List, or in an unknown List, is {@code list.not_found}.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -83,9 +86,11 @@ class CategoryService implements SyncableTable {
     return Outcome.APPLIED;
   }
 
+  /** Deletes the Category and moves its Items, Done ones included, to the Unnamed category. */
   private Outcome delete(CategoryEntity category) {
     category.markDeleted();
     categories.saveAndFlush(category);
+    items.moveToUnnamedCategory(category.id());
     return Outcome.APPLIED;
   }
 

@@ -335,7 +335,7 @@ export const SEED = {
           { name: 'Бытовая химия', position: 2 },
         ],
         items: [
-          { text: 'Молоко', category: 'Еда' },
+          { text: 'Молоко', category: 'Еда', description: '3,2%, можно без лактозы' },
           { text: 'Хлеб', category: 'Еда' },
           'Батарейки',
           { text: 'Яблоки', category: 'Еда', done: true },

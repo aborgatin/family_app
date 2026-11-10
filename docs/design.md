@@ -178,7 +178,7 @@ navigating.
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
 `check` (the chosen colour), `chevron`, `clear` (a circled ×), `home`, `minus` (edit mode's ⊖),
-`offline` (crossed globe), `reorder` (≡, a drag handle), `settings`, `spinner`; a new icon is added to the
+`expand` (a small ⌄ on a `MenuChip`), `offline` (crossed globe), `reorder` (≡, a drag handle), `settings`, `spinner`; a new icon is added to the
 map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
 colour; default size 22px.
 
@@ -376,6 +376,10 @@ screen, chevron; not in edit mode), `confirm` (`{title, message}` of the action 
 - **Touch**: `SwipeToDelete` (below).
 - **Fine pointer**: `RowContextMenu` with «Удалить» (below).
 
+Without `confirm` and `onDelete` the row can't be deleted: no ⊖ (its place stays empty, so the
+title lines up with the other rows), no swipe and no right-click menu; in a `SortableList` it can
+still be dragged. The Unnamed category's «Без категории» row on «Категории» is one (`muted`).
+
 `input` renames in place: out of edit mode the title is a text field (spread `input` of
 `useAutoSaveText()` and add a translated `label`, its accessible name, e.g. «Название поля
 «Вес»»), auto-saved like an `InputRow`: blur or Enter saves, Esc puts the saved text back, `busy`
@@ -391,8 +395,13 @@ new tab; tapping the line beside them starts editing with the full text and the 
 Leaving the row with it empty hides it. Spread `useAutoSaveText()`'s `input` and add `label` and
 `placeholder`.
 
-Children use it for delete only (`to` their screen), Child fields with `input` and `sortable`,
-Items with `input`, `secondary` (the Description) and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
+`chip` (with `secondary`) adds a `MenuChip` under the secondary line while the row is being edited
+(an Item's Category); the row stays edited while the chip's menu is open, and the focus goes back
+to the chip when it closes.
+
+Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
+`sortable`, Items with `input`, `secondary` (the Description), on a Shopping list with named Categories a
+`chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
 Invites plain.
 
 `muted` (on `ListRow` and `EditableRow`) shows the title in `secondary-label`: something set
@@ -447,6 +456,17 @@ deleting is a separate tap, which then asks. Swiping right, tapping the row or t
 else closes it; edit mode closes it too. A vertical move scrolls the page as usual. Touch only
 (`pointerType === 'touch'`): mouse and pen never move the row. Not reachable by keyboard (edit
 mode is).
+
+### MenuChip
+
+A small pill in `fill` with `footnote` text and a ⌄ (`expand`) that opens a menu of choices, the
+current one ticked (✓): the Category chip under a shopping Item being edited (`EditableRow`'s
+`chip`, ticket #73), «Еда ⌄», named «Категория: Еда» (`accessibleLabel`). The menu opens under
+the chip, aligned to its left edge, in `cell` with a hairline border, rows in `body`; a `muted`
+choice is `secondary-label` («Без категории»), the highlighted one `accent` with white text.
+Picking calls the choice's `onSelect`. Tap, click, Enter or Space opens it; arrows move, Enter
+picks, Esc closes and the focus goes back to the chip. Touch: 28px chip, 44px menu rows; fine
+pointer: compact rows. Built on Radix DropdownMenu (non-modal, a radio group).
 
 ### RowContextMenu
 
