@@ -16,7 +16,9 @@ The issue tracker and triage label vocabulary should have been provided to you. 
 
 Check with the user that these seams match their expectations.
 
-3. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+3. List every **unconfirmed decision**: anything the spec will settle that the conversation did not (a tie-break, a default value or order, which of several matches wins, a placeholder or a plural form, an error code). Show the list to the user with your choice for each, and wait for their answer. Done when every behaviour in the spec traces to the conversation or to this answered list.
+
+4. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
 
 <spec-template>
 
@@ -71,6 +73,10 @@ A list of testing decisions that were made. Include:
 ## Out of Scope
 
 A description of the things that are out of scope for this spec.
+
+## Unconfirmed Decisions
+
+Each decision from step 3, the user's answer, and where it applies, so ticket writers and reviewers know it was settled outside the grill.
 
 ## Further Notes
 

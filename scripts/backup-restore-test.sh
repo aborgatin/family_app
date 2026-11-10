@@ -53,7 +53,7 @@ CMD ["/bin/sh", "-c", "cat /run/authorized_keys > /home/backup/.ssh/authorized_k
 EOF
   docker run -d --name "$target_name" -p 127.0.0.1::22 \
     -v "$work/backup_key.pub:/run/authorized_keys:ro" "$target_image" >/dev/null
-  target_port="$(docker port "$target_name" 22/tcp | head -n1 | sed 's/.*://')"
+  target_port="$(docker port "$target_name" 22/tcp | sed -n 1p | sed 's/.*://')"
   for _ in $(seq 1 30); do
     if ssh-keyscan -p "$target_port" 127.0.0.1 >"$work/known_hosts" 2>/dev/null && [ -s "$work/known_hosts" ]; then
       return 0
@@ -123,9 +123,9 @@ dumps="$(target_ls)"
 new_dump="$(echo "$dumps" | grep -E '^family-[0-9]{8}T[0-9]{6}Z\.dump$' | grep -vx "$recent" | grep -v '^family-2020' || true)"
 [ -n "$new_dump" ] || fail "no new dump on the target (has: $dumps)"
 echo "ok   backup uploads a dump to BACKUP_TARGET ($new_dump)"
-echo "$dumps" | grep -qx family-20200101T033000Z.dump && fail "old dump was not pruned"
-echo "$dumps" | grep -qx "$recent" || fail "recent dump was pruned"
-echo "$dumps" | grep -qx notes.txt || fail "unrelated file was pruned"
+echo "$dumps" | grep -x family-20200101T033000Z.dump >/dev/null && fail "old dump was not pruned"
+echo "$dumps" | grep -x "$recent" >/dev/null || fail "recent dump was pruned"
+echo "$dumps" | grep -x notes.txt >/dev/null || fail "unrelated file was pruned"
 echo "ok   backup prunes dumps older than BACKUP_RETENTION_DAYS, keeps the rest"
 
 # Failure: an unreachable target makes the backup exit non-zero with a log line.
@@ -139,7 +139,7 @@ echo "ok   backup exits non-zero and logs 'backup failed' when the upload fails"
   fail "unexpected cron entry: $(backup --cron-entry)"
 echo "ok   cron entry runs at BACKUP_TIME"
 
-restore --list | grep -qx "$new_dump" || fail "restore --list does not show $new_dump"
+restore --list | grep -x "$new_dump" >/dev/null || fail "restore --list does not show $new_dump"
 echo "ok   restore --list shows the dumps on BACKUP_TARGET"
 
 # Restore into a scratch database leaves the live one alone.

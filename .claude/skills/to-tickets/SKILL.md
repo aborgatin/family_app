@@ -100,6 +100,10 @@ The end-to-end behaviour this ticket makes work, from the user's perspective, no
 - [ ] Criterion 1
 - [ ] Criterion 2
 
+## Shared checks
+
+The checks in `docs/agents/ticket-checks.md` (test-first, `scripts/check.sh`, error codes, docs, screenshots of the routes this ticket adds or changes). Name those routes here when the ticket has screens.
+
 ## Blocked by
 
 - A reference to each blocking ticket, or "None (can start immediately)". Omit this section when blockers were set as native edges.

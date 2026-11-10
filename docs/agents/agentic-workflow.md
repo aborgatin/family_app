@@ -75,7 +75,8 @@ native blocking links, labelled `ready-for-agent`.
   components" ticket.
 - A lint rule that would fail on code not yet migrated goes in the last ticket, blocked by all
   the migrations.
-- Each ticket carries the shared checks (tests, screenshots, docs to update) in its body.
+- Each ticket points to the shared checks in [`ticket-checks.md`](ticket-checks.md) (tests,
+  screenshots of its own routes, docs to update) and names its screenshot routes.
 - One milestone = one integration branch and one PR (as #30), even with many tickets.
 
 ## 6. Implement: `/implement-spec #<spec>` (user-only)

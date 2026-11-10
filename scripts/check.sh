@@ -5,7 +5,7 @@
 #   scripts/check.sh --image    # also builds the Docker image and runs scripts/image-smoke-test.sh
 #
 # Steps: scripts/check-migrations.sh against origin/main; scripts/check-error-codes.sh (I3) and its
-# self-test; backend `./gradlew spotlessApply build` (spotlessApply reformats Java in place, build
+# self-test; scripts/check-shell.sh (pipes under pipefail) and its self-test; backend `./gradlew spotlessApply build` (spotlessApply reformats Java in place, build
 # runs spotlessCheck, Error Prone and the tests);
 # web `npm ci` (only when node_modules is missing or stale), `format:check`, `lint`, `typecheck`,
 # `test`, `build`. Stops at the first failing step and names it. Needs Docker running (backend
@@ -55,6 +55,10 @@ step "migration guard"
 step "error-code guard"
 "$root/scripts/check-error-codes-test.sh" | { grep -v '^ok ' || true; }
 "$root/scripts/check-error-codes.sh"
+
+step "shell guard"
+"$root/scripts/check-shell-test.sh" | { grep -v '^ok ' || true; }
+"$root/scripts/check-shell.sh"
 
 step "backend: spotlessApply build"
 (cd "$root/backend" && ./gradlew spotlessApply build)

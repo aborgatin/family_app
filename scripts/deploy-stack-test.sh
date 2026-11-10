@@ -98,7 +98,7 @@ check_hsts() {
 # while curl is still writing (curl exit 23).
 check_compression() {
   local encoding script headers
-  script="$(curl -ksS "$base/" | grep -o 'src="/assets/[^"]*\.js"' | head -n1 | cut -d'"' -f2)"
+  script="$(curl -ksS "$base/" | grep -o 'src="/assets/[^"]*\.js"' | sed -n 1p | cut -d'"' -f2)"
   [ -n "$script" ] || fail "index.html references no /assets/*.js script"
   for encoding in gzip zstd; do
     headers="$(curl -ksS -o /dev/null -D - -H "Accept-Encoding: $encoding" "$base$script")"
