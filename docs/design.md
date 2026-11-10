@@ -389,7 +389,7 @@ to footer messages. Auto-saved with `useAutoSaveChoice()` (spread `control`): a 
 once, `busy` shows the `Spinner` left of the pill, and a failed pick goes back to the previous
 choice. `disabled` dims the label and the pill to 40%. Touch: the pill is 32px tall in a 44px
 row. Fine pointer: tighter, like a `DateRow`'s pill; the focused pill gets the accent outline.
-A todo item's «Ответственный» is one.
+A todo item's «Повтор» (#86, disabled without a «Срок») and «Ответственный» are two.
 
 ### ListRow
 
@@ -463,8 +463,9 @@ the field. Tab reaches it after the chip.
 `secondary-label`, cut with «…»: facts about the row in a few words, shown in every state of the
 row (being edited, edit mode, a `textTo` row). It takes parts (`{text, tone?}`), joined by
 spaces; a part with `tone: 'destructive'` is in `destructive` (`data-tone="destructive"`). A todo
-item's Due date is one: «Завтра, 15:00», red once overdue; its Assignee's name the next (#85):
-«· Даша» after a Due date («Завтра, 15:00 · Даша»), «Даша» alone without one, never red. No
+item's Due date is one: «Завтра, 15:00», red once overdue; then the repeat mark «↻» when it has
+a Repeat (#86), never red; its Assignee's name the next (#85): «· Даша» after a Due date
+(«15 нояб., 15:00 ↻ · Даша»), «Даша» alone without one, never red. No
 parts, no line.
 
 `textTo` (#83) makes just the title a link to another screen, for a row whose `leading` is a
@@ -478,7 +479,7 @@ scrolled into view (nearest edge, smooth) and covered by a 15% `accent` tint abo
 layer (`data-highlighted`); unset, the tint fades out over 0.7 s. The caller unsets it after a moment (1.5 s for Items).
 
 Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
-`sortable`, Items with `input`, `secondary` (the Description), `details` («Подробнее»), on a Todo list a `caption` (the Due date and the Assignee), on a Shopping list with named Categories a
+`sortable`, Items with `input`, `secondary` (the Description), `details` («Подробнее»), on a Todo list a `caption` (the Due date, the repeat mark and the Assignee), on a Shopping list with named Categories a
 `chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`, with `textTo`),
 Invites plain.
 

@@ -271,8 +271,8 @@ Categories and Items share: `name` (1–100 code points after trim), `position` 
 `ItemService` looks an Item's List up once per operation and passes it on.
 
 Items are in the same package (an Item belongs to its List): `ItemEntity` (`list_id`, `text`,
-`category_id`, `description`, `due_date`, `due_time`, `assignee_id`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`),
-`DueDate` (a record of the day and the optional time of day, `NONE` for no Due date), `ItemRepository`,
+`category_id`, `description`, `due_date`, `due_time`, `repeat`, `assignee_id`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`),
+`DueDate` (a record of the day and the optional time of day, `NONE` for no Due date), `Repeat` (enum `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY`), `ItemRepository`,
 `ItemRequest` (text 1–1000 code points after trim, description ≤ 10000 or blank = none) → `ItemDetails`;
 `ItemService`, the `item` `SyncableTable`:
 
@@ -299,6 +299,15 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
   `value.invalid` for a day that isn't ISO `YYYY-MM-DD` or a time that isn't strict `HH:mm`;
   `item.due_time_without_due_date` when a time is left without a day. An upsert carrying neither
   field leaves the Due date alone on every kind of List.
+- Repeat (#86; `repeat`, when carried; `ItemService.repeat` → `ItemEntity.repeat`): column
+  `repeat` (`VARCHAR`, `@Enumerated(STRING)`), one of `Repeat` by its exact name or `null` for
+  none, checked against the Due date the same operation leaves. In this order:
+  `item.list_not_todo` (`params.listId`) unless the List is `TODO`, even for `null`;
+  `validation.failed` / `value.invalid` for any other value (`HOURLY`, `weekly`, `""`, a number);
+  `item.repeat_without_due_date` for a Repeat on an Item left without a Due date (none stored, or
+  `dueDate: null` in the same upsert). An upsert not carrying the field keeps the Repeat, unless
+  it leaves the Item without a Due date: then the Repeat goes too. What marking a repeating Item
+  Done does is #87 (ADR-0009).
 - Assignee (#85; `assigneeId`, when carried; `ItemService.assigneeId` → `ItemEntity.assignTo`):
   column `assignee_id` (→ `member`), a Member's id or `null` for nobody. In this order:
   `item.list_not_todo` (`params.listId`) unless the List is `TODO`, even for `null`;
@@ -312,7 +321,7 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
 - Item history: a create, a changed `text`, and Done → open each call `ItemHistoryService.used(list,
   text, now)` in the same operation (below). A delete never touches the history.
 - `changesSince`: `listId`, `text`, `categoryId`, `description`, `dueDate` (`YYYY-MM-DD`),
-  `dueTime` (`HH:MM`), `assigneeId`, `done`, `doneById`, `doneAt`, `creatorId`, `createdAt`; a tombstone for a deleted Item and for one whose List the Member may
+  `dueTime` (`HH:MM`), `repeat`, `assigneeId`, `done`, `doneById`, `doneAt`, `creatorId`, `createdAt`; a tombstone for a deleted Item and for one whose List the Member may
   not see (`VisibleLists.rowsVisibleTo`).
 
 Categories are in the same package too: `CategoryEntity` (`list_id`, `name`, `position`),
@@ -453,8 +462,8 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `list.child_not_shopping`, `list.child_shared_only`, `list.child_immutable` and
 `list.child_not_found` (`params.childId`), for Categories
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
-(`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field, so far a Due date or an Assignee, on an Item of a Shopping
-or Wish list; later todo fields reuse it, so its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
+(`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field (a Due date, a Repeat or an Assignee) on an Item of a Shopping
+or Wish list; its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.repeat_without_due_date` (a Repeat without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
 `item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
@@ -562,6 +571,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V11__child_field_value.sql`    | `child_field_value` (→ `child`, `child_field`), indexes on `child_id` and `child_field_id`         |
 | `V12__item_due_date.sql`        | `item.due_date` (`DATE`), `item.due_time` (`TIME`): a todo item's Due date, nullable, no backfill  |
 | `V13__item_assignee.sql`        | `item.assignee_id` (→ `member`): a todo item's Assignee, nullable, no backfill                     |
+| `V14__item_repeat.sql`          | `item.repeat` (`VARCHAR(16)`): a todo item's Repeat, nullable, no backfill                         |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -623,7 +633,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest`, `lists.ItemDueDateSyncTest` and `lists.ItemAssigneeSyncTest` do.
+   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest`, `lists.ItemDueDateSyncTest`, `lists.ItemRepeatSyncTest` and `lists.ItemAssigneeSyncTest` do.
 
 ## Testing
 

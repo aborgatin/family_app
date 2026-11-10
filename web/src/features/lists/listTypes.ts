@@ -45,6 +45,9 @@ export function childIdOf(list: List): string | undefined {
   return list.childId ?? undefined;
 }
 
+/** How often a todo item recurs (GLOSSARY: Repeat). */
+export type Repeat = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+
 /** An Item as the local store keeps it (the fields the sync pull sends). */
 export interface Item {
   id: string;
@@ -60,6 +63,8 @@ export interface Item {
    */
   dueDate?: string | null;
   dueTime?: string | null;
+  /** A todo item's Repeat, only with a Due date; none is `null` or absent. */
+  repeat?: Repeat | null;
   /**
    * A todo item's Assignee: the Member responsible, on a Shared list only; nobody is `null` or
    * absent.

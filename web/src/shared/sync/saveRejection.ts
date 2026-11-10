@@ -23,11 +23,13 @@ const REJECTION_KEYS = {
   'list.child_not_found': 'sync.rejected.listChildNotFound',
   'child_field.value_type_immutable': 'sync.rejected.childFieldValueTypeImmutable',
   'sync.read_only': 'sync.rejected.readOnly',
-  // A todo field (a Due date; later an Assignee, a Repeat) on a shopping or wish Item is never
+  // A todo field (a Due date, an Assignee, a Repeat) on a shopping or wish Item is never
   // offered, so its message names no field; a time without a Due date happens
   // when the other Member removes the Due date while this one sets the time.
   'item.list_not_todo': 'sync.rejected.itemListNotTodo',
   'item.due_time_without_due_date': 'sync.rejected.itemDueTimeWithoutDueDate',
+  // The same for a Repeat: the other Member removed the Due date while this one chose it.
+  'item.repeat_without_due_date': 'sync.rejected.itemRepeatWithoutDueDate',
   // An Assignee chosen while the Owner was making the List Private on another device, and one
   // who is no longer a Member.
   'item.assignee_on_private_list': 'sync.rejected.itemAssigneeOnPrivateList',

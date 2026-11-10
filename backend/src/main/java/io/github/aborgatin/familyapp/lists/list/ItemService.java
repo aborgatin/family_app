@@ -14,6 +14,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -95,11 +96,13 @@ class ItemService implements SyncableTable {
     boolean done = operation.has("done") && done(operation);
     UUID categoryId = operation.has("categoryId") ? categoryId(operation, list) : null;
     DueDate dueDate = dueDate(operation, DueDate.NONE, list);
+    Repeat repeat = repeat(operation, null, dueDate, list);
     UUID assigneeId = operation.has("assigneeId") ? assigneeId(operation, list) : null;
     Instant now = clock.instant();
     ItemEntity item = new ItemEntity(operation.id(), listId, operation.memberId(), now, details);
     item.moveTo(categoryId);
     item.due(dueDate);
+    item.repeat(repeat);
     item.assignTo(assigneeId);
     item.markDone(done, operation.memberId(), now);
     items.saveAndFlush(item);
@@ -118,6 +121,7 @@ class ItemService implements SyncableTable {
     boolean done = operation.has("done") ? done(operation) : item.done();
     UUID categoryId = operation.has("categoryId") ? categoryId(operation, list) : item.categoryId();
     DueDate dueDate = dueDate(operation, item.dueDate(), list);
+    Repeat repeat = repeat(operation, item.repeat(), dueDate, list);
     UUID assigneeId = operation.has("assigneeId") ? assigneeId(operation, list) : item.assigneeId();
     // The history keeps a name when it is given (a new text) or used again (Done → open).
     boolean nameUsed = !details.text().equals(item.text()) || (item.done() && !done);
@@ -125,6 +129,7 @@ class ItemService implements SyncableTable {
     item.replace(details);
     item.moveTo(categoryId);
     item.due(dueDate);
+    item.repeat(repeat);
     item.assignTo(assigneeId);
     item.markDone(done, operation.memberId(), now);
     items.saveAndFlush(item);
@@ -195,6 +200,42 @@ class ItemService implements SyncableTable {
       throw new ApiException(HttpStatus.CONFLICT, "item.due_time_without_due_date");
     }
     return new DueDate(day, time);
+  }
+
+  /**
+   * The Repeat the operation leaves on an Item of {@code list} that had {@code stored}, now with
+   * {@code dueDate}: {@code repeat} is one of {@link Repeat} by its exact name, or {@code null} for
+   * none; without the field the stored one stays, unless the Due date is gone, which takes the
+   * Repeat with it. Rejected: the field, even {@code null}, on an Item of a List that is not a Todo
+   * list ({@code item.list_not_todo}), an unknown value ({@code validation.failed}, {@code
+   * value.invalid}), and a Repeat on an Item left without a Due date ({@code
+   * item.repeat_without_due_date}).
+   */
+  @Nullable
+  private static Repeat repeat(
+      Operation operation, @Nullable Repeat stored, DueDate dueDate, ListEntity list) {
+    if (!operation.has("repeat")) {
+      return dueDate.day() == null ? null : stored;
+    }
+    if (list.kind() != ListKind.TODO) {
+      throw listNotTodo(list);
+    }
+    String text = operation.text("repeat");
+    if (text == null) {
+      return null;
+    }
+    Repeat repeat =
+        Arrays.stream(Repeat.values())
+            .filter(candidate -> candidate.name().equals(text))
+            .findFirst()
+            .orElse(null);
+    if (repeat == null) {
+      new FieldErrors().add("repeat", FieldErrors.VALUE_INVALID).throwIfAny();
+    }
+    if (dueDate.day() == null) {
+      throw new ApiException(HttpStatus.CONFLICT, "item.repeat_without_due_date");
+    }
+    return repeat;
   }
 
   /**
@@ -277,6 +318,7 @@ class ItemService implements SyncableTable {
           fields.put("description", item.description());
           fields.put("dueDate", item.dueDate().dayText());
           fields.put("dueTime", item.dueDate().timeText());
+          fields.put("repeat", item.repeat() == null ? null : item.repeat().name());
           fields.put("assigneeId", Objects.toString(item.assigneeId(), null));
           fields.put("done", item.done());
           fields.put("doneById", item.doneById() == null ? null : item.doneById().toString());
