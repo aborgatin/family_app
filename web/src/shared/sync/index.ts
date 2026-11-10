@@ -3,6 +3,13 @@
 export { startSync, stopSync, requestSync, onSessionEnded } from './engine';
 export { flushOutbox, stopSyncAndWipe } from './engine';
 export { claimLocalStore, ownerCopy, saveOwnerCopy } from './localStore';
-export { useRows, useSyncedRows, upsertRow, deleteRow, type LocalLoad } from './rows';
+export {
+  useRows,
+  useSyncedRows,
+  upsertRow,
+  requestUpsert,
+  deleteRow,
+  type LocalLoad,
+} from './rows';
 export { useSaveRejection } from './saveRejection';
 export type { Row, SyncedTable } from './localStore';

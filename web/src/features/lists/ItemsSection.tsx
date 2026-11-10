@@ -47,7 +47,8 @@ interface ItemsSectionProps {
  * instead (`ShoppingItems`). The Done ones follow in their own group, headed by the kind's
  * Done («Куплено» / «Выполнено» / «Исполнено»), ticked; ticking one off again puts it back among
  * the open ones; a Shopping list's are headed by «Очистить». A Todo list's «Выполнено» has only
- * those done in the last 7 days and, while there are older ones, ends with the row «Выполненные
+ * those done in the last 7 days and not hidden, is headed by «Скрыть» while it has any (which
+ * hides them all), and, while there are older or hidden ones, ends with the row «Выполненные
  * ранее», which opens them (`DoneEarlierPage`). All data access goes through
  * `useItems()` and `useCategories()` (the local store + Outbox).
  */
@@ -64,6 +65,7 @@ export function ItemsSection({ list }: ItemsSectionProps) {
     move,
     setDone,
     remove,
+    hideDone,
   } = useItems(list);
   // The open Item just added again by name: highlighted for a moment.
   const [highlighted, setHighlighted] = useState<string>();
@@ -112,6 +114,12 @@ export function ItemsSection({ list }: ItemsSectionProps) {
             items={doneItems}
             setDone={setDone}
             remove={remove}
+            {...(list.kind === 'TODO' &&
+              doneItems.length > 0 && {
+                onHide: () => {
+                  void hideDone();
+                },
+              })}
             after={
               earlierDoneItems.length > 0 && (
                 <ListRow title={t('lists.doneEarlier')} to={listDoneEarlierPath(list.id)} />
@@ -352,13 +360,16 @@ interface DoneItemsProps {
   messages?: readonly (SectionMessage | false)[];
   setDone: (item: Item, done: boolean) => Promise<void>;
   remove: (item: Item) => Promise<void>;
+  /** «Скрыть» in the header, pressed: a Todo list's «Выполнено» while it has Items. */
+  onHide?: () => void;
 }
 
 /**
  * A section of Done Items, most recently done first, ticked; deleted like the open ones: the List
  * screen's Done section and a Todo list's «Выполненные ранее» screen. A Shopping list's
  * are headed by «Очистить», which asks, then deletes every one shown here (one Item delete each;
- * one ticked off elsewhere and not pulled yet stays).
+ * one ticked off elsewhere and not pulled yet stays). With `onHide` the header has «Скрыть»
+ * instead, which acts at once, with no question.
  */
 export function DoneItems({
   list,
@@ -368,6 +379,7 @@ export function DoneItems({
   messages = [],
   setDone,
   remove,
+  onHide,
 }: DoneItemsProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
@@ -389,6 +401,9 @@ export function DoneItems({
               setClearing(true);
             },
           },
+        })}
+        {...(onHide !== undefined && {
+          action: { label: t('lists.hideDone'), onClick: onHide },
         })}
         messages={[lines.failure(editable.error), ...messages]}
       >

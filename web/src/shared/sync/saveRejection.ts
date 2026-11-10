@@ -21,6 +21,8 @@ const REJECTION_KEYS = {
   'list.child_shared_only': 'sync.rejected.listChildSharedOnly',
   'list.child_immutable': 'sync.rejected.listChildImmutable',
   'list.child_not_found': 'sync.rejected.listChildNotFound',
+  // «Скрыть» on a Shopping or Wish list: never offered, but its own reason (ticket #93).
+  'list.hide_done_not_todo': 'sync.rejected.listHideDoneNotTodo',
   'child_field.value_type_immutable': 'sync.rejected.childFieldValueTypeImmutable',
   'sync.read_only': 'sync.rejected.readOnly',
   // A todo field (a Due date, an Assignee, a Repeat) on a shopping or wish Item is never
