@@ -144,6 +144,7 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
           disabled={deleting}
           confirm={{
             title: t('children.confirmDelete', { name: child.name }),
+            message: t('children.deleteTakesAll'),
             action: t('ui.delete'),
           }}
           onConfirm={() => {

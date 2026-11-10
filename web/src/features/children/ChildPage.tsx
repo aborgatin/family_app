@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { EmptyState, GroupedSection, Link, ListRow, Page, Sections } from '@/shared/ui';
@@ -17,15 +18,21 @@ export function childPath(id: string): string {
 interface ChildPageProps {
   /** Path of Home, where the page goes back to. */
   homePath: string;
+  /**
+   * «Списки»: the Child lists of the Child with this id. Passed in by the routes, since the
+   * `lists` feature already imports this one (a Child list's screen goes back to the Child page).
+   */
+  lists: ComponentType<{ childId: string }>;
 }
 
 /**
  * The Child page (`/children/:id`): the one place for everything about a Child, titled with the
  * Child's name, back to Home. «Изменить» opens the Child's screen in Settings (name, colour,
- * birthday); «Профиль» shows the birthday with the age, read-only. A Child that is unknown, or is
- * deleted while the page is open, shows «Такого ребёнка нет». Data only through `useChildren()`.
+ * birthday); «Профиль» shows the birthday with the age, read-only; «Списки» has the Child lists.
+ * A Child that is unknown, or is deleted while the page is open, shows «Такого ребёнка нет». Data
+ * only through `useChildren()`.
  */
-export function ChildPage({ homePath }: ChildPageProps) {
+export function ChildPage({ homePath, lists: ChildLists }: ChildPageProps) {
   const { t } = useTranslation();
   const { id } = useParams();
   const { load } = useChildren();
@@ -41,6 +48,7 @@ export function ChildPage({ homePath }: ChildPageProps) {
       >
         <Sections>
           <ProfileSection child={child} />
+          <ChildLists childId={child.id} />
         </Sections>
       </Page>
     );

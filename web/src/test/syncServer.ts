@@ -5,7 +5,7 @@ import { network } from './network';
  * A fake of the server's sync API (`POST /api/sync/push`, `GET /api/sync/pull`) for MSW, installed
  * for every test by `server.ts` and emptied after each. It behaves like the real one where the
  * client can tell: a global Version, per-field Last write wins by arrival, delete wins, tombstones
- * after a first sync. Tests seed rows, read what was pushed, and switch it offline or make it
+ * after a first sync, and deleting a Child deletes its Child lists with their Items. Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
@@ -200,6 +200,25 @@ class FakeSyncServer {
   private write(table: string, id: string, fields: Record<string, unknown>, deleted: boolean) {
     this.version += 1;
     this.stored.set(key(table, id), { table, id, version: this.version, deleted, fields });
+    if (deleted && table === 'child') this.deleteChildLists(id);
+  }
+
+  /**
+   * Deleting a Child deletes its Child lists and their Items in the same operation, whoever owns
+   * them (spec #81), as the real server does.
+   */
+  private deleteChildLists(childId: string) {
+    const live = [...this.stored.values()].filter((row) => !row.deleted);
+    for (const list of live.filter(
+      (row) => row.table === 'list' && row.fields.childId === childId,
+    )) {
+      this.write('list', list.id, list.fields, true);
+      for (const item of live.filter(
+        (row) => row.table === 'item' && row.fields.listId === list.id,
+      )) {
+        this.write('item', item.id, item.fields, true);
+      }
+    }
   }
 }
 

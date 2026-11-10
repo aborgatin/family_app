@@ -61,6 +61,7 @@ export interface Operation {
  */
 export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTable; key: string }[] =
   [
+    { parent: 'child', table: 'list', key: 'childId' },
     { parent: 'list', table: 'item', key: 'listId' },
     { parent: 'list', table: 'category', key: 'listId' },
     { parent: 'list', table: 'item_history', key: 'listId' },
@@ -85,6 +86,8 @@ class LocalStore extends Dexie {
     this.version(4).stores({ category: 'id, listId' });
     // A Shopping list's Item history (names for autocomplete), a dependent table of the List too.
     this.version(5).stores({ item_history: 'id, listId' });
+    // Child lists: a List may belong to a Child, so Lists are indexed by it (a dependent table).
+    this.version(6).stores({ list: 'id, childId' });
   }
 
   rows(table: SyncedTable): Table<Row, string> {

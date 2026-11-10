@@ -75,7 +75,10 @@ export function ChildrenSettings() {
             title={child.name}
             value={child.birthday === null ? undefined : age(child.birthday)}
             busy={list.deleting === child.id}
-            confirm={{ title: t('children.confirmDelete', { name: child.name }) }}
+            confirm={{
+              title: t('children.confirmDelete', { name: child.name }),
+              message: t('children.deleteTakesAll'),
+            }}
             onDelete={() => {
               void list.remove(child.id, children.length === 1, () => remove(child.id));
             }}

@@ -17,12 +17,14 @@ import {
 import { ListMissing, useRouteList } from './ListMissing';
 import { listCategoriesPath, listPath } from './listPaths';
 import {
+  childIdOf,
   hasVisibility,
   type List,
   type ListDetails,
   type Visibility,
   VISIBILITY_CHOICES,
 } from './listTypes';
+import { useListHome } from './useListHome';
 import { useLists } from './useLists';
 
 interface ListSettingsPageProps {
@@ -32,10 +34,10 @@ interface ListSettingsPageProps {
 
 /**
  * «Настройки списка» (`/lists/:id/settings`), back to the List: «Название» for either Member,
- * Visibility («Личный» / «Общий») only for the Owner and never for a Wish list (the server
- * enforces both), and «Удалить список», only for the Owner (the server enforces it), which asks
- * first and then goes back to Home. A List that disappears while open says so. Data only through
- * `useLists()`.
+ * Visibility («Личный» / «Общий») only for the Owner and never for a Wish list or a Child list
+ * (the server enforces all three), and «Удалить список», only for the Owner (the server enforces
+ * it), which asks first and then goes back to Home, or to the Child page for a Child list
+ * (`useListHome`). A List that disappears while open says so. Data only through `useLists()`.
  */
 export function ListSettingsPage({ homePath }: ListSettingsPageProps) {
   const { t } = useTranslation();
@@ -70,7 +72,10 @@ interface ListDetailsSectionProps {
   save: (id: string, fields: Partial<ListDetails>) => Promise<void>;
 }
 
-/** «Название», auto-saved, and the Owner's Visibility segments (none for a Wish list). */
+/**
+ * «Название», auto-saved, and the Owner's Visibility segments (none for a Wish list or a Child
+ * list: both are always Shared).
+ */
 function ListDetailsSection({ list, owned, save }: ListDetailsSectionProps) {
   const { t } = useTranslation();
   const { id } = list;
@@ -104,7 +109,7 @@ function ListDetailsSection({ list, owned, save }: ListDetailsSectionProps) {
   return (
     <GroupedSection messages={autoSaveMessages([name.failure, visibility.failure])}>
       <InputRow label={t('lists.name')} autoComplete="off" {...name.input} />
-      {owned && hasVisibility(list.kind) && (
+      {owned && hasVisibility(list.kind) && childIdOf(list) === undefined && (
         <SegmentedControl
           label={t('lists.visibility.label')}
           options={visibilities}
@@ -121,10 +126,14 @@ interface DeleteListSectionProps {
   homePath: string;
 }
 
-/** «Удалить список»: asks «Удалить „…“ со всем содержимым?», deletes, and goes back to Home. */
+/**
+ * «Удалить список»: asks «Удалить „…“ со всем содержимым?», deletes, and goes back to Home (to
+ * the Child page for a Child list).
+ */
 function DeleteListSection({ list, remove, homePath }: DeleteListSectionProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const home = useListHome(list, homePath);
   return (
     <GroupedSection>
       <ConfirmRow
@@ -135,7 +144,7 @@ function DeleteListSection({ list, remove, homePath }: DeleteListSectionProps) {
         }}
         onConfirm={() => {
           // Leave first: the List is gone from the local store as soon as it is deleted.
-          void navigate(homePath, { replace: true });
+          void navigate(home.to, { replace: true });
           void remove(list.id);
         }}
       />
