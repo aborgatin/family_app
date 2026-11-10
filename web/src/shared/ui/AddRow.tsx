@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
-import { ROW_FRAME } from './GroupedSection';
+import { FIELD_FOCUS } from './fieldFocus';
+import { ROW_FRAME, ROW_SEPARATOR } from './GroupedSection';
 import { ROW_LAYOUT } from './ListRow';
 import { SuggestionRows } from './SuggestionRows';
 
@@ -61,12 +62,7 @@ export function AddRow({ label, onAdd, focus = false, suggest }: AddRowProps) {
 
   return (
     <div
-      className={
-        'relative col-span-full grid grid-cols-subgrid not-first:before:absolute ' +
-        'not-first:before:top-0 not-first:before:right-0 ' +
-        'not-first:before:left-[var(--separator-inset,1rem)] not-first:before:h-px ' +
-        'not-first:before:scale-y-50 not-first:before:bg-separator'
-      }
+      className={`relative col-span-full grid grid-cols-subgrid ${ROW_SEPARATOR}`}
       onFocus={() => {
         setFocused(true);
       }}
@@ -87,9 +83,8 @@ export function AddRow({ label, onAdd, focus = false, suggest }: AddRowProps) {
           onKeyDown={onKeyDown}
           className={
             '-mx-1 my-1 block w-[calc(100%+0.5rem)] min-w-0 self-stretch rounded-md bg-transparent ' +
-            'px-1 text-body text-label outline-none placeholder:text-secondary-label ' +
-            'pointer-fine:focus-visible:outline-2 pointer-fine:focus-visible:outline-solid ' +
-            'pointer-fine:focus-visible:outline-accent'
+            'px-1 text-body text-label placeholder:text-secondary-label ' +
+            FIELD_FOCUS
           }
         />
       </div>

@@ -19,10 +19,17 @@ export { ConfirmRow } from './ConfirmRow';
 export { EditableRow } from './EditableRow';
 export { MenuChip, type MenuChipChoice, type MenuChipProps } from './MenuChip';
 export { AddRow } from './AddRow';
-export { SuggestionRows } from './SuggestionRows';
 export { DoneToggle } from './DoneToggle';
 export { SwipeToDelete } from './SwipeToDelete';
-export { useAutoSaveText, useAutoSaveChoice, autoSaveMessages, type SaveFailure } from './autoSave';
+export {
+  useAutoSaveText,
+  useAutoSaveChoice,
+  autoSaveMessages,
+  useRowFailures,
+  useReportFailure,
+  type ReportFailure,
+  type SaveFailure,
+} from './autoSave';
 export { useFooterLines } from './footerLines';
 export { useEditableList } from './editableList';
 export { Swatch } from './Swatch';

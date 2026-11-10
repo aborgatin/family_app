@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { ROW_FRAME } from './GroupedSection';
+import { ROW_FRAME, ROW_SEPARATOR } from './GroupedSection';
 import { ROW_LAYOUT, TAPPABLE } from './ListRow';
 
 interface SuggestionRowsProps {
@@ -11,7 +11,7 @@ interface SuggestionRowsProps {
 
 /**
  * Plain rows right under the field being typed in (`AddRow`), one per suggested name; tapping one
- * picks it. A group named «Подсказки»; Tab reaches the rows after the field. Pressing a row with
+ * picks it; a hairline above them, as above any row after the field. A group named «Подсказки»; Tab reaches the rows after the field. Pressing a row with
  * the mouse doesn't take the focus from the field, so the field neither adds its half-typed text
  * nor closes the suggestions before the click lands.
  */
@@ -22,10 +22,7 @@ export function SuggestionRows({ names, onPick }: SuggestionRowsProps) {
     <div
       role="group"
       aria-label={t('ui.suggestions')}
-      className={
-        'relative col-span-full grid grid-cols-subgrid before:absolute before:top-0 ' +
-        'before:right-0 before:left-4 before:h-px before:scale-y-50 before:bg-separator'
-      }
+      className={`relative col-span-full grid grid-cols-subgrid ${ROW_SEPARATOR}`}
     >
       {names.map((name) => (
         <button

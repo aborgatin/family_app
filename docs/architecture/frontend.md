@@ -60,7 +60,7 @@ web/src/
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
-                        LoadingRow, EditableRow, AddRow, SuggestionRows, SortableList (dnd-kit), SwipeToDelete,
+                        LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
   test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
@@ -512,7 +512,7 @@ rejected change).
 `SortableList`: each row's name is a text field (`input`, `useAutoSaveText`, named «Название поля
 «Вес»»; empty is refused without a request) that renames the field in place on blur or Enter,
 with the value type («Текст» / «Дата») on the right; it can't be changed (ADR-0007). Each row
-reports its save failure up to the section's footer (`autoSaveMessages`). Edit mode shows ⊖ and a
+reports its save failure up to the section's footer (`useRowFailures`). Edit mode shows ⊖ and a
 drag handle: dragging (mouse, touch or keyboard) calls `move(field, to)`, which writes only that
 field's position. A swipe and right-click delete too; every delete asks («Удалить поле „Вес“?»).
 «Добавить поле» opens `NewChildFieldSheet`: a `Sheet` «Новое поле» with «Название» (`InputRow`)

@@ -1,4 +1,5 @@
 import { useId, type KeyboardEvent } from 'react';
+import { FIELD_FOCUS } from './fieldFocus';
 import { ROW_CLASSES, useSectionRow } from './GroupedSection';
 import { Spinner } from './Spinner';
 
@@ -82,11 +83,7 @@ export function InputRow({
   );
 }
 
-/**
- * On touch the caret is the focus, as on iOS. With a keyboard and a fine pointer the field gets
- * the accent outline every focused control has.
- */
+/** The field: its focus sign is `FIELD_FOCUS`. */
 const FIELD =
   'my-1 -ml-1 w-full min-w-0 self-stretch rounded-md bg-transparent px-1 text-body text-label ' +
-  'outline-none pointer-fine:focus-visible:outline-2 pointer-fine:focus-visible:outline-solid ' +
-  'pointer-fine:focus-visible:outline-accent';
+  FIELD_FOCUS;

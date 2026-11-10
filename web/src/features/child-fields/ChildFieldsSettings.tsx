@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  autoSaveMessages,
   EditableRow,
   GroupedSection,
   ListRow,
@@ -10,7 +9,9 @@ import {
   useAutoSaveText,
   useEditableList,
   useFooterLines,
-  type SaveFailure,
+  useReportFailure,
+  useRowFailures,
+  type ReportFailure,
   type SortableRow,
 } from '@/shared/ui';
 import type { ChildField } from './childFieldTypes';
@@ -30,16 +31,10 @@ export function ChildFieldsSettings() {
   const lines = useFooterLines();
   const { load, add, rename, move, remove } = useChildFields();
   const list = useEditableList();
-  const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
+  const failures = useRowFailures();
   // The id of the field being added, made once when the sheet opens, so a retried save repeats
   // the same idempotent upsert instead of creating a second field (S3).
   const [addingId, setAddingId] = useState<string>();
-
-  const reportFailure = useCallback((id: string, failure: SaveFailure | undefined) => {
-    setFailures((previous) =>
-      previous[id] === failure ? previous : { ...previous, [id]: failure },
-    );
-  }, []);
 
   const fields = load.status === 'ready' ? load.value : [];
 
@@ -59,7 +54,7 @@ export function ChildFieldsSettings() {
         header={t('settings.childFields')}
         {...(fields.length > 0 && { edit: list.edit })}
         messages={[
-          ...autoSaveMessages(fields.map((field) => failures[field.id])),
+          ...failures.messages,
           lines.failure(list.error),
           load.status === 'ready' && fields.length === 0 && { text: t('childFields.empty') },
         ]}
@@ -89,7 +84,7 @@ export function ChildFieldsSettings() {
                 field={field}
                 sortable={sortable}
                 rename={rename}
-                onFailure={reportFailure}
+                onFailure={failures.report}
                 busy={list.deleting === field.id}
                 onDelete={() => {
                   void list.remove(field.id, fields.length === 1, () => remove(field));
@@ -108,7 +103,7 @@ interface ChildFieldRowProps {
   sortable: SortableRow;
   rename: (field: ChildField, name: string) => Promise<ChildField>;
   /** Tells the section about this row's failed save (or that it cleared), for its footer. */
-  onFailure: (id: string, failure: SaveFailure | undefined) => void;
+  onFailure: ReportFailure;
   busy: boolean;
   onDelete: () => void;
 }
@@ -121,16 +116,7 @@ function ChildFieldRow({ field, sortable, rename, onFailure, busy, onDelete }: C
   );
   const name = useAutoSaveText({ name: field.id, saved: field.name, save, required: true });
 
-  const { id } = field;
-  useEffect(() => {
-    onFailure(id, name.failure);
-  }, [id, name.failure, onFailure]);
-  useEffect(
-    () => () => {
-      onFailure(id, undefined);
-    },
-    [id, onFailure],
-  );
+  useReportFailure(onFailure, field.id, name.failure);
 
   return (
     <EditableRow

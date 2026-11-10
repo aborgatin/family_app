@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import {
   ActionSheet,
   AddRow,
-  autoSaveMessages,
   DoneToggle,
   EditableRow,
   GroupedSection,
@@ -14,7 +13,9 @@ import {
   useAutoSaveText,
   useEditableList,
   useFooterLines,
-  type SaveFailure,
+  useReportFailure,
+  useRowFailures,
+  type ReportFailure,
 } from '@/shared/ui';
 import { KIND_TEXTS, type Category, type Item, type List } from './listTypes';
 import {
@@ -261,13 +262,7 @@ function OpenItems({
   const lines = useFooterLines();
   const texts = KIND_TEXTS[list.kind];
   const editable = useEditableList();
-  const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
-
-  const reportFailure = useCallback((id: string, failure: SaveFailure | undefined) => {
-    setFailures((previous) =>
-      previous[id] === failure ? previous : { ...previous, [id]: failure },
-    );
-  }, []);
+  const failures = useRowFailures();
 
   const shown = items ?? [];
 
@@ -277,7 +272,7 @@ function OpenItems({
       label={label}
       {...(shown.length > 0 && { edit: editable.edit })}
       messages={[
-        ...autoSaveMessages(shown.map((item) => failures[item.id])),
+        ...failures.messages,
         lines.failure(editable.error),
         showEmpty && items !== undefined && items.length === 0 && { text: t(texts.noItems) },
       ]}
@@ -305,7 +300,7 @@ function OpenItems({
           move={move}
           setDone={setDone}
           highlighted={highlighted === item.id}
-          onFailure={reportFailure}
+          onFailure={failures.report}
           busy={editable.deleting === item.id}
           onDelete={() => {
             void editable.remove(item.id, shown.length === 1, () => remove(item));
@@ -402,7 +397,7 @@ interface ItemRowProps {
   /** Just added again by name: scrolled to and highlighted. */
   highlighted: boolean;
   /** Tells the section about this row's failed save (or that it cleared), for its footer. */
-  onFailure: (id: string, failure: SaveFailure | undefined) => void;
+  onFailure: ReportFailure;
   busy: boolean;
   onDelete: () => void;
 }
@@ -430,17 +425,8 @@ function ItemRow({
     save: saveDescription,
   });
 
-  const { id } = item;
-  const failure = text.failure ?? description.failure;
-  useEffect(() => {
-    onFailure(id, failure);
-  }, [id, failure, onFailure]);
-  useEffect(
-    () => () => {
-      onFailure(id, undefined);
-    },
-    [id, onFailure],
-  );
+  useReportFailure(onFailure, text.input.name, text.failure);
+  useReportFailure(onFailure, description.input.name, description.failure);
 
   return (
     <EditableRow

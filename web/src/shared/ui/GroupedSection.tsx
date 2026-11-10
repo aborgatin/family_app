@@ -1,6 +1,7 @@
 import { Children, createContext, use, useId, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from './Button';
+import { FIELD_FOCUS } from './fieldFocus';
 
 /** One line in a group's footer. */
 export interface SectionMessage {
@@ -248,9 +249,8 @@ function HeaderField({ label, value, onChange, onCommit, onCancel }: SectionHead
         onKeyDown={onKeyDown}
         className={
           '-mx-1 block w-[calc(100%+0.5rem)] min-w-0 rounded-md bg-transparent px-1 text-footnote ' +
-          'text-secondary-label uppercase outline-none placeholder:text-tertiary-label ' +
-          'placeholder:normal-case pointer-fine:focus-visible:outline-2 ' +
-          'pointer-fine:focus-visible:outline-solid pointer-fine:focus-visible:outline-accent'
+          'text-secondary-label uppercase placeholder:text-tertiary-label placeholder:normal-case ' +
+          FIELD_FOCUS
         }
       />
     </div>
@@ -262,16 +262,22 @@ function hasRows(rows: ReactNode) {
 }
 
 /**
+ * The inset hairline above every row but the first, for `ROW_FRAME` and for a block of rows that
+ * is itself one row of the group (an `AddRow` with its suggestions). Needs `relative`.
+ */
+export const ROW_SEPARATOR =
+  'not-first:before:absolute not-first:before:top-0 not-first:before:right-0 ' +
+  'not-first:before:left-[var(--separator-inset,1rem)] not-first:before:h-px not-first:before:scale-y-50 ' +
+  'not-first:before:bg-separator';
+
+/**
  * A row's frame in a GroupedSection, for rows not laid out on the label/value grid (`ListRow`):
  * both grid columns, an inset hairline above every row but the first, and the row height (44px on
  * touch, tighter with a fine pointer). A row can move its hairline's start with
  * `--separator-inset` (a `ListRow` with `leading` starts it at the text, as iOS does).
  */
 export const ROW_FRAME =
-  'relative col-span-full px-4 pointer-coarse:min-h-11 pointer-fine:min-h-9 ' +
-  'not-first:before:absolute not-first:before:top-0 not-first:before:right-0 ' +
-  'not-first:before:left-[var(--separator-inset,1rem)] not-first:before:h-px not-first:before:scale-y-50 ' +
-  'not-first:before:bg-separator';
+  'relative col-span-full px-4 pointer-coarse:min-h-11 pointer-fine:min-h-9 ' + ROW_SEPARATOR;
 
 /** The frame of a row on the label/value grid (`InputRow`, `SegmentedControl`). */
 export const ROW_CLASSES = `${ROW_FRAME} grid grid-cols-subgrid items-center`;

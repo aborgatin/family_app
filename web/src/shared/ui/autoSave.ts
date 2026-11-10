@@ -58,6 +58,44 @@ export function autoSaveMessages(failures: readonly (SaveFailure | undefined)[])
   });
 }
 
+/** Tells a section about a row's failed save, or (`undefined`) that it cleared. */
+export type ReportFailure = (row: string, failure: SaveFailure | undefined) => void;
+
+/**
+ * The failed saves of a section whose rows each save themselves in their own component: a row
+ * passes its failure to `useReportFailure(report, …)`, and the section shows `messages`
+ * (`autoSaveMessages` of every failure its rows reported).
+ */
+export function useRowFailures() {
+  const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
+  const report = useCallback<ReportFailure>((row, failure) => {
+    setFailures((previous) =>
+      previous[row] === failure ? previous : { ...previous, [row]: failure },
+    );
+  }, []);
+  return { messages: autoSaveMessages(Object.values(failures)), report };
+}
+
+/**
+ * A row's part of `useRowFailures()`: reports its save's `failure` under its `name` whenever it
+ * changes, and clears it when the row goes.
+ */
+export function useReportFailure(
+  report: ReportFailure,
+  row: string,
+  failure: SaveFailure | undefined,
+) {
+  useEffect(() => {
+    report(row, failure);
+  }, [report, row, failure]);
+  useEffect(
+    () => () => {
+      report(row, undefined);
+    },
+    [report, row],
+  );
+}
+
 interface AutoSaveOptions<T> {
   /** The row's `name` in its `GroupedSection`, which links it to its footer message. */
   name: string;

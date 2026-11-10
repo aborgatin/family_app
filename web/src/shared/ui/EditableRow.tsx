@@ -10,6 +10,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Link as RouterLink } from 'react-router';
 import { ActionSheet } from './ActionSheet';
+import { FIELD_FOCUS } from './fieldFocus';
 import { ROW_FRAME, useEditing, useSectionRow } from './GroupedSection';
 import { Icon } from './Icon';
 import { MenuChip, type MenuChipProps } from './MenuChip';
@@ -282,8 +283,7 @@ function RowInput({ label, name, value, onChange, onCommit, onRevert }: RowInput
       aria-describedby={describedBy}
       className={
         '-mx-1 block w-[calc(100%+0.5rem)] min-w-0 rounded-md bg-transparent px-1 text-body ' +
-        'outline-none pointer-fine:focus-visible:outline-2 pointer-fine:focus-visible:outline-solid ' +
-        'pointer-fine:focus-visible:outline-accent ' +
+        `${FIELD_FOCUS} ` +
         (invalid ? 'text-destructive' : 'text-label')
       }
     />
@@ -343,9 +343,8 @@ function SecondaryInput({
       }}
       className={
         '-mx-1 mt-0.5 block w-[calc(100%+0.5rem)] min-w-0 resize-none overflow-hidden rounded-md ' +
-        'bg-transparent px-1 text-subhead text-secondary-label outline-none ' +
-        'placeholder:text-tertiary-label pointer-fine:focus-visible:outline-2 ' +
-        'pointer-fine:focus-visible:outline-solid pointer-fine:focus-visible:outline-accent'
+        'bg-transparent px-1 text-subhead text-secondary-label placeholder:text-tertiary-label ' +
+        FIELD_FOCUS
       }
     />
   );

@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   AddRow,
-  autoSaveMessages,
   EditableRow,
   GroupedSection,
   LoadingRow,
@@ -12,7 +11,9 @@ import {
   useAutoSaveText,
   useEditableList,
   useFooterLines,
-  type SaveFailure,
+  useReportFailure,
+  useRowFailures,
+  type ReportFailure,
   type SortableRow,
 } from '@/shared/ui';
 import { ListMissing, useRouteList } from './ListMissing';
@@ -63,13 +64,7 @@ function CategoriesSection({ list }: { list: List }) {
   const { categories, add, rename, move, remove } = useCategories(list);
   const { items, doneItems } = useItems(list);
   const editable = useEditableList();
-  const [failures, setFailures] = useState<Record<string, SaveFailure | undefined>>({});
-
-  const reportFailure = useCallback((id: string, failure: SaveFailure | undefined) => {
-    setFailures((previous) =>
-      previous[id] === failure ? previous : { ...previous, [id]: failure },
-    );
-  }, []);
+  const failures = useRowFailures();
 
   const known = categories ?? [];
   // A row per Category and one for the Unnamed category (`category` undefined).
@@ -82,10 +77,7 @@ function CategoriesSection({ list }: { list: List }) {
     <GroupedSection
       header={t('lists.categories')}
       edit={editable.edit}
-      messages={[
-        ...autoSaveMessages(known.map((category) => failures[category.id])),
-        lines.failure(editable.error),
-      ]}
+      messages={[...failures.messages, lines.failure(editable.error)]}
       after={
         categories === undefined ? (
           <LoadingRow />
@@ -115,7 +107,7 @@ function CategoriesSection({ list }: { list: List }) {
                 itemCount={itemsIn(category)}
                 sortable={sortable}
                 rename={rename}
-                onFailure={reportFailure}
+                onFailure={failures.report}
                 busy={editable.deleting === category.id}
                 onDelete={() => {
                   void editable.remove(category.id, false, () => remove(category));
@@ -136,7 +128,7 @@ interface CategoryRowProps {
   sortable: SortableRow;
   rename: (category: Category, name: string) => Promise<void>;
   /** Tells the section about this row's failed save (or that it cleared), for its footer. */
-  onFailure: (id: string, failure: SaveFailure | undefined) => void;
+  onFailure: ReportFailure;
   busy: boolean;
   onDelete: () => void;
 }
@@ -160,16 +152,7 @@ function CategoryRow({
   );
   const name = useAutoSaveText({ name: category.id, saved: category.name, save, required: true });
 
-  const { id } = category;
-  useEffect(() => {
-    onFailure(id, name.failure);
-  }, [id, name.failure, onFailure]);
-  useEffect(
-    () => () => {
-      onFailure(id, undefined);
-    },
-    [id, onFailure],
-  );
+  useReportFailure(onFailure, category.id, name.failure);
 
   return (
     <EditableRow

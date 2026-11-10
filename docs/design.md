@@ -110,8 +110,11 @@ spacing `n`).
   as saved; spreads `input` onto an `InputRow` / `control` onto a `SegmentedControl`; and passes
   `messages={autoSaveMessages([a.failure, b.failure])}` to the `GroupedSection`. Those footer
   lines are about their rows, announced (`alert`), and carry «Повторить»; rows that failed for
-  the same reason share one line, whose «Повторить» retries them all. No screen writes its own
-  saving state.
+  the same reason share one line, whose «Повторить» retries them all. When each row saves in
+  its own component (an edit-mode list), the section takes `useRowFailures()` → `{messages,
+  report}`, passes `messages` on, and each row calls `useReportFailure(report, name, failure)`
+  for each of its auto-saved fields (cleared when the row goes). No screen writes its own saving
+  state.
 - **Explicit confirm** only for: auth forms (full-width primary button), creating something
   (a «Новый …» sheet with «Отмена» / «Готово», so a half-filled item is never saved), and the
   password screen («Готово» in the nav bar).
@@ -122,10 +125,13 @@ spacing `n`).
 ## Components
 
 All in `web/src/shared/ui`, exported from its `index.ts` (except `OfflineIndicator`,
-`Spinner` and `RowContextMenu`, which only other components place). Feature code uses nothing
+`Spinner`, `RowContextMenu` and `SuggestionRows`, which only other components place). Text fields
+share their focus sign (`FIELD_FOCUS`), and rows their hairline (`ROW_SEPARATOR`, part of
+`ROW_FRAME`). Feature code uses nothing
 else to draw: no raw `button` / `input` / `select` / `textarea` / `form` / `a`, no `className` or
 `style`, no UI library (CODING_STANDARDS U1, enforced by lint). The auto-save hooks
-`useAutoSaveText()`, `useAutoSaveChoice()` and `autoSaveMessages()` are described under
+`useAutoSaveText()`, `useAutoSaveChoice()`, `autoSaveMessages()`, `useRowFailures()` and
+`useReportFailure()` are described under
 [Saving and deleting](#saving-and-deleting).
 
 Two more hooks keep screens from writing the same state twice:
