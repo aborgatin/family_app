@@ -382,6 +382,33 @@ describe('An Item’s Description', () => {
     expect(screen.queryByRole('textbox', { name: 'Описание «Молоко»' })).not.toBeInTheDocument();
   });
 
+  it('follows a tapped link without starting to edit', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item', [
+      { ...item(1, 'Молоко', '2026-11-01T09:00:00Z'), description: 'Любое https://shop.example' },
+    ]);
+    const user = userEvent.setup();
+    let followed = false;
+    // jsdom doesn't navigate; a click that reaches the link is the browser following it.
+    const follow = (event: Event) => {
+      if (!(event.target instanceof HTMLAnchorElement)) return;
+      event.preventDefault();
+      followed = true;
+    };
+    document.addEventListener('click', follow, true);
+
+    try {
+      renderApp(`/lists/${groceries.id}`);
+      await user.click(await screen.findByRole('link', { name: 'https://shop.example' }));
+    } finally {
+      document.removeEventListener('click', follow, true);
+    }
+
+    expect(followed).toBe(true);
+    expect(screen.getByRole('link', { name: 'https://shop.example' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Описание «Молоко»' })).not.toBeInTheDocument();
+  });
+
   it('opens with the full text when the line is tapped beside its links', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.seed('item', [

@@ -134,7 +134,9 @@ export function EditableRow({
     );
 
   const focusEvents = withSecondary && {
-    onFocus: () => {
+    onFocus: (event: FocusEvent<HTMLDivElement>) => {
+      // A link in the line takes the focus on press: editing now would remove it before the click.
+      if (event.target instanceof HTMLAnchorElement) return;
       setActive(true);
     },
     onBlur: (event: FocusEvent<HTMLDivElement>) => {
