@@ -354,6 +354,9 @@ export const SEED = {
           'Поменять лампочку в коридоре',
           { text: 'Записать Машу к стоматологу', description: 'Детская стоматология на Лесной, после 15:00' },
           { text: 'Оплатить интернет', done: true },
+          { text: 'Вызвать сантехника', done: true, doneDaysAgo: 6 },
+          { text: 'Помыть окна', done: true, doneDaysAgo: 8 },
+          { text: 'Сдать батарейки в переработку', done: true, doneDaysAgo: 40 },
         ],
       },
       {
@@ -395,17 +398,21 @@ async function api(page, method, url, body) {
 /**
  * Creates Lists, their `categories` (`{name, position}`) and their `items` in that order, through
  * the sync push as the Member logged in on `page`. An Item is its text, or `{text, description?,
- * category?, done?, cleared?}` (`category` a Category's name; Done ones ticked in the same order;
- * cleared ones deleted after, so only the Item history keeps their names). A List with `isDefault`
+ * category?, done?, doneDaysAgo?, cleared?}` (`category` a Category's name; Done ones ticked in the
+ * same order; `doneDaysAgo` moves a Done one's Done time that many days back, straight in the
+ * database, since the server stamps it itself; cleared ones deleted after, so only the Item
+ * history keeps their names). A List with `isDefault`
  * is not created: its Items go into the Default List of that name, whose id is in `defaults`
  * (name → id).
  */
-async function pushLists(page, lists, defaults = {}) {
+async function pushLists(page, pg, lists, defaults = {}) {
+  const doneEarlier = [];
   const operations = lists.flatMap(({ items = [], categories = [], isDefault = false, ...fields }) => {
     if (isDefault && !defaults[fields.name]) throw new Error(`seed lists: no Default List «${fields.name}»`);
     const listId = isDefault ? defaults[fields.name] : crypto.randomUUID();
     const categoryIds = Object.fromEntries(categories.map(({ name }) => [name, crypto.randomUUID()]));
     const added = items.map((item) => ({ id: crypto.randomUUID(), ...(typeof item === 'string' ? { text: item } : item) }));
+    doneEarlier.push(...added.filter((item) => item.doneDaysAgo));
     return [
       ...(isDefault ? [] : [{ table: 'list', id: listId, op: 'upsert', fields }]),
       ...categories.map(({ name, position }) => ({
@@ -426,6 +433,9 @@ async function pushLists(page, lists, defaults = {}) {
   });
   const pushed = await api(page, 'POST', '/api/sync/push', { operations });
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed lists: ${JSON.stringify(pushed.results)}`);
+  for (const { id, doneDaysAgo } of doneEarlier) {
+    await psql(pg, `UPDATE item SET done_at = now() - make_interval(days => ${Number(doneDaysAgo)}) WHERE id = '${id}';`);
+  }
 }
 
 /**
@@ -443,7 +453,7 @@ async function prepareDefaultLists(page) {
   return defaults;
 }
 
-async function seed(browser, baseUrl) {
+async function seed(browser, baseUrl, pg) {
   log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, active Invite');
   const ctx = await browser.newContext({ baseURL: baseUrl });
   const page = await ctx.newPage();
@@ -458,9 +468,9 @@ async function seed(browser, baseUrl) {
   const p2 = await ctx2.newPage();
   await p2.goto('/api/auth/session');
   await api(p2, 'POST', `/api/invites/by-token/${token1}/accept`, SEED.secondMember);
-  await pushLists(p2, SEED.lists.secondMember);
+  await pushLists(p2, pg, SEED.lists.secondMember);
   await ctx2.close();
-  await pushLists(page, SEED.lists.member, defaults);
+  await pushLists(page, pg, SEED.lists.member, defaults);
 
   // Children and Child fields are written only through the sync push (spec #3).
   const operations = [
@@ -580,7 +590,7 @@ try {
 
   const needsReset = (list) => list.some((r) => r.path.includes('{resetToken}'));
   const seedState = async (list) => {
-    const { storageState, inviteToken } = await seed(browser, vite.url);
+    const { storageState, inviteToken } = await seed(browser, vite.url, pg);
     const tokens = { inviteToken };
     if (needsReset(list)) tokens.resetToken = await createResetToken(jar, pg, SEED.secondMember.email);
     return { storageState, tokens };

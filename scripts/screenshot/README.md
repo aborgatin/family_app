@@ -39,7 +39,7 @@ Ctrl-C). Then it seeds through the real API:
   «Еда» (two open, «Молоко» with a Description, one Done), «Бытовая химия» (empty), then the
   Unnamed category with one Item; three more Items added and cleared, so its Item history has
   names no Item shows),
-  «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open, one with a Description, and one Done), «Подарки»
+  «Ремонт» (TODO, Private), «Дела по дому» (TODO, two open, one with a Description, and four Done: today, 6, 8 and 40 days ago, so two are in «Выполненные ранее»), «Подарки»
   (Желания, one open and one Done), «Книги» (Желания); Борис's «Гараж» (TODO) and his
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.
 - One active Invite.
@@ -63,7 +63,8 @@ or update its route there, so the next change shoots it too. A route has:
   they fail and the browser goes offline, then the steps run).
 - `localStorage`: `{key: value}` set before the app starts, e.g. `{theme: 'dark'}`.
 - `initScript`: JS run before the app's own code; `helpers.mjs` has `hang(part)` (a request that
-  never answers), `noLists` (pulls answer without Lists: Home's empty state) and `failClipboard`.
+  never answers), `noLists` (pulls answer without Lists: Home's empty state), `onlyChildren(…names)`
+  (pulls answer with only those Children; none: no Children) and `failClipboard`.
 - `fullPage`: default `true`; `false` shoots the viewport only (sheets, dialogs, scrolled states).
 - `steps`, run in order: `{click: sel}`, `{tap: sel}`, `{fill: sel, value}`, `{press: 'Enter'}`,
   `{hover: sel}`, `{waitFor: sel}`, `{scroll: sel}`, `{wait: ms}`, `{eval: 'js'}`, or in a `.mjs`

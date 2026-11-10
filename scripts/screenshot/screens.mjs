@@ -1,8 +1,20 @@
 // Every screen and state of the web app, as shot for review (README.md has the format). When a
 // change adds or alters a screen, add or update its route here, so the next change shoots it too.
-import { editIn, failClipboard, hang, noLists, rejectPushes, rowActions, section, toSection } from './helpers.mjs';
+import {
+  editIn,
+  failClipboard,
+  hang,
+  noLists,
+  onlyChildren,
+  rejectPushes,
+  rowActions,
+  section,
+  toSection,
+} from './helpers.mjs';
 
 const INVITE = 'role=button[name="Пригласить взрослого…"]';
+/** The tile of the Child with this name in «Дети» on Home. */
+const childTile = (name) => `role=region[name="Дети"] >> role=link[name=/${name}/]`;
 const ITEM = 'role=textbox[name="Товар «Молоко 3,2%»"]';
 /** Steps from Home to the «Настройки списка» screen of the List with this name. */
 const listSettings = (name) => [
@@ -37,6 +49,12 @@ const openDoneItem = (listName, text) => [
   { click: `role=link[name=/${listName}/]` },
   { click: `role=link[name="${text}"]` },
   { waitFor: 'role=textbox[name="Название"]' },
+];
+/** Steps from Home to the «Выполненные ранее» screen of «Дела по дому». */
+const doneEarlier = [
+  { click: 'role=link[name=/Дела по дому/]' },
+  { click: 'role=link[name="Выполненные ранее"]' },
+  { waitFor: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
 ];
 const showInvites = async (page) => {
   await page.locator(INVITE).scrollIntoViewIfNeeded();
@@ -80,7 +98,37 @@ export default {
     { name: 'reset-password', path: '/reset-password/{resetToken}', auth: 'loggedOut' },
 
     // Home
-    { name: 'home', path: '/', steps: [{ waitFor: 'text=Супермаркет' }] },
+    // «Дети» with the seed's three Children (the odd last tile at the left), above «Списки».
+    { name: 'home', path: '/', steps: [{ waitFor: 'text=Супермаркет' }, { waitFor: childTile('Соня') }] },
+    // No Children: no «Дети» section at all.
+    { name: 'home-no-children', path: '/', initScript: onlyChildren(), steps: [{ waitFor: 'text=Супермаркет' }] },
+    {
+      name: 'home-one-child',
+      path: '/',
+      initScript: onlyChildren('Маша'),
+      steps: [{ waitFor: 'text=Супермаркет' }, { waitFor: childTile('Маша') }],
+    },
+    {
+      // Петя has no birthday: the name only.
+      name: 'home-two-children',
+      path: '/',
+      initScript: onlyChildren('Маша', 'Петя'),
+      steps: [{ waitFor: 'text=Супермаркет' }, { waitFor: childTile('Петя') }],
+    },
+    {
+      // A tile reached with Tab: the focus outline.
+      name: 'home-child-tile-focus',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { waitFor: childTile('Соня') },
+        async (page) => {
+          await page.locator(childTile('Маша')).focus();
+          await page.keyboard.press('Tab');
+        },
+        { wait: 200 },
+      ],
+    },
     { name: 'home-empty', path: '/', initScript: noLists, steps: [{ waitFor: 'text=Списков пока нет' }] },
     // A fresh installation right after the first Member registers: the Default Shopping lists.
     { name: 'home-defaults', path: '/setup', auth: 'fresh', isolate: true, steps: [...registerFirstMember] },
@@ -301,14 +349,49 @@ export default {
       ],
     },
     {
+      // «Выполнено» holds the last 7 days (today and 6 days ago); the row under it opens the rest.
       name: 'list-todo',
       path: '/',
-      steps: [{ click: 'role=link[name=/Дела по дому/]' }, { waitFor: 'role=textbox[name^="Задача"]' }],
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { waitFor: 'role=textbox[name^="Задача"]' },
+        { waitFor: 'role=link[name="Выполненные ранее"]' },
+      ],
     },
     {
       name: 'list-todo-empty',
       path: '/',
       steps: [{ click: 'role=link[name=/Ремонт/]' }, { waitFor: 'text=Задач пока нет' }],
+    },
+    // «Выполненные ранее»: the Done Items older than 7 days, most recent first.
+    { name: 'done-earlier', path: '/', steps: doneEarlier },
+    { name: 'done-earlier-edit', path: '/', steps: [...doneEarlier, editIn('Выполненные ранее')] },
+    { name: 'done-earlier-row-actions', path: '/', fullPage: false, steps: [...doneEarlier, rowActions('Выполненные ранее')] },
+    {
+      // Both ticked back on, offline: they are open again, and the screen says nothing is left.
+      name: 'done-earlier-empty',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        ...doneEarlier,
+        { click: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
+        { click: 'role=checkbox[name="Выполнено «Сдать батарейки в переработку»"]' },
+        { waitFor: 'text=Выполненных ранее задач нет' },
+      ],
+    },
+    {
+      // A Shopping list has no such screen.
+      name: 'done-earlier-not-todo',
+      path: '/',
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        async (page) => {
+          await page.goto(`${page.url()}/done-earlier`);
+        },
+        { waitFor: 'role=alert' },
+      ],
     },
     {
       // Enter added «Масло» and keeps the focus in «Новый товар» for the next Item.
@@ -811,6 +894,24 @@ export default {
         { waitFor: 'text=Пароль изменён' },
         toSection('Ваш профиль', -100),
       ],
+    },
+
+    // The Child page, opened from a tile of «Дети» on Home
+    {
+      name: 'child-page',
+      path: '/',
+      steps: [{ click: childTile('Маша') }, { waitFor: 'role=region[name="Профиль"]' }],
+    },
+    {
+      // Петя has no birthday: «Не указан».
+      name: 'child-page-no-birthday',
+      path: '/',
+      steps: [{ click: childTile('Петя') }, { waitFor: 'text=Не указан' }],
+    },
+    {
+      name: 'child-page-not-found',
+      path: '/children/00000000-0000-4000-8000-000000000000',
+      steps: [{ waitFor: 'role=alert' }],
     },
 
     // Child screen and sheets

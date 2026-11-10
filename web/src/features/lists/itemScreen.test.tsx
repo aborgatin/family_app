@@ -125,6 +125,22 @@ describe('Opening the Item screen', () => {
     expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue('Молоко');
   });
 
+  it('opens for a Todo item marked Done before the last 7 days, from «Выполненные ранее» too', async () => {
+    const row = {
+      ...done(item(9, 'Помыть окна', chores.id)),
+      doneAt: `${String(YEAR - 1)}-03-05T12:00:00Z`,
+    };
+    syncServer.seed('item', [row]);
+    const user = userEvent.setup();
+
+    const app = renderApp(`/lists/${chores.id}/done-earlier`);
+    await user.click(await screen.findByRole('link', { name: 'Помыть окна' }));
+
+    expect(app.location()).toBe(itemPath(row));
+    expect(await screen.findByRole('textbox', { name: 'Название' })).toHaveValue('Помыть окна');
+    expect(screen.getByRole('checkbox', { name: 'Выполнено «Помыть окна»' })).toBeChecked();
+  });
+
   it('keeps a Done row’s text plain in edit mode', async () => {
     syncServer.seed('item', [done(milk)]);
     const user = userEvent.setup();

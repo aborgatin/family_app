@@ -39,3 +39,4 @@ export { DateRow } from './DateRow';
 export { Sheet } from './Sheet';
 export { SortableList, type SortableRow } from './SortableList';
 export { Toast } from './Toast';
+export { Tile, TileGrid } from './TileGrid';

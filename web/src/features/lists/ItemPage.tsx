@@ -49,11 +49,14 @@ function ListItem({ list }: { list: List }) {
   const { t } = useTranslation();
   const { itemId } = useParams();
   const navigate = useNavigate();
-  const { items, doneItems, rename, describe, setDone, remove } = useItems(list);
+  const { items, doneItems, earlierDoneItems, rename, describe, setDone, remove } = useItems(list);
   const texts = KIND_TEXTS[list.kind];
   const back = listPath(list.id);
-  const loading = items === undefined || doneItems === undefined;
-  const item = loading ? undefined : [...items, ...doneItems].find(({ id }) => id === itemId);
+  const loading = items === undefined || doneItems === undefined || earlierDoneItems === undefined;
+  // Open, Done, or (a Todo list's) Done before the last 7 days: every Item has its screen.
+  const item = loading
+    ? undefined
+    : [...items, ...doneItems, ...earlierDoneItems].find(({ id }) => id === itemId);
 
   return (
     <Page title={t(texts.item)} back={{ to: back, title: list.name }}>
