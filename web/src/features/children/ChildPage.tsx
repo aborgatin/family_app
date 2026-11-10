@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
-import { EmptyState, GroupedSection, Link, ListRow, Page, Sections } from '@/shared/ui';
+import { ChildProfileSection } from '@/features/child-fields';
+import { EmptyState, Link, ListRow, Page, Sections } from '@/shared/ui';
 import { useAge } from './age';
 import { childSettingsPath } from './ChildSettingsPage';
 import type { Child } from './childTypes';
@@ -22,7 +23,8 @@ interface ChildPageProps {
 /**
  * The Child page (`/children/:id`): the one place for everything about a Child, titled with the
  * Child's name, back to Home. «Изменить» opens the Child's screen in Settings (name, colour,
- * birthday); «Профиль» shows the birthday with the age, read-only. A Child that is unknown, or is
+ * birthday); «Профиль» shows the birthday with the age, read-only, then the Child's value for
+ * every Child field, edited in place (`ChildProfileSection`). A Child that is unknown, or is
  * deleted while the page is open, shows «Такого ребёнка нет». Data only through `useChildren()`.
  */
 export function ChildPage({ homePath }: ChildPageProps) {
@@ -59,7 +61,7 @@ export function ChildPage({ homePath }: ChildPageProps) {
 /** Dates read the Russian way: «12.04.2019». */
 const DATE = new Intl.DateTimeFormat('ru', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-/** «Профиль»: the Child profile. For now the birthday with the age, read-only. */
+/** «Профиль»: the Child profile, starting with the birthday and the age, read-only. */
 function ProfileSection({ child }: { child: Child }) {
   const { t } = useTranslation();
   const age = useAge();
@@ -74,8 +76,8 @@ function ProfileSection({ child }: { child: Child }) {
   }
 
   return (
-    <GroupedSection header={t('children.profile')}>
+    <ChildProfileSection childId={child.id}>
       <ListRow title={t('children.birthday')} value={birthday} />
-    </GroupedSection>
+    </ChildProfileSection>
   );
 }

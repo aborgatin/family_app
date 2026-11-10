@@ -191,7 +191,9 @@
       "text": "Текст",
       "date": "Дата"
     },
-    "confirmDelete": "Удалить поле „{{name}}“?"
+    "confirmDelete": "Удалить поле „{{name}}“?",
+    "profile": "Профиль",
+    "profileEmpty": "Полей профиля нет. Добавьте их в Настройках."
   },
   "children": {
     "title": "Дети",
@@ -203,7 +205,6 @@
     "birthday": "День рождения",
     "birthdayWithAge": "{{date}} · {{age}}",
     "birthdayMissing": "Не указан",
-    "profile": "Профиль",
     "age": {
       "years_one": "{{count}} год",
       "years_few": "{{count}} года",

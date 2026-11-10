@@ -41,6 +41,16 @@ type Rejecter = (
   operation: PushedOperation,
 ) => { code: string; params?: Record<string, unknown> } | boolean;
 
+/**
+ * What the server soft-deletes together with a row, in the same operation: the rows of `table`
+ * whose `key` field holds the deleted `parent` row's id. A deleted Child or Child field takes its
+ * Child field values (spec #81).
+ */
+const CASCADES: readonly { parent: string; table: string; key: string }[] = [
+  { parent: 'child', table: 'child_field_value', key: 'childId' },
+  { parent: 'child_field', table: 'child_field_value', key: 'childFieldId' },
+];
+
 /** The rejection used when `rejectWhen`'s predicate just answers `true`. */
 const VALIDATION_FAILED = { code: 'validation.failed', params: { errors: [] } };
 
@@ -113,7 +123,7 @@ class FakeSyncServer {
       throw new Error(`syncServer.change: no ${table} ${id} on the server; seed it first`);
     }
     if (fields === 'deleted') {
-      this.write(table, id, current.fields, true);
+      this.delete(table, id);
     } else {
       this.write(table, id, { ...current.fields, ...fields }, false);
     }
@@ -190,11 +200,45 @@ class FakeSyncServer {
       return { status: 'ignored' };
     }
     if (operation.op === 'delete') {
-      this.write(operation.table, operation.id, current?.fields ?? {}, true);
+      this.delete(operation.table, operation.id);
+    } else if (operation.table === 'child_field_value') {
+      // A timeline entry (ADR-0007): never changed once recorded, stamped by the server, and not
+      // recorded for a deleted Child or Child field.
+      if (current !== undefined) return { status: 'applied' };
+      const { childId, childFieldId } = operation.fields ?? {};
+      if (this.gone('child', childId) || this.gone('child_field', childFieldId)) {
+        return { status: 'ignored' };
+      }
+      this.write(
+        operation.table,
+        operation.id,
+        { ...operation.fields, recordedAt: new Date().toISOString() },
+        false,
+      );
     } else {
       this.write(operation.table, operation.id, { ...current?.fields, ...operation.fields }, false);
     }
     return { status: 'applied' };
+  }
+
+  /** Whether the row is deleted, or was never there. */
+  private gone(table: string, id: unknown): boolean {
+    return typeof id !== 'string' || this.stored.get(key(table, id))?.deleted !== false;
+  }
+
+  /**
+   * Soft-deletes the row and, as the server does in the same operation, the rows that go with it
+   * (`CASCADES`), each with a new Version.
+   */
+  private delete(table: string, id: string) {
+    this.write(table, id, this.stored.get(key(table, id))?.fields ?? {}, true);
+    for (const cascade of CASCADES.filter(({ parent }) => parent === table)) {
+      for (const row of [...this.stored.values()]) {
+        if (row.table === cascade.table && !row.deleted && row.fields[cascade.key] === id) {
+          this.delete(row.table, row.id);
+        }
+      }
+    }
   }
 
   private write(table: string, id: string, fields: Record<string, unknown>, deleted: boolean) {
