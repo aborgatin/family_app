@@ -45,6 +45,8 @@
   --color-swatch-edge: rgb(0 0 0 / 0.12);
   /* The shadow that keeps the white check readable on a light colour circle (ColorChoice). */
   --color-check-shadow: rgb(0 0 0 / 0.5);
+  /* Text on a tile filled with a Child color (Tile); the fills are the same in both themes. */
+  --color-on-child-color: #000000;
 
   --font-*: initial;
   --font-sans:

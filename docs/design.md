@@ -36,9 +36,12 @@ a new token here, with its light and dark values.
 | `overlay`          | black at 35%     | black at 55%     | the dimmed page behind an action sheet     |
 | `swatch-edge`      | black at 12%     | white at 18%     | hairline around a colour dot (`Swatch`)    |
 | `check-shadow`     | black at 50%     | black at 50%     | keeps the white check on a colour readable |
+| `on-child-color`   | `#000000`        | `#000000`        | text on a `Tile` filled with a Child color |
 
 Contrast is WCAG AA (4.5:1 for text) in both themes, checked by `shared/ui/theme.test.ts` for every
-text/background pair; a new token that carries text or sits under it gets its pair there. Three
+text/background pair; a new token that carries text or sits under it gets its pair there. The
+Child colors are the same in both themes, and `on-child-color` is checked against every one of
+them (black: white fails on most, e.g. 1.7:1 on yellow). Three
 deliberate departures from the iOS values: light destructive text is `#D70015` (iOS `#FF3B30` is
 3.5:1 on white), in dark the filled button is `#0071E3` (white on `#0A84FF` is 3.7:1), and the swipe
 «Удалить» in dark is `#E0262B` (white on `#FF453A` is 3.4:1). The accent is never used for decoration, so it doesn't compete with the Child colours.
@@ -535,6 +538,25 @@ Asks before something that can't be undone: `title` (the question), optional `me
 iOS action sheet sliding up from the bottom, «Отменить» in its own block. Wide windows: a centred
 dialog, «Отменить» its last line. Built on Radix Dialog: focus moves in and back to the trigger,
 Esc or a tap outside cancels.
+
+### TileGrid and Tile
+
+A section of square tiles: big targets for the few things a screen is mostly about (the Children
+in «Дети» on Home, ticket #89). `TileGrid` takes a `header` (footnote, uppercase,
+`secondary-label`, as a `GroupedSection`'s; it names the section, a region, and its `list`) and
+`Tile`s as children. A `Tile` is a link (`to`): `title` (`title3`, semibold, up to two lines),
+optional `subtitle` under it (`subhead`, one line), both at the bottom left, and `color`, a CSS
+colour that fills it (a Child color's `hex`), with the text in `on-child-color`; without `color`
+the tile is `fill` with `label` text (a colour code this build doesn't know). Rounded corners
+(16px), a `swatch-edge` hairline, no chevron. The tiles sit on the page `background`, not on a
+cell.
+
+- Narrow windows (< 640px): two per row, each half the row wide minus the 12px gap, so about
+  173px on an iPhone; an odd last one at the left.
+- Wide windows: the tiles keep that size (172px) and as many as fit go in a row (three in the
+  640px column), from the left.
+- Touch: the whole tile is the target, dimmed while pressed. Fine pointer: dimmed on hover.
+- Keyboard: Tab reaches each tile in order (accent outline, offset 2px), Enter opens it.
 
 ### Toast
 
