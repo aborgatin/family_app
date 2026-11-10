@@ -352,12 +352,14 @@ export const SEED = {
         visibility: 'SHARED',
         items: [
           'Поменять лампочку в коридоре',
-          { text: 'Записать Машу к стоматологу', description: 'Детская стоматология на Лесной, после 15:00', dueInDays: 1, dueTime: '15:00' },
+          // Assignees (#85): after a Due date, after an overdue one, alone, and on a Done item.
+          { text: 'Разобрать балкон', assignee: 'Борис' },
+          { text: 'Записать Машу к стоматологу', description: 'Детская стоматология на Лесной, после 15:00', dueInDays: 1, dueTime: '15:00', assignee: 'Борис' },
           // Overdue: a day that has passed, and a time of today that has.
-          { text: 'Оплатить садик', dueInDays: -1 },
+          { text: 'Оплатить садик', dueInDays: -1, assignee: 'Анна' },
           { text: 'Забрать посылку', dueInDays: 0, dueTime: '00:05' },
           { text: 'Купить подарок бабушке', dueInDays: 12 },
-          { text: 'Оплатить интернет', done: true, dueInDays: -2, dueTime: '18:00' },
+          { text: 'Оплатить интернет', done: true, dueInDays: -2, dueTime: '18:00', assignee: 'Анна' },
           { text: 'Вызвать сантехника', done: true, doneDaysAgo: 6 },
           { text: 'Помыть окна', done: true, doneDaysAgo: 8 },
           { text: 'Сдать батарейки в переработку', done: true, doneDaysAgo: 40 },
@@ -429,8 +431,9 @@ function dayFromToday(days) {
 /**
  * Creates Lists, their `categories` (`{name, position}`) and their `items` in that order, through
  * the sync push as the Member logged in on `page`. An Item is its text, or `{text, description?,
- * category?, dueInDays?, dueTime?, done?, doneDaysAgo?, cleared?}` (`category` a Category's name;
- * `dueInDays` a todo item's Due date that many days from today, with `dueTime` `HH:MM`; Done ones ticked in the
+ * category?, dueInDays?, dueTime?, assignee?, done?, doneDaysAgo?, cleared?}` (`category` a Category's name;
+ * `dueInDays` a todo item's Due date that many days from today, with `dueTime` `HH:MM`;
+ * `assignee` a todo item's Assignee, a Member's name; Done ones ticked in the
  * same order; `doneDaysAgo` moves a Done one's Done time that many days back, straight in the
  * database, since the server stamps it itself; cleared ones deleted after, so only the Item
  * history keeps their names). A List with `isDefault`
@@ -439,6 +442,14 @@ function dayFromToday(days) {
  */
 async function pushLists(page, pg, lists, defaults = {}) {
   const doneEarlier = [];
+  // Members by name, for Assignees: pulled only when an Item has one.
+  const assigned = lists.some(({ items = [] }) => items.some((item) => item.assignee));
+  const members = assigned ? (await api(page, 'GET', '/api/sync/pull?since=0')).changes.filter((c) => c.table === 'member') : [];
+  const memberId = (name) => {
+    const member = members.find((c) => c.fields.displayName === name);
+    if (!member) throw new Error(`seed lists: no Member «${name}»`);
+    return member.id;
+  };
   const operations = lists.flatMap(({ items = [], categories = [], isDefault = false, ...fields }) => {
     if (isDefault && !defaults[fields.name]) throw new Error(`seed lists: no Default List «${fields.name}»`);
     const listId = isDefault ? defaults[fields.name] : crypto.randomUUID();
@@ -453,7 +464,7 @@ async function pushLists(page, pg, lists, defaults = {}) {
         op: 'upsert',
         fields: { listId, name, position },
       })),
-      ...added.map(({ id, text, description, category, dueInDays, dueTime }) => ({
+      ...added.map(({ id, text, description, category, dueInDays, dueTime, assignee }) => ({
         table: 'item',
         id,
         op: 'upsert',
@@ -463,6 +474,7 @@ async function pushLists(page, pg, lists, defaults = {}) {
           description,
           ...(category && { categoryId: categoryIds[category] }),
           ...(dueInDays !== undefined && { dueDate: dayFromToday(dueInDays), ...(dueTime && { dueTime }) }),
+          ...(assignee && { assigneeId: memberId(assignee) }),
         },
       })),
       ...added.filter((item) => item.done).map(({ id }) => ({ table: 'item', id, op: 'upsert', fields: { done: true } })),
