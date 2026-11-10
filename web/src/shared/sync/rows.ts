@@ -80,6 +80,27 @@ export async function upsertRow(
   });
 }
 
+/**
+ * Asks the server to act on the row: an upsert carrying `fields` every time, whatever the local row
+ * holds (unlike `upsertRow`), for a field that is a request the server answers with a value of its
+ * own (e.g. a List's `hideDone`, answered with its `doneHiddenAt`). `local` fields go into the
+ * local row, as with `upsertRow`, standing in for the server's answer until its copy arrives (the
+ * row holds the request's fields too until then; nothing reads them). Nothing is written for a
+ * row the device doesn't have.
+ */
+export async function requestUpsert(
+  table: SyncedTable,
+  id: string,
+  fields: Record<string, unknown>,
+  local?: Record<string, unknown>,
+): Promise<void> {
+  await write(table, id, (existing): Operation | undefined =>
+    existing === undefined
+      ? undefined
+      : { table, id, op: 'upsert', fields, ...(local !== undefined && { local }) },
+  );
+}
+
 /** Deletes the row, locally and in the Outbox. */
 export async function deleteRow(table: SyncedTable, id: string): Promise<void> {
   await write(table, id, () => ({ table, id, op: 'delete' }));

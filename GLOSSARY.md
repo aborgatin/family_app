@@ -97,6 +97,10 @@ _Avoid_: Catalog, product database, dictionary, suggestions
 
 ## Todos
 
+**Hide done** — «Скрыть»:
+Moving all Done items of a Todo list's «Выполнено» to «Выполненные ранее» at once, for both Members, so «Выполнено» stays short. Nothing is deleted; an item ticked Done again later is back in «Выполнено». Only a Todo list has it, as only a Shopping list has Clear.
+_Avoid_: Archive, clear (for todo items), collapse, dismiss
+
 **Todo list** — «TODO-список» (as a List kind: «TODO»):
 A List of kind todo. Its Items are still «Задача».
 _Avoid_: Task list, checklist, tasks, «Список дел»

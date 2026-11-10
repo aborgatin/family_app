@@ -281,7 +281,8 @@ list too: «Изменить» then sits alone at the right, where the header wo
 named by `label` (the Unnamed category's Items).
 `action` (`{label, onClick}`) puts one more small text `Button` at the right of the header,
 before «Изменить»: «Очистить» on a Shopping list's «Куплено», which asks with an `ActionSheet`
-first.
+first, and «Скрыть» on a Todo list's «Выполнено» while it has Items, which acts at once (it
+deletes nothing: the Items move to «Выполненные ранее»).
 `after` puts rows on the same cell after the list but outside it (an accent «Добавить …» row):
 they stay when the list is empty, and the «Изменить» button is left out then (pass no `edit`).
 

@@ -11,7 +11,10 @@ import { network } from './network';
  * Categories and Item history), and a Child field value is a timeline entry (stamped with `recordedAt`, never
  * changed, ignored for a deleted Child or Child field), a List made Private loses the Assignee
  * of every one of its Items, and a repeating Item turned Done (pushed, or by `change`) hands its
- * Repeat on to its next occurrence, a new open Item (ADR-0009); a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
+ * Repeat on to its next occurrence, a new open Item (ADR-0009); a pushed `done` change stamps
+ * `doneAt` with the server's clock (`now()`), and a List upsert carrying `hideDone: true` stamps
+ * the List's `doneHiddenAt` (only on a Todo list: `list.hide_done_not_todo`; ticket #93) and is
+ * not stored itself; a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
@@ -68,6 +71,8 @@ const VALIDATION_FAILED = { code: 'validation.failed', params: { errors: [] } };
 
 class FakeSyncServer {
   private version = 0;
+  /** The last moment `now()` gave (ms). */
+  private lastStamp = 0;
   private stored = new Map<string, StoredRow>();
   /** Only push and pull fail (`failSyncOnly()`); a lost network is `network.goOffline()`. */
   private syncFailing = false;
@@ -108,6 +113,7 @@ class FakeSyncServer {
   /** Back to an empty server, online, rejecting nothing. */
   reset() {
     this.version = 0;
+    this.lastStamp = 0;
     this.stored.clear();
     this.syncFailing = false;
     this.rejecter = undefined;
@@ -213,6 +219,30 @@ class FakeSyncServer {
     }
     if (operation.op === 'delete') {
       this.delete(operation.table, operation.id);
+    } else if (operation.table === 'list' && operation.fields?.hideDone !== undefined) {
+      // Hide done (ticket #93): a request, not a stored field; the server stamps its own time.
+      const { hideDone, ...fields } = operation.fields;
+      const merged = { ...current?.fields, ...fields };
+      if (hideDone !== true) return { status: 'rejected', ...VALIDATION_FAILED };
+      if (merged.kind !== 'TODO') {
+        return {
+          status: 'rejected',
+          code: 'list.hide_done_not_todo',
+          params: { listId: operation.id },
+        };
+      }
+      this.write(operation.table, operation.id, { ...merged, doneHiddenAt: this.now() }, false);
+    } else if (operation.table === 'item' && operation.fields?.done !== undefined) {
+      // Done changed: the server records when (`doneAt`); set to its current value, nothing.
+      const { done } = operation.fields;
+      const stamp =
+        current?.fields.done === done ? {} : { doneAt: done === true ? this.now() : null };
+      this.write(
+        operation.table,
+        operation.id,
+        { ...current?.fields, ...operation.fields, ...stamp },
+        false,
+      );
     } else if (operation.table === 'child_field_value') {
       // A timeline entry (ADR-0007): never changed once recorded, stamped by the server, and not
       // recorded for a deleted Child or Child field.
@@ -231,6 +261,15 @@ class FakeSyncServer {
       this.write(operation.table, operation.id, { ...current?.fields, ...operation.fields }, false);
     }
     return { status: 'applied' };
+  }
+
+  /**
+   * The server's clock as an ISO moment: the device's (faked in tests), and at least a millisecond
+   * after the last one it gave, as two writes on the real server are never at the same instant.
+   */
+  private now(): string {
+    this.lastStamp = Math.max(Date.now(), this.lastStamp + 1);
+    return new Date(this.lastStamp).toISOString();
   }
 
   /** Whether the row is deleted, or was never there. */

@@ -254,8 +254,15 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   (`ListRepository.findByChildIdAndDeletedFalse`) with their Items, Categories and Item history,
   whoever owns them, the same way a List delete does (`deleteWithContent`), inside the push
   operation that deletes the Child.
+- Hide done (#93; `list.done_hidden_at`, nullable, `V15`): an upsert may carry `hideDone`,
+  only ever `true` (anything else, `false` included, is `validation.failed`, `value.invalid`), and
+  only on a Todo list (`list.hide_done_not_todo`, `params.listId`). After the other checks, the
+  server sets `ListEntity.hideDone(clock.instant())`, its own time, as `ItemService` sets
+  `doneAt`; a `doneHiddenAt` the push carries is ignored. Either Member may do it on a Shared
+  List. Repeating the push stamps a later moment (hiding Items marked Done in between too): the
+  one way it is not idempotent (S3), accepted since it can only hide more.
 - `changesSince`: `name`, `kind`, `visibility`, `unnamedCategoryPosition`, `ownerId`, `childId`
-  (`null` for an ordinary List), `createdAt`; a tombstone for a deleted List and for another Member's Private List
+  (`null` for an ordinary List), `createdAt`, `doneHiddenAt` (`null` until hidden); a tombstone for a deleted List and for another Member's Private List
   (`ListEntity.visibleTo(memberId)`).
 
 `ShoppingListDefaults` listens for `family.FirstMemberRegistered` and creates the Default Shopping

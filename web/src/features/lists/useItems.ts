@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { deleteRow, upsertRow, useRows } from '@/shared/sync';
+import { deleteRow, requestUpsert, upsertRow, useRows } from '@/shared/sync';
 import type { Item, List, ListKind, Repeat } from './listTypes';
 import { compare, normalizedName, sortableTime } from './itemKeys';
 
@@ -7,12 +7,12 @@ import { compare, normalizedName, sortableTime } from './itemKeys';
  * One List's open and Done Items and the ways to change them: the only data access for Items. It reads the
  * local store and writes through the Outbox (S4), so it works the same offline. `items` is
  * `undefined` until the first local read. On a Todo list `doneItems` are only those marked Done
- * today or in the six calendar days before, by the device clock, and `earlierDoneItems` the rest
- * («Выполненные ранее»); on other Lists `doneItems` are all of them and `earlierDoneItems` is empty. `saveFailure` is «Не удалось сохранить» after the server
+ * today or in the six calendar days before, by the device clock, and not hidden by «Скрыть»
+ * (`hideDone`, `hidden()`), and `earlierDoneItems` the rest («Выполненные ранее»); on other Lists `doneItems` are all of them and `earlierDoneItems` is empty. `saveFailure` is «Не удалось сохранить» after the server
  * rejected a change; the next pull has already put the server's copy back.
  */
-export function useItems(list: Pick<List, 'id' | 'kind'>) {
-  const { id: listId, kind } = list;
+export function useItems(list: Pick<List, 'id' | 'kind' | 'doneHiddenAt' | 'doneHiddenHereAt'>) {
+  const { id: listId, kind, doneHiddenAt, doneHiddenHereAt } = list;
   const rows = useRows('item') as Item[] | undefined;
 
   const items = useMemo(
@@ -25,13 +25,19 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
   );
   // A Todo list's Done window; a number, so the split below is redone only when the day changes.
   const windowStart = kind === 'TODO' ? doneWindowStart(new Date()) : undefined;
+  const earlier = useCallback(
+    (item: Item) =>
+      kind === 'TODO' &&
+      (doneBefore(item, windowStart) || hidden(item, doneHiddenAt, doneHiddenHereAt)),
+    [kind, windowStart, doneHiddenAt, doneHiddenHereAt],
+  );
   const doneItems = useMemo(
-    () => allDoneItems?.filter((item) => !doneBefore(item, windowStart)),
-    [allDoneItems, windowStart],
+    () => allDoneItems?.filter((item) => !earlier(item)),
+    [allDoneItems, earlier],
   );
   const earlierDoneItems = useMemo(
-    () => allDoneItems?.filter((item) => doneBefore(item, windowStart)),
-    [allDoneItems, windowStart],
+    () => allDoneItems?.filter((item) => earlier(item)),
+    [allDoneItems, earlier],
   );
 
   /**
@@ -137,6 +143,16 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
     await deleteRow('item', item.id);
   }, []);
 
+  /**
+   * Hide done («Скрыть», a Todo list's): every Item now in «Выполнено» moves to «Выполненные
+   * ранее», for both Members. Sends `hideDone: true` every time; the server stamps the moment
+   * (`doneHiddenAt`). Until its copy arrives, the press is kept here as `doneHiddenHereAt` (never
+   * sent), so it works offline at once.
+   */
+  const hideDone = useCallback(async (): Promise<void> => {
+    await requestUpsert('list', listId, { hideDone: true }, { doneHiddenHereAt: tickTime() });
+  }, [listId]);
+
   return {
     items,
     doneItems,
@@ -151,6 +167,7 @@ export function useItems(list: Pick<List, 'id' | 'kind'>) {
     setAssignee,
     setDone,
     remove,
+    hideDone,
   };
 }
 
@@ -232,6 +249,26 @@ function doneWindowStart(now: Date): number {
  */
 function doneBefore(item: Item, windowStart: number | undefined): boolean {
   return windowStart !== undefined && item.doneAt != null && Date.parse(item.doneAt) < windowStart;
+}
+
+/**
+ * Whether «Скрыть» hid the Done Item: the List's Done items marked Done up to the server's
+ * `doneHiddenAt`. While a press made here (`doneHiddenHereAt`) is not sent yet, the server's moment
+ * will come after every Done time it has already given, so every Item with one is hidden, and one
+ * ticked off here and not pulled back is hidden when it was ticked before the press (both by this
+ * device's `tickTime()`). One ticked off here after a press the server has stamped is not: its
+ * Done time will be later.
+ */
+function hidden(
+  item: Item,
+  doneHiddenAt: string | null | undefined,
+  doneHiddenHereAt: number | undefined,
+): boolean {
+  if (item.doneAt == null) {
+    return doneHiddenHereAt !== undefined && (item.doneHereAt ?? 0) <= doneHiddenHereAt;
+  }
+  if (doneHiddenHereAt !== undefined) return true;
+  return doneHiddenAt != null && Date.parse(item.doneAt) <= Date.parse(doneHiddenAt);
 }
 
 /**

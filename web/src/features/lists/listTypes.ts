@@ -29,6 +29,17 @@ export interface List {
    * a row pulled before Child lists existed) for every other List.
    */
   childId?: string | null;
+  /**
+   * Hide done (ticket #93): a Todo list's Done items marked Done up to this moment (ISO-8601, the
+   * server's clock) are hidden from «Выполнено». None (`null`, or absent on a row pulled before it
+   * existed) until a Member presses «Скрыть».
+   */
+  doneHiddenAt?: string | null;
+  /**
+   * When «Скрыть» was pressed on this device (ms), kept only until the server's copy with its
+   * `doneHiddenAt` arrives; never sent (the server stamps the moment itself).
+   */
+  doneHiddenHereAt?: number;
 }
 
 /** What a Member writes: everything when creating, the changed fields afterwards. */

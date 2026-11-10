@@ -110,6 +110,18 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   create is the Owner, only the Owner deletes, either Member renames. **Deleting a Child**
   soft-deletes, in the same operation, its Child lists with their Items (as a List delete does),
   whoever owns them and whichever Member deletes the Child: the pull sends their tombstones.
+- **Hide done** (`list`, ticket #93): «Скрыть» on a Todo list is a List upsert carrying
+  `hideDone: true`. The device's clock can't be trusted, so the moment never comes from it: the
+  server sets the List's `doneHiddenAt` to now by its own clock (as it sets an Item's `doneAt`),
+  and the pull sends `doneHiddenAt` for every List (`null` until hidden; a `doneHiddenAt` the
+  push carries is ignored). A Todo list's Done Items with a `doneAt` not after it are hidden
+  from «Выполнено» on every device. Operations apply in Outbox order, so an Item ticked
+  offline before the press gets a `doneAt` before the moment and is hidden with it, and one
+  ticked after it gets a later one. Rejected: `hideDone` other than `true` is
+  `validation.failed` (`value.invalid`); on a Shopping or Wish list `list.hide_done_not_todo`
+  (`params.listId`; the app never offers it). Either Member may hide a Shared List; a later
+  press moves the moment on (Last write wins). A repeated push stamps a later moment, which can
+  only hide more (S3: accepted).
 - **Items** (`item`, tickets #57, #58, #69, #70, #84, #85, #86): an upsert carries `listId` (create only; a later upsert
   naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
   points after trim), `description` (the Description: optional, ≤ 10000 code points, over is
@@ -306,7 +318,10 @@ auth.required` without one) tells open apps when to pull:
   also carry `local` fields: written to the local row and kept with the operation (so a pull
   while it is pending applies them again), never pushed; the server's copy replaces them. Used for
   when an Item was ticked off on this device, which orders it among the Done Items until the
-  server's `doneAt` arrives (no client timestamp is ever sent).
+  server's `doneAt` arrives (no client timestamp is ever sent), and when «Скрыть» was pressed
+  here (a List's `doneHiddenHereAt`, until its `doneHiddenAt` arrives; #93). A request field such
+  as `hideDone` is sent with `requestUpsert`, every time, whatever the local row holds. A new
+  List field (`doneHiddenAt`, #93) needs no store version either.
 - **Sync engine** (`engine.ts`): pushes the Outbox in order (batches of 100), drops what the server
   answered, then pulls. It runs at start, when the app returns to the foreground
   (`visibilitychange`), when the server becomes reachable again (any API answer, or the browser's
@@ -339,6 +354,7 @@ auth.required` without one) tells open apps when to pull:
   wherever the Member is by then (`useSaveRejection`, a `Toast` placed by the app), with the
   reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
   `list.kind_immutable`, `list.wish_shared_only`, the four `list.child_*` codes,
+  `list.hide_done_not_todo`,
   `child_field.value_type_immutable`, `sync.read_only`, `item.list_not_todo`,
   `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping` and
   `item.category_not_found`, which the app never sends), until closed or the Member's next change; and the next
