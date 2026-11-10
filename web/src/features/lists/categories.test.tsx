@@ -202,8 +202,9 @@ describe('A Shopping list with Categories', () => {
 
     await waitFor(async () => {
       expect(await itemTexts('Бытовая химия')).toEqual(['Мыло']);
+      // «Хлеб» was added after «Мыло»: it may show a moment later.
+      expect(await itemTexts('Без категории')).toEqual(['Хлеб']);
     });
-    expect(await itemTexts('Без категории')).toEqual(['Хлеб']);
     expect(await itemTexts('Еда')).toEqual([]);
 
     reconnect();

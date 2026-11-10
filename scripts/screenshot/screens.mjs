@@ -820,15 +820,54 @@ export default {
 
     // The Child page, opened from a tile of «Дети» on Home
     {
+      // Маша has two Child lists under «Списки».
       name: 'child-page',
       path: '/',
-      steps: [{ click: childTile('Маша') }, { waitFor: 'role=region[name="Профиль"]' }],
+      steps: [
+        { click: childTile('Маша') },
+        { waitFor: 'role=region[name="Профиль"]' },
+        { waitFor: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
+      ],
     },
     {
-      // Петя has no birthday: «Не указан».
+      // Петя has no birthday: «Не указан»; and no Child lists: «Списков пока нет».
       name: 'child-page-no-birthday',
       path: '/',
-      steps: [{ click: childTile('Петя') }, { waitFor: 'text=Не указан' }],
+      steps: [{ click: childTile('Петя') }, { waitFor: 'text=Не указан' }, { waitFor: 'text=Списков пока нет' }],
+    },
+    {
+      // «Новый список» opened on a Child page: Вид is TODO / Желания only, no Visibility.
+      name: 'child-new-list-sheet',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: childTile('Маша') },
+        { click: 'role=button[name="Добавить список"]' },
+        { fill: 'role=dialog >> role=textbox[name="Название"]', value: 'Кружки' },
+        { click: 'role=dialog >> text=TODO' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A Child list is the usual List screen; its back button is the Child page («Маша»).
+      name: 'child-list',
+      path: '/',
+      steps: [
+        { click: childTile('Маша') },
+        { click: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
+        { waitFor: 'role=textbox[name="Новая задача"]' },
+      ],
+    },
+    {
+      // A Child list's settings: no Visibility.
+      name: 'child-list-settings',
+      path: '/',
+      steps: [
+        { click: childTile('Маша') },
+        { click: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
+        { click: 'role=link[name="Настройки списка"]' },
+        { waitFor: 'role=textbox[name="Название"]' },
+      ],
     },
     {
       name: 'child-page-not-found',

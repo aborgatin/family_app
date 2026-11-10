@@ -96,6 +96,17 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
   is `ignored` (delete wins). Deleting a List soft-deletes its Items, Categories and Item history
   in the same operation.
+- **Child lists** (`list` with a `childId`, ticket #90): a List upsert may carry `childId` (a
+  Child's id) on create only; the pull sends `childId` for every List, `null` for an ordinary
+  one. The link never changes: a later upsert may repeat the stored value (`null` on an ordinary
+  List) and anything else is `list.child_immutable`. A Child list must be of kind `TODO` or
+  `WISH` (`list.child_not_shopping`) and Shared, on create and later
+  (`list.child_shared_only`). A `childId` naming no Child is `list.child_not_found`
+  (`params.childId`), a non-UUID `validation.failed`; creating a Child list for a Child deleted
+  meanwhile is `ignored` (delete wins). Owner rules are unchanged: the Member who pushed the
+  create is the Owner, only the Owner deletes, either Member renames. **Deleting a Child**
+  soft-deletes, in the same operation, its Child lists with their Items (as a List delete does),
+  whoever owns them and whichever Member deletes the Child: the pull sends their tombstones.
 - **Items** (`item`, tickets #57, #58, #69, #70): an upsert carries `listId` (create only; a later upsert
   naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
   points after trim), `description` (the Description: optional, ≤ 10000 code points, over is
@@ -243,7 +254,8 @@ auth.required` without one) tells open apps when to pull:
   back with only the pending fields.
 - **Gone rows take their dependents**: a row removed locally because it is gone on the server (a
   tombstone, or `ignored` below) takes the rows that belong to it, declared with the tables in
-  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history. So a tombstoned List
+  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history, and a Child's
+  Child lists (which take their Items in turn; #90). So a tombstoned List
   (deleted, or made Private by its Owner) takes its local Items, Categories and Item history, and the engine
   names no table. A Category is not a parent: its tombstone leaves its Items, which then show in
   the Unnamed category.
@@ -253,8 +265,8 @@ auth.required` without one) tells open apps when to pull:
 - **Rejected operation**: dropped from the Outbox; «Не удалось сохранить» shows once, app-wide,
   wherever the Member is by then (`useSaveRejection`, a `Toast` placed by the app), with the
   reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
-  `list.kind_immutable`, `list.wish_shared_only`, `child_field.value_type_immutable`,
-  `sync.read_only`; anything else plain, including `category.list_not_shopping` and
+  `list.kind_immutable`, `list.wish_shared_only`, the four `list.child_*` codes,
+  `child_field.value_type_immutable`, `sync.read_only`; anything else plain, including `category.list_not_shopping` and
   `item.category_not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.
@@ -284,4 +296,5 @@ auth.required` without one) tells open apps when to pull:
   reorders and deletes them (#72). Item history is on the store, and a Shopping list's add fields
   suggest names from it (#74); the × on a suggestion removes the name, offline too (#78). Adding a name a Shopping list already has never makes a duplicate:
   an open Item is highlighted (preferred to a Done one), else the most recently created Done one
-  is set open in that field's Category, offline too (#75).
+  is set open in that field's Category, offline too (#75). Child lists are created on the Child
+  page, offline too, and Home leaves them out (#90; store version 6 indexes `list` by `childId`).

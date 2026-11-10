@@ -43,7 +43,7 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 | Module    | Public API (root package)                                                                              | Internal                                                                                  |
 | --------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`, `Family`, `FirstMemberRegistered`          | `family.auth`, `family.member`, `family.child`, `family.childfield`                       |
+| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | none                                                                                                   | `lists.list`                                                                              |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
@@ -52,8 +52,8 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
 `sync → error`, `command → family`. (`lists` reaches Members through `Operation.memberId()`, and
-`family` only for the `FirstMemberRegistered` event; the spec also allows `Members` and
-`FamilyLock` when a ticket needs them.) The Version
+`family` for the `FirstMemberRegistered` and `ChildDeleted` events and for `Children` (Child
+lists, #90); the spec also allows `Members` and `FamilyLock` when a ticket needs them.) The Version
 sequence and trigger are database objects from `V1`; `sync` only reads `version_seq` for the push
 answer (see [`sync.md`](sync.md)).
 
@@ -85,6 +85,7 @@ Members are the principals. Sub-packages:
   `OneTimeTokens`; `PasswordEncoderConfig`; `MemberSyncTable` (the `member` table of the pull).
 - `family.child`: `Child`, `ChildService` (the `child` `SyncableTable`), `ChildRequest`,
   `ChildColorPalette`. No REST endpoint: Children are written by the push and read by the pull.
+  Deleting a Child publishes `ChildDeleted` (below).
 - `family.childfield`: `ChildField`, `ChildFieldService` (the `child_field` `SyncableTable`),
   `ChildFieldRequest`, `ValueType` (`TEXT`, `DATE`). No REST endpoint: Child fields are written by
   the push and read by the pull.
@@ -122,6 +123,15 @@ Shared patterns inside `family`:
   never does. Listeners are plain synchronous `@EventListener`s, so what they write commits or
   rolls back with the Member: `lists.list.ShoppingListDefaults` creates the Default Shopping lists
   (see `lists` below and "Defaults" under Flyway).
+- **`Children`** (public): `known(id)` (a Child with this id was ever created, deleted or not)
+  and `present(id)` (created and not deleted), for another module's rows that are about a Child.
+  `lists` checks a new Child list's `childId` with it. It reads `child` with `JdbcTemplate`, like
+  `Family`, so the `family.child` types stay internal.
+- **`ChildDeleted(childId)`** (public): `ChildService` publishes it when a delete operation
+  soft-deletes a Child, inside that push operation (its savepoint, under `FamilyLock`). Listeners
+  are plain synchronous `@EventListener`s that soft-delete what their module keeps about the
+  Child: `lists.list.ListService.onChildDeleted` deletes the Child lists (see `lists` below). A
+  listener that throws rejects the delete operation.
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.
 - **Validation** collects every bad field in a `FieldErrors` and throws once. Body records read
@@ -203,8 +213,21 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   on the three). All are bulk
   JPQL updates that flush and clear the persistence context, so later operations of the same push
   see them.
-- `changesSince`: `name`, `kind`, `visibility`, `unnamedCategoryPosition`, `ownerId`,
-  `createdAt`; a tombstone for a deleted List and for another Member's Private List
+- Child lists (#90; `list.child_id`, nullable, → `child`): a create may carry `childId`
+  (`RequestFields.uuid`; a non-UUID is `validation.failed`), stored for good
+  (`ListEntity.childId`, `updatable = false`). An upsert of a known List may only repeat the
+  stored value, `null` for an ordinary List (`list.child_immutable` otherwise, so a repeated push
+  stays applied, S3). With a Child, after the checks above: kind `SHOPPING` →
+  `list.child_not_shopping`; Visibility `PRIVATE`, on create or later →
+  `list.child_shared_only`; on create, a Child that never existed (`family.Children.known`) →
+  `list.child_not_found` (`params.childId`), one deleted meanwhile (`Children.present`) →
+  `IGNORED` (delete wins). Owner rules are those of any List. `onChildDeleted`
+  (`@EventListener` for `family.ChildDeleted`) soft-deletes the Child's Lists
+  (`ListRepository.findByChildIdAndDeletedFalse`) with their Items, Categories and Item history,
+  whoever owns them, the same way a List delete does (`deleteWithContent`), inside the push
+  operation that deletes the Child.
+- `changesSince`: `name`, `kind`, `visibility`, `unnamedCategoryPosition`, `ownerId`, `childId`
+  (`null` for an ordinary List), `createdAt`; a tombstone for a deleted List and for another Member's Private List
   (`ListEntity.visibleTo(memberId)`).
 
 `ShoppingListDefaults` listens for `family.FirstMemberRegistered` and creates the Default Shopping
@@ -383,7 +406,9 @@ same `{code, params}`: `validation.failed`, `sync.table_unknown` (`params.table`
 `request.invalid` (no valid id or `op`), and per table `child_field.value_type_immutable` (an
 upsert changing an existing Child field's `valueType`) and for Lists `list.not_found`
 (`params.listId`; also for an Item or Category of such a List, or in an unknown one),
-`list.kind_immutable`, `list.wish_shared_only`, `list.owner_only`, for Categories
+`list.kind_immutable`, `list.wish_shared_only`, `list.owner_only`, for Child lists
+`list.child_not_shopping`, `list.child_shared_only`, `list.child_immutable` and
+`list.child_not_found` (`params.childId`), for Categories
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
 (`params.categoryId`). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
@@ -485,6 +510,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V7__item_description.sql`      | renames `item.note` to `description` (the glossary's Description)                                  |
 | `V8__category.sql`              | `category` (→ `list`), index on `list_id`; `list.unnamed_category_position`; `item.category_id`    |
 | `V9__item_history.sql`          | `item_history` (→ `list`), unique on (`list_id`, `normalized_name`)                                |
+| `V10__list_child.sql`           | `list.child_id` (→ `child`, nullable: a Child list), partial index on it                           |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -546,7 +572,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `lists.ListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest` and `lists.ItemHistorySyncTest` do.
+   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest` and `lists.ItemHistorySyncTest` do.
 
 ## Testing
 
@@ -565,7 +591,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `putJson`, `patchJson`, `delete`. Login-limit counters live for the whole cached context, so
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
-    (cascading to Invites, resets, Lists, Items, Categories and Item history) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
+    (both cascading: Invites, resets, Lists, Items, Categories and Item history) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
     `addMember(jdbc, email, password, name, gender)`.
   - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),

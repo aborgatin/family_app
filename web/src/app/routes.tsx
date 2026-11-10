@@ -19,6 +19,7 @@ import {
   LIST_SETTINGS_PATH,
   ListPage,
   ListSettingsPage,
+  ListsSection,
 } from '@/features/lists';
 import { PASSWORD_PATH, PasswordPage } from '@/features/members';
 import { SettingsPage, SETTINGS_PATH } from '@/features/settings';
@@ -42,7 +43,7 @@ export const routes: RouteObject[] = [
         element: <AuthGuard />,
         children: [
           { path: HOME_PATH, element: <HomePage /> },
-          { path: CHILD_PATH, element: <ChildPage homePath={HOME_PATH} /> },
+          { path: CHILD_PATH, element: <ChildPage homePath={HOME_PATH} lists={ListsSection} /> },
           { path: LIST_PATH, element: <ListPage homePath={HOME_PATH} /> },
           { path: LIST_SETTINGS_PATH, element: <ListSettingsPage homePath={HOME_PATH} /> },
           { path: LIST_CATEGORIES_PATH, element: <CategoriesPage homePath={HOME_PATH} /> },

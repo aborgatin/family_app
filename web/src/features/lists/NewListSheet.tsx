@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { fieldMessageKey, type FieldMessages } from '@/shared/api';
 import { GroupedSection, InputRow, SegmentedControl, Sheet, useFooterLines } from '@/shared/ui';
 import {
+  CHILD_LIST_KINDS,
   hasVisibility,
   KIND_TEXTS,
   LIST_KINDS,
@@ -22,14 +23,17 @@ interface NewListSheetProps {
   save: (id: string, details: ListDetails) => Promise<unknown>;
   /** Closes the sheet: after «Отмена», Esc, or once saved. */
   onClose: () => void;
+  /** Opened on a Child page: the Child the new List is about (a Child list). */
+  childId?: string;
 }
 
 /**
  * «Новый список»: Название, Вид (Покупки / TODO / Желания) and Visibility (Личный / Общий,
  * «Общий» unless changed), saved only with «Готово». Visibility is hidden while «Желания» is
- * chosen: a Wish list is always Shared.
+ * chosen: a Wish list is always Shared. With `childId` it creates a Child list: Вид is TODO /
+ * Желания only and there is no Visibility, since a Child list is always Shared.
  */
-export function NewListSheet({ id, save, onClose }: NewListSheetProps) {
+export function NewListSheet({ id, save, onClose, childId }: NewListSheetProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const [name, setName] = useState('');
@@ -47,12 +51,21 @@ export function NewListSheet({ id, save, onClose }: NewListSheetProps) {
     await save(id, {
       name: name.trim(),
       kind,
-      visibility: hasVisibility(kind) ? visibility : 'SHARED',
+      visibility: choosesVisibility(kind) ? visibility : 'SHARED',
+      ...(childId !== undefined && { childId }),
     });
     onClose();
   }
 
-  const kinds = LIST_KINDS.map((value) => ({ value, label: t(KIND_TEXTS[value].choice) }));
+  /** Whether Visibility is a choice: never for a Child list or a Wish list. */
+  function choosesVisibility(chosen: ListKind | undefined) {
+    return childId === undefined && (chosen === undefined || hasVisibility(chosen));
+  }
+
+  const kinds = (childId === undefined ? LIST_KINDS : CHILD_LIST_KINDS).map((value) => ({
+    value,
+    label: t(KIND_TEXTS[value].choice),
+  }));
   const visibilities = VISIBILITY_CHOICES.map(({ value, label }) => ({ value, label: t(label) }));
 
   return (
@@ -79,7 +92,7 @@ export function NewListSheet({ id, save, onClose }: NewListSheetProps) {
           value={kind}
           onChange={setKind}
         />
-        {(kind === undefined || hasVisibility(kind)) && (
+        {choosesVisibility(kind) && (
           <SegmentedControl
             label={t('lists.visibility.label')}
             labelHidden
