@@ -22,6 +22,17 @@ export function listCategoriesPath(id: string): string {
   return LIST_CATEGORIES_PATH.replace(':id', encodeURIComponent(id));
 }
 
+/** Route of the Item screen, opened from the Item's row on the List screen. */
+export const LIST_ITEM_PATH = '/lists/:id/items/:itemId';
+
+/** Path of the Item screen of this Item of the List with this id. */
+export function listItemPath(id: string, itemId: string): string {
+  return LIST_ITEM_PATH.replace(':id', encodeURIComponent(id)).replace(
+    ':itemId',
+    encodeURIComponent(itemId),
+  );
+}
+
 /** Route of a Todo list's «Выполненные ранее» screen, opened from the row under «Выполнено». */
 export const LIST_DONE_EARLIER_PATH = '/lists/:id/done-earlier';
 

@@ -9,6 +9,7 @@ export { CenteredPage } from './CenteredPage';
 export { Form } from './Form';
 export { GroupedSection, type SectionHeaderField, type SectionMessage } from './GroupedSection';
 export { InputRow } from './InputRow';
+export { TextAreaRow } from './TextAreaRow';
 export { SegmentedControl } from './SegmentedControl';
 export { Sections } from './Sections';
 export { ListRow } from './ListRow';

@@ -129,7 +129,8 @@ spacing `n`).
 ## Components
 
 All in `web/src/shared/ui`, exported from its `index.ts` (except `OfflineIndicator`,
-`Spinner`, `RowContextMenu` and `SuggestionRows`, which only other components place). Text fields
+`Spinner`, `RowContextMenu`, `SuggestionRows` and `LinkedText`, which only other components
+place). Text fields
 share their focus sign (`FIELD_FOCUS`), and rows their hairline (`ROW_SEPARATOR`, part of
 `ROW_FRAME`). Feature code uses nothing
 else to draw: no raw `button` / `input` / `select` / `textarea` / `form` / `a`, no `className` or
@@ -338,6 +339,22 @@ focused field gets the accent outline. Enter submits the surrounding `Form`, unl
 auto-saves: with `onCommit` (from `useAutoSaveText()`), leaving the field or Enter saves, Esc
 (`onRevert`) puts the saved value back, and `busy` shows the `Spinner` at the right of the row.
 
+### TextAreaRow
+
+A large multi-line text field as a row of a `GroupedSection` (ticket #83): an Item's «Описание»
+on the Item screen, under the «Название» `InputRow`. Plain text, as many paragraphs as needed:
+the row is at least five lines of `body` tall and grows with its text, never scrolling inside.
+`label` is its accessible name and, in `secondary-label`, what the empty field shows; there is no
+inline label. While the field isn't being edited its text shows with its line breaks and its
+http(s) addresses as links in `accent`, underlined, that open in a new tab (`LinkedText`, also
+used by `EditableRow`'s secondary line; punctuation after an address isn't part of it); a tap
+beside them starts editing the whole text with the caret at its end, and the links come back
+when the field is left. Auto-saved like an `InputRow` (spread `input` of `useAutoSaveText()`):
+leaving the field saves, Esc puts the saved text back, Enter starts a new line; `busy` shows the
+`Spinner` at the top right, and its `name` links it to the footer messages. Keyboard: Tab goes
+through the links, then into the field, which then shows for editing. Touch: the caret is the
+focus sign; fine pointer: the accent outline around the field. Same on narrow and wide windows.
+
 ### SegmentedControl
 
 One of two or three choices, as an iOS segmented control in a row of a `GroupedSection`:
@@ -402,7 +419,8 @@ a fine pointer the focused field gets the accent outline. In edit mode the row s
 `secondary-label` (an Item's Description). While the row is being edited (the focus is anywhere
 in it) it is a multi-line text field that grows with its text, with a `placeholder` («Описание»)
 in `tertiary-label`: Enter starts a new line, blur saves, Esc puts the saved text back. Out of it a
-non-empty value is one line cut with «…», its http(s) addresses links in `accent` that open in a
+non-empty value is up to two lines cut with «…» (#83; line breaks read as spaces, a long address
+wraps), its http(s) addresses links in `accent` that open in a
 new tab; tapping the line beside them starts editing with the full text and the caret at the end.
 Leaving the row with it empty hides it. Spread `useAutoSaveText()`'s `input` and add `label` and
 `placeholder`; its `name` must differ from the title's, so a footer line about a failed save is
@@ -412,13 +430,26 @@ tied to the field that failed.
 (an Item's Category); the row stays edited while the chip's menu is open, and the focus goes back
 to the chip when it closes.
 
+`details` (`{label, to}`, with `secondary`; #83) adds a small accent text link at the trailing end
+of that same line under the secondary field, while the row is being edited: «Подробнее», which
+opens the screen with everything about the row (the Item screen). It looks like a `small`
+`Button` (footnote, semibold; 44px target on touch without making the row taller than the chip
+does). Tapping it saves what was typed in the row first; pressing it doesn't take the focus from
+the field. Tab reaches it after the chip.
+
+`textTo` (#83) makes just the title a link to another screen, for a row whose `leading` is a
+control of its own: a Done Item's text opens the Item screen while its `DoneToggle` still
+unticks it. No chevron; the title keeps its look (`muted` included), dims while pressed, and its
+target is the row's whole height beside the leading control. Not in edit mode, where the row
+shows plain `title`, and not with `input`.
+
 `highlighted` points the row out (an open Item added again by name): while set the row is
 scrolled into view (nearest edge, smooth) and covered by a 15% `accent` tint above its swipe
 layer (`data-highlighted`); unset, the tint fades out over 0.7 s. The caller unsets it after a moment (1.5 s for Items).
 
 Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
-`sortable`, Items with `input`, `secondary` (the Description), on a Shopping list with named Categories a
-`chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
+`sortable`, Items with `input`, `secondary` (the Description), `details` («Подробнее»), on a Shopping list with named Categories a
+`chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`, with `textTo`),
 Invites plain.
 
 `muted` (on `ListRow` and `EditableRow`) shows the title in `secondary-label`: something set
