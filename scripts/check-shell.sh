@@ -7,8 +7,9 @@
 #   … | grep -q x      →  … | grep x >/dev/null      (or capture first, then grep -q x <<<"$var")
 #   … | head -n1       →  … | sed -n 1p
 #
-# Checks every tracked *.sh file that sets pipefail; comment lines are skipped. Runs in CI (job
-# `migrations`) and in scripts/check.sh, from any directory inside the repo:
+# Checks every tracked *.sh file that sets pipefail, except its own self-test (whose cases quote the
+# pattern); comment lines are skipped. Runs in CI (job `migrations`) and in scripts/check.sh, from
+# any directory inside the repo:
 #
 #   scripts/check-shell.sh            # the tracked scripts of this checkout
 #   scripts/check-shell.sh <file>...  # just these files (the self-test uses this)
@@ -21,7 +22,7 @@ if [[ $# -gt 0 ]]; then
 else
   cd "$(git rev-parse --show-toplevel)"
   files=()
-  while IFS= read -r f; do files+=("$f"); done < <(git ls-files '*.sh')
+  while IFS= read -r f; do files+=("$f"); done < <(git ls-files '*.sh' ':!scripts/check-shell-test.sh')
 fi
 
 early_exit='\|[[:space:]]*(grep[[:space:]]+(-[[:alnum:]]+[[:space:]]+)*-[[:alnum:]]*q|head([[:space:]]|\)|$))'
