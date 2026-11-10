@@ -59,7 +59,7 @@ class ShoppingListDefaultsTest {
             l -> field(l, "ownerId"),
             l -> field(l, "unnamedCategoryPosition"))
         .containsExactlyInAnyOrder(
-            tuple("Супермаркет", "SHOPPING", "SHARED", annaId, 3.0),
+            tuple("Супермаркет", "SHOPPING", "SHARED", annaId, 0.0),
             tuple("Аптека", "SHOPPING", "SHARED", annaId, 0.0));
     Object supermarket = idOf(lists, "Супермаркет");
     assertThat(byPosition(changes(pulled, "category")))

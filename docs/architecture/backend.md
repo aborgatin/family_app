@@ -208,8 +208,9 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   (`ListEntity.visibleTo(memberId)`).
 
 `ShoppingListDefaults` listens for `family.FirstMemberRegistered` and creates the Default Shopping
-lists with server-made ids: Супермаркет (Shared, Owner the new Member, Categories «Еда» position 1,
-«Бытовая химия» 2, `unnamedCategoryPosition` 3) and Аптека (Shared, `unnamedCategoryPosition` 0).
+lists with server-made ids: Супермаркет (Shared, Owner the new Member, `unnamedCategoryPosition` 0
+so the untitled add field comes first, then Categories «Еда» position 1 and «Бытовая химия» 2) and
+Аптека (Shared, `unnamedCategoryPosition` 0).
 Afterwards they are ordinary Lists and Categories. Tested by `lists.ShoppingListDefaultsTest`; that
 a failing Defaults listener rolls the registration back, by `lists.ShoppingListDefaultsRollbackTest`.
 

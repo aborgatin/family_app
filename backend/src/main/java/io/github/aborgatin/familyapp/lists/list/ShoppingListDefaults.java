@@ -7,12 +7,13 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * The Default Shopping lists (spec #4 "Defaults"; ticket #76): Супермаркет with «Еда», «Бытовая
- * химия» and the Unnamed category last, and Аптека with only the Unnamed category, both Shared and
- * owned by the first Member. Unlike the Child field Defaults they come from registration, not a
- * migration, because a List needs an Owner; so they are written once per installation, inside the
- * bootstrap transaction (which already holds the Family lock), and never on Invite registration.
- * Ids are made here, on the server. Afterwards they are ordinary Lists and Categories.
+ * The Default Shopping lists (spec #4 "Defaults"; ticket #76): Супермаркет with the Unnamed
+ * category first, then «Еда» and «Бытовая химия», and Аптека with only the Unnamed category, both
+ * Shared and owned by the first Member. Unlike the Child field Defaults they come from
+ * registration, not a migration, because a List needs an Owner; so they are written once per
+ * installation, inside the bootstrap transaction (which already holds the Family lock), and never
+ * on Invite registration. Ids are made here, on the server. Afterwards they are ordinary Lists and
+ * Categories.
  */
 @Component
 class ShoppingListDefaults {
@@ -28,7 +29,7 @@ class ShoppingListDefaults {
 
   @EventListener
   void onFirstMemberRegistered(FirstMemberRegistered event) {
-    UUID supermarket = create(event.memberId(), "Супермаркет", 3);
+    UUID supermarket = create(event.memberId(), "Супермаркет", 0);
     category(supermarket, "Еда", 1);
     category(supermarket, "Бытовая химия", 2);
     create(event.memberId(), "Аптека", 0);
