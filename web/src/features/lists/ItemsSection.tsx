@@ -26,13 +26,13 @@ interface ItemsSectionProps {
  * The List screen's Items. The open ones come first, headed by the kind's Items («Товары» /
  * «Задачи» / «Желания»): each has a Done toggle, its text is edited in place and auto-saved, edit
  * mode («Изменить»), a grey «Описание» line under an Item being edited (its Description), a
- * swipe or right-click deletes after the action sheet, and the last row adds
- * an Item («Новый товар», Enter keeps the focus for the next). With no open Items the footer says
- * «Товаров пока нет». A Shopping list with named Categories shows its open Items in one section
- * per Category instead (`CategorySections`). The Done ones follow in their own group, headed by
- * the kind's Done («Куплено» / «Выполнено» / «Исполнено»), ticked; ticking one off again puts it
- * back among the open ones; a Shopping list's are headed by «Очистить». All data access goes through `useItems()` and `useCategories()` (the
- * local store + Outbox).
+ * swipe or right-click deletes after the action sheet, and the last row adds an Item («Новый
+ * товар», Enter keeps the focus for the next). With no open Items the footer says «Товаров пока
+ * нет». A Shopping list with named Categories shows its open Items in one section per Category
+ * instead (`CategorySections`). The Done ones follow in their own group, headed by the kind's
+ * Done («Куплено» / «Выполнено» / «Исполнено»), ticked; ticking one off again puts it back among
+ * the open ones; a Shopping list's are headed by «Очистить». All data access goes through
+ * `useItems()` and `useCategories()` (the local store + Outbox).
  */
 export function ItemsSection({ list }: ItemsSectionProps) {
   const { t } = useTranslation();
@@ -93,7 +93,11 @@ function CategorySections({ items, add, ...changes }: CategorySectionsProps) {
   const [focusAddIn, setFocusAddIn] = useState<string>();
 
   const known = categories ?? [];
-  // Once read back from the store, the new Category is an ordinary one.
+  // Once read back from the store, the new Category is an ordinary one: the draft is done with, so
+  // a later delete of that Category (from another device) leaves no trace of it here.
+  if (typed !== undefined && known.some(({ id }) => id === typed.id)) {
+    setDraft(undefined);
+  }
   const draft = typed !== undefined && !known.some(({ id }) => id === typed.id) ? typed : undefined;
 
   function commitDraft() {

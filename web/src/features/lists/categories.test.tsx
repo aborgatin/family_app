@@ -305,6 +305,30 @@ describe('«Новая категория»', () => {
     expect(syncServer.operations('category').map((op) => op.fields?.position)).toEqual([1]);
   });
 
+  it('looks as before again when the only Category added here is deleted elsewhere', async () => {
+    const pharmacy = list(3, 'Аптека', 'SHOPPING');
+    syncServer.seed('list', [pharmacy]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${pharmacy.id}`);
+    await user.click(await screen.findByRole('button', { name: 'Новая категория' }));
+    await user.keyboard('Витамины{Enter}');
+    await waitFor(async () => {
+      expect(await addField('Витамины')).toHaveFocus();
+    });
+    await waitFor(() => {
+      expect(syncServer.operations('category')).toHaveLength(1);
+    });
+    const [created] = syncServer.operations('category');
+
+    syncServer.change('category', created?.id ?? '', 'deleted');
+    window.dispatchEvent(new Event('online'));
+
+    expect(await screen.findByRole('region', { name: 'Товары' })).toBeInTheDocument();
+    expect(screen.getByText('Товаров пока нет')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Без категории' })).not.toBeInTheDocument();
+  });
+
   it('adds nothing when the title is left empty', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.seed('category', [food]);
