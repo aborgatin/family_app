@@ -68,6 +68,15 @@ function pushed() {
   return syncServer.operations('item').map((operation) => operation.fields);
 }
 
+/** «Время» once it can be set: the Due date just typed has reached the local store. */
+async function enabledTime() {
+  const time = screen.getByLabelText('Время');
+  await waitFor(() => {
+    expect(time).toBeEnabled();
+  });
+  return time;
+}
+
 /** The connection is back: the app notices (browser `online` event) and sends what is waiting. */
 function reconnect() {
   syncServer.goOnline();
@@ -163,7 +172,7 @@ describe('«Срок» and «Время» on the Item screen of a todo item', ()
     syncServer.goOffline();
     await user.type(due, '2026-11-15');
     await user.tab();
-    await user.type(screen.getByLabelText('Время'), '15:00');
+    await user.type(await enabledTime(), '15:00');
     await user.tab();
     await waitFor(() => {
       expect(screen.getByLabelText('Время')).toHaveValue('15:00');
@@ -245,7 +254,7 @@ describe('«Срок» and «Время» on the Item screen of a todo item', ()
     renderApp(itemPath(homework));
     await user.type(await screen.findByLabelText('Срок'), '2026-11-11');
     await user.tab();
-    await user.type(screen.getByLabelText('Время'), '08:30');
+    await user.type(await enabledTime(), '08:30');
     await user.tab();
 
     await waitFor(() => {
