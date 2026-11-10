@@ -318,7 +318,8 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
   ([`deployment.md`](deployment.md)); no new setting. Done set to its current value is no turn, so
   a second tick adds nothing; a create carrying `done: true` adds no copy. Tested by
   `lists.ItemRepeatCopySyncTest`, with Due dates relative to today in the JVM's zone (the test
-  runs in the server's JVM), so no fixed clock is needed: the month-end cases start from a past
+  runs in the server's JVM; a test starting under a minute before midnight waits past it, so the
+  test and the server agree on today), so no fixed clock is needed: the month-end cases start from a past
   31 January or 29 February, whose next occurrence is the first 28th after today.
 - Assignee (#85; `assigneeId`, when carried; `ItemService.assigneeId` → `ItemEntity.assignTo`):
   column `assignee_id` (→ `member`), a Member's id or `null` for nobody. In this order:

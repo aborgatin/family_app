@@ -9,9 +9,11 @@ import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
 import io.github.aborgatin.familyapp.SyncRequests;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -55,7 +57,21 @@ class ItemRepeatCopySyncTest {
     chores = UUID.randomUUID();
     SyncRequests.push(anna, list(chores))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
-    today = LocalDate.now(ZoneId.systemDefault());
+    today = todayWellBeforeMidnight();
+  }
+
+  /**
+   * Today in the JVM's zone, waiting past midnight first when it is under a minute away, so the
+   * test and the server see the same today however late the build runs.
+   */
+  static LocalDate todayWellBeforeMidnight() throws InterruptedException {
+    ZoneId zone = ZoneId.systemDefault();
+    ZonedDateTime now = ZonedDateTime.now(zone);
+    Duration left = Duration.between(now, now.toLocalDate().plusDays(1).atStartOfDay(zone));
+    if (left.compareTo(Duration.ofMinutes(1)) < 0) {
+      Thread.sleep(left.plusSeconds(1).toMillis());
+    }
+    return LocalDate.now(zone);
   }
 
   @Test
