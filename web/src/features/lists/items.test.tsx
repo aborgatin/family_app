@@ -300,7 +300,10 @@ describe('Editing an Item', () => {
     });
     expect(screen.getByRole('textbox', { name: 'Товар «Кефир»' })).toHaveValue('Кефир');
     await waitFor(() => {
-      expect(syncServer.row('item', itemId(1))).toMatchObject({ text: 'Кефир', description: 'Любое' });
+      expect(syncServer.row('item', itemId(1))).toMatchObject({
+        text: 'Кефир',
+        description: 'Любое',
+      });
     });
   });
 });

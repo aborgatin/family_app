@@ -95,9 +95,10 @@ export function EditableRow({
   const { t } = useTranslation();
   const editing = useEditing();
   const [asking, setAsking] = useState(false);
-  // The focus is in the row: its secondary line is a text field.
+  // The focus is in the row: its secondary line is a text field; `tapped` when the line was
+  // tapped, so the field takes the focus.
   const [active, setActive] = useState(false);
-  const focusSecondary = useRef(false);
+  const [tapped, setTapped] = useState(false);
   const ask = () => {
     setAsking(true);
   };
@@ -114,13 +115,13 @@ export function EditableRow({
         below={
           withSecondary &&
           (active ? (
-            <SecondaryInput {...secondary} focus={focusSecondary} />
+            <SecondaryInput {...secondary} takeFocus={tapped} />
           ) : (
             secondary.value.trim() !== '' && (
               <SecondaryLine
                 text={secondary.value}
                 onOpen={() => {
-                  focusSecondary.current = true;
+                  setTapped(true);
                   setActive(true);
                 }}
               />
@@ -137,7 +138,9 @@ export function EditableRow({
       setActive(true);
     },
     onBlur: (event: FocusEvent<HTMLDivElement>) => {
-      if (!event.currentTarget.contains(event.relatedTarget)) setActive(false);
+      if (event.currentTarget.contains(event.relatedTarget)) return;
+      setActive(false);
+      setTapped(false);
     },
   };
 
@@ -244,10 +247,10 @@ function SecondaryInput({
   onChange,
   onCommit,
   onRevert,
-  focus,
+  takeFocus,
 }: RowSecondaryProps & {
-  /** Set when the line was tapped: the field takes the focus, the caret at the end. */
-  focus: { current: boolean };
+  /** The line was tapped: the field takes the focus when it shows, the caret at the end. */
+  takeFocus: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -260,11 +263,10 @@ function SecondaryInput({
 
   useLayoutEffect(() => {
     const field = ref.current;
-    if (field === null || !focus.current) return;
-    focus.current = false;
+    if (field === null || !takeFocus) return;
     field.focus();
     field.setSelectionRange(field.value.length, field.value.length);
-  }, [focus]);
+  }, [takeFocus]);
 
   return (
     <textarea

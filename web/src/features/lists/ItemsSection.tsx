@@ -160,10 +160,7 @@ function ItemRow({
   const { t } = useTranslation();
   const save = useCallback((text: string) => rename(item, text.trim()), [item, rename]);
   const text = useAutoSaveText({ name: item.id, saved: item.text, save, required: true });
-  const saveDescription = useCallback(
-    (value: string) => describe(item, value),
-    [item, describe],
-  );
+  const saveDescription = useCallback((value: string) => describe(item, value), [item, describe]);
   const description = useAutoSaveText({
     name: item.id,
     saved: item.description ?? '',
