@@ -21,7 +21,7 @@ table adds it here.
 | `list`        | `V5__list.sql`                  | client; Defaults by the server at bootstrap    | M2    |
 | `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7) | M2    |
 | `category`    | `V8__category.sql`              | client; Defaults by the server at bootstrap    | M3    |
-| `item_history` | `V9__item_history.sql`         | server, when an Item is written (pull-only)    | M3    |
+| `item_history` | `V9__item_history.sql`         | server, when an Item is written (push: delete) | M3    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -111,11 +111,16 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   the Item's own List, which must be a Shopping list, else `item.category_not_found`
   (`params.categoryId`); one deleted meanwhile is stored as `null` (the Item is kept, in the
   Unnamed category).
-- **Item history** (`item_history`, ticket #74) is pull-only: every operation on it is
-  `sync.read_only`. The server keeps it inside the Item operation, for Shopping lists only: one
-  row per List and name trimmed and lower-cased, upserted (latest spelling, `lastUsedAt` now) when
-  an Item is created, when its `text` changes, and when it goes from Done back to open. Deleting
-  Items never removes it; deleting the List does. The pull sends `listId`, `name`, `lastUsedAt`.
+- **Item history** (`item_history`, tickets #74, #78): the server writes it; the push may only
+  delete a row (a Member removing a mistyped name), and every upsert is `sync.read_only`. Rules
+  of the delete: a row of another Member's Private List is `list.not_found`; deleting a deleted or
+  unknown row is `ignored`. The server keeps it inside the Item operation, for Shopping lists only:
+  one row per List and name trimmed and lower-cased, upserted (latest spelling, `lastUsedAt` now)
+  when an Item is created, when its `text` changes, and when it goes from Done back to open. A
+  removed (soft-deleted) row is **revived** by that upsert (not deleted, new Version) rather than
+  a second row inserted: the one place where a later use beats an earlier delete, so a removed name
+  comes back the next time anyone uses it. Deleting Items never removes it; deleting the List
+  does. The pull sends `listId`, `name`, `lastUsedAt`.
 - **Categories** (`category`, ticket #70): an upsert carries `listId` (create only; another one
   later is `validation.failed`, `listId` `value.invalid`), `name` (1–100 code points after trim,
   duplicates allowed) and `position` (a number). Rules: `category.list_not_shopping`
@@ -277,6 +282,6 @@ auth.required` without one) tells open apps when to pull:
   Items count (#58). Categories are on the store, and a Shopping list shows its open Items by
   Category, with «Новая категория» (#70); a Shopping list's «Категории» screen adds, renames,
   reorders and deletes them (#72). Item history is on the store, and a Shopping list's add fields
-  suggest names from it (#74). Adding a name a Shopping list already has never makes a duplicate:
+  suggest names from it (#74); the × on a suggestion removes the name, offline too (#78). Adding a name a Shopping list already has never makes a duplicate:
   an open Item is highlighted (preferred to a Done one), else the most recently created Done one
   is set open in that field's Category, offline too (#75).

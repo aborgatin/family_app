@@ -238,6 +238,23 @@ export default {
       ],
     },
     {
+      // «Морковь» removed from the Item history with its ×, offline (#78): gone from the suggestions
+      // at once, no action sheet; «мо» stays typed and the field keeps the focus.
+      name: 'list-suggestion-removed-offline',
+      path: '/',
+      fullPage: false,
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Гипермаркет/]' },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'мо' },
+        { click: 'role=button[name="Удалить подсказку „Морковь“"]' },
+        { wait: 300 },
+      ],
+    },
+    {
       // «молоко» added again (in «Бытовая химия»): no duplicate, the open «Молоко» in «Еда» is
       // highlighted, and the add field is empty and keeps the focus.
       name: 'list-re-adding-open',

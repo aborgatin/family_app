@@ -60,10 +60,19 @@ class ItemHistoryEntity implements SyncedRecord {
     return name.strip().toLowerCase(Locale.ROOT);
   }
 
-  /** The name was used again: its latest spelling is shown from now on. */
+  /**
+   * The name was used again: its latest spelling is shown from now on, and a removed name comes
+   * back (a later use beats an earlier delete, ticket #78).
+   */
   void used(String name, Instant at) {
     this.name = name.strip();
     this.lastUsedAt = at;
+    this.deleted = false;
+  }
+
+  /** A Member removed the name (a typo); the next use revives it ({@link #used}). */
+  void markDeleted() {
+    this.deleted = true;
   }
 
   @Override

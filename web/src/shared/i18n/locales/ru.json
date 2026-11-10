@@ -282,6 +282,7 @@
       "dropped": "«{{title}}» поставлена на место {{position}} из {{count}}.",
       "cancelled": "Перемещение отменено, «{{title}}» на прежнем месте."
     },
-    "suggestions": "Подсказки"
+    "suggestions": "Подсказки",
+    "removeSuggestion": "Удалить подсказку „{{name}}“"
   }
 }

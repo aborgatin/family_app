@@ -183,7 +183,7 @@ of its Spring Session id (`SessionRepository.findById`). `LiveUpdates` (not web-
 ### `lists`
 
 Lists, Items and Categories: written only by the push, read only by the pull, no REST endpoints
-(Item history: written only by the server, read only by the pull). `lists.list`: `ListEntity` (named so it doesn't shadow `java.util.List`), `ListKind`
+(Item history: written by the server, read by the pull; the push may only delete a row). `lists.list`: `ListEntity` (named so it doesn't shadow `java.util.List`), `ListKind`
 (`SHOPPING`, `TODO`, `WISH`) and `Visibility` (`PRIVATE`, `SHARED`), both code (S7);
 `ListRepository`; `ListRequest` (merged fields → `validate()`: name 1–100 code points after trim,
 the Child name limits; known kind and Visibility; `unnamedCategoryPosition` a finite number, 0 when
@@ -270,10 +270,13 @@ Item history is in the same package: `ItemHistoryEntity` (`list_id`, `normalized
 `markDeletedInList`, `bumpVersionsInList`), `ItemHistoryService`, the `item_history`
 `SyncableTable`:
 
-- `apply` is the interface default: every operation is `sync.read_only`.
+- `apply` (#78): an upsert is `sync.read_only`. A delete: unknown or deleted row → `IGNORED`;
+  its List not visible → `list.not_found`; else `ItemHistoryEntity.markDeleted()` (soft delete).
 - `used(list, name, at)`: only for a `SHOPPING` List; upserts the row of the List and the name
   trimmed and lower-cased (`ItemHistoryEntity.normalize`), setting the latest spelling and
-  `last_used_at`. Called by `ItemService` inside the push's operation, so it rolls back with it.
+  `last_used_at`, and reviving a deleted row (`ItemHistoryEntity.used` clears `deleted`): a later
+  use beats an earlier delete. Called by `ItemService` inside the push's operation, so it rolls
+  back with it. (A List's deleted history is never revived: nothing is written in a deleted List.)
 - `changesSince`: `listId`, `name`, `lastUsedAt`; a tombstone for a deleted row and for one whose
   List the Member may not see.
 

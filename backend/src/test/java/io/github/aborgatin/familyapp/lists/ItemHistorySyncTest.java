@@ -159,23 +159,112 @@ class ItemHistorySyncTest {
   }
 
   @Test
-  void thePushCannotWriteTheHistory() throws Exception {
+  void aMemberRemovesANameAndTheOtherMemberPullsItsTombstone() throws Exception {
+    SyncRequests.push(anna, ItemsSyncTest.add(UUID.randomUUID(), groceries, "Малоко"));
+    UUID row = historyId(anna, "Малоко");
+    long since = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    SyncRequests.push(anna, SyncRequests.delete("item_history", row))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    List<Map<String, Object>> changes = history(boris, since);
+    assertThat(changes).hasSize(1);
+    assertThat(changes.get(0))
+        .containsEntry("id", row.toString())
+        .containsEntry("deleted", true)
+        .doesNotContainKey("fields");
+    assertThat(history(boris, 0)).isEmpty();
+  }
+
+  @Test
+  void usingARemovedNameAgainRevivesItsRowForBothMembers() throws Exception {
+    UUID milk = UUID.randomUUID();
+    SyncRequests.push(anna, ItemsSyncTest.add(milk, groceries, "Малоко"));
+    UUID row = historyId(anna, "Малоко");
+    Map<String, Object> before = history(anna, 0).get(0);
+    SyncRequests.push(anna, SyncRequests.delete("item_history", row));
+    long since = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    SyncRequests.push(boris, ItemsSyncTest.add(UUID.randomUUID(), groceries, " малоко "))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+
+    for (Browser device : List.of(anna, boris)) {
+      List<Map<String, Object>> changes = history(device, since);
+      assertThat(changes).hasSize(1);
+      assertThat(changes.get(0))
+          .containsEntry("id", row.toString())
+          .containsEntry("deleted", false);
+      assertThat(fields(changes.get(0))).containsEntry("name", "малоко");
+      assertThat(lastUsedAt(changes.get(0))).isAfter(lastUsedAt(before));
+    }
+  }
+
+  @Test
+  void renamingOrReopeningAnItemRevivesARemovedName() throws Exception {
+    UUID milk = UUID.randomUUID();
+    UUID bread = UUID.randomUUID();
+    SyncRequests.push(
+        anna,
+        ItemsSyncTest.add(milk, groceries, "Малоко"),
+        ItemsSyncTest.add(bread, groceries, "Хлеб"),
+        ItemsSyncTest.done(milk, true));
+    SyncRequests.push(
+        anna,
+        SyncRequests.delete("item_history", historyId(anna, "Малоко")),
+        SyncRequests.delete("item_history", historyId(anna, "Хлеб")));
+
+    SyncRequests.push(
+            boris,
+            ItemsSyncTest.done(milk, false),
+            SyncRequests.upsert("item", bread, "{\"text\":\"хлеб\"}"))
+        .andExpect(jsonPath("$.results[*].status", contains("applied", "applied")));
+
+    assertThat(names(history(boris, 0))).containsExactlyInAnyOrder("Малоко", "хлеб");
+  }
+
+  @Test
+  void removingANameTwiceIsIgnored() throws Exception {
+    SyncRequests.push(anna, ItemsSyncTest.add(UUID.randomUUID(), groceries, "Малоко"));
+    UUID row = historyId(anna, "Малоко");
+    SyncRequests.push(anna, SyncRequests.delete("item_history", row));
+
+    SyncRequests.push(
+            boris,
+            SyncRequests.delete("item_history", row),
+            SyncRequests.delete("item_history", UUID.randomUUID()))
+        .andExpect(jsonPath("$.results[*].status", contains("ignored", "ignored")));
+  }
+
+  @Test
+  void theOtherMembersPrivateListsHistoryCannotBeRemoved() throws Exception {
+    UUID secret = UUID.randomUUID();
+    SyncRequests.push(
+        boris,
+        ItemsSyncTest.list(secret, "Подарки Анне", "PRIVATE"),
+        ItemsSyncTest.add(UUID.randomUUID(), secret, "Серьги"));
+    UUID row = historyId(boris, "Серьги");
+
+    SyncRequests.push(anna, SyncRequests.delete("item_history", row))
+        .andExpect(jsonPath("$.results[*].status", contains("rejected")))
+        .andExpect(jsonPath("$.results[*].code", contains("list.not_found")));
+
+    assertThat(names(history(boris, 0))).containsExactly("Серьги");
+  }
+
+  @Test
+  void thePushCannotUpsertTheHistory() throws Exception {
     SyncRequests.push(anna, ItemsSyncTest.add(UUID.randomUUID(), groceries, "Молоко"));
-    UUID row = UUID.fromString((String) history(anna, 0).get(0).get("id"));
+    UUID row = historyId(anna, "Молоко");
 
     SyncRequests.push(
             boris,
             SyncRequests.upsert("item_history", row, "{\"name\":\"Кефир\"}"),
-            SyncRequests.delete("item_history", row),
             SyncRequests.upsert(
                 "item_history",
                 UUID.randomUUID(),
                 "{\"listId\":\"%s\",\"name\":\"Кефир\"}".formatted(groceries)))
-        .andExpect(jsonPath("$.results[*].status", contains("rejected", "rejected", "rejected")))
-        .andExpect(
-            jsonPath(
-                "$.results[*].code",
-                contains("sync.read_only", "sync.read_only", "sync.read_only")));
+        .andExpect(jsonPath("$.results[*].status", contains("rejected", "rejected")))
+        .andExpect(jsonPath("$.results[*].code", contains("sync.read_only", "sync.read_only")));
 
     assertThat(names(history(anna, 0))).containsExactly("Молоко");
   }
@@ -233,6 +322,15 @@ class ItemHistorySyncTest {
     assertThat(changes).hasSize(1);
     assertThat(changes.get(0)).containsEntry("deleted", true).doesNotContainKey("fields");
     assertThat(names(history(boris, 0))).containsExactly("Серьги");
+  }
+
+  /** The id of the history row with this name, as {@code device} pulls it. */
+  static UUID historyId(Browser device, String name) throws Exception {
+    return history(device, 0).stream()
+        .filter(change -> name.equals(fields(change).get("name")))
+        .map(change -> UUID.fromString((String) change.get("id")))
+        .findFirst()
+        .orElseThrow();
   }
 
   static Instant lastUsedAt(Map<String, Object> change) {
