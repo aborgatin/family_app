@@ -85,6 +85,8 @@ jobs:
         run: scripts/check-screens-test.sh
       - name: Screenshot routes click for real
         run: scripts/check-screens.sh
+      - name: dev.sh new-migration gate self-test
+        run: scripts/dev-test.sh
 
   backend:
     name: backend

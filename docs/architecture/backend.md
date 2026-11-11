@@ -755,9 +755,13 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 - `scripts/dev.sh` starts the dev PostgreSQL (`deploy/docker-compose.dev.yml`), the backend
   (`bootRun` against it, port 8080) and Vite (port 5173) with the toolchain, waits until both
   answer and prints the local and network URLs; Ctrl-C stops the backend and Vite (the database
-  keeps running). Flyway migrates the dev database to the branch's latest version on start.
+  keeps running).
 - `scripts/dev.sh --fresh-db` first backs up the dev database to a printed path
   (`~/.cache/family-app/dev-db-backups/`), then empties it, so the app starts as a fresh install.
-  Restore a backup with `scripts/db.sh` (header of `dev.sh`).
+- When the branch has a Flyway migration not on `origin/main`, `dev.sh` refuses to start (the dev
+  database would then fit only this branch); `--allow-new-migrations` backs it up first, to a
+  printed path, then starts and applies them.
+- Restore a backup with `pg_restore` in the dev database container (the command is in the header
+  of `dev.sh`).
 - Inspect the dev database with `scripts/db.sh "<sql>"`; `-c <container>` targets another
   PostgreSQL container, e.g. a Testcontainers one from `docker ps`.

@@ -110,8 +110,8 @@ Logs: `docker compose logs [-f] app` (also `postgres`, `caddy`).
 
 Local development uses `deploy/docker-compose.dev.yml` instead: PostgreSQL 18 only, on
 `127.0.0.1:5432` (`DEV_DB_PORT` moves it), database/user/password `family`. `scripts/dev.sh`
-starts it, the backend and the web dev server in one command (`--fresh-db` backs it up, then
-empties it; header of that script, and backend.md "Local development"). `scripts/db.sh "<sql>"` runs a query against it (`-c <container>` for
+starts it, the backend and the web dev server in one command (flags in the header of that script
+and backend.md "Local development"). `scripts/db.sh "<sql>"` runs a query against it (`-c <container>` for
 another PostgreSQL container, `-d <database>` for another database).
 
 ## Caddy

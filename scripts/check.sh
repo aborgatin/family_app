@@ -7,7 +7,7 @@
 # Steps, cheapest first so a slip fails in seconds, not after the backend build:
 #   1. guards, each after its self-test: scripts/check-migrations.sh against origin/main,
 #      check-error-codes.sh (I3), check-shell.sh (pipes under pipefail), check-doc-index.sh (doc
-#      indexes), check-screens.sh (real clicks), and the with-toolchain.sh self-test;
+#      indexes), check-screens.sh (real clicks), and the dev-test.sh and with-toolchain.sh self-tests;
 #   2. web `npm ci` (only when node_modules is missing or stale), the repeat-test.sh self-test,
 #      `npm run format` (Prettier writes in place, as spotlessApply does for Java; CI runs
 #      format:check), `lint`, `typecheck`;
@@ -73,6 +73,9 @@ step "doc index guard"
 step "screenshot guard (real clicks)"
 "$root/scripts/check-screens-test.sh" | { grep -v '^ok ' || true; }
 "$root/scripts/check-screens.sh"
+
+step "dev.sh new-migration gate self-test"
+"$root/scripts/dev-test.sh" | { grep -v '^ok ' || true; }
 
 step "toolchain wrapper self-test"
 "$root/scripts/with-toolchain-test.sh" | { grep -v '^ok ' || true; }

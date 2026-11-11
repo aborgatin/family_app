@@ -47,7 +47,7 @@ A run spans hours, so it is **budgeted**:
 
 7. Once all tickets are complete, call the Skill tool with `code-review` on the integration branch. Fix all issues raised by the code review in a single fresh **implementer subagent**.
 
-8. If the spec has screens, run the app from the integration branch with `scripts/dev.sh` (in the background; it prints the URLs once both servers answer, and `--fresh-db` backs up and empties the dev database for a first-run look) and screenshot every screen the spec touches, including empty and error states, into one artifact for the user. Show it and wait for their go-ahead: tests check roles and labels, never how a screen looks or reads.
+8. If the spec has screens, run the app from the integration branch with `scripts/dev.sh` (in the background; it prints the URLs once both servers answer, its header lists the flags for a first-run look and for a branch with new migrations) and screenshot every screen the spec touches, including empty and error states, into one artifact for the user. Show it and wait for their go-ahead: tests check roles and labels, never how a screen looks or reads.
 
 9. If a draft PR exists, mark it ready for review. Otherwise, resolve each ticket the way the issue tracker closes work, and report the integration branch.
 
