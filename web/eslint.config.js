@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import i18next from 'eslint-plugin-i18next';
 import reactHooks from 'eslint-plugin-react-hooks';
+import testingLibrary from 'eslint-plugin-testing-library';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
@@ -107,6 +108,39 @@ const RAW_COLOURS = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Reuse — code one shared module owns is not written again elsewhere (the M4 retro, #94). Each
+// rule is its own rule name, so it doesn't replace (or get replaced by) the no-restricted-syntax
+// blocks below. Tested in src/test/lintRules.test.ts.
+// ---------------------------------------------------------------------------
+
+/** A rule reporting every node matching `selector` (an esquery selector) with `message`. */
+function syntaxRule(selector, message) {
+  return {
+    meta: { type: 'problem', schema: [] },
+    create: (context) => ({ [selector]: (node) => context.report({ node, message }) }),
+  };
+}
+
+const reuse = {
+  rules: {
+    'dates-from-shared-dates': syntaxRule(
+      [
+        // `day.split('-').map(Number)`: a day taken apart by hand.
+        "CallExpression[callee.property.name='map'][arguments.0.name='Number'] > MemberExpression.callee > CallExpression.object[callee.property.name='split'][arguments.0.value='-']",
+        // A `\d{4}-` pattern, as a regex literal or a string given to RegExp.
+        'Literal[regex.pattern=/\\\\d\\{4\\}-/]',
+        ':matches(NewExpression, CallExpression)[callee.name="RegExp"] > Literal.arguments[value=/\\\\d\\{4\\}-/]',
+      ].join(', '),
+      'Parse and format `YYYY-MM-DD` days with `@/shared/dates` (dayParts, localDay…); add what is missing there.',
+    ),
+    'store-versions-in-older-store': syntaxRule(
+      "CallExpression[callee.property.name='stores'][callee.object.callee.property.name='version']",
+      'Build an older local store with `upgradeStoreFrom(version, seed)` from `@/test/olderStore`, not by declaring its versions in the test.',
+    ),
+  },
+};
+
 /**
  * Builds one config block per file depth under `root`, each banning relative imports that would
  * climb out of `root`, plus the layer's own `groups`.
@@ -181,6 +215,42 @@ export default defineConfig([
         },
       ],
     },
+  },
+
+  // Testing Library's async rules: an un-awaited async query or util, waitFor around a getBy (use
+  // findBy), side effects or several assertions inside waitFor. These make a test pass or fail by
+  // timing (the M4 retro, #94). Tested in src/test/lintRules.test.ts.
+  {
+    name: 'testing-library/async',
+    files: TEST_FILES,
+    plugins: { 'testing-library': testingLibrary },
+    rules: {
+      'testing-library/await-async-events': 'error',
+      'testing-library/await-async-queries': 'error',
+      'testing-library/await-async-utils': 'error',
+      'testing-library/no-await-sync-events': 'error',
+      'testing-library/no-await-sync-queries': 'error',
+      'testing-library/no-promise-in-fire-event': 'error',
+      'testing-library/no-wait-for-multiple-assertions': 'error',
+      'testing-library/no-wait-for-side-effects': 'error',
+      'testing-library/no-wait-for-snapshot': 'error',
+      'testing-library/prefer-find-by': 'error',
+    },
+  },
+
+  {
+    name: 'reuse/dates-from-shared-dates',
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/shared/dates/**'],
+    plugins: { reuse },
+    rules: { 'reuse/dates-from-shared-dates': 'error' },
+  },
+  {
+    name: 'reuse/store-versions-in-older-store',
+    files: TEST_FILES,
+    ignores: ['src/test/olderStore.ts'],
+    plugins: { reuse },
+    rules: { 'reuse/store-versions-in-older-store': 'error' },
   },
 
   // no-restricted-syntax blocks replace each other per file, like no-restricted-imports, so each

@@ -5,6 +5,26 @@ What exists in `/web` after Spec #1 (M0 + M1), the M1.5 UI foundation (spec #35)
 [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md) (M3, I2, I3, S4, T1, U1). Look, tokens and
 component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](backend.md).
 
+## Contents
+
+Read this index, then only the sections for your area (`scripts/check-doc-index.sh` keeps it in
+step with the headings).
+
+- [Stack](#stack): libraries and versions, npm scripts, running a script or test with the toolchain, local development
+- [Folders and import rules](#folders-and-import-rules): the `src/` tree, feature folders, layer direction and the lint that enforces it (M3)
+- [Routing and the auth guard](#routing-and-the-auth-guard): every route and screen, `AuthGuard`, session states, logout and pending logout
+- [API client and errors](#api-client-and-errors): `@/shared/api`, CSRF, `ApiError`, mapping error codes to messages (I3)
+- [Local store and sync](#local-store-and-sync): the Dexie store and its versions, the Outbox, the sync engine, pulls and SSE
+- [Data access](#data-access): one hook per synced feature, what each hook reads and writes, online-only screens
+- [i18n](#i18n): the `ru` resource file, key naming, plurals and gendered verbs (I2)
+- [Look and theme](#look-and-theme): Tailwind tokens, light and dark theme, where the UI kit is specified
+- [Settings](#settings): the Settings screen: Members, Invites, profile, password, theme, Child fields
+- [Home «Дети» and the Child page](#home-дети-and-the-child-page): Child tiles on Home, the Child page, Child lists and fields
+- [PWA](#pwa): manifest, icons, service worker and updates
+- [iOS and macOS](#ios-and-macos): installed-app cookies, ITP, Safari quirks
+- [Testing](#testing): shared test helpers, `renderApp`, the fake sync server, store-upgrade tests, clock and time zone, flaky tests
+- [Screenshots](#screenshots): `scripts/screenshot.sh` and the routes in `screens.mjs`
+
 ## Stack
 
 React 19, TypeScript 6 (`strict`, `noUncheckedIndexedAccess`), Vite 8, `vite-plugin-pwa` 2
@@ -16,14 +36,17 @@ Library + MSW 3 + `fake-indexeddb`, Dexie 4 (local store), ESLint 10 flat config
 Node 22 or newer.
 
 Scripts (`web/package.json`): `dev`, `build` (does not typecheck), `typecheck` (`tsc --noEmit`),
-`lint` (`--max-warnings 0`), `format` / `format:check`, `test` (`vitest run`). CI job `web` runs
-`npm ci`, `format:check`, `lint`, `typecheck`, `test`, `build`. `scripts/check.sh` runs the same
-(plus the backend build) from any directory and finds Node 22 by itself, including Homebrew's keg-only
-`node@22` in `/opt/homebrew/opt/node@22/bin`.
+`lint` (`--max-warnings 0`), `format` / `format:check`, `test` (`vitest run`), `test:next-year` (the clock a year ahead,
+see Testing). CI job `web` runs `npm ci`, `format:check`, `lint`, `typecheck`, `test`,
+`test:next-year`, `build`. `scripts/check.sh` runs all but `test:next-year`, cheapest first:
+`format` (writing in place), `lint`, `typecheck` before the backend build, `test` and `build` after; and finds Node 22 by itself, including Homebrew's keg-only
+`node@22` in `/opt/homebrew/opt/node@22/bin`. Run one script or test file the same way with
+`scripts/with-toolchain.sh`, from `web/`: `../scripts/with-toolchain.sh npm run typecheck`,
+`../scripts/with-toolchain.sh npx vitest run src/features/lists`.
 
-Local development: start PostgreSQL with `docker compose -f deploy/docker-compose.dev.yml up -d`,
-run the backend (see the header of that file), then `npm run dev`. Vite proxies `/api` to
-`BACKEND_URL` (default `http://localhost:8080`). Query that database with `scripts/db.sh "<sql>"`.
+Local development: `scripts/dev.sh` starts the dev PostgreSQL, the backend and Vite and prints the
+URLs (header of that script). Vite proxies `/api` to `BACKEND_URL` (default
+`http://localhost:8080`). Query that database with `scripts/db.sh "<sql>"`.
 
 ## Folders and import rules
 
@@ -763,6 +786,23 @@ a Vite native-config-loader warning).
 
 ## Testing
 
+Shared test helpers (in `src/test/`): reach for these before writing a helper of your own; a
+helper a second test file needs moves here.
+
+| Helper | Use it when |
+| --- | --- |
+| `renderApp(path, { offline })` (`@/test/renderApp`) | any screen test: mounts the whole app at `path`; render twice for an app restart |
+| `syncServer` (`@/test/syncServer`) | any synced data: `seed` rows, `change` as the other Member, read `row`/`pushes`, `goOffline`, `holdPulls` |
+| `server` (`@/test/server`) | a non-sync endpoint: `server.use(http.get(…))` for that test |
+| `network` (`@/test/network`) | a real loss of signal: every request fails, whatever handler would answer |
+| `FakeEventSource` (`@/test/eventSource`) | live updates: `latest().emit('changed', …)`, a dropped connection |
+| `upgradeStoreFrom(version, seed)` (`@/test/olderStore`) | a store-upgrade test: an older store with rows or Outbox operations, then the current one opened over it (lint rejects store versions declared anywhere else) |
+| `anna`, `boris`, `masha`, `petya`, `weight`, `height`, `sessionHandler`, `membersHandler`, `invitesHandler` (`@/test/fixtures`) | Members, Children, Child fields and the auth/settings handlers every test needs |
+| `dayParts`, `localDay` (`@/shared/dates`, app code) | a `YYYY-MM-DD` day in a test or in code: lint rejects parsing one by hand elsewhere |
+
+Run one file with `../scripts/with-toolchain.sh npx vitest run <file>` from `web/`; a test that
+fails only sometimes, with `scripts/repeat-test.sh <file> [n]`.
+
 - Tests sit next to the feature (`<feature>/*.test.tsx`) and render the **whole app**:
   `renderApp(path)` from `@/test/renderApp` mounts the real `routes` and `AppProviders` in a memory
   router and returns Testing Library's result plus `location()` (path + search + hash).
@@ -816,6 +856,15 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,
   `sessionHandler`.
+- Every test runs in one time zone, `Europe/Moscow` (`test.env.TZ` in `vite.config.ts`), on every
+  laptop and in CI. `npm run test:next-year` (`TEST_YEARS_AHEAD=1`, `src/test/yearsAhead.ts`)
+  runs the suite with the real clock a year ahead; CI runs it too, so a fixture that only works
+  before some real date fails a year early. `src/test/clock.test.ts` checks both.
+- Async Testing Library rules are lint errors in tests (`eslint-plugin-testing-library`: an
+  un-awaited `waitFor` or `findBy`, `waitFor` around a `getBy` instead of `findBy`, side effects
+  or several assertions inside `waitFor`): they make a test pass or fail by timing.
+- A test that fails only sometimes is fixed test-first: `scripts/repeat-test.sh <file> [n]` red
+  (some runs fail), fix, then n/n.
 - The device clock: `vi.useFakeTimers({ toFake: ['Date'], now })` in `beforeEach` and
   `vi.useRealTimers()` after (`children.test.tsx` for ages, `doneEarlier.test.tsx` for the Done
   window, whose Done times are built from local dates so the tests pass in any time zone,

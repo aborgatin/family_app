@@ -5,6 +5,22 @@ What exists in `/backend` after Spec #1 (M0 + M1), the M2 sync core (spec #3, ti
 Categories (#70) and Item history (#74). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
 Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`sync.md`](sync.md).
 
+## Contents
+
+Read this index, then only the sections for your area (`scripts/check-doc-index.sh` keeps it in
+step with the headings).
+
+- [Stack](#stack): Spring Boot, Java 21, Error Prone, Spotless, what the build copies from the web app
+- [Configuration](#configuration): the environment variables `application.yml` reads and their defaults
+- [Modules](#modules): the Modulith modules (`family`, `sync`, `lists`, `command`, `webapp`), their public API and internals
+- [API conventions](#api-conventions): JSON shape, timestamps and dates, which resources are REST and which go through sync
+- [Errors](#errors): `ApiException`, `FieldErrors`, the error-code catalogue (I1, I3)
+- [Security, sessions, CSRF](#security-sessions-csrf): the security chains, public endpoints, sessions, CSRF, login limits
+- [Flyway](#flyway): every migration and what it creates; append-only (S5)
+- [Adding a syncable table](#adding-a-syncable-table): the steps from migration to client store, with the tests to copy
+- [Testing](#testing): the one `Clock`, the HTTP seam, shared test helpers and when to use each, running tests
+- [Local development](#local-development): `scripts/dev.sh`, the dev database, `scripts/db.sh`
+
 ## Stack
 
 - Spring Boot 3.5 (`backend/build.gradle.kts`), Java 21 toolchain, Gradle wrapper with Kotlin DSL.
@@ -13,7 +29,8 @@ Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`syn
 - javac runs with `-Xlint:all -Werror` plus Error Prone: every warning fails the build. A
   `@SuppressWarnings` needs a reason.
 - Spotless: google-java-format for Java, ktfmt (Google style) for `*.gradle.kts`. Run
-  `./gradlew spotlessApply` before committing; CI runs `spotlessCheck`.
+  `scripts/with-toolchain.sh ./gradlew spotlessApply` (from `backend/`) before committing; CI runs
+  `spotlessCheck`.
 - `processResources` copies `web/src/shared/palette/childColors.json` into the jar as
   `palette/childColors.json` (the Child color palette is defined once, in the web app).
 
@@ -330,10 +347,9 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
   JVM's default zone is the installation's, from the container's `TZ`
   ([`deployment.md`](deployment.md)); no new setting. Done set to its current value is no turn, so
   a second tick adds nothing. Tested by
-  `lists.ItemRepeatCopySyncTest`, with Due dates relative to today in the JVM's zone (the test
-  runs in the server's JVM; a test starting under a minute before midnight waits past it, so the
-  test and the server agree on today), so no fixed clock is needed: the month-end cases start from a past
-  31 January or 29 February, whose next occurrence is the first 28th after today.
+  `lists.ItemRepeatCopySyncTest`, with today fixed by a `TestClock` (Testing) so the test and the
+  server agree on it at any hour: the month-end cases start from a past 31 January or 29 February,
+  whose next occurrence is the first 28th after today.
 - Assignee (#85; `assigneeId`, when carried; `ItemService.assigneeId` → `ItemEntity.assignTo`):
   column `assignee_id` (→ `member`), a Member's id or `null` for nobody. In this order:
   `item.list_not_todo` (`params.listId`) unless the List is `TODO`, even for `null`;
@@ -650,8 +666,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
      fields (`operation.has/text`) over the stored ones, validate everything (unknown id: every
      required field must be there), throw `FieldErrors`/`ApiException` to reject, then create or
      change and `saveAndFlush` → `APPLIED`. Server-set fields (Owner, Creator…) come from
-     `operation.memberId()`, never from `fields`; times from a `Clock` field
-     (`Clock.systemUTC()`; `ClockTest` fails on a bare `Instant.now()` and the like). The push
+     `operation.memberId()`, never from `fields`; times from the injected `Clock`
+     bean (a `Clock clock` constructor parameter; `ClockTest` fails on a bare `Instant.now()` or
+     `Clock.system…()`, Testing). The push
      already holds `FamilyLock`; the Family id is `Family.id()`.
 5. Pull: `changesSince(version, memberId)`: `SyncRow.changes(repository.findByVersionGreaterThan(version),
    visible, (row, fields) -> …)` putting what the client stores (no secrets; nullable values
@@ -667,13 +684,30 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 
 ## Testing
 
-- **Time**: main code reads time from a `Clock` field (`private final Clock clock =
-  Clock.systemUTC()`), never a bare `Instant.now()`, `LocalDate.now()` and the like. `ClockTest`
-  (ArchUnit) enforces it.
+- **Time**: there is one `Clock` bean (`TimeConfig`, `Clock.systemUTC()`), and every class that
+  needs the time takes it by constructor injection into a `Clock clock` field; main code never calls
+  a bare `Instant.now()`, `LocalDate.now()` and the like, nor `Clock.system…()` outside
+  `TimeConfig`. `ClockTest` (ArchUnit) enforces both. A test fixes the time with `TestClock`:
+  `@Import({PostgresTestcontainer.class, TestClock.Config.class})`, `@Autowired TestClock clock`,
+  then `clock.setToday(LocalDate.of(…))` (noon of that day in the JVM's zone, far from midnight)
+  or `clock.set(instant)`; see `lists.ItemRepeatCopySyncTest`.
 - **HTTP seam (T1)**: `@SpringBootTest @AutoConfigureMockMvc @Import(PostgresTestcontainer.class)`.
   `PostgresTestcontainer` provides PostgreSQL 18 through `@ServiceConnection`; Spring reuses one
   container per test context. Flyway runs as in production. Assertions go through HTTP only; JDBC is
   used for fixture set-up.
+- Shared helpers at a glance: reach for these before writing a helper of your own (details below).
+
+  | Helper | Use it when |
+  | --- | --- |
+  | `PostgresTestcontainer` | every `@SpringBootTest`: `@Import` it for PostgreSQL 18 |
+  | `Browser` | any HTTP test: one device on MockMvc with cookies and CSRF |
+  | `FreshInstallation` | `@BeforeEach` of a test that needs an empty Family, or adds Members by JDBC |
+  | `SyncRequests` | any sync test: push/pull operations, read a pulled change, the two usual devices |
+  | `ListOperations` | a `lists.*SyncTest`: the List and Item operations it pushes |
+  | `HttpDevice` | a real port: restarts, SSE streams |
+  | `LockWaits` | proving a request waits on the Family lock |
+  | `TestClock` | a test whose answer depends on today or now: fix the server's clock |
+
 - Shared helpers, public, in the root test package `src/test/java/io/github/aborgatin/familyapp/`
   (every module's tests import them):
   - `Browser`: one device on MockMvc. Keeps cookies, sends `X-XSRF-TOKEN` on writes, and has its own
@@ -708,9 +742,26 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   `TestRestTemplate`; test bundle in `src/test/resources/static/`), `ForwardedHeadersTest`
   (`TRUSTED_PROXIES=127\.0\.0\.1` + `X-Forwarded-For`), `PasswordResetCommandTest` (runs the command
   entry point against Testcontainers), `HealthEndpointTest`, `ApiErrorsTest`.
-- Run with `./gradlew test` (Docker must be running). CI runs `spotlessCheck`,
+- Run with `../scripts/with-toolchain.sh ./gradlew test` from `backend/` (Docker must be running;
+  one class: `--tests '*ItemSyncTest'`). The wrapper finds JDK 21 and Node 22 as `check.sh` does,
+  so no `JAVA_HOME` or `source` is needed. CI runs `spotlessCheck`,
   `compileJava compileTestJava` and `test`.
-- `scripts/check.sh` runs everything from any directory: the migration guard,
-  `./gradlew spotlessApply build`, and all web checks (`--image` adds the image build and smoke test).
-- Inspect the local dev database (`deploy/docker-compose.dev.yml`) with `scripts/db.sh "<sql>"`;
-  `-c <container>` targets another PostgreSQL container, e.g. a Testcontainers one from `docker ps`.
+- `scripts/check.sh` runs everything from any directory: the guards and the cheap web steps first
+  (`format`, `lint`, `typecheck`), then `./gradlew spotlessApply build`, then the web `test` and
+  `build` (`--image` adds the image build and smoke test).
+
+## Local development
+
+- `scripts/dev.sh` starts the dev PostgreSQL (`deploy/docker-compose.dev.yml`), the backend
+  (`bootRun` against it, port 8080) and Vite (port 5173) with the toolchain, waits until both
+  answer and prints the local and network URLs; Ctrl-C stops the backend and Vite (the database
+  keeps running).
+- `scripts/dev.sh --fresh-db` first backs up the dev database to a printed path
+  (`~/.cache/family-app/dev-db-backups/`), then empties it, so the app starts as a fresh install.
+- When the branch has a Flyway migration not on `origin/main`, `dev.sh` refuses to start (the dev
+  database would then fit only this branch); `--allow-new-migrations` backs it up first, to a
+  printed path, then starts and applies them.
+- Restore a backup with `pg_restore` in the dev database container (the command is in the header
+  of `dev.sh`).
+- Inspect the dev database with `scripts/db.sh "<sql>"`; `-c <container>` targets another
+  PostgreSQL container, e.g. a Testcontainers one from `docker ps`.

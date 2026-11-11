@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 # Runs every local check in one command, from any directory:
 #
-#   scripts/check.sh            # migration and error-code guards, backend build + tests, web checks
+#   scripts/check.sh            # guards, cheap web checks, backend build + tests, web tests + build
 #   scripts/check.sh --image    # also builds the Docker image and runs scripts/image-smoke-test.sh
 #
-# Steps: scripts/check-migrations.sh against origin/main; scripts/check-error-codes.sh (I3) and its
-# self-test; scripts/check-shell.sh (pipes under pipefail) and its self-test; backend `./gradlew spotlessApply build` (spotlessApply reformats Java in place, build
-# runs spotlessCheck, Error Prone and the tests);
-# web `npm ci` (only when node_modules is missing or stale), `format:check`, `lint`, `typecheck`,
-# `test`, `build`. Stops at the first failing step and names it. Needs Docker running (backend
-# tests use Testcontainers) and Node 22+ (found on PATH or in Homebrew's keg-only node@22).
-# CI runs the same checks as separate jobs (.github/workflows/ci.yml).
+# Steps, cheapest first so a slip fails in seconds, not after the backend build:
+#   1. guards, each after its self-test: scripts/check-migrations.sh against origin/main,
+#      check-error-codes.sh (I3), check-shell.sh (pipes under pipefail), check-doc-index.sh (doc
+#      indexes), check-screens.sh (real clicks), and the dev-test.sh and with-toolchain.sh self-tests;
+#   2. web `npm ci` (only when node_modules is missing or stale), the repeat-test.sh self-test,
+#      `npm run format` (Prettier writes in place, as spotlessApply does for Java; CI runs
+#      format:check), `lint`, `typecheck`;
+#   3. backend `./gradlew spotlessApply build` (spotlessApply reformats Java in place, build runs
+#      spotlessCheck, Error Prone and the tests);
+#   4. web `test`, `build`.
+# Stops at the first failing step and names it. Needs Docker running (backend tests use
+# Testcontainers), JDK 21 and Node 22+ (found as scripts/with-toolchain.sh finds them). CI runs the
+# same checks as separate jobs (.github/workflows/ci.yml).
 set -euo pipefail
 
 usage() {
@@ -60,15 +66,38 @@ step "shell guard"
 "$root/scripts/check-shell-test.sh" | { grep -v '^ok ' || true; }
 "$root/scripts/check-shell.sh"
 
-step "backend: spotlessApply build"
-(cd "$root/backend" && ./gradlew spotlessApply build)
+step "doc index guard"
+"$root/scripts/check-doc-index-test.sh" | { grep -v '^ok ' || true; }
+"$root/scripts/check-doc-index.sh"
+
+step "screenshot guard (real clicks)"
+"$root/scripts/check-screens-test.sh" | { grep -v '^ok ' || true; }
+"$root/scripts/check-screens.sh"
+
+step "dev.sh new-migration gate self-test"
+"$root/scripts/dev-test.sh" | { grep -v '^ok ' || true; }
+
+step "toolchain wrapper self-test"
+"$root/scripts/with-toolchain-test.sh" | { grep -v '^ok ' || true; }
 
 cd "$root/web"
 if [[ ! -f node_modules/.package-lock.json || package-lock.json -nt node_modules/.package-lock.json ]]; then
   step "web: npm ci"
   npm ci
 fi
-for script in format:check lint typecheck test build; do
+step "repeat-test.sh self-test"
+"$root/scripts/repeat-test-test.sh" | { grep -v '^ok ' || true; }
+# Cheap web steps before the backend build; format writes in place (CI runs format:check).
+for script in format lint typecheck; do
+  step "web: $script"
+  npm run "$script"
+done
+
+step "backend: spotlessApply build"
+(cd "$root/backend" && ./gradlew spotlessApply build)
+
+cd "$root/web"
+for script in test build; do
   step "web: $script"
   npm run "$script"
 done

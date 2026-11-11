@@ -4,6 +4,23 @@ How the app is built, shipped and run. One installation per Family (ADR-0004). T
 `Dockerfile`, `.github/workflows/ci.yml`, `deploy/` and `scripts/`; the header comments of the
 scripts are authoritative for their options.
 
+## Contents
+
+Read this index, then only the sections for your area (`scripts/check-doc-index.sh` keeps it in
+step with the headings).
+
+- [Image](#image): the multi-stage `Dockerfile`, what each stage builds
+- [CI/CD](#cicd): the CI jobs, which run on a pull request, `scripts/check.sh` locally, image tags
+- [Server layout](#server-layout): the VPS, the `deploy/` copy and `.env` on it
+- [Compose services](#compose-services): the services of `deploy/docker-compose.yml`, logs, and the local dev database (`docker-compose.dev.yml`, `scripts/dev.sh`)
+- [Caddy](#caddy): HTTPS, redirects, compression, headers in `deploy/Caddyfile`
+- [Environment variables](#environment-variables): every `deploy/.env` setting and what reads it
+- [Deploy and rollback](#deploy-and-rollback): pulling a new image, rolling back to a tag
+- [Password reset](#password-reset): the operator's one-time reset link
+- [Backups](#backups): `deploy/backup.sh`, the Storage Box, pruning, cron
+- [Restore](#restore): `deploy/restore.sh`, listing and restoring a dump
+- [Server set-up checklist](#server-set-up-checklist): first-time set-up of the server, in order
+
 ## Image
 
 `Dockerfile` (repo root) builds everything from source; `docker build .` needs no prior local build.
@@ -47,8 +64,8 @@ check would let the PR merge untested.
   `scripts/image-smoke-test.sh`, `scripts/deploy-stack-test.sh`, `scripts/backup-restore-test.sh`.
   Only on push to `main` it logs in to GHCR with `GITHUB_TOKEN` (`packages: write`) and pushes.
 
-Locally, `scripts/check.sh` runs the migration guard and the backend and web checks in one command
-from any directory; `scripts/check.sh --image` also builds the image and runs
+Locally, `scripts/check.sh` runs the guards, the cheap web checks (format, lint, typecheck), the backend
+build and the web tests and build in one command from any directory; `scripts/check.sh --image` also builds the image and runs
 `scripts/image-smoke-test.sh`. It fails early when Docker is not running.
 
 Image tags: `ghcr.io/aborgatin/family_app:<full commit SHA>` and `:latest`. Deploy is manual; CI
@@ -92,8 +109,9 @@ All three restart `unless-stopped` and get `TZ`. The app's `TRUSTED_PROXIES` is 
 Logs: `docker compose logs [-f] app` (also `postgres`, `caddy`).
 
 Local development uses `deploy/docker-compose.dev.yml` instead: PostgreSQL 18 only, on
-`127.0.0.1:5432`, database/user/password `family`. Its header shows how to run the backend and the
-web dev server against it. `scripts/db.sh "<sql>"` runs a query against it (`-c <container>` for
+`127.0.0.1:5432` (`DEV_DB_PORT` moves it), database/user/password `family`. `scripts/dev.sh`
+starts it, the backend and the web dev server in one command (flags in the header of that script
+and backend.md "Local development"). `scripts/db.sh "<sql>"` runs a query against it (`-c <container>` for
 another PostgreSQL container, `-d <database>` for another database).
 
 ## Caddy

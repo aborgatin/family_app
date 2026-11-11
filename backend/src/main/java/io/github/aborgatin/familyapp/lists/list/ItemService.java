@@ -30,7 +30,7 @@ import org.springframework.stereotype.Service;
 @Service
 class ItemService implements SyncableTable {
 
-  private final Clock clock = Clock.systemUTC();
+  private final Clock clock;
   private final ItemRepository items;
   private final CategoryRepository categories;
   private final VisibleLists visibleLists;
@@ -42,7 +42,9 @@ class ItemService implements SyncableTable {
       CategoryRepository categories,
       VisibleLists visibleLists,
       ItemHistoryService history,
-      Members members) {
+      Members members,
+      Clock clock) {
+    this.clock = clock;
     this.items = items;
     this.categories = categories;
     this.visibleLists = visibleLists;

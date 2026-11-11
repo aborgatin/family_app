@@ -77,6 +77,16 @@ jobs:
         run: scripts/check-shell-test.sh
       - name: No pipe into grep -q or head under pipefail
         run: scripts/check-shell.sh
+      - name: Doc index guard self-test
+        run: scripts/check-doc-index-test.sh
+      - name: Doc indexes match their headings
+        run: scripts/check-doc-index.sh
+      - name: Screenshot guard self-test
+        run: scripts/check-screens-test.sh
+      - name: Screenshot routes click for real
+        run: scripts/check-screens.sh
+      - name: dev.sh new-migration gate self-test
+        run: scripts/dev-test.sh
 
   backend:
     name: backend
@@ -122,6 +132,16 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      # The wrapper's self-test checks it finds JDK 21 and Node 22, so it runs here, with both set
+      # up, rather than with the other guards in `migrations`.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Toolchain wrapper self-test
+        run: ../scripts/with-toolchain-test.sh
+      - name: repeat-test.sh self-test
+        run: ../scripts/repeat-test-test.sh
       - name: Prettier
         run: npm run format:check
       - name: ESLint
@@ -130,6 +150,8 @@ jobs:
         run: npm run typecheck
       - name: Vitest
         run: npm test
+      - name: Vitest with the clock a year ahead
+        run: npm run test:next-year
       - name: Production build
         run: npm run build
 

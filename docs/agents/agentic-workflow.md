@@ -71,8 +71,7 @@ native blocking links, labelled `ready-for-agent`.
 
 - It proposes the breakdown first; the human approves it.
 - Each ticket fits one fresh agent context, so the spec's own ticket sketch is often too coarse.
-- A component or helper is built by the first ticket that needs it, not in a separate "build all
-  components" ticket.
+- Tickets that can run in parallel never add the same new piece (`to-tickets` step 3c).
 - A lint rule that would fail on code not yet migrated goes in the last ticket, blocked by all
   the migrations.
 - Each ticket points to the shared checks in [`ticket-checks.md`](ticket-checks.md) (tests,

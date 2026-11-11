@@ -220,8 +220,8 @@ describe('«Очистить» on the Bought section', () => {
     });
     expect(syncServer.operations('item')).toEqual([{ table: 'item', id: itemId(2), op: 'delete' }]);
     expect(syncServer.row('item', itemId(1))).toMatchObject({ done: true });
-    await waitFor(async () => {
-      const shown = await screen.findByRole('region', { name: 'Куплено' });
+    await waitFor(() => {
+      const shown = screen.getByRole('region', { name: 'Куплено' });
       expect(within(shown).getByRole('checkbox', { name: 'Куплено «Молоко»' })).toBeChecked();
     });
   });

@@ -11,11 +11,9 @@ import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
 import io.github.aborgatin.familyapp.SyncRequests;
-import java.time.Duration;
+import io.github.aborgatin.familyapp.TestClock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,15 +30,16 @@ import org.springframework.test.web.servlet.MockMvc;
  * Marking a repeating todo item Done (spec #81, ticket #87, ADR-0009): the item stays Done without
  * its Repeat, and the server adds the next occurrence as a new open Item. Due dates are relative to
  * today, the server's date in the installation's time zone (the JVM's default zone, from {@code
- * TZ}; the test runs in the same JVM). Two {@code Browser}s play Anna's phone and Boris's phone.
+ * TZ}), fixed by a {@link TestClock}. Two {@code Browser}s play Anna's phone and Boris's phone.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(PostgresTestcontainer.class)
+@Import({PostgresTestcontainer.class, TestClock.Config.class})
 class ItemRepeatCopySyncTest {
 
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
+  @Autowired TestClock clock;
 
   Browser anna;
   Browser boris;
@@ -59,21 +58,7 @@ class ItemRepeatCopySyncTest {
     chores = UUID.randomUUID();
     SyncRequests.push(anna, list(chores, "Дела по дому", "TODO", "SHARED"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
-    today = todayWellBeforeMidnight();
-  }
-
-  /**
-   * Today in the JVM's zone, waiting past midnight first when it is under a minute away, so the
-   * test and the server see the same today however late the build runs.
-   */
-  static LocalDate todayWellBeforeMidnight() throws InterruptedException {
-    ZoneId zone = ZoneId.systemDefault();
-    ZonedDateTime now = ZonedDateTime.now(zone);
-    Duration left = Duration.between(now, now.toLocalDate().plusDays(1).atStartOfDay(zone));
-    if (left.compareTo(Duration.ofMinutes(1)) < 0) {
-      Thread.sleep(left.plusSeconds(1).toMillis());
-    }
-    return LocalDate.now(zone);
+    today = clock.setToday(LocalDate.of(2026, 3, 10));
   }
 
   @Test
@@ -90,7 +75,8 @@ class ItemRepeatCopySyncTest {
                 """
                     .formatted(chores, today, borisId)))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
-    Instant beforeTick = Instant.now();
+    Instant tickedAt = clock.instant().plusSeconds(3600);
+    clock.set(tickedAt);
 
     SyncRequests.push(boris, done(nursery, true))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
@@ -119,7 +105,7 @@ class ItemRepeatCopySyncTest {
           .containsEntry("done", false)
           .containsEntry("doneById", null)
           .containsEntry("doneAt", null);
-      assertThat(Instant.parse((String) fields.get("createdAt"))).isAfterOrEqualTo(beforeTick);
+      assertThat(Instant.parse((String) fields.get("createdAt"))).isEqualTo(tickedAt);
     }
   }
 

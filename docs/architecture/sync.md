@@ -7,6 +7,19 @@ This file records what is built. Terms: Outbox, Version, Last write wins in
 [`GLOSSARY.md`](../../GLOSSARY.md). Code: backend module `sync` ([`backend.md`](backend.md#sync)),
 web `shared/sync` ([`frontend.md`](frontend.md#local-store-and-sync)).
 
+## Contents
+
+Read this index, then only the sections for your area (`scripts/check-doc-index.sh` keeps it in
+step with the headings).
+
+- [Syncable tables](#syncable-tables): the authoritative list of syncable tables (S1) and what each holds
+- [Sync columns, Versions, soft deletes](#sync-columns-versions-soft-deletes): `id`, `version`, `updated_at`, `deleted`, the Version sequence and trigger, tombstones
+- [Push: the only write path](#push-the-only-write-path): `POST /api/sync/push`, per-field Last write wins, delete wins, rejections, per-table rules and cascades
+- [Pull: the only read path](#pull-the-only-read-path): `GET /api/sync/pull?since=N`, what a pull returns, Visibility filtering
+- [Versions commit in order](#versions-commit-in-order): the Family lock that keeps a pull from skipping a slower write
+- [Live updates: SSE](#live-updates-sse): `GET /api/sync/events`, the `changed` event, heartbeats
+- [Client](#client): the local store, the Outbox, when the engine pushes and pulls, upgrades and offline
+
 ## Syncable tables
 
 This is the authoritative list that CODING_STANDARDS S1 points to. A table is syncable when the

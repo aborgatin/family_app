@@ -1,14 +1,16 @@
-# Local development: PostgreSQL 18 only (spec #5). Not for the server. From the repo root:
+# Local development: PostgreSQL 18 only (spec #5). Not for the server. `scripts/dev.sh` starts
+# it, the backend and the web dev server in one command. By hand, from the repo root:
 #
 #   docker compose -f deploy/docker-compose.dev.yml up -d
 #
-# then run the backend against it with
+# then the backend against it, from backend/ (the wrapper finds JDK 21 and Node 22):
 #
 #   DATASOURCE_URL=jdbc:postgresql://localhost:5432/family \
-#   DATASOURCE_USERNAME=family DATASOURCE_PASSWORD=family ./gradlew bootRun
+#   DATASOURCE_USERNAME=family DATASOURCE_PASSWORD=family ../scripts/with-toolchain.sh ./gradlew bootRun
 #
-# and the web dev server (`npm run dev` in /web), which proxies /api to the backend.
-# The credentials below are local-only defaults, not secrets.
+# and the web dev server (`../scripts/with-toolchain.sh npm run dev` in web/), which proxies /api to
+# the backend. DEV_DB_PORT moves the published port (default 5432). The credentials below are
+# local-only defaults, not secrets.
 name: family-app-dev
 
 services:
@@ -19,7 +21,7 @@ services:
       POSTGRES_USER: family
       POSTGRES_PASSWORD: family
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${DEV_DB_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:

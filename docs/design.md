@@ -7,6 +7,18 @@ built only from `web/src/shared/ui`; a new look is added there first, with a sec
 Code: tokens and base styles in `web/src/shared/ui/theme.css`, the theme script in
 `web/index.html`, components in `web/src/shared/ui/`. Architecture: [`frontend.md`](architecture/frontend.md).
 
+## Contents
+
+Read this index, then only the sections for your area (`scripts/check-doc-index.sh` keeps it in
+step with the headings).
+
+- [Tokens](#tokens): the colour tokens, light and dark, and how components use them
+- [Type](#type): the system font and the iOS type scale
+- [Theme](#theme): «Авто», light and dark, the stored choice and the theme script
+- [Rules every component follows](#rules-every-component-follows): touch vs pointer, narrow vs wide, keyboard and focus, motion, text and names
+- [Saving and deleting](#saving-and-deleting): auto-save, spinners, rejected changes, delete with undo or confirmation
+- [Components](#components): one `###` per `shared/ui` component: AppShell, Page, Button, Link, Icon, EmptyState, StatusScreen, OfflineIndicator, CenteredPage, Form, GroupedSection, ColorChoice, DateRow, Sheet, Swatch, Sections, InputRow, TextAreaRow, SegmentedControl, SelectRow, ListRow, LoadingRow, EditableRow, AddRow, SuggestionRows, DoneToggle, SortableList, SwipeToDelete, MenuChip, RowContextMenu, Avatar, ConfirmRow, ActionSheet, TileGrid and Tile, Toast, Spinner
+
 ## Tokens
 
 Tailwind CSS v4 with the tokens as CSS variables (`@theme` in `theme.css`). Tailwind's own palette,
