@@ -15,3 +15,10 @@ it('moves the real clock TEST_YEARS_AHEAD years ahead', () => {
   expect(new Date().getFullYear()).toBe(real.getFullYear() + years);
   expect(new Date(Date.now()).getFullYear()).toBe(real.getFullYear() + years);
 });
+
+it('keeps Date() without new a string of now, as the real Date', () => {
+  const now: unknown = Date();
+  expect(typeof now).toBe('string');
+  expect(now).toContain(String(new Date().getFullYear()));
+  expect(new Date()).toBeInstanceOf(Date);
+});

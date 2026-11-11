@@ -25,5 +25,8 @@ if (years) {
     }
   }
 
-  globalThis.Date = DateAhead as DateConstructor;
+  // Called without `new`, Date() is now as a string; a class can't be called, so a Proxy answers.
+  globalThis.Date = new Proxy(DateAhead, {
+    apply: () => new DateAhead().toString(),
+  }) as DateConstructor;
 }
