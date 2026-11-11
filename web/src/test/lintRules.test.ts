@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { ESLint } from 'eslint';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 // The project's own lint rules, run through the ESLint API on small snippets. Type-checked linting
 // needs a file the TypeScript project knows, so each snippet is linted as the text of an existing
@@ -11,6 +11,12 @@ const FEATURE_FILE = 'src/features/lists/dueDates.ts';
 const DATES_MODULE = 'src/shared/dates/index.ts';
 const TEST_FILE = 'src/features/lists/items.test.tsx';
 const OLDER_STORE = 'src/test/olderStore.ts';
+
+// The first type-checked lint builds the TypeScript program (8 s on a CI runner), so it runs here,
+// with its own limit, rather than inside the first test's 5 s.
+beforeAll(async () => {
+  await eslint.lintText('', { filePath: FEATURE_FILE });
+}, 60_000);
 
 async function messages(code: string, filePath: string, ruleId: string): Promise<string[]> {
   const [result] = await eslint.lintText(code, { filePath });
