@@ -47,8 +47,8 @@ check would let the PR merge untested.
   `scripts/image-smoke-test.sh`, `scripts/deploy-stack-test.sh`, `scripts/backup-restore-test.sh`.
   Only on push to `main` it logs in to GHCR with `GITHUB_TOKEN` (`packages: write`) and pushes.
 
-Locally, `scripts/check.sh` runs the migration guard and the backend and web checks in one command
-from any directory; `scripts/check.sh --image` also builds the image and runs
+Locally, `scripts/check.sh` runs the guards, the cheap web checks (format, lint, typecheck), the backend
+build and the web tests and build in one command from any directory; `scripts/check.sh --image` also builds the image and runs
 `scripts/image-smoke-test.sh`. It fails early when Docker is not running.
 
 Image tags: `ghcr.io/aborgatin/family_app:<full commit SHA>` and `:latest`. Deploy is manual; CI

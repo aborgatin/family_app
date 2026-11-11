@@ -36,9 +36,10 @@ Library + MSW 3 + `fake-indexeddb`, Dexie 4 (local store), ESLint 10 flat config
 Node 22 or newer.
 
 Scripts (`web/package.json`): `dev`, `build` (does not typecheck), `typecheck` (`tsc --noEmit`),
-`lint` (`--max-warnings 0`), `format` / `format:check`, `test` (`vitest run`). CI job `web` runs
-`npm ci`, `format:check`, `lint`, `typecheck`, `test`, `build`. `scripts/check.sh` runs the same
-(plus the backend build) from any directory and finds Node 22 by itself, including Homebrew's keg-only
+`lint` (`--max-warnings 0`), `format` / `format:check`, `test` (`vitest run`), `test:next-year` (the clock a year ahead,
+see Testing). CI job `web` runs `npm ci`, `format:check`, `lint`, `typecheck`, `test`,
+`test:next-year`, `build`. `scripts/check.sh` runs all but `test:next-year`, cheapest first:
+`format` (writing in place), `lint`, `typecheck` before the backend build, `test` and `build` after; and finds Node 22 by itself, including Homebrew's keg-only
 `node@22` in `/opt/homebrew/opt/node@22/bin`. Run one script or test file the same way with
 `scripts/with-toolchain.sh`, from `web/`: `../scripts/with-toolchain.sh npm run typecheck`,
 `../scripts/with-toolchain.sh npx vitest run src/features/lists`.
