@@ -92,8 +92,9 @@ All three restart `unless-stopped` and get `TZ`. The app's `TRUSTED_PROXIES` is 
 Logs: `docker compose logs [-f] app` (also `postgres`, `caddy`).
 
 Local development uses `deploy/docker-compose.dev.yml` instead: PostgreSQL 18 only, on
-`127.0.0.1:5432`, database/user/password `family`. Its header shows how to run the backend and the
-web dev server against it. `scripts/db.sh "<sql>"` runs a query against it (`-c <container>` for
+`127.0.0.1:5432` (`DEV_DB_PORT` moves it), database/user/password `family`. `scripts/dev.sh`
+starts it, the backend and the web dev server in one command (`--fresh-db` backs it up, then
+empties it; header of that script, and backend.md "Local development"). `scripts/db.sh "<sql>"` runs a query against it (`-c <container>` for
 another PostgreSQL container, `-d <database>` for another database).
 
 ## Caddy
