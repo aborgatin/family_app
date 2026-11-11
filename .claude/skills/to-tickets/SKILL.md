@@ -43,6 +43,12 @@ Give each ticket its **blocking edges**: the other tickets that must complete be
 
 Every user story and every Implementation Decision in the source belongs to at least one ticket's acceptance criteria. Cross-cutting decisions (a module's public API, a shared convention, a UI/copy rule) are the ones that fall between tickets. Give each leftover to the ticket that first needs it, or make it its own ticket. A story's **conditions** (offline, after a restart, the other Member, an expired session) travel with it: the owning ticket's criterion and its test name each one, so "kept across a restart" in an offline story reads "kept across a restart with no connection". Coverage is done when you can name the owning ticket, and the criterion carrying every condition, for each story and decision.
 
+### 3c. Check parallel pairs
+
+Two tickets are a **parallel pair** when neither blocks the other, directly or through other tickets: an implementer starts each from the same integration tip, and neither sees what the other builds. For every parallel pair, list the **new pieces** both would add or change: a table or migration, a sync event, a module's public API, the local store version, a shared screen or route.
+
+Each shared new piece gets one owner: move it into a common blocker (a prefactor ticket both depend on), or make one ticket of the pair block the other. Then re-check, since a new edge changes which pairs are parallel. Done when every parallel pair is listed with no new piece in common.
+
 ### 4. Quiz the user
 
 Present the proposed breakdown as a numbered list. For each ticket, show:
@@ -51,10 +57,12 @@ Present the proposed breakdown as a numbered list. For each ticket, show:
 - **Blocked by**: which other tickets (if any) must complete first
 - **What it delivers**: the end-to-end behaviour this ticket makes work
 
+Below the list, show the parallel-pair table from step 3c: each pair, the new pieces each side adds, and how a shared piece was resolved (or "none shared").
+
 Ask the user:
 
 - Does the granularity feel right? (too coarse / too fine)
-- Are the blocking edges correct: does each ticket only depend on tickets that genuinely gate it?
+- Are the blocking edges correct: does each ticket only depend on tickets that genuinely gate it, and does no parallel pair build the same new piece?
 - Should any tickets be merged or split further?
 
 Iterate until the user approves the breakdown.

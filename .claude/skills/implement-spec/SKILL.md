@@ -36,7 +36,7 @@ A run spans hours, so it is **budgeted**:
 
 3. Create the integration branch from `origin/main` with `git branch` and push it, without checking it out: a branch checked out in one worktree can't be checked out in another, and every merger needs it. Mergers work on a local branch from `origin/<integration>` and push with `git push origin HEAD:<integration>`. If the issue tracker closes work through PRs, or the user asks for one, open a draft PR after the first merge in step 5 (a branch with no commits ahead of main can't open one), marked as closing the spec and tickets.
 
-4. Use a fresh **implementer subagent** for each ticket, each in its own worktree on its own branch. Each implementer subagent:
+4. Use a fresh **implementer subagent** for each ticket, each in its own worktree on its own branch. Before starting two frontier tickets together, compare the new pieces their tickets name (a table or migration, a sync event, a module API, the local store version, a shared screen or route): when both name the same one, start one now and the other after it merges. Each implementer subagent:
    - confirms its worktree is based on the integration branch before starting, and resets onto it if not;
    - calls the Skill tool with `tdd` to build the ticket;
    - merges the integration branch tip into its own branch before reporting done
