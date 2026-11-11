@@ -1,12 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import Dexie from 'dexie';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { localStore } from '@/shared/sync/localStore';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { anna, boris, sessionHandler } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
+import { upgradeStoreFrom } from '@/test/olderStore';
 
 // Items on the List screen (spec #3, ticket #57): open Items in the order added, newest at the
 // bottom; adding from the last row, editing in place and deleting, all on the local store and
@@ -63,6 +62,9 @@ async function itemTexts(name = 'Товары') {
 beforeEach(() => {
   document.cookie = 'XSRF-TOKEN=token-from-server';
   server.use(sessionHandler({ bootstrapRequired: false, member: anna }).handler);
+});
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('The List screen’s Items', () => {
@@ -361,7 +363,7 @@ describe('An Item’s Description', () => {
     });
   });
 
-  it('shows as one line cut with «…» when not edited, its links opening in a new tab', async () => {
+  it('shows as up to two lines cut with «…» when not edited, its links opening in a new tab', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.seed('item', [
       {
@@ -377,7 +379,8 @@ describe('An Item’s Description', () => {
     expect(link).toHaveAttribute('target', '_blank');
     expect(link.getAttribute('rel')).toContain('noopener');
     const line = screen.getByText(/Любое, 3,2%/);
-    expect(line).toHaveClass('truncate');
+    expect(line).toHaveClass('line-clamp-2');
+    expect(line).not.toHaveClass('truncate');
     expect(line).toHaveTextContent('Любое, 3,2% вот такое: https://shop.example/milk?id=7.');
     expect(screen.queryByRole('textbox', { name: 'Описание «Молоко»' })).not.toBeInTheDocument();
   });
@@ -537,6 +540,28 @@ function doneItem(n: number, text: string, doneAt: string, listId = groceries.id
 }
 
 describe('Done', () => {
+  it('does not open the row for editing when the Done circle is pressed, so the circle stays under the pointer', async () => {
+    syncServer.seed('list', [groceries]);
+    syncServer.seed('item', [
+      { ...item(1, 'Молоко', '2026-11-01T09:00:00Z'), description: '3,2%' },
+    ]);
+    const user = userEvent.setup();
+
+    renderApp(`/lists/${groceries.id}`);
+    const toggle = await screen.findByRole('checkbox', { name: 'Куплено «Молоко»' });
+    // The press focuses the circle; the release (the click) comes after.
+    await user.pointer({ keys: '[MouseLeft>]', target: toggle });
+
+    expect(toggle).toHaveFocus();
+    expect(screen.queryByRole('textbox', { name: 'Описание «Молоко»' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Подробнее' })).not.toBeInTheDocument();
+
+    await user.pointer({ keys: '[/MouseLeft]', target: toggle });
+    await waitFor(async () => {
+      expect(await doneTexts()).toEqual(['Молоко']);
+    });
+  });
+
   it('ticks an Item off offline at once, under «Куплено», and sends only Done on reconnect', async () => {
     syncServer.seed('list', [groceries]);
     syncServer.seed('item', [
@@ -666,6 +691,8 @@ describe('Done', () => {
     ['TODO', 'Выполнено', 'Задачи'],
     ['WISH', 'Исполнено', 'Желания'],
   ] as const)('a %s List’s Done Items are headed «%s»', async (kind, done, header) => {
+    // A Todo list shows only what was done in the last 7 days: the device's day is the next one.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-03T12:00:00Z') });
     const shown = list(5, 'Мой список', kind);
     syncServer.seed('list', [shown]);
     syncServer.seed('item', [
@@ -707,18 +734,13 @@ describe('The store upgrade that adds Items', () => {
   it('sends a List still waiting in the store of the app version before Items', async () => {
     // The store as the app before Items created it (schema version 2), with a List added offline
     // and not sent yet.
-    localStore.close();
-    await Dexie.delete(localStore.name);
-    const older = new Dexie(localStore.name);
-    older.version(1).stores({ member: 'id', child: 'id', outbox: '++seq', meta: 'key' });
-    older.version(2).stores({ child_field: 'id', list: 'id' });
     const { id, name, kind, visibility } = groceries;
-    await older.table('list').put({ id, name, kind, visibility });
-    await older
-      .table('outbox')
-      .add({ table: 'list', id, op: 'upsert', fields: { name, kind, visibility } });
-    older.close();
-    await localStore.open();
+    await upgradeStoreFrom(2, async (older) => {
+      await older.table('list').put({ id, name, kind, visibility });
+      await older
+        .table('outbox')
+        .add({ table: 'list', id, op: 'upsert', fields: { name, kind, visibility } });
+    });
 
     renderApp(`/lists/${groceries.id}`);
 

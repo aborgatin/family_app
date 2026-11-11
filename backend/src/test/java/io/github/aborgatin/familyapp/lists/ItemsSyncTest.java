@@ -1,11 +1,13 @@
 package io.github.aborgatin.familyapp.lists;
 
+import static io.github.aborgatin.familyapp.ListOperations.add;
+import static io.github.aborgatin.familyapp.ListOperations.done;
+import static io.github.aborgatin.familyapp.ListOperations.list;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.jayway.jsonpath.JsonPath;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
@@ -45,7 +47,7 @@ class ItemsSyncTest {
     anna = SyncRequests.bootstrapAnna(mvc);
     boris = SyncRequests.loginBoris(mvc, jdbc);
     groceries = UUID.randomUUID();
-    SyncRequests.push(anna, list(groceries, "Супермаркет", "SHARED"))
+    SyncRequests.push(anna, list(groceries, "Супермаркет", "SHOPPING", "SHARED"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
   }
 
@@ -67,7 +69,7 @@ class ItemsSyncTest {
         .containsEntry("done", false)
         .containsEntry("doneById", null)
         .containsEntry("doneAt", null)
-        .containsEntry("creatorId", memberId(boris));
+        .containsEntry("creatorId", SyncRequests.memberId(boris));
     assertThat(Instant.parse((String) fields.get("createdAt"))).isAfter(before.minusSeconds(1));
   }
 
@@ -97,7 +99,8 @@ class ItemsSyncTest {
       throws Exception {
     UUID gifts = UUID.randomUUID();
     UUID lego = UUID.randomUUID();
-    SyncRequests.push(anna, list(gifts, "Подарки", "PRIVATE"), add(lego, gifts, "Лего"));
+    SyncRequests.push(
+        anna, list(gifts, "Подарки", "SHOPPING", "PRIVATE"), add(lego, gifts, "Лего"));
     long hidden = SyncRequests.version(SyncRequests.pull(boris, 0));
     assertThat(SyncRequests.change(boris, 0, "item", lego)).isNull();
 
@@ -127,18 +130,20 @@ class ItemsSyncTest {
                 "item",
                 milk,
                 "{\"listId\":\"%s\",\"text\":\"Молоко\",\"creatorId\":\"%s\",\"createdAt\":\"%s\"}"
-                    .formatted(groceries, memberId(anna), "2020-01-01T00:00:00Z")))
+                    .formatted(groceries, SyncRequests.memberId(anna), "2020-01-01T00:00:00Z")))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
     Map<String, Object> created = SyncRequests.fields(anna, "item", milk);
 
     SyncRequests.push(
         anna,
         SyncRequests.upsert(
-            "item", milk, "{\"text\":\"Кефир\",\"creatorId\":\"%s\"}".formatted(memberId(anna))));
+            "item",
+            milk,
+            "{\"text\":\"Кефир\",\"creatorId\":\"%s\"}".formatted(SyncRequests.memberId(anna))));
 
     assertThat(SyncRequests.fields(boris, "item", milk))
         .containsEntry("text", "Кефир")
-        .containsEntry("creatorId", memberId(boris))
+        .containsEntry("creatorId", SyncRequests.memberId(boris))
         .containsEntry("createdAt", created.get("createdAt"));
     assertThat((String) created.get("createdAt")).doesNotStartWith("2020");
   }
@@ -208,7 +213,8 @@ class ItemsSyncTest {
     UUID gifts = UUID.randomUUID();
     UUID lego = UUID.randomUUID();
     long since = SyncRequests.version(SyncRequests.pull(anna, 0));
-    SyncRequests.push(boris, list(gifts, "Подарки Анне", "PRIVATE"), add(lego, gifts, "Серьги"));
+    SyncRequests.push(
+        boris, list(gifts, "Подарки Анне", "SHOPPING", "PRIVATE"), add(lego, gifts, "Серьги"));
 
     assertThat(SyncRequests.change(anna, 0, "item", lego)).isNull();
     assertThat(SyncRequests.change(anna, since, "item", lego))
@@ -334,7 +340,9 @@ class ItemsSyncTest {
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
 
     Map<String, Object> done = SyncRequests.fields(anna, "item", milk);
-    assertThat(done).containsEntry("done", true).containsEntry("doneById", memberId(boris));
+    assertThat(done)
+        .containsEntry("done", true)
+        .containsEntry("doneById", SyncRequests.memberId(boris));
     assertThat(Instant.parse((String) done.get("doneAt"))).isAfter(before.minusSeconds(1));
 
     SyncRequests.push(anna, done(milk, false))
@@ -371,7 +379,7 @@ class ItemsSyncTest {
     assertThat(SyncRequests.fields(boris, "item", milk))
         .containsEntry("text", "Молоко 1,5%")
         .containsEntry("done", true)
-        .containsEntry("doneById", memberId(boris));
+        .containsEntry("doneById", SyncRequests.memberId(boris));
   }
 
   @Test
@@ -388,27 +396,5 @@ class ItemsSyncTest {
             jsonPath("$.results[0].params.errors[?(@.field=='done')].code").value("value.invalid"))
         .andExpect(
             jsonPath("$.results[1].params.errors[?(@.field=='done')].code").value("required"));
-  }
-
-  static String list(UUID id, String name, String visibility) {
-    return SyncRequests.upsert(
-        "list",
-        id,
-        "{\"name\":\"%s\",\"kind\":\"SHOPPING\",\"visibility\":\"%s\"}"
-            .formatted(name, visibility));
-  }
-
-  static String add(UUID id, UUID listId, String text) {
-    return SyncRequests.upsert(
-        "item", id, "{\"listId\":\"%s\",\"text\":\"%s\"}".formatted(listId, text));
-  }
-
-  static String done(UUID id, boolean done) {
-    return SyncRequests.upsert("item", id, "{\"done\":%s}".formatted(done));
-  }
-
-  private static String memberId(Browser device) throws Exception {
-    String body = device.openApp().andReturn().getResponse().getContentAsString();
-    return JsonPath.read(body, "$.member.id");
   }
 }

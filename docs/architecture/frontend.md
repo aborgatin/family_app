@@ -35,20 +35,27 @@ web/src/
     auth/               session, guard, setup (bootstrap), login, LogoutSection + useLogout, Invite acceptance,
                         password reset; LinkScreen (link-check states); GrammaticalGender (type)
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
-    home/               HomePage: Page «Семья» with «Списки», gear → Settings; HOME_PATH
-    lists/              ListsSection («Списки» on Home), NewListSheet, ListPage, ListSettingsPage,
-                        CategoriesPage («Категории» of a Shopping list),
-                        listPaths (LIST_PATH, LIST_SETTINGS_PATH, LIST_CATEGORIES_PATH),
+    home/               HomePage: Page «Семья» with «Дети» (tiles), then «Списки», gear → Settings; HOME_PATH
+    lists/              ListsSection («Списки» on Home and on the Child page), NewListSheet, ListPage,
+                        ListSettingsPage, useListHome (back to Home, or to the Child page),
+                        CategoriesPage («Категории» of a Shopping list), ItemPage (the Item screen),
+                        DoneEarlierPage («Выполненные ранее» of a Todo list),
+                        listPaths (LIST_PATH, LIST_SETTINGS_PATH, LIST_CATEGORIES_PATH,
+                        LIST_ITEM_PATH, LIST_DONE_EARLIER_PATH),
                         ListMissing (gone / loading),
                         ItemsSection (the List screen's Items, by Category on a Shopping list),
                         listTypes (kinds, Visibility, kind texts, Item, Category,
                         ItemHistoryName), useLists(), useItems(list), useCategories(list),
                         useItemHistory(list), itemKeys (normalizedName, sortableTime, compare:
-                        shared by useItems and useItemHistory)
+                        shared by useItems and useItemHistory), dueDates (how a Due date reads
+                        and when it is overdue)
     settings/           SettingsPage (one grouped page), AppearanceSection (theme), SETTINGS_PATH
-    members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage
-    children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren()
-    child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields()
+    members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage;
+                        useFamilyMembers() (the Members on the local store, by id)
+    children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(), useChild(id),
+                        ChildrenTiles («Дети» on Home), ChildPage (the Child page, CHILD_PATH)
+    child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
+                        ChildProfileSection («Профиль» on the Child page), useChildFieldValues(childId)
   shared/
     api/                API client, error-code mapping, form error helpers
     i18n/               i18next set-up, typed keys, locales/ru.json
@@ -56,12 +63,15 @@ web/src/
     sync/               local store (Dexie), sync engine, useRows / useSyncedRows / upsertRow /
                         deleteRow, useSaveRejection, startSync / stopSync / onSessionEnded
     palette/            Child color palette (childColors.json)
+    dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
-                        InputRow, DateRow, SegmentedControl, ColorChoice, Swatch, ListRow,
+                        InputRow, TextAreaRow (+ LinkedText, not exported), DateRow,
+                        SegmentedControl, SelectRow, ColorChoice, Swatch, ListRow,
                         LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
+                        TileGrid + Tile,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
   test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
 ```
@@ -100,9 +110,12 @@ frame around every screen and the place a sidebar goes later.
 | `/lists/:id`             | `ListPage`          | logged in                      |
 | `/lists/:id/settings`    | `ListSettingsPage`  | logged in                      |
 | `/lists/:id/categories`  | `CategoriesPage`    | logged in                      |
+| `/lists/:id/items/:itemId` | `ItemPage`        | logged in                      |
+| `/lists/:id/done-earlier` | `DoneEarlierPage`  | logged in                      |
 | `/settings`              | `SettingsPage`      | logged in                      |
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
+| `/children/:id`          | `ChildPage`         | logged in                      |
 
 The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure,
 or after an offline cold start, below;
@@ -188,9 +201,13 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`, `list`, `item`, `category`, `item_history`; `child_field`
+  (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`; `child_field`
   and `list` came with store version 2, `item`, indexed by `listId`, with version 3, `category`,
-  indexed by `listId`, with version 4, `item_history`, indexed by `listId`, with version 5),
+  indexed by `listId`, with version 4, `item_history`, indexed by `listId`, with version 5;
+  version 6 indexes `list` by `childId`, for Child lists; `child_field_value`, indexed by
+  `childId` and `childFieldId`, came with version 7). A row holds the
+  fields the pull sent and `version`, the Version it was pulled with (none on a row created here
+  until the pull brings it back). Also there:
   `outbox` (`++seq`) and `meta` (the stored Version, the owner: the Member whose data it holds,
   and the owner copy the app starts from offline). Internal to the folder, except
   `claimLocalStore(memberId)` (below) and `saveOwnerCopy(owner)` / `ownerCopy()` (see "Offline
@@ -233,7 +250,10 @@ code that touches IndexedDB or the sync API:
     once, online or not;
   - `useSaveRejection()` → `{message, dismiss}`: the message about the last operation the server
     rejected (`saveRejection.ts`, I3: `list.not_found`, `list.owner_only`, `list.kind_immutable`,
-    `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only` map to
+    `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only`,
+    `item.list_not_todo`, `item.due_time_without_due_date`, `item.repeat_without_due_date`,
+    `item.assignee_on_private_list`,
+    `item.assignee_not_found`, `list.hide_done_not_todo` map to
     `sync.rejected.*`, «Не удалось сохранить: …» with the reason; any other code to
     `sync.saveRejected`, plain «Не удалось сохранить»). It is recorded whatever screen is open and
     cleared by the Member's next change, `dismiss()` or a logout. Its one user is
@@ -242,10 +262,10 @@ code that touches IndexedDB or the sync API:
     be gone).
 
 **Adding a syncable table** on the client: add the name to `SYNCED_TABLES` and declare it in a new
-`this.version(n).stores({...})` in `localStore.ts` (keep the older versions as they are, never drop
-`outbox`); the pull fills it, and the feature's hook reads and writes it with `useSyncedRows` (or
+entry at the end of `STORE_SCHEMA` in `localStore.ts` (one entry per Dexie version; keep the older
+entries as they are, never drop `outbox`); the pull fills it, and the feature's hook reads and writes it with `useSyncedRows` (or
 `useRows` and `upsertRow` / `deleteRow`). Rows that belong to a row of another table (an Item to
-its List) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
+its List, a Child field value to its Child and to its Child field) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
 
 ## Data access
 
@@ -256,7 +276,9 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
 
 - `useChildren()` → `{load, save(id, fields), remove(id)}` (`useSyncedRows('child', …)`): `load`
   is `loading` until the first local read, then `ready` with the Children in order (birthday, then
-  name by `Intl.Collator('ru')`, then id); it never fails. `save` resolves at once, offline too:
+  name by `Intl.Collator('ru')`, then id); it never fails. `useChild(id)` is the same with
+  `child` picked out (`undefined` while loading, and for an unknown or deleted Child), for the
+  screens about one Child. `save` resolves at once, offline too:
   the «Новый ребёнок» sheet passes every field, the Child screen only the field that changed, and
   only fields that differ from the local row are sent, so a change the other Member made meanwhile
   stays. `newChildId()` uses `crypto.randomUUID()`; the sheet gets its id once when it opens.
@@ -268,6 +290,17 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or one past
   either end, so a reorder is a single-record change. A new field goes one past the last.
   Ordering is `position`, then id.
+- `useChildFieldValues(childId)` → `{values, save(field, value)}` (#91; `child-fields`): the
+  Child's values on the local store (`useRows('child_field_value')`). `values` is a `Map` from
+  Child field id to the value of the **latest** entry of the timeline (ADR-0007), `undefined`
+  until the first local read; a field with no entry is absent. Latest is the highest `version`
+  (the Version the pull sent the row with, so server arrival, never `recordedAt`); an entry saved
+  here and not pulled back yet has none and is later than every pulled one, the last saved first
+  among them (device-only `savedHereAt`, `upsertRow`'s `local`). `save` trims the value and
+  appends an entry with a new id (`childId`, `childFieldId`, `value`; `''` clears), resolving with
+  the value as saved, offline too; a value equal to the latest one (or empty with no entry) writes
+  nothing; a `TEXT` value over 1000 code points rejects with `validation.failed` / `too_long`
+  without writing, as the server would.
 - `useLists()` → `{load, save(id, fields), remove(id)}` (`useSyncedRows('list', …)`), like
   `useChildren()`: `load` is `ready` with every List the pull brought (never the other Member's
   Private ones: the server filters them), by name with `Intl.Collator('ru')`, then id. `save`
@@ -298,6 +331,19 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   Home subtitle, empty state, Items header, «Новый товар», «Товар «…»», the Done label and the
   Done toggle's name) are in `KIND_TEXTS`. Each Home row's value is the List's count of open
   Items (`useOpenItemCounts()`, 0 included).
+  **Child lists** (#90): a List row may carry `childId` (`null` or absent for an
+  ordinary List). `ListsSection` takes an optional `childId`: without it, it is Home's «Списки» and
+  leaves out every List with a Child; with it, it is «Списки» on that Child's page (the routes
+  pass it to `ChildPage` as `lists`): only that Child's lists, the same rows (kind as subtitle,
+  open Items count), «Списков пока нет» with none, and «Добавить список» opening `NewListSheet`
+  with `childId`: «Вид» is TODO / Желания only (`CHILD_LIST_KINDS`), there is no Visibility, and
+  the create carries `visibility: 'SHARED'` and `childId` (offline too). A Child list opens the
+  same `ListPage` and `ListSettingsPage`. `useListHome(list, homePath)` says where a List lives:
+  the Child page, titled with the Child's name (`useChild(id)` and `childPath` from
+  `features/children`), for a Child list, Home otherwise. It is the List screen's back link, and
+  where the settings go after «Удалить список»; the settings' own back link stays the List.
+  Settings show no Visibility for a Child list (always Shared; the server enforces it). A missing
+  List still goes back to Home (the row that knew its Child is gone).
 - `useCategories(list)` → `{categories, add(id, name), rename(category, name), move(category |
   undefined, to), remove(category)}` (#70, #72): the List's Categories on the local store, by
   position, ties by id, `undefined` until the first read. `add` puts the new one one past the
@@ -320,19 +366,37 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   (the start of the name, or after a space) that starts with the typed text, both trimmed and
   lower-cased, newest `lastUsedAt` first (fraction padded as for `createdAt`), ties by name. Only a
   Shopping list's screen uses it.
-- `useItems(list)` → `{items, doneItems, add(text, categoryId?), rename(item, text),
-  describe(item, description), move(item, categoryId), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
+- `useItems(list)` → `{items, doneItems, earlierDoneItems, add(text, categoryId?), rename(item, text),
+  describe(item, description), move(item, categoryId), setDueDate(item, day | null),
+  setDueTime(item, time | null), setRepeat(item, repeat | null), setAssignee(item, memberId | null), setDone(item, done), remove(item)}` on the local store, like `useLists()`: `items` / `doneItems` are
   `undefined` until the first local read. `items` are the List's open Items in the order added:
   by the server's `createdAt`, ties by id; an Item not pulled back yet has no `createdAt` and goes
   after them, ordered by its id, which `newItemId()` makes time-ordered (UUID v7); an Item ticked
-  back on returns to its place by the same rule. `doneItems` are the Done ones, most recently done
+  back on returns to its place by the same rule. **On a Todo list** (#84) the open Items with a
+  Due date come first, soonest on top: by `dueDate`, on one day those with a `dueTime` (by time)
+  before those without, then in the order added; the ones without a Due date follow in the order
+  added (`dueKey`: the two fields sort as text). Shopping and Wish lists keep the order added.
+  `setDueDate` sends only `dueDate` (`YYYY-MM-DD`), or `dueDate: null` with `dueTime: null` and
+  `repeat: null` to remove the Due date, its time and its Repeat; `setDueTime` only `dueTime`
+  (`HH:MM` or `null`); `setRepeat` (#86) only `repeat` (`DAILY` … `YEARLY`, or `null`);
+  `setAssignee` (#85) only `assigneeId` (a Member's id, or `null` for nobody). `doneItems` are the Done ones, most recently done
   first: by the server's `doneAt` (fraction padded as for `createdAt`), ties by id; one ticked off
   on this device and not pulled back yet has no `doneAt` and goes on top, the last ticked first,
   by its device-only `doneHereAt` (a monotonic ms time written with `upsertRow`'s `local`, never
   sent; `setDone` also clears the old `doneById` / `doneAt` locally the same way, so an Item ticked
   back on and off again goes on top). Device and server times are never compared: pending ticks
   are ordered among themselves, server-stamped ones by `doneAt`. The Outbox pushes ticks in order,
-  so the server's copy keeps the Item where it was. `add` creates (`listId`, `text`, and
+  so the server's copy keeps the Item where it was. **The Done window** (#88): on a Todo list
+  `doneItems` are only those whose `doneAt` is today or in the six calendar days before, by the
+  device clock and time zone (from local midnight six days ago; one ticked off here and not pulled
+  back yet has no `doneAt` and counts as done now), and `earlierDoneItems` the older ones, in the
+  same order; the day is read on every render, so the split follows midnight at the next render.
+  On Shopping and Wish lists `doneItems` are all of them and `earlierDoneItems` is empty.
+  **A repeating Item marked Done** (#87, ADR-0009): `setDone` sends only `done`, as for any Item;
+  the device never makes the next occurrence. The Item goes to «Выполнено» at once (it
+  holds its Repeat until the pull, but a Done row shows no ↻), and the server's next occurrence, a new open Item, arrives with the next
+  pull or live update and takes its place in the order by its Due date
+  (`features/lists/nextOccurrence.test.tsx`). `add` creates (`listId`, `text`, and
   `categoryId` when added in a Category, `description` when one was typed in the add row's
   «Описание» line, #79; all in one upsert). On a Shopping list `add` first
   looks among the List's Items for one with the same name, both trimmed and lower-cased (#75; an
@@ -350,7 +414,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   `DoneToggle` (named «Куплено «Молоко»» / «Выполнено «…»» / «Исполнено «…»») as `leading`, its
   text renamed in place (`useAutoSaveText`, required, named «Товар «Молоко»»), its Description
   as the row's `secondary` line (`useAutoSaveText`, named «Описание «Молоко»», placeholder
-  «Описание»), deleted from edit
+  «Описание»), on a Todo list its Due date as the row's `caption` (below), deleted from edit
   mode, a swipe or right-click after «Удалить „Молоко“?»; then an `AddRow` «Новый товар» / «Новая
   задача» / «Новое желание» (Enter adds and keeps the focus) with `descriptionLabel` «Описание» on
   every List kind (#79): its icon or ↓ opens the one-line Description under the name, and Enter
@@ -364,6 +428,49 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   «Очистить» (destructive) / «Отменить», then `remove()` for every Done Item shown, so one Item
   delete each and no list-level operation (spec #67, ticket #71). An Item the other Member ticked
   off that no pull has brought yet isn't shown, so it stays.
+  **A todo item's row line** (#84, `itemCaption` → `EditableRow` `caption`): under the name and
+  the Description, the Due date in a small grey line, on open and Done rows, also while the row is
+  edited: the day as «Сегодня» / «Завтра» / «Вчера», else «15 нояб.», with the year when it isn't
+  this one («5 янв. 2027 г.»), and the time after a comma («15 нояб., 15:00»; `dueDates.ts`:
+  `dueDayText`, `dueDateText`, i18n `lists.due.*`). On an open Item an overdue Due date is red
+  (`tone: 'destructive'`; `isOverdue`: without a time from the next day's midnight, with a time
+  once the clock is past it); a Done Item's is never red. Everything is by the device's clock and
+  time zone, read when the row renders, so a row turns red at its next render after the moment
+  passes (as the Done window follows midnight). After the Due date comes the Assignee's name
+  (#85): «15 нояб. · Даша» (`lists.assignee.afterDueDate`, a part of its own, never red), or the
+  name alone when there is no Due date; the name is the Member's `displayName` from
+  `useFamilyMembers()`, read once per section and passed to the rows (`assigneeOf(list, item,
+  members)` in `assignees.ts`, which the Item screen uses too). It shows on a Shared list only: on a List just made Private the Items may still hold an `assigneeId` until the server's
+  copies arrive, and the row leaves it out at once. Between the two, an open Item with a Repeat (#86)
+  has the mark ↻ (a Done one, ticked here and not pulled back yet, may still hold its Repeat until
+  the server hands it on, #87; the row leaves the mark out) (`lists.repeat.mark`, a part of its own, never red), shown only with a Due date:
+  «15 нояб., 15:00 ↻ · Даша». Shopping and wish rows have no such line.
+  **A Todo list's «Выполнено»** (#88) holds only `doneItems` (the last 7 days) and, while there
+  are `earlierDoneItems`, ends with a chevron row «Выполненные ранее» (a `ListRow` as the
+  section's `after`, so not part of the edit-mode list); with only older Done Items the section is
+  that row alone, without «Изменить». The row opens `DoneEarlierPage`
+  (`/lists/:id/done-earlier`, `listDoneEarlierPath(id)`): a `Page` «Выполненные ранее» back to
+  the List (the back button shows its name) with one section of the same Done rows (`DoneItems`,
+  shared with the List screen): most recent first, unticking puts the Item back among the List's
+  open ones, deleting asks first (edit mode, swipe or right-click), no «Очистить». When the last
+  one goes the section stays with the footer «Выполненных ранее задач нет». A List that is not a
+  Todo list, is unknown or disappears shows `ListMissing`, as «Категории» does for a List that is
+  not a Shopping list. Nothing is ever removed by the window: a Done todo item leaves both places
+  only when a Member deletes it.
+  **«Скрыть»** (#93) heads a Todo list's «Выполнено» while it has Items (the `GroupedSection`
+  `action`, where a Shopping list has «Очистить»; never on «Выполненные ранее», a Wish or a
+  Shopping list) and acts at once, with no question: `useItems().hideDone()` sends the List
+  upsert `{hideDone: <a new UUID>}` through `upsertRow` (a new id each press, so every press is
+  sent and the server applies each once) with the device-only
+  `doneHiddenHereAt` (a `tickTime()`, the clock that also orders `doneHereAt`) as a `local`
+  field. `doneItems` leave out the hidden ones and `earlierDoneItems` take them, most recent
+  first with the older ones (`hidden()` in `useItems.ts`): with the server's `doneHiddenAt`, an
+  Item whose `doneAt` is not after it; while a press made here is pending, every Item with a
+  server `doneAt` (the server's moment will be later) and every one ticked here before the press
+  (`doneHereAt` ≤ `doneHiddenHereAt`). An Item ticked here after the press, or after a moment the
+  server already stamped, stays in «Выполнено». So it works offline at once and across a
+  restart, and the split is the same once the server's copies arrive. Unticked in «Выполненные
+  ранее», an Item is open again; ticked again, its new Done time is after the moment.
   **A Shopping list** (`ShoppingItems`, #70) shows the same «Товары» section while it has no
   named Categories. With some, the open Items are in one section per `itemsByCategory()` entry:
   a Category's headed by its name (edit mode while it has Items), the Unnamed category's untitled
@@ -388,6 +495,44 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   lists get no suggestions. When `add` (Enter or a suggestion) resolves with an open Item of that
   name, `ItemsSection` highlights its row for 1.5 s (`EditableRow` `highlighted`: scrolled into
   view and tinted); the add field is emptied and keeps the focus as after any add.
+  **The Item screen** (`ItemPage`, `/lists/:id/items/:itemId`, `listItemPath(listId, itemId)`,
+  #83) is for an Item of every kind, back to its List (the back button shows the List's name),
+  titled «Товар» / «Задача» / «Желание» (`KIND_TEXTS[kind].item`). It reads the List through
+  `useLists()` and the Item through the same `useItems(list)` (open, Done and, on a Todo list, Done earlier), so it works
+  offline and from a deep link. One `GroupedSection` with «Название» (`InputRow`, `rename`,
+  required) and the large «Описание» (`TextAreaRow`, `describe`), both `useAutoSaveText` like the
+  row's; one with the Done toggle (a `ListRow` titled by the kind's Done word with the
+  `DoneToggle` as `leading`; `setDone`), whose footer says who added the Item and, when Done, who
+  marked it Done: «Добавила Анна, 12 нояб.», «Купила / Выполнила / Исполнила Анна, 14 нояб.»
+  (`lists.addedBy`, `KIND_TEXTS[kind].doneBy`, by the Member's Grammatical gender, see i18n; the
+  day by the device's clock, with the year when it isn't this one); on a Todo list only, a section
+  with the todo fields (`TodoFields`, #84): «Срок» (`DateRow`, `setDueDate`) and «Время»
+  (`DateRow` `type="time"`, `setDueTime`; `disabled` while there is no «Срок»), each auto-saved
+  with `useAutoSaveText` (blur, Enter, or its ⊗), offline too; a date without a time is fine, and
+  clearing «Срок» clears «Время» with it. Then «Повтор» (#86): a `SelectRow` with «Нет»,
+  «Каждый день», «Каждую неделю», «Каждый месяц», «Каждый год» (`lists.repeat.*`), saved when
+  chosen (`useAutoSaveChoice`, `setRepeat`), offline too, `disabled` while there is no «Срок»;
+  clearing «Срок» removes the Repeat without asking. On a Shared list (`assignable(list)` in `assignees.ts`, so
+  on every Child list) the section also has «Ответственный» (#85): a `SelectRow` with «Никто»
+  and then each Member of `useFamilyMembers()` by name, saved when chosen (`useAutoSaveChoice`,
+  `setAssignee`), offline too; a Private list has no such row. On a Done Item they are read-only
+  (`DoneTodoFields`: plain `ListRow`s with the day as on the row, the time, the Repeat, and on a
+  Shared list the Assignee's name; «Нет» / «Никто» for none) and editable again
+  once it is ticked back on. Then «Удалить» (`ConfirmRow`,
+  «Удалить „Молоко“?», `remove`, back to the List replacing the history entry). The Member comes
+  from `useFamilyMembers()`; a line shows only once the server's `creatorId` / `createdAt`
+  (`doneById` / `doneAt`) are on the device, so an Item added or ticked on this device gets it
+  with the next pull. Name and Description stay editable on a Done Item. An Item that is unknown,
+  belongs to another List, or disappears while the screen is open (deleted, also by the other
+  Member) shows «Такого товара нет: возможно, его удалили.» (by kind,
+  `KIND_TEXTS[kind].itemNotFound`) with the back link to the List; a missing List shows
+  `ListMissing` as on its other screens. The screen is opened from the List screen: an open
+  Item's row being edited ends with «Подробнее» (`EditableRow` `details`, which first saves what
+  was typed in the row), and a Done row's text is a link to it (`EditableRow` `textTo`; plain
+  text in edit mode). Out of editing, a row shows up to two lines of its Description.
+- `useFamilyMembers()` (`@/features/members`) → the Family's Members on the local store (the
+  pulled `member` rows: `displayName`, `grammaticalGender`) as a `Map` by id, `undefined` until
+  the first local read: for saying who did something, offline too. Read-only.
 - `useMembers()` → `{load, retry, replaced}` (online REST).
 - `useLogout()` → `{logOut({discardUnsent?}), pending, error, unsentWarning, dismissWarning}`:
   the only data access of `LogoutSection` (Outbox flush, logout request, pending logout, wipe;
@@ -439,7 +584,8 @@ against the same file (see [`backend.md`](backend.md#stack)). Each code's Russia
 - **Grammatical gender**: a sentence about a Member's action uses i18next `context` with the
   Member's `grammaticalGender` lower-cased (`masculine` / `feminine`), i.e. keys `<key>_masculine`
   and `<key>_feminine`, plus the plain `<key>` as the neutral fallback when the value is missing.
-  No such key exists yet; the first one arrives with M2/M3 messages. The choice itself is asked
+  The Item screen's footer lines are the first (`lists.addedBy`, `lists.doneBy.<kind>`; their
+  neutral form is «Добавлено: Анна, 12 нояб.»). The choice itself is asked
   as «Пол» with «Мужской» / «Женский» (keys `grammaticalGender.label`, `.masculine`,
   `.feminine`; nothing pre-selected): `GrammaticalGenderRow` (a `SegmentedControl`) from
   `features/auth`, at registration and in «Ваш профиль».
@@ -507,7 +653,9 @@ current password empties that field). `app/routes.tsx` passes `SETTINGS_PATH` in
 (`Swatch`), name, age on the right («7 лет», «5 месяцев» under a year, «меньше месяца» under one, nothing without a birthday
 or before it; `i18n` plurals `children.age.years_*` / `months_*`, computed from the device's
 date) and a chevron to `/settings/children/:id` (`childSettingsPath(id)`). Edit mode deletes only
-(Children have no order); a swipe and right-click delete too; each asks first. «Добавить ребёнка»
+(Children have no order); a swipe and right-click delete too; each asks first, «Удалить „Маша“?»
+with the message «Списки и профиль ребёнка тоже будут удалены.» (`children.deleteTakesAll`; the
+server deletes the Child lists with the Child, #90). «Добавить ребёнка»
 (the section's `after` row) opens `NewChildSheet`: a `Sheet` «Новый ребёнок» with the same rows
 as the Child screen (`ChildRows`), name and colour required, saved only with «Готово» (at once, also offline);
 the Child appears in the list in order. With no Children the footer says «Детей пока нет». A
@@ -529,14 +677,49 @@ the Outbox. With no fields the footer says «Полей пока нет»; a rej
 
 The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_PATH`; `app/routes.tsx` passes
 `settingsPath` as for the password screen) is a `Page` titled with the Child's name, back to
-«Настройки». It loads through `useChildren()` like the list (so a deep link works) and shows
+«Настройки». It loads through `useChild(id)` like the list (so a deep link works) and shows
 `ChildRows`: Имя (`InputRow`, `useAutoSaveText`; empty is refused without a request), Цвет
 (`ColorChoice`, `useAutoSaveChoice`), День рождения (`DateRow`, `useAutoSaveText` with `''` for
 none). Each change saves only that field through `useChildren().save` (local store + Outbox), so
 it shows at once offline too; after a rejection («Не удалось сохранить» app-wide) the rows show
 the server's value again. Then a red «Удалить ребёнка» `ConfirmRow`: the `ActionSheet`
-«Удалить „Маша“?», then back to Settings (replacing the history entry). An unknown id shows «Такого ребёнка
+«Удалить „Маша“?» with the same message «Списки и профиль ребёнка тоже будут удалены.», then back to Settings (replacing the history entry). An unknown id shows «Такого ребёнка
 нет: возможно, его удалили.».
+
+## Home «Дети» and the Child page
+
+Home (`HomePage`) is `Sections` of `ChildrenTiles` and `ListsSection`. `ChildrenTiles`
+(`features/children`, ticket #89) reads `useChildren()` and shows «Дети» as a `TileGrid` above
+«Списки»: a `Tile` per Child in the Children order (oldest first), filled with the Child color
+(`childColor(code)?.hex`; grey for an unknown code), the name and under it the age as in Settings
+(`useAge()`; the name only without a birthday or before it), each a link to the Child page. While
+the Children load, and with none, it renders nothing, so Home has no «Дети» header at all.
+
+The Child page `/children/:id` (`ChildPage`, `CHILD_PATH`; `app/routes.tsx` passes `homePath`) is
+a `Page` titled with the Child's name, back to «Семья». Its nav bar action is the text `Link`
+«Изменить» to the Child's screen in Settings (`childSettingsPath(id)`, which goes back to
+Settings as before). «Профиль» is a `GroupedSection` with one plain `ListRow` «День рождения»
+whose value is the date and the age, «12.04.2019 · 7 лет» (`children.birthdayWithAge`; the date
+alone before the birthday; «Не указан» with none), read-only. Under it, in the same section
+(`ChildProfileSection` from `features/child-fields`, which takes the birthday row as its
+children; #91), a row per Child field in the Settings order (`useChildFields()`), labelled with
+the field's name, holding this Child's latest value (`useChildFieldValues(child.id)`): an
+`InputRow` for `TEXT`, a `DateRow` (the browser's date picker, with its clear button) for `DATE`,
+each auto-saved with `useAutoSaveText` (text on blur or Enter, a date on blur, Enter or clear).
+Clearing a value saves an empty entry; leaving a row as it was saves nothing. A text over 1000
+characters is refused with «Слишком длинно» in the footer about its row (`useRowFailures`). The
+rows appear once both the fields and the values are read; with no Child fields the footer says
+«Полей профиля нет. Добавьте их в Настройках.». Values and Child fields changed on the other
+Member's device show live. Under the section, «Списки» has the Child lists (#90): the `lists` component the routes pass in
+(`ListsSection` from `features/lists`, given the Child's id; passed in because `lists` already
+imports `children` for a Child list's back link), described with `useLists()` above. It loads through `useChild(id)`, so a deep link
+works, it follows live updates (a rename, a new birthday), and it opens offline after a restart.
+An unknown id, or a Child deleted while the page is open, shows «Такого ребёнка нет: возможно,
+его удалили.» under the title «Дети», with the back link to Home. Tests:
+`children/childTiles.test.tsx`, `children/childPage.test.tsx`, `children/childLists.test.tsx`
+(Child lists on the page and off Home, «Новый список» there, a Child list's screen and settings,
+the delete warning, the store upgrade to version 6),
+`child-fields/childFieldValues.test.tsx` (the profile's values, and the store upgrade to version 7).
 
 ## PWA
 
@@ -588,7 +771,14 @@ a Vite native-config-loader warning).
   (MSW 3's name for `onUnhandledRequest`), so any request without a handler fails the test.
 - The sync API is always answered by the fake sync server `syncServer` (`@/test/syncServer`,
   installed in `server.ts`, emptied after each test). It behaves like the real one (Versions,
-  per-field Last write wins, delete wins, tombstones): `seed(table, rows)`, `change(table, id,
+  per-field Last write wins, delete wins, tombstones; a deleted row takes the rows that belong to
+  it, in `CASCADES`, as the server does: a Child its Child lists and Child field values, a Child
+  field its Child field values, a List its Items, Categories and Item history; a Child field value is stamped with `recordedAt`, never
+  changes once recorded, and is `ignored` for a deleted or unknown Child or Child field; a List
+  made Private loses its Items' Assignees; a repeating Item turned Done (created Done or changed), pushed or by `change`,
+  loses its Repeat to a new open Item, its next occurrence, counted as the server does from the
+  device's date, #87):
+  `seed(table, rows)`, `change(table, id,
 fields | 'deleted')` (the other Member's change), `row(table, id)` (the server's copy),
   `operations(table)` / `pushes` (with `csrf`) / `pulls`, `goOffline()` / `goOnline()` (MSW network
   error), `rejectWhen(op => …)`, `holdPulls()` (returns `release`). Tests trigger a reconnect with
@@ -607,20 +797,39 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   and `/api/invites`.
 - Lists, Items, Categories and Item history tests (`lists/lists.test.tsx`, `lists/items.test.tsx`,
   `lists/categories.test.tsx`, `lists/categoriesScreen.test.tsx`, `lists/itemHistory.test.tsx`,
-  `lists/reAdding.test.tsx`) build
+  `lists/reAdding.test.tsx`, `lists/doneEarlier.test.tsx`, `lists/itemScreen.test.tsx`: the Item
+  screen, which also seeds `member` rows for its footer lines; `lists/dueDate.test.tsx`: a todo
+  item's Due date on the Item screen and the row, overdue, the order, with the device clock
+  fixed; `lists/assignee.test.tsx`: a todo item's Assignee on the Item screen and the row, and
+  what making the List Private does to it; `lists/repeat.test.tsx`: a todo item's Repeat on the
+  Item screen and the row, and that it goes with the Due date) build
   their rows inline and seed them with
   `syncServer.seed('list' | 'item' | 'category' | 'item_history', …)`; `items.test.tsx` and `categories.test.tsx`
-  also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent); the fake server doesn't filter by Visibility (a backend concern).
+  also guard the store upgrades to versions 3 and 4 (an unsent operation in a version 2 store is still sent),
+  and `dueDate.test.tsx` that a version 5 store from before Due dates still sends its unsent
+  operation and its Items take a Due date, and `assignee.test.tsx` and `repeat.test.tsx` the same for a version 7 store from
+  before Assignees and Repeats (a new Item field needs no store version). A store-upgrade test
+  builds the older store with `upgradeStoreFrom(version, async (older) => { … })`
+  (`@/test/olderStore`: the first `version` entries of `STORE_SCHEMA`, seeded, then the current
+  store opened over it). The fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, and making a List Private there removes the Assignee from all its Items, as on the real server.
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,
   `sessionHandler`.
+- The device clock: `vi.useFakeTimers({ toFake: ['Date'], now })` in `beforeEach` and
+  `vi.useRealTimers()` after (`children.test.tsx` for ages, `doneEarlier.test.tsx` for the Done
+  window, whose Done times are built from local dates so the tests pass in any time zone,
+  `dueDate.test.tsx` for «Сегодня» and overdue).
+- A deep link to a screen renders with an empty store first, so «Такого списка нет» may show for
+  a moment before the pull. A test that expects it as the final state fills the store first
+  (render the List, wait, `unmount()`, render the deep link: an app restart).
 - Query by role and label; assert on the Russian text the user sees (T1). Set
   `document.cookie = 'XSRF-TOKEN=…'` to check the CSRF header.
 - To test copying, stub `ClipboardItem` (`vi.stubGlobal`) and `navigator.clipboard` (`write`,
   `writeText`) after `userEvent.setup()`, which installs its own clipboard (`invites.test.tsx`).
 - jsdom lays nothing out: `test/setup.ts` stubs `scrollIntoView` (a no-op); a highlighted row is
-  checked by its `data-highlighted` (`reAdding.test.tsx`), the tint by screenshots.
+  checked by its `data-highlighted` (`reAdding.test.tsx`), the tint by screenshots; an overdue
+  Due date by its `data-tone="destructive"` (`dueDate.test.tsx`), the red by screenshots.
 - Right-click: `user.pointer({keys: '[MouseRight]', target})`, then the `menuitem`. jsdom has no
   `matchMedia`, so `RowContextMenu` treats the pointer as fine there. Swipes can't be tested in
   jsdom (screenshots instead).

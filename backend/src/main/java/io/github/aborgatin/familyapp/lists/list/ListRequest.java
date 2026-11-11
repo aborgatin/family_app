@@ -1,7 +1,6 @@
 package io.github.aborgatin.familyapp.lists.list;
 
 import io.github.aborgatin.familyapp.error.FieldErrors;
-import java.util.Arrays;
 import org.springframework.lang.Nullable;
 
 /**
@@ -22,29 +21,12 @@ record ListRequest(
   ListDetails validate() {
     FieldErrors errors = new FieldErrors();
     String checkedName = RequestFields.name("name", name, errors);
-    ListKind checkedKind = choice("kind", kind, ListKind.values(), errors);
-    Visibility checkedVisibility = choice("visibility", visibility, Visibility.values(), errors);
+    ListKind checkedKind = errors.requiredChoice("kind", kind, ListKind.values());
+    Visibility checkedVisibility =
+        errors.requiredChoice("visibility", visibility, Visibility.values());
     double checkedPosition =
         RequestFields.position("unnamedCategoryPosition", unnamedCategoryPosition, errors);
     errors.throwIfAny();
     return new ListDetails(checkedName, checkedKind, checkedVisibility, checkedPosition);
-  }
-
-  /** One of {@code values} by its exact name: {@code required} when missing, else invalid. */
-  @Nullable
-  private static <E extends Enum<E>> E choice(
-      String field, @Nullable String value, E[] values, FieldErrors errors) {
-    if (value == null || value.isBlank()) {
-      errors.add(field, FieldErrors.REQUIRED);
-      return null;
-    }
-    return Arrays.stream(values)
-        .filter(candidate -> candidate.name().equals(value))
-        .findFirst()
-        .orElseGet(
-            () -> {
-              errors.add(field, FieldErrors.VALUE_INVALID);
-              return null;
-            });
   }
 }

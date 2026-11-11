@@ -352,8 +352,18 @@ export const SEED = {
         visibility: 'SHARED',
         items: [
           'Поменять лампочку в коридоре',
-          { text: 'Записать Машу к стоматологу', description: 'Детская стоматология на Лесной, после 15:00' },
-          { text: 'Оплатить интернет', done: true },
+          // Assignees (#85): after a Due date, after an overdue one, alone, and on a Done item.
+          { text: 'Разобрать балкон', assignee: 'Борис' },
+          // Repeats (#86): ↻ after a Due date with a time, and after an overdue one.
+          { text: 'Записать Машу к стоматологу', description: 'Детская стоматология на Лесной, после 15:00', dueInDays: 1, dueTime: '15:00', repeat: 'WEEKLY', assignee: 'Борис' },
+          // Overdue: a day that has passed, and a time of today that has.
+          { text: 'Оплатить садик', dueInDays: -1, repeat: 'MONTHLY', assignee: 'Анна' },
+          { text: 'Забрать посылку', dueInDays: 0, dueTime: '00:05' },
+          { text: 'Купить подарок бабушке', dueInDays: 12 },
+          { text: 'Оплатить интернет', done: true, dueInDays: -2, dueTime: '18:00', assignee: 'Анна' },
+          { text: 'Вызвать сантехника', done: true, doneDaysAgo: 6 },
+          { text: 'Помыть окна', done: true, doneDaysAgo: 8 },
+          { text: 'Сдать батарейки в переработку', done: true, doneDaysAgo: 40 },
         ],
       },
       {
@@ -368,8 +378,30 @@ export const SEED = {
       { name: 'Гараж', kind: 'TODO', visibility: 'SHARED' },
       { name: 'Подарок Анне', kind: 'TODO', visibility: 'PRIVATE' },
     ],
+    // Child lists (`child`: the Child's name), on Маша's Child page only; never on Home.
+    children: [
+      {
+        child: 'Маша',
+        name: 'Школа',
+        kind: 'TODO',
+        visibility: 'SHARED',
+        items: ['Купить тетради в клетку', 'Сдать деньги на экскурсию', { text: 'Подписать дневник', done: true }],
+      },
+      { child: 'Маша', name: 'Желания', kind: 'WISH', visibility: 'SHARED', items: ['Кукольный домик'] },
+    ],
   },
   extraChildFields: [{ name: 'Размер обуви', valueType: 'TEXT', position: 3 }, { name: 'Последний визит к врачу', valueType: 'DATE', position: 4 }],
+  // Child field values by Child: [Child field, value] entries in the order saved. Маша has a value
+  // for every field («Размер обуви» saved twice: the profile shows the latest); Петя and Соня none.
+  childFieldValues: {
+    Маша: [
+      ['Вес', '25 кг'],
+      ['Рост', '121 см'],
+      ['Размер обуви', '30'],
+      ['Размер обуви', '31'],
+      ['Последний визит к врачу', '2026-10-03'],
+    ],
+  },
 };
 
 /** Calls the API from inside the page, the way the app does (same origin, XSRF header). */
@@ -392,20 +424,39 @@ async function api(page, method, url, body) {
   );
 }
 
+/** The day `days` days from today (`YYYY-MM-DD`) on the calendar the shots' browser uses. */
+function dayFromToday(days) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(Date.now() + days * 86_400_000);
+}
+
 /**
  * Creates Lists, their `categories` (`{name, position}`) and their `items` in that order, through
  * the sync push as the Member logged in on `page`. An Item is its text, or `{text, description?,
- * category?, done?, cleared?}` (`category` a Category's name; Done ones ticked in the same order;
- * cleared ones deleted after, so only the Item history keeps their names). A List with `isDefault`
+ * category?, dueInDays?, dueTime?, repeat?, assignee?, done?, doneDaysAgo?, cleared?}` (`category` a Category's name;
+ * `dueInDays` a todo item's Due date that many days from today, with `dueTime` `HH:MM`;
+ * `repeat` a todo item's Repeat (`DAILY` … `YEARLY`, with a Due date); `assignee` a todo item's Assignee, a Member's name; Done ones ticked in the
+ * same order; `doneDaysAgo` moves a Done one's Done time that many days back, straight in the
+ * database, since the server stamps it itself; cleared ones deleted after, so only the Item
+ * history keeps their names). A List with `isDefault`
  * is not created: its Items go into the Default List of that name, whose id is in `defaults`
  * (name → id).
  */
-async function pushLists(page, lists, defaults = {}) {
+async function pushLists(page, pg, lists, defaults = {}) {
+  const doneEarlier = [];
+  // Members by name, for Assignees: pulled only when an Item has one.
+  const assigned = lists.some(({ items = [] }) => items.some((item) => item.assignee));
+  const members = assigned ? (await api(page, 'GET', '/api/sync/pull?since=0')).changes.filter((c) => c.table === 'member') : [];
+  const memberId = (name) => {
+    const member = members.find((c) => c.fields.displayName === name);
+    if (!member) throw new Error(`seed lists: no Member «${name}»`);
+    return member.id;
+  };
   const operations = lists.flatMap(({ items = [], categories = [], isDefault = false, ...fields }) => {
     if (isDefault && !defaults[fields.name]) throw new Error(`seed lists: no Default List «${fields.name}»`);
     const listId = isDefault ? defaults[fields.name] : crypto.randomUUID();
     const categoryIds = Object.fromEntries(categories.map(({ name }) => [name, crypto.randomUUID()]));
     const added = items.map((item) => ({ id: crypto.randomUUID(), ...(typeof item === 'string' ? { text: item } : item) }));
+    doneEarlier.push(...added.filter((item) => item.doneDaysAgo));
     return [
       ...(isDefault ? [] : [{ table: 'list', id: listId, op: 'upsert', fields }]),
       ...categories.map(({ name, position }) => ({
@@ -414,11 +465,19 @@ async function pushLists(page, lists, defaults = {}) {
         op: 'upsert',
         fields: { listId, name, position },
       })),
-      ...added.map(({ id, text, description, category }) => ({
+      ...added.map(({ id, text, description, category, dueInDays, dueTime, repeat, assignee }) => ({
         table: 'item',
         id,
         op: 'upsert',
-        fields: { listId, text, description, ...(category && { categoryId: categoryIds[category] }) },
+        fields: {
+          listId,
+          text,
+          description,
+          ...(category && { categoryId: categoryIds[category] }),
+          ...(dueInDays !== undefined && { dueDate: dayFromToday(dueInDays), ...(dueTime && { dueTime }) }),
+          ...(repeat && { repeat }),
+          ...(assignee && { assigneeId: memberId(assignee) }),
+        },
       })),
       ...added.filter((item) => item.done).map(({ id }) => ({ table: 'item', id, op: 'upsert', fields: { done: true } })),
       ...added.filter((item) => item.cleared).map(({ id }) => ({ table: 'item', id, op: 'delete' })),
@@ -426,6 +485,9 @@ async function pushLists(page, lists, defaults = {}) {
   });
   const pushed = await api(page, 'POST', '/api/sync/push', { operations });
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed lists: ${JSON.stringify(pushed.results)}`);
+  for (const { id, doneDaysAgo } of doneEarlier) {
+    await psql(pg, `UPDATE item SET done_at = now() - make_interval(days => ${Number(doneDaysAgo)}) WHERE id = '${id}';`);
+  }
 }
 
 /**
@@ -443,8 +505,28 @@ async function prepareDefaultLists(page) {
   return defaults;
 }
 
-async function seed(browser, baseUrl) {
-  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, active Invite');
+/**
+ * The Child field values of `SEED.childFieldValues`: an entry per value, in order (a Child field
+ * named twice for a Child gets a timeline, the last one being the latest). Children and Child
+ * fields are found by name in a pull, since the Default Child fields have server-made ids.
+ */
+async function pushChildFieldValues(page) {
+  const { changes } = await api(page, 'GET', '/api/sync/pull?since=0');
+  const idOf = (table, name) => changes.find((c) => c.table === table && c.fields.name === name).id;
+  const operations = Object.entries(SEED.childFieldValues).flatMap(([child, values]) =>
+    values.map(([field, value]) => ({
+      table: 'child_field_value',
+      id: crypto.randomUUID(),
+      op: 'upsert',
+      fields: { childId: idOf('child', child), childFieldId: idOf('child_field', field), value },
+    })),
+  );
+  const pushed = await api(page, 'POST', '/api/sync/push', { operations });
+  if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed values: ${JSON.stringify(pushed.results)}`);
+}
+
+async function seed(browser, baseUrl, pg) {
+  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, Child lists, active Invite');
   const ctx = await browser.newContext({ baseURL: baseUrl });
   const page = await ctx.newPage();
   await page.goto('/api/auth/session');
@@ -458,17 +540,25 @@ async function seed(browser, baseUrl) {
   const p2 = await ctx2.newPage();
   await p2.goto('/api/auth/session');
   await api(p2, 'POST', `/api/invites/by-token/${token1}/accept`, SEED.secondMember);
-  await pushLists(p2, SEED.lists.secondMember);
+  await pushLists(p2, pg, SEED.lists.secondMember);
   await ctx2.close();
-  await pushLists(page, SEED.lists.member, defaults);
+  await pushLists(page, pg, SEED.lists.member, defaults);
 
   // Children and Child fields are written only through the sync push (spec #3).
+  const childIds = Object.fromEntries(SEED.children.map(({ name }) => [name, crypto.randomUUID()]));
   const operations = [
-    ...SEED.children.map((fields) => ({ table: 'child', id: crypto.randomUUID(), op: 'upsert', fields })),
+    ...SEED.children.map((fields) => ({ table: 'child', id: childIds[fields.name], op: 'upsert', fields })),
     ...SEED.extraChildFields.map((fields) => ({ table: 'child_field', id: crypto.randomUUID(), op: 'upsert', fields })),
   ];
   const pushed = await api(page, 'POST', '/api/sync/push', { operations });
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed: ${JSON.stringify(pushed.results)}`);
+  // Child lists carry their Child's id, so they go after the Children.
+  await pushLists(
+    page,
+    pg,
+    SEED.lists.children.map(({ child, ...list }) => ({ ...list, childId: childIds[child] })),
+  );
+  await pushChildFieldValues(page);
   const inv2 = await api(page, 'POST', '/api/invites'); // stays active: shows in Settings, used as {inviteToken}
   const storageState = await ctx.storageState();
   await ctx.close();
@@ -580,7 +670,7 @@ try {
 
   const needsReset = (list) => list.some((r) => r.path.includes('{resetToken}'));
   const seedState = async (list) => {
-    const { storageState, inviteToken } = await seed(browser, vite.url);
+    const { storageState, inviteToken } = await seed(browser, vite.url, pg);
     const tokens = { inviteToken };
     if (needsReset(list)) tokens.resetToken = await createResetToken(jar, pg, SEED.secondMember.email);
     return { storageState, tokens };

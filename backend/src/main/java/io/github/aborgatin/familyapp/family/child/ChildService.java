@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.family.child;
 
+import io.github.aborgatin.familyapp.family.ChildDeleted;
 import io.github.aborgatin.familyapp.family.Family;
 import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
@@ -8,6 +9,7 @@ import io.github.aborgatin.familyapp.sync.SyncableTable;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 /**
@@ -21,11 +23,17 @@ class ChildService implements SyncableTable {
   private final ChildRepository children;
   private final ChildColorPalette palette;
   private final Family family;
+  private final ApplicationEventPublisher events;
 
-  ChildService(ChildRepository children, ChildColorPalette palette, Family family) {
+  ChildService(
+      ChildRepository children,
+      ChildColorPalette palette,
+      Family family,
+      ApplicationEventPublisher events) {
     this.children = children;
     this.palette = palette;
     this.family = family;
+    this.events = events;
   }
 
   @Override
@@ -35,8 +43,8 @@ class ChildService implements SyncableTable {
 
   /**
    * An upsert creates the Child (name and color required) or changes only the fields it carries; a
-   * delete soft-deletes. Delete wins: anything on a deleted Child, and deleting an unknown one, is
-   * ignored.
+   * delete soft-deletes and publishes {@link ChildDeleted}. Delete wins: anything on a deleted
+   * Child, and deleting an unknown one, is ignored.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -72,6 +80,9 @@ class ChildService implements SyncableTable {
   private Outcome delete(Child child) {
     child.markDeleted();
     children.saveAndFlush(child);
+    // Other modules delete what they keep about the Child (Child lists, Child field values), in
+    // this operation.
+    events.publishEvent(new ChildDeleted(child.id()));
     return Outcome.APPLIED;
   }
 

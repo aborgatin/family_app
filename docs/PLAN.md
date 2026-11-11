@@ -150,7 +150,7 @@ Secrets only in the server's `.env`, never in git.
 
 **M4 — Todos & children**
 - [ ] Spec [#81](https://github.com/aborgatin/family_app/issues/81).
-- [ ] Due date (a day, optionally a time), Assignee and Repeat on todo items; Repeat by a server-made copy ([ADR-0009](adr/0009-repeat-by-server-made-copy.md)); open todo items ordered by Due date; «Выполнено» shows the last 7 days, the rest behind «Выполненные ранее».
+- [ ] Due date (a day, optionally a time), Assignee and Repeat on todo items; Repeat by a server-made copy ([ADR-0009](adr/0009-repeat-by-server-made-copy.md)); open todo items ordered by Due date; «Выполнено» shows the last 7 days, the rest behind «Выполненные ранее», where «Скрыть» moves them all at once.
 - [ ] Item screen for every kind: name, large Description, Done, Creator, and the todo fields.
 - [ ] «Дети» tiles on Home; Child page with the Child profile and Child lists (Todo and Wish lists created there, always Shared, deleted with the Child). Member wish lists stay plain Shared Wish lists: nothing to build.
 - [ ] Child field values stored as a timeline of entries; the Child profile shows the latest entry, edited in place, and the birthday ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)).

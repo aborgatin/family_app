@@ -2,14 +2,20 @@ package io.github.aborgatin.familyapp.lists.list;
 
 import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.error.FieldErrors;
+import io.github.aborgatin.familyapp.family.Members;
 import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
 import io.github.aborgatin.familyapp.sync.SyncRow;
 import io.github.aborgatin.familyapp.sync.SyncableTable;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -29,16 +35,19 @@ class ItemService implements SyncableTable {
   private final CategoryRepository categories;
   private final VisibleLists visibleLists;
   private final ItemHistoryService history;
+  private final Members members;
 
   ItemService(
       ItemRepository items,
       CategoryRepository categories,
       VisibleLists visibleLists,
-      ItemHistoryService history) {
+      ItemHistoryService history,
+      Members members) {
     this.items = items;
     this.categories = categories;
     this.visibleLists = visibleLists;
     this.history = history;
+    this.members = members;
   }
 
   @Override
@@ -79,11 +88,17 @@ class ItemService implements SyncableTable {
         new ItemRequest(operation.text("text"), operation.text("description")).validate();
     boolean done = operation.has("done") && done(operation);
     UUID categoryId = operation.has("categoryId") ? categoryId(operation, list) : null;
+    DueDate dueDate = dueDate(operation, DueDate.NONE, list);
+    Repeat repeat = repeat(operation, null, dueDate, list);
+    UUID assigneeId = assigneeId(operation, null, list);
     Instant now = clock.instant();
     ItemEntity item = new ItemEntity(operation.id(), listId, operation.memberId(), now, details);
     item.moveTo(categoryId);
+    item.due(dueDate);
+    item.repeat(repeat);
+    item.assignTo(assigneeId);
     item.markDone(done, operation.memberId(), now);
-    items.saveAndFlush(item);
+    save(item, done, now);
     history.used(list, item.text(), now);
     return Outcome.APPLIED;
   }
@@ -98,17 +113,48 @@ class ItemService implements SyncableTable {
             .validate();
     boolean done = operation.has("done") ? done(operation) : item.done();
     UUID categoryId = operation.has("categoryId") ? categoryId(operation, list) : item.categoryId();
+    DueDate dueDate = dueDate(operation, item.dueDate(), list);
+    Repeat repeat = repeat(operation, item.repeat(), dueDate, list);
+    UUID assigneeId = assigneeId(operation, item.assigneeId(), list);
     // The history keeps a name when it is given (a new text) or used again (Done → open).
     boolean nameUsed = !details.text().equals(item.text()) || (item.done() && !done);
+    boolean turnsDone = done && !item.done();
     Instant now = clock.instant();
     item.replace(details);
     item.moveTo(categoryId);
+    item.due(dueDate);
+    item.repeat(repeat);
+    item.assignTo(assigneeId);
     item.markDone(done, operation.memberId(), now);
-    items.saveAndFlush(item);
+    // Turning Done true again (the other device's tick) is no turn, so it adds no second copy.
+    save(item, turnsDone, now);
     if (nameUsed) {
       history.used(list, item.text(), now);
     }
     return Outcome.APPLIED;
+  }
+
+  /**
+   * Saves the Item. One that this operation turns Done (created Done, or changed from open) and
+   * leaves with a Repeat hands its Repeat on to a new open Item, its next occurrence (ADR-0009).
+   */
+  private void save(ItemEntity item, boolean turnsDone, Instant now) {
+    ItemEntity next =
+        turnsDone && item.repeat() != null
+            ? item.nextOccurrence(UUID.randomUUID(), now, today())
+            : null;
+    items.saveAndFlush(item);
+    if (next != null) {
+      items.saveAndFlush(next);
+    }
+  }
+
+  /**
+   * Today by the server's clock in the installation's time zone: the JVM's default zone, which the
+   * container's {@code TZ} sets (deployment.md).
+   */
+  private LocalDate today() {
+    return LocalDate.ofInstant(clock.instant(), ZoneId.systemDefault());
   }
 
   private Outcome delete(ItemEntity item) {
@@ -125,7 +171,7 @@ class ItemService implements SyncableTable {
    */
   @Nullable
   private UUID categoryId(Operation operation, ListEntity list) {
-    UUID categoryId = RequestFields.uuid(operation, "categoryId");
+    UUID categoryId = operation.uuid("categoryId");
     if (categoryId == null) {
       return null;
     }
@@ -141,6 +187,107 @@ class ItemService implements SyncableTable {
                         "item.category_not_found",
                         Map.of("categoryId", categoryId.toString())));
     return category.deleted() ? null : categoryId;
+  }
+
+  /**
+   * The Due date the operation leaves on an Item of {@code list} that had {@code stored}: {@code
+   * dueDate} ({@code YYYY-MM-DD} or {@code null}) and {@code dueTime} ({@code HH:MM} or {@code
+   * null}) are each their own field (Last write wins per field), and setting {@code dueDate} to
+   * {@code null} removes the time too. Rejected: either field on an Item of a List that is not a
+   * Todo list ({@code item.list_not_todo}), a malformed value ({@code validation.failed}, {@code
+   * value.invalid}), and a time left without a day ({@code item.due_time_without_due_date}).
+   */
+  private static DueDate dueDate(Operation operation, DueDate stored, ListEntity list) {
+    if (!carriesTodoField(operation, list, "dueDate", "dueTime")) {
+      return stored;
+    }
+    FieldErrors errors = new FieldErrors();
+    LocalDate day =
+        operation.has("dueDate") ? errors.date("dueDate", operation.text("dueDate")) : stored.day();
+    LocalTime time = day == null ? null : stored.time();
+    if (operation.has("dueTime")) {
+      time = errors.parsed("dueTime", operation.text("dueTime"), DueDate::parseTime);
+    }
+    errors.throwIfAny();
+    if (time != null && day == null) {
+      throw new ApiException(HttpStatus.CONFLICT, "item.due_time_without_due_date");
+    }
+    return new DueDate(day, time);
+  }
+
+  /**
+   * The Repeat the operation leaves on an Item of {@code list} that had {@code stored}, now with
+   * {@code dueDate}: {@code repeat} is one of {@link Repeat} by its exact name, or {@code null} for
+   * none; without the field the stored one stays, unless the Due date is gone, which takes the
+   * Repeat with it. Rejected: the field, even {@code null}, on an Item of a List that is not a Todo
+   * list ({@code item.list_not_todo}), an unknown value ({@code validation.failed}, {@code
+   * value.invalid}), and a Repeat on an Item left without a Due date ({@code
+   * item.repeat_without_due_date}).
+   */
+  @Nullable
+  private static Repeat repeat(
+      Operation operation, @Nullable Repeat stored, DueDate dueDate, ListEntity list) {
+    if (!carriesTodoField(operation, list, "repeat")) {
+      return dueDate.day() == null ? null : stored;
+    }
+    FieldErrors errors = new FieldErrors();
+    Repeat repeat = errors.choice("repeat", operation.text("repeat"), Repeat.values());
+    errors.throwIfAny();
+    if (repeat == null) {
+      return null;
+    }
+    if (dueDate.day() == null) {
+      throw new ApiException(HttpStatus.CONFLICT, "item.repeat_without_due_date");
+    }
+    return repeat;
+  }
+
+  /**
+   * The Assignee the operation leaves on an Item of {@code list} that had {@code stored}: {@code
+   * assigneeId} is a Member's id, or {@code null} for nobody; without the field the stored one
+   * stays. Rejected: the field, even {@code null}, on an Item of a List that is not a Todo list
+   * ({@code item.list_not_todo}); a Member on a Private list ({@code
+   * item.assignee_on_private_list}); an id that names no Member ({@code item.assignee_not_found}).
+   * {@code null} on a Private list is accepted and changes nothing: its Items have no Assignee, and
+   * the Owner's other device may remove one while the List is being made Private.
+   */
+  @Nullable
+  private UUID assigneeId(Operation operation, @Nullable UUID stored, ListEntity list) {
+    if (!carriesTodoField(operation, list, "assigneeId")) {
+      return stored;
+    }
+    UUID assigneeId = operation.uuid("assigneeId");
+    if (assigneeId == null) {
+      return null;
+    }
+    if (list.visibility() == Visibility.PRIVATE) {
+      throw new ApiException(
+          HttpStatus.CONFLICT,
+          "item.assignee_on_private_list",
+          Map.of("listId", list.id().toString()));
+    }
+    if (members.byId(assigneeId).isEmpty()) {
+      throw new ApiException(
+          HttpStatus.NOT_FOUND,
+          "item.assignee_not_found",
+          Map.of("assigneeId", assigneeId.toString()));
+    }
+    return assigneeId;
+  }
+
+  /**
+   * Whether the operation carries any of these todo fields (even as {@code null}); one on an Item
+   * of a Shopping or Wish list is {@code item.list_not_todo}.
+   */
+  private static boolean carriesTodoField(Operation operation, ListEntity list, String... fields) {
+    if (Arrays.stream(fields).noneMatch(operation::has)) {
+      return false;
+    }
+    if (list.kind() != ListKind.TODO) {
+      throw new ApiException(
+          HttpStatus.CONFLICT, "item.list_not_todo", Map.of("listId", list.id().toString()));
+    }
+    return true;
   }
 
   /** The operation's {@code done}: a boolean, never {@code null}. */
@@ -167,6 +314,10 @@ class ItemService implements SyncableTable {
           fields.put("text", item.text());
           fields.put("categoryId", item.categoryId() == null ? null : item.categoryId().toString());
           fields.put("description", item.description());
+          fields.put("dueDate", item.dueDate().dayText());
+          fields.put("dueTime", item.dueDate().timeText());
+          fields.put("repeat", item.repeat() == null ? null : item.repeat().name());
+          fields.put("assigneeId", Objects.toString(item.assigneeId(), null));
           fields.put("done", item.done());
           fields.put("doneById", item.doneById() == null ? null : item.doneById().toString());
           fields.put("doneAt", item.doneAt() == null ? null : item.doneAt().toString());

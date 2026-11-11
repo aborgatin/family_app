@@ -1,8 +1,21 @@
 // Every screen and state of the web app, as shot for review (README.md has the format). When a
 // change adds or alters a screen, add or update its route here, so the next change shoots it too.
-import { editIn, failClipboard, hang, noLists, rejectPushes, rowActions, section, toSection } from './helpers.mjs';
+import {
+  editIn,
+  failClipboard,
+  hang,
+  noChildFields,
+  noLists,
+  onlyChildren,
+  rejectPushes,
+  rowActions,
+  section,
+  toSection,
+} from './helpers.mjs';
 
 const INVITE = 'role=button[name="Пригласить взрослого…"]';
+/** The tile of the Child with this name in «Дети» on Home. */
+const childTile = (name) => `role=region[name="Дети"] >> role=link[name=/${name}/]`;
 const ITEM = 'role=textbox[name="Товар «Молоко 3,2%»"]';
 /** Steps from Home to the «Настройки списка» screen of the List with this name. */
 const listSettings = (name) => [
@@ -24,6 +37,25 @@ const categories = (name) => [
   ...listSettings(name),
   { click: 'role=link[name="Категории"]' },
   { waitFor: 'role=list[name="Категории"]' },
+];
+/** Steps from Home to the Item screen of an open Item: its row is edited, then «Подробнее». */
+const openItem = (listName, kindWord, text) => [
+  { click: `role=link[name=/${listName}/]` },
+  { click: `role=textbox[name="${kindWord} «${text}»"]` },
+  { click: 'role=link[name="Подробнее"]' },
+  { waitFor: 'role=textbox[name="Название"]' },
+];
+/** Steps from Home to the Item screen of a Done Item: a tap on its text. */
+const openDoneItem = (listName, text) => [
+  { click: `role=link[name=/${listName}/]` },
+  { click: `role=link[name="${text}"]` },
+  { waitFor: 'role=textbox[name="Название"]' },
+];
+/** Steps from Home to the «Выполненные ранее» screen of «Дела по дому». */
+const doneEarlier = [
+  { click: 'role=link[name=/Дела по дому/]' },
+  { click: 'role=link[name="Выполненные ранее"]' },
+  { waitFor: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
 ];
 const showInvites = async (page) => {
   await page.locator(INVITE).scrollIntoViewIfNeeded();
@@ -67,7 +99,37 @@ export default {
     { name: 'reset-password', path: '/reset-password/{resetToken}', auth: 'loggedOut' },
 
     // Home
-    { name: 'home', path: '/', steps: [{ waitFor: 'text=Супермаркет' }] },
+    // «Дети» with the seed's three Children (the odd last tile at the left), above «Списки».
+    { name: 'home', path: '/', steps: [{ waitFor: 'text=Супермаркет' }, { waitFor: childTile('Соня') }] },
+    // No Children: no «Дети» section at all.
+    { name: 'home-no-children', path: '/', initScript: onlyChildren(), steps: [{ waitFor: 'text=Супермаркет' }] },
+    {
+      name: 'home-one-child',
+      path: '/',
+      initScript: onlyChildren('Маша'),
+      steps: [{ waitFor: 'text=Супермаркет' }, { waitFor: childTile('Маша') }],
+    },
+    {
+      // Петя has no birthday: the name only.
+      name: 'home-two-children',
+      path: '/',
+      initScript: onlyChildren('Маша', 'Петя'),
+      steps: [{ waitFor: 'text=Супермаркет' }, { waitFor: childTile('Петя') }],
+    },
+    {
+      // A tile reached with Tab: the focus outline.
+      name: 'home-child-tile-focus',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { waitFor: childTile('Соня') },
+        async (page) => {
+          await page.locator(childTile('Маша')).focus();
+          await page.keyboard.press('Tab');
+        },
+        { wait: 200 },
+      ],
+    },
     { name: 'home-empty', path: '/', initScript: noLists, steps: [{ waitFor: 'text=Списков пока нет' }] },
     // A fresh installation right after the first Member registers: the Default Shopping lists.
     { name: 'home-defaults', path: '/setup', auth: 'fresh', isolate: true, steps: [...registerFirstMember] },
@@ -288,14 +350,121 @@ export default {
       ],
     },
     {
+      // Open Items by Due date (#84), the overdue ones' in red, two with ↻ (#86), the ones without
+      // last. «Выполнено»
+      // holds the last 7 days (today and 6 days ago); the row under it opens the rest.
       name: 'list-todo',
       path: '/',
-      steps: [{ click: 'role=link[name=/Дела по дому/]' }, { waitFor: 'role=textbox[name^="Задача"]' }],
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { waitFor: 'role=textbox[name^="Задача"]' },
+        { waitFor: 'role=link[name="Выполненные ранее"]' },
+      ],
+    },
+    {
+      // A repeating item marked Done (#87): «Оплатить садик» (monthly, due yesterday) is in
+      // «Выполнено» without ↻, and its next occurrence, made by the server, is open in its place
+      // in the order, a month after the old Due date.
+      name: 'list-todo-repeat-done',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { waitFor: 'role=link[name="Выполненные ранее"]' },
+        { click: 'role=checkbox[name="Выполнено «Оплатить садик»"]' },
+        { waitFor: 'role=region[name="Выполнено"] >> role=checkbox[name="Выполнено «Оплатить садик»"]' },
+        { waitFor: 'role=region[name="Задачи"] >> role=textbox[name="Задача «Оплатить садик»"]' },
+        { wait: 200 },
+      ],
+    },
+    {
+      // The same with no connection: the item is in «Выполнено» at once, without ↻, and the
+      // next occurrence comes only when the device syncs.
+      name: 'list-todo-repeat-done-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { waitFor: 'role=link[name="Выполненные ранее"]' },
+        { click: 'role=checkbox[name="Выполнено «Оплатить садик»"]' },
+        { waitFor: 'role=region[name="Выполнено"] >> role=checkbox[name="Выполнено «Оплатить садик»"]' },
+        { wait: 200 },
+      ],
+    },
+    {
+      // «Скрыть» pressed (#93): «Выполнено» is only the row «Выполненные ранее», without «Скрыть».
+      name: 'list-todo-hidden',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]' },
+        { waitFor: 'role=region[name="Выполнено"] >> role=link[name="Выполненные ранее"]' },
+        async (page) => page.locator('role=button[name="Скрыть"]').waitFor({ state: 'detached' }),
+        { wait: 200 },
+      ],
+    },
+    {
+      // The same with no connection: «Выполнено» empties at once.
+      name: 'list-todo-hidden-offline',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]' },
+        async (page) => page.locator('role=button[name="Скрыть"]').waitFor({ state: 'detached' }),
+        { wait: 200 },
+      ],
+    },
+    {
+      // «Выполненные ранее» after «Скрыть»: the hidden Items of the last 7 days with the older
+      // ones, most recent first.
+      name: 'done-earlier-hidden',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Дела по дому/]' },
+        { click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]' },
+        { click: 'role=region[name="Выполнено"] >> role=link[name="Выполненные ранее"]' },
+        { waitFor: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
+      ],
     },
     {
       name: 'list-todo-empty',
       path: '/',
       steps: [{ click: 'role=link[name=/Ремонт/]' }, { waitFor: 'text=Задач пока нет' }],
+    },
+    // «Выполненные ранее»: the Done Items older than 7 days, most recent first.
+    { name: 'done-earlier', path: '/', steps: doneEarlier },
+    { name: 'done-earlier-edit', path: '/', steps: [...doneEarlier, editIn('Выполненные ранее')] },
+    { name: 'done-earlier-row-actions', path: '/', fullPage: false, steps: [...doneEarlier, rowActions('Выполненные ранее')] },
+    {
+      // Both ticked back on, offline: they are open again, and the screen says nothing is left.
+      name: 'done-earlier-empty',
+      path: '/',
+      isolate: true,
+      offline: 'afterLoad',
+      steps: [
+        ...doneEarlier,
+        { click: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
+        { click: 'role=checkbox[name="Выполнено «Сдать батарейки в переработку»"]' },
+        { waitFor: 'text=Выполненных ранее задач нет' },
+      ],
+    },
+    {
+      // A Shopping list has no such screen.
+      name: 'done-earlier-not-todo',
+      path: '/',
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        async (page) => {
+          await page.goto(`${page.url()}/done-earlier`);
+        },
+        { waitFor: 'role=alert' },
+      ],
     },
     {
       // Enter added «Масло» and keeps the focus in «Новый товар» for the next Item.
@@ -345,7 +514,8 @@ export default {
       ],
     },
     {
-      // The Item being edited: its grey «Описание» line, empty, under the title.
+      // The Item being edited: its grey «Описание» line, empty, under the title, and «Подробнее»
+      // at the end of the line under it (#83).
       name: 'list-item-description-empty',
       path: '/',
       fullPage: false,
@@ -495,6 +665,89 @@ export default {
       name: 'list-wish-empty',
       path: '/',
       steps: [{ click: 'role=link[name=/Книги/]' }, { waitFor: 'text=Желаний пока нет' }],
+    },
+
+    // The Item screen (#83), opened by «Подробнее» on the row being edited, or a Done row's text
+    // A shopping Item: the name, the large «Описание» with its link, the Done toggle, who added it.
+    { name: 'item-shopping', path: '/', steps: openItem('Супермаркет', 'Товар', 'Хлеб бородинский') },
+    // A Done one: ticked, with «Купила Анна, …» under «Добавила Анна, …».
+    { name: 'item-shopping-done', path: '/', steps: openDoneItem('Супермаркет', 'Сыр') },
+    // A todo item on a Shared list with a Due date (#84), a Repeat (#86) and an Assignee (#85):
+    // «Срок», «Время», «Повтор» and «Ответственный» under the Done toggle.
+    { name: 'item-todo', path: '/', steps: openItem('Дела по дому', 'Задача', 'Записать Машу к стоматологу') },
+    // One without: «Срок» empty, «Время» and «Повтор» dimmed until there is a day, «Ответственный»
+    // «Никто».
+    { name: 'item-todo-no-due-date', path: '/', steps: openItem('Дела по дому', 'Задача', 'Поменять лампочку в коридоре') },
+    // A Done one: «Срок», «Время», «Повтор» and «Ответственный» read-only.
+    { name: 'item-todo-done', path: '/', steps: openDoneItem('Дела по дому', 'Оплатить интернет') },
+    {
+      // A todo item on a Private list (#85), added here since the seed's «Ремонт» is empty: no
+      // «Ответственный».
+      name: 'item-todo-private',
+      path: '/',
+      isolate: true,
+      steps: [
+        { click: 'role=link[name=/Ремонт/]' },
+        { fill: 'role=textbox[name="Новая задача"]', value: 'Купить краску' },
+        { press: 'Enter' },
+        ...openItem('Ремонт', 'Задача', 'Купить краску').slice(1),
+      ],
+    },
+    // A wish without a Description: the empty large field.
+    { name: 'item-wish', path: '/', steps: openItem('Подарки', 'Желание', 'Самокат') },
+    { name: 'item-wish-done', path: '/', steps: openDoneItem('Подарки', 'Набор фломастеров') },
+    {
+      // The Description tapped beside its link: one field with the whole text, a paragraph added.
+      name: 'item-description-editing',
+      path: '/',
+      isolate: true,
+      steps: [
+        ...openItem('Супермаркет', 'Товар', 'Хлеб бородинский'),
+        // Its first line: the middle of the text is the link.
+        async (page) => page.locator('p:has-text("Нарезанный, половинку")').click({ position: { x: 8, y: 8 } }),
+        async (page) => page.keyboard.type('\n\nВитрина справа от кассы, верхняя полка'),
+        { wait: 200 },
+      ],
+    },
+    {
+      name: 'item-delete-confirm',
+      path: '/',
+      fullPage: false,
+      steps: [
+        ...openItem('Супермаркет', 'Товар', 'Молоко 3,2%'),
+        { click: 'role=button[name="Удалить"]' },
+        { waitFor: 'role=dialog' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // An Item that is unknown, or was deleted meanwhile: the List is there, the Item is not.
+      name: 'item-missing',
+      path: '/',
+      steps: [
+        { click: 'role=link[name=/Супермаркет/]' },
+        { waitFor: ITEM },
+        async (page) => page.goto(`${page.url()}/items/00000000-0000-7000-8000-000000000000`),
+        { waitFor: 'role=alert' },
+      ],
+    },
+    {
+      // Deleted in another tab while the Item screen is open here.
+      name: 'item-gone',
+      path: '/',
+      isolate: true,
+      steps: [
+        ...openItem('Супермаркет', 'Товар', 'Молоко 3,2%'),
+        async (page) => {
+          const other = await page.context().newPage();
+          await other.goto(page.url());
+          await other.locator('role=button[name="Удалить"]').click();
+          await other.locator('role=dialog >> role=button[name="Удалить"]').click();
+          await other.locator(ITEM.replace('Молоко 3,2%', 'Яйца, десяток')).waitFor();
+          await other.close();
+        },
+        { waitFor: 'role=alert' },
+      ],
     },
 
     // «Настройки списка», opened by the gear on the List screen
@@ -733,6 +986,87 @@ export default {
         { waitFor: 'text=Пароль изменён' },
         toSection('Ваш профиль', -100),
       ],
+    },
+
+    // The Child page, opened from a tile of «Дети» on Home
+    {
+      // Маша has a value for every Child field (text and date) and two Child lists under «Списки».
+      name: 'child-page',
+      path: '/',
+      steps: [
+        { click: childTile('Маша') },
+        { waitFor: `${section('Профиль')} >> role=textbox[name="Размер обуви"]` },
+        { waitFor: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
+      ],
+    },
+    {
+      // Петя has no birthday («Не указан»), no values (every Child field is empty) and no Child
+      // lists («Списков пока нет»).
+      name: 'child-page-no-birthday',
+      path: '/',
+      steps: [
+        { click: childTile('Петя') },
+        { waitFor: 'text=Не указан' },
+        { waitFor: `${section('Профиль')} >> role=textbox[name="Размер обуви"]` },
+        { waitFor: 'text=Списков пока нет' },
+      ],
+    },
+    {
+      // «Новый список» opened on a Child page: Вид is TODO / Желания only, no Visibility.
+      name: 'child-new-list-sheet',
+      path: '/',
+      fullPage: false,
+      steps: [
+        { click: childTile('Маша') },
+        { click: 'role=button[name="Добавить список"]' },
+        { fill: 'role=dialog >> role=textbox[name="Название"]', value: 'Кружки' },
+        { click: 'role=dialog >> text=TODO' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A Child list is the usual List screen; its back button is the Child page («Маша»).
+      name: 'child-list',
+      path: '/',
+      steps: [
+        { click: childTile('Маша') },
+        { click: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
+        { waitFor: 'role=textbox[name="Новая задача"]' },
+      ],
+    },
+    {
+      // A Child list's settings: no Visibility.
+      name: 'child-list-settings',
+      path: '/',
+      steps: [
+        { click: childTile('Маша') },
+        { click: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
+        { click: 'role=link[name="Настройки списка"]' },
+        { waitFor: 'role=textbox[name="Название"]' },
+      ],
+    },
+    {
+      // No Child fields defined: the hint to add them in Settings.
+      name: 'child-page-no-fields',
+      path: '/',
+      initScript: noChildFields,
+      steps: [{ click: childTile('Маша') }, { waitFor: 'text=Полей профиля нет' }],
+    },
+    {
+      // A text value over 1000 characters is refused: the footer says so about its row.
+      name: 'child-page-value-too-long',
+      path: '/',
+      steps: [
+        { click: childTile('Маша') },
+        { fill: `${section('Профиль')} >> role=textbox[name="Размер обуви"]`, value: '31 '.repeat(334) },
+        { press: 'Enter' },
+        { waitFor: `${section('Профиль')} >> role=alert` },
+      ],
+    },
+    {
+      name: 'child-page-not-found',
+      path: '/children/00000000-0000-4000-8000-000000000000',
+      steps: [{ waitFor: 'role=alert' }],
     },
 
     // Child screen and sheets

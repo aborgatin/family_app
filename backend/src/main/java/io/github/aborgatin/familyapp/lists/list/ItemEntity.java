@@ -3,9 +3,14 @@ package io.github.aborgatin.familyapp.lists.list;
 import io.github.aborgatin.familyapp.sync.SyncedRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Objects;
 import java.util.UUID;
 import org.hibernate.annotations.Generated;
 import org.hibernate.generator.EventType;
@@ -40,6 +45,20 @@ class ItemEntity implements SyncedRecord {
   @Nullable private UUID doneById;
 
   @Nullable private Instant doneAt;
+
+  /** The Due date's day; {@code null} is no Due date. Only on a Todo list. */
+  @Nullable private LocalDate dueDate;
+
+  /** The Due date's time of day; only with a day. */
+  @Nullable private LocalTime dueTime;
+
+  /** The Repeat; {@code null} is none. Only with a Due date. */
+  @Enumerated(EnumType.STRING)
+  @Nullable
+  private Repeat repeat;
+
+  /** The Assignee: the Member responsible; {@code null} is nobody. Only on a Shared Todo list. */
+  @Nullable private UUID assigneeId;
 
   @Column(nullable = false, updatable = false)
   private UUID creatorId;
@@ -79,6 +98,22 @@ class ItemEntity implements SyncedRecord {
     this.categoryId = categoryId;
   }
 
+  /** Sets the Due date; {@link DueDate#NONE} removes it. */
+  void due(DueDate dueDate) {
+    this.dueDate = dueDate.day();
+    this.dueTime = dueDate.time();
+  }
+
+  /** Sets the Repeat; {@code null} removes it. */
+  void repeat(@Nullable Repeat repeat) {
+    this.repeat = repeat;
+  }
+
+  /** Makes this Member the Assignee; {@code null} is nobody. */
+  void assignTo(@Nullable UUID assigneeId) {
+    this.assigneeId = assigneeId;
+  }
+
   /**
    * Sets Done. When it turns true, {@code memberId} becomes done by and {@code at} done at; when it
    * turns false both are cleared. Setting Done to its current value changes nothing (S3).
@@ -90,6 +125,23 @@ class ItemEntity implements SyncedRecord {
     this.done = done;
     this.doneById = done ? memberId : null;
     this.doneAt = done ? at : null;
+  }
+
+  /**
+   * Hands this repeating Item's Repeat on to its next occurrence (ADR-0009): returns a new open
+   * Item {@code id} in the same List with the same text, Description, Assignee, Repeat, time of day
+   * and Creator, created {@code at}, due on the next occurrence after {@code today}; this Item
+   * keeps no Repeat.
+   */
+  ItemEntity nextOccurrence(UUID id, Instant at, LocalDate today) {
+    Repeat handedOn = Objects.requireNonNull(repeat, "only a repeating Item has a next occurrence");
+    LocalDate day = Objects.requireNonNull(dueDate, "a Repeat is only with a Due date");
+    ItemEntity next = new ItemEntity(id, listId, creatorId, at, new ItemDetails(text, description));
+    next.due(new DueDate(handedOn.next(day, today), dueTime));
+    next.repeat(handedOn);
+    next.assignTo(assigneeId);
+    this.repeat = null;
+    return next;
   }
 
   /** Soft delete (S2): the row stays and its Version advances. */
@@ -132,6 +184,20 @@ class ItemEntity implements SyncedRecord {
   @Nullable
   Instant doneAt() {
     return doneAt;
+  }
+
+  DueDate dueDate() {
+    return new DueDate(dueDate, dueTime);
+  }
+
+  @Nullable
+  Repeat repeat() {
+    return repeat;
+  }
+
+  @Nullable
+  UUID assigneeId() {
+    return assigneeId;
   }
 
   UUID creatorId() {

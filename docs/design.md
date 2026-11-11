@@ -36,9 +36,12 @@ a new token here, with its light and dark values.
 | `overlay`          | black at 35%     | black at 55%     | the dimmed page behind an action sheet     |
 | `swatch-edge`      | black at 12%     | white at 18%     | hairline around a colour dot (`Swatch`)    |
 | `check-shadow`     | black at 50%     | black at 50%     | keeps the white check on a colour readable |
+| `on-child-color`   | `#000000`        | `#000000`        | text on a `Tile` filled with a Child color |
 
 Contrast is WCAG AA (4.5:1 for text) in both themes, checked by `shared/ui/theme.test.ts` for every
-text/background pair; a new token that carries text or sits under it gets its pair there. Three
+text/background pair; a new token that carries text or sits under it gets its pair there. The
+Child colors are the same in both themes, and `on-child-color` is checked against every one of
+them (black: white fails on most, e.g. 1.7:1 on yellow). Three
 deliberate departures from the iOS values: light destructive text is `#D70015` (iOS `#FF3B30` is
 3.5:1 on white), in dark the filled button is `#0071E3` (white on `#0A84FF` is 3.7:1), and the swipe
 «Удалить» in dark is `#E0262B` (white on `#FF453A` is 3.4:1). The accent is never used for decoration, so it doesn't compete with the Child colours.
@@ -126,7 +129,8 @@ spacing `n`).
 ## Components
 
 All in `web/src/shared/ui`, exported from its `index.ts` (except `OfflineIndicator`,
-`Spinner`, `RowContextMenu` and `SuggestionRows`, which only other components place). Text fields
+`Spinner`, `RowContextMenu`, `SuggestionRows` and `LinkedText`, which only other components
+place). Text fields
 share their focus sign (`FIELD_FOCUS`), and rows their hairline (`ROW_SEPARATOR`, part of
 `ROW_FRAME`). Feature code uses nothing
 else to draw: no raw `button` / `input` / `select` / `textarea` / `form` / `a`, no `className` or
@@ -244,7 +248,10 @@ makes Esc in a field leave the screen without saving. Same on every device.
 A grouped inset list, as in the iPhone Settings app: optional `header` (footnote, uppercase,
 `secondary-label`), the rows on one `cell` with rounded corners and inset hairlines between them,
 and a footer. Rows share a two-column grid, so inline labels line up and values start at one
-edge. Use it for every group of rows; a screen is a stack of them.
+edge. The label column is as wide as the longest label, up to half the cell: a longer label of an
+`InputRow` or a `DateRow` (a Child field's name, which the Family writes) wraps onto more lines,
+so the value always keeps half the row. Use it for every group of rows; a screen is a stack of
+them.
 
 The footer is `messages`: lines top to bottom, each `{text, tone, row}`. `tone: 'error'` is red,
 `hint` (default) is `secondary-label`. A line with `row` (a row's `name`) is that row's
@@ -274,7 +281,8 @@ list too: «Изменить» then sits alone at the right, where the header wo
 named by `label` (the Unnamed category's Items).
 `action` (`{label, onClick}`) puts one more small text `Button` at the right of the header,
 before «Изменить»: «Очистить» on a Shopping list's «Куплено», which asks with an `ActionSheet`
-first.
+first, and «Скрыть» on a Todo list's «Выполнено» while it has Items, which acts at once (it
+deletes nothing: the Items move to «Выполненные ранее»).
 `after` puts rows on the same cell after the list but outside it (an accent «Добавить …» row):
 they stay when the list is empty, and the «Изменить» button is left out then (pass no `edit`).
 
@@ -297,7 +305,10 @@ column, 44px tall (about 40px wide on a phone). Fine pointer: smaller circles, t
 An optional date as a row: `label` inline at the left, the browser's own date field at the right
 in a grey pill (the wheel on the iPhone, a calendar popup on the Mac; the format follows the
 browser's language), and a grey ⊗ «Очистить «<label>»» after it while there is a date. `value`
-is `YYYY-MM-DD` or `''`. Auto-saved like an `InputRow` (spread `input` of `useAutoSaveText()`):
+is `YYYY-MM-DD` or `''`. With `type="time"` (#84) it is an optional time of day, `HH:MM` or `''`,
+in the browser's time field, the same in every other way (a todo item's «Время» under its
+«Срок»). `disabled` dims the label and the field to 40% and takes the ⊗ away: a row that can't
+be set yet («Время» while there is no «Срок»). Auto-saved like an `InputRow` (spread `input` of `useAutoSaveText()`):
 leaving the field or Enter saves, Esc puts the saved date back, clearing saves at once; not on
 every change, since typing a year digit by digit is a valid date at each step. Without
 `onCommit` (in a `Sheet`) Enter submits. Touch: the ⊗ has a 44px target. Fine pointer: 28px.
@@ -328,12 +339,29 @@ fine pointer.
 
 ### InputRow
 
-A text field as a row of a `GroupedSection`: `label` inline at the left, the field filling the
+A text field as a row of a `GroupedSection`: `label` inline at the left (wrapping when it would
+take more than half the row), the field filling the
 rest (`type` text, email or password; `autoComplete`). Its `name` links it to footer messages.
 Touch: 44px row, the caret is the only focus sign, as on iOS. Fine pointer: 36px row, and the
 focused field gets the accent outline. Enter submits the surrounding `Form`, unless the row
 auto-saves: with `onCommit` (from `useAutoSaveText()`), leaving the field or Enter saves, Esc
 (`onRevert`) puts the saved value back, and `busy` shows the `Spinner` at the right of the row.
+
+### TextAreaRow
+
+A large multi-line text field as a row of a `GroupedSection` (ticket #83): an Item's «Описание»
+on the Item screen, under the «Название» `InputRow`. Plain text, as many paragraphs as needed:
+the row is at least five lines of `body` tall and grows with its text, never scrolling inside.
+`label` is its accessible name and, in `secondary-label`, what the empty field shows; there is no
+inline label. While the field isn't being edited its text shows with its line breaks and its
+http(s) addresses as links in `accent`, underlined, that open in a new tab (`LinkedText`, also
+used by `EditableRow`'s secondary line; punctuation after an address isn't part of it); a tap
+beside them starts editing the whole text with the caret at its end, and the links come back
+when the field is left. Auto-saved like an `InputRow` (spread `input` of `useAutoSaveText()`):
+leaving the field saves, Esc puts the saved text back, Enter starts a new line; `busy` shows the
+`Spinner` at the top right, and its `name` links it to the footer messages. Keyboard: Tab goes
+through the links, then into the field, which then shows for editing. Touch: the caret is the
+focus sign; fine pointer: the accent outline around the field. Same on narrow and wide windows.
 
 ### SegmentedControl
 
@@ -348,6 +376,21 @@ Auto-saved (`useAutoSaveChoice()`): each choice saves at once, so arrow keys sav
 and gives the segments the whole row, for a choice whose options say it all (Visibility
 «Личный» / «Общий» in «Новый список», named «Видимость»); not for auto-saved rows yet, since the
 spinner sits with the label.
+
+### SelectRow
+
+One of several choices as a row (#85), for more choices than a `SegmentedControl` holds or ones
+whose number and length aren't known (the Members' names): `label` inline at the left, the
+current choice at the right in a grey pill with a small ⌄ (`Icon` `expand`), as an iOS pop-up
+button. It is the browser's own `select`: a tap or click opens its menu (a pop-up menu with the
+current choice ticked on the iPhone and the Mac); with the keyboard Tab reaches it, Space or the
+arrows open and move, Enter picks. `options` are `{value, label}` in order, `value` is one of
+them; a choice that stands for "none" («Никто») is simply the first option. Its `name` links it
+to footer messages. Auto-saved with `useAutoSaveChoice()` (spread `control`): a pick saves at
+once, `busy` shows the `Spinner` left of the pill, and a failed pick goes back to the previous
+choice. `disabled` dims the label and the pill to 40%. Touch: the pill is 32px tall in a 44px
+row. Fine pointer: tighter, like a `DateRow`'s pill; the focused pill gets the accent outline.
+A todo item's «Повтор» (#86, disabled without a «Срок») and «Ответственный» are two.
 
 ### ListRow
 
@@ -397,9 +440,11 @@ a fine pointer the focused field gets the accent outline. In edit mode the row s
 
 `secondary` (with `input`) adds a grey secondary line under the title, in `subhead`
 `secondary-label` (an Item's Description). While the row is being edited (the focus is anywhere
-in it) it is a multi-line text field that grows with its text, with a `placeholder` («Описание»)
+in it but its `leading` control: pressing the Done circle doesn't open the row, which would move
+the circle away before the release) it is a multi-line text field that grows with its text, with a `placeholder` («Описание»)
 in `tertiary-label`: Enter starts a new line, blur saves, Esc puts the saved text back. Out of it a
-non-empty value is one line cut with «…», its http(s) addresses links in `accent` that open in a
+non-empty value is up to two lines cut with «…» (#83; line breaks read as spaces, a long address
+wraps), its http(s) addresses links in `accent` that open in a
 new tab; tapping the line beside them starts editing with the full text and the caret at the end.
 Leaving the row with it empty hides it. Spread `useAutoSaveText()`'s `input` and add `label` and
 `placeholder`; its `name` must differ from the title's, so a footer line about a failed save is
@@ -409,13 +454,35 @@ tied to the field that failed.
 (an Item's Category); the row stays edited while the chip's menu is open, and the focus goes back
 to the chip when it closes.
 
+`details` (`{label, to}`, with `secondary`; #83) adds a small accent text link at the trailing end
+of that same line under the secondary field, while the row is being edited: «Подробнее», which
+opens the screen with everything about the row (the Item screen). It looks like a `small`
+`Button` (footnote, semibold; 44px target on touch without making the row taller than the chip
+does). Tapping it saves what was typed in the row first; pressing it doesn't take the focus from
+the field. Tab reaches it after the chip.
+
+`caption` (#84) is a small line under the title and the secondary line, in `footnote`
+`secondary-label`, cut with «…»: facts about the row in a few words, shown in every state of the
+row (being edited, edit mode, a `textTo` row). It takes parts (`{text, tone?}`), joined by
+spaces; a part with `tone: 'destructive'` is in `destructive` (`data-tone="destructive"`). A todo
+item's Due date is one: «Завтра, 15:00», red once overdue; then the repeat mark «↻» when it has
+a Repeat (#86), never red, and never on a Done item (#87); its Assignee's name the next (#85): «· Даша» after a Due date
+(«15 нояб., 15:00 ↻ · Даша»), «Даша» alone without one, never red. No
+parts, no line.
+
+`textTo` (#83) makes just the title a link to another screen, for a row whose `leading` is a
+control of its own: a Done Item's text opens the Item screen while its `DoneToggle` still
+unticks it. No chevron; the title keeps its look (`muted` included), dims while pressed, and its
+target is the row's whole height beside the leading control. Not in edit mode, where the row
+shows plain `title`, and not with `input`.
+
 `highlighted` points the row out (an open Item added again by name): while set the row is
 scrolled into view (nearest edge, smooth) and covered by a 15% `accent` tint above its swipe
 layer (`data-highlighted`); unset, the tint fades out over 0.7 s. The caller unsets it after a moment (1.5 s for Items).
 
 Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
-`sortable`, Items with `input`, `secondary` (the Description), on a Shopping list with named Categories a
-`chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`),
+`sortable`, Items with `input`, `secondary` (the Description), `details` («Подробнее»), on a Todo list a `caption` (the Due date, the repeat mark and the Assignee), on a Shopping list with named Categories a
+`chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`, with `textTo`),
 Invites plain.
 
 `muted` (on `ListRow` and `EditableRow`) shows the title in `secondary-label`: something set
@@ -535,6 +602,25 @@ Asks before something that can't be undone: `title` (the question), optional `me
 iOS action sheet sliding up from the bottom, «Отменить» in its own block. Wide windows: a centred
 dialog, «Отменить» its last line. Built on Radix Dialog: focus moves in and back to the trigger,
 Esc or a tap outside cancels.
+
+### TileGrid and Tile
+
+A section of square tiles: big targets for the few things a screen is mostly about (the Children
+in «Дети» on Home, ticket #89). `TileGrid` takes a `header` (footnote, uppercase,
+`secondary-label`, as a `GroupedSection`'s; it names the section, a region, and its `list`) and
+`Tile`s as children. A `Tile` is a link (`to`): `title` (`title3`, semibold, up to two lines),
+optional `subtitle` under it (`subhead`, one line), both at the bottom left, and `color`, a CSS
+colour that fills it (a Child color's `hex`), with the text in `on-child-color`; without `color`
+the tile is `fill` with `label` text (a colour code this build doesn't know). Rounded corners
+(16px), a `swatch-edge` hairline, no chevron. The tiles sit on the page `background`, not on a
+cell.
+
+- Narrow windows (< 640px): two per row, each half the row wide minus the 12px gap, so about
+  173px on an iPhone; an odd last one at the left.
+- Wide windows: the tiles keep that size (172px) and as many as fit go in a row (three in the
+  640px column), from the left.
+- Touch: the whole tile is the target, dimmed while pressed. Fine pointer: dimmed on hover.
+- Keyboard: Tab reaches each tile in order (accent outline, offset 2px), Enter opens it.
 
 ### Toast
 

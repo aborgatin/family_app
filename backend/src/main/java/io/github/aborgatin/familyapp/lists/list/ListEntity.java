@@ -14,6 +14,7 @@ import java.util.UUID;
 import org.hibernate.annotations.Generated;
 import org.hibernate.generator.EventType;
 import org.springframework.http.HttpStatus;
+import org.springframework.lang.Nullable;
 
 /**
  * A List (GLOSSARY): a Shopping list, Todo list or Wish list, Private or Shared. Named {@code
@@ -48,8 +49,24 @@ class ListEntity implements SyncedRecord {
   @Column(nullable = false, updatable = false)
   private UUID ownerId;
 
+  /** The Child a Child list is about, for good; none for every other List. */
+  @Column(updatable = false)
+  @Nullable
+  private UUID childId;
+
   @Column(nullable = false, updatable = false)
   private Instant createdAt;
+
+  /**
+   * Hide done (ticket #93): a Todo list's Done items marked Done up to this moment are hidden from
+   * «Выполнено». Set only by the server's clock, when a Member presses «Скрыть»; none until then.
+   */
+  @Nullable private Instant doneHiddenAt;
+
+  /**
+   * The id of the press of «Скрыть» that set {@code doneHiddenAt}: a repeat of it changes nothing.
+   */
+  @Nullable private UUID doneHiddenPress;
 
   @Generated(event = {EventType.INSERT, EventType.UPDATE})
   @Column(insertable = false, updatable = false)
@@ -64,9 +81,11 @@ class ListEntity implements SyncedRecord {
 
   protected ListEntity() {}
 
-  ListEntity(UUID id, UUID ownerId, Instant createdAt, ListDetails details) {
+  ListEntity(
+      UUID id, UUID ownerId, @Nullable UUID childId, Instant createdAt, ListDetails details) {
     this.id = id;
     this.ownerId = ownerId;
+    this.childId = childId;
     this.createdAt = createdAt;
     this.kind = details.kind();
     replace(details);
@@ -77,6 +96,18 @@ class ListEntity implements SyncedRecord {
     this.name = details.name();
     this.visibility = details.visibility();
     this.unnamedCategoryPosition = details.unnamedCategoryPosition();
+  }
+
+  /**
+   * Hides the Done items marked Done up to {@code now} (the server's clock), for this {@code press}
+   * of «Скрыть»; the press that set the moment, sent again, leaves it as it is (S3).
+   */
+  void hideDone(UUID press, Instant now) {
+    if (press.equals(doneHiddenPress)) {
+      return;
+    }
+    this.doneHiddenPress = press;
+    this.doneHiddenAt = now;
   }
 
   /** Soft delete (S2): the row stays and its Version advances. */
@@ -123,8 +154,18 @@ class ListEntity implements SyncedRecord {
     return ownerId;
   }
 
+  @Nullable
+  UUID childId() {
+    return childId;
+  }
+
   Instant createdAt() {
     return createdAt;
+  }
+
+  @Nullable
+  Instant doneHiddenAt() {
+    return doneHiddenAt;
   }
 
   @Override

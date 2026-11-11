@@ -140,7 +140,9 @@ export function RowInside({
   return (
     <>
       {leading !== undefined && (
-        <span className="flex w-8 shrink-0 justify-center pointer-fine:w-7">{leading}</span>
+        <span data-row-leading className="flex w-8 shrink-0 justify-center pointer-fine:w-7">
+          {leading}
+        </span>
       )}
       <span
         className={`min-w-0 flex-1 py-2.5 pointer-fine:py-1.5 ${muted ? 'text-secondary-label' : TONES[tone]}`}

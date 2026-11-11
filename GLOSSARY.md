@@ -97,6 +97,10 @@ _Avoid_: Catalog, product database, dictionary, suggestions
 
 ## Todos
 
+**Hide done** — «Скрыть»:
+Moving all Done items of a Todo list's «Выполнено» to «Выполненные ранее» at once, for both Members, so «Выполнено» stays short. Nothing is deleted; an item ticked Done again later is back in «Выполнено». Only a Todo list has it, as only a Shopping list has Clear.
+_Avoid_: Archive, clear (for todo items), collapse, dismiss
+
 **Todo list** — «TODO-список» (as a List kind: «TODO»):
 A List of kind todo. Its Items are still «Задача».
 _Avoid_: Task list, checklist, tasks, «Список дел»
@@ -106,8 +110,8 @@ The Member responsible for a todo item on a Shared list; never a Child. Optional
 _Avoid_: Executor, performer, owner
 
 **Due date** — «Срок»:
-The optional day a todo item should be done by, with an optional time of day; it triggers a Reminder.
-_Avoid_: Deadline, due time
+The optional day a todo item should be done by, with an optional time of day; it triggers a Reminder. The day and the time are as written, the same wherever a Member is: not a moment in a time zone. An open item is **overdue** once its Due date has passed: without a time from the next day, with a time once that time passes.
+_Avoid_: Deadline, due time (as a name for the whole Due date; the optional part is its time of day)
 
 **Repeat** — «Повтор»:
 An optional rule (daily, weekly, monthly or yearly) that makes a todo item recur; it needs a Due date. Marking the item Done keeps it as Done and adds an open copy carrying the Repeat, due at the next occurrence counted from the old Due date and lying in the future. A Done item put back to open has no Repeat.
@@ -134,6 +138,10 @@ _Avoid_: Profile card, child card, child info
 **Child field** — «Поле профиля»:
 A field the Family defines once in Settings (shoe size, allergies, teacher's phone, …) that every Child profile has; each Child has their own value for it.
 _Avoid_: Custom field, attribute, property, profile field
+
+**Child field value** — —:
+A Child's value for one Child field, shown and edited on their Child profile. Changing it keeps the earlier values, each with when it was saved; the Child profile shows the latest one. A value can be cleared.
+_Avoid_: Field value, answer, value history
 
 **Value type** — «Тип» («Текст» / «Дата»):
 What kind of value a Child field holds; chosen when the field is created and never changed. Fixed in code, not configurable.

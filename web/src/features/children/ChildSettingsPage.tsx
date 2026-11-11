@@ -15,7 +15,7 @@ import {
 } from '@/shared/ui';
 import { ChildRows } from './ChildRows';
 import type { Child, ChildDetails } from './childTypes';
-import { useChildren } from './useChildren';
+import { useChild } from './useChildren';
 
 /** Route of a Child's settings screen, opened from «Дети» in Settings. */
 export const CHILD_SETTINGS_PATH = '/settings/children/:id';
@@ -31,17 +31,16 @@ interface ChildSettingsPageProps {
 }
 
 /**
- * A Child's settings screen (`/settings/children/:id`; not the Child page of M3): Имя, Цвет and День рождения, each saved by itself
+ * A Child's settings screen (`/settings/children/:id`; not the Child page, `ChildPage`): Имя, Цвет and День рождения, each saved by itself
  * (auto-save), and «Удалить ребёнка», which asks first and then goes back to Settings. Data only
- * through `useChildren()`.
+ * through `useChild(id)`.
  */
 export function ChildSettingsPage({ settingsPath }: ChildSettingsPageProps) {
   const { t } = useTranslation();
   const { id } = useParams();
-  const { load, save, remove } = useChildren();
+  const { load, child, save, remove } = useChild(id);
   const back = { to: settingsPath, title: t('settings.title') };
 
-  const child = load.status === 'ready' ? load.value.find((c) => c.id === id) : undefined;
   if (child !== undefined) {
     return (
       <Page title={child.name} back={back}>
@@ -144,6 +143,7 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
           disabled={deleting}
           confirm={{
             title: t('children.confirmDelete', { name: child.name }),
+            message: t('children.deleteTakesAll'),
             action: t('ui.delete'),
           }}
           onConfirm={() => {

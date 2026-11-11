@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { useFamilyMembers, type FamilyMember } from '@/features/members';
 import {
   ActionSheet,
   AddRow,
@@ -16,7 +17,12 @@ import {
   useReportFailure,
   useRowFailures,
   type ReportFailure,
+  type RowCaptionPart,
+  type SectionMessage,
 } from '@/shared/ui';
+import { assigneeOf } from './assignees';
+import { dueDateText, isOverdue } from './dueDates';
+import { listDoneEarlierPath, listItemPath } from './listPaths';
 import { KIND_TEXTS, type Category, type Item, type List } from './listTypes';
 import {
   itemsByCategory,
@@ -40,7 +46,10 @@ interface ItemsSectionProps {
  * нет». A Shopping list with named Categories shows its open Items in one section per Category
  * instead (`ShoppingItems`). The Done ones follow in their own group, headed by the kind's
  * Done («Куплено» / «Выполнено» / «Исполнено»), ticked; ticking one off again puts it back among
- * the open ones; a Shopping list's are headed by «Очистить». All data access goes through
+ * the open ones; a Shopping list's are headed by «Очистить». A Todo list's «Выполнено» has only
+ * those done in the last 7 days and not hidden, is headed by «Скрыть» while it has any (which
+ * hides them all), and, while there are older or hidden ones, ends with the row «Выполненные
+ * ранее», which opens them (`DoneEarlierPage`). All data access goes through
  * `useItems()` and `useCategories()` (the local store + Outbox).
  */
 export function ItemsSection({ list }: ItemsSectionProps) {
@@ -49,12 +58,14 @@ export function ItemsSection({ list }: ItemsSectionProps) {
   const {
     items,
     doneItems,
+    earlierDoneItems,
     add: addItem,
     rename,
     describe,
     move,
     setDone,
     remove,
+    hideDone,
   } = useItems(list);
   // The open Item just added again by name: highlighted for a moment.
   const [highlighted, setHighlighted] = useState<string>();
@@ -94,9 +105,28 @@ export function ItemsSection({ list }: ItemsSectionProps) {
           }}
         />
       )}
-      {doneItems !== undefined && doneItems.length > 0 && (
-        <DoneItems list={list} items={doneItems} setDone={setDone} remove={remove} />
-      )}
+      {doneItems !== undefined &&
+        earlierDoneItems !== undefined &&
+        doneItems.length + earlierDoneItems.length > 0 && (
+          <DoneItems
+            list={list}
+            header={t(texts.done)}
+            items={doneItems}
+            setDone={setDone}
+            remove={remove}
+            {...(list.kind === 'TODO' &&
+              doneItems.length > 0 && {
+                onHide: () => {
+                  void hideDone();
+                },
+              })}
+            after={
+              earlierDoneItems.length > 0 && (
+                <ListRow title={t('lists.doneEarlier')} to={listDoneEarlierPath(list.id)} />
+              )
+            }
+          />
+        )}
     </>
   );
 }
@@ -263,6 +293,7 @@ function OpenItems({
   const texts = KIND_TEXTS[list.kind];
   const editable = useEditableList();
   const failures = useRowFailures();
+  const members = useFamilyMembers();
 
   const shown = items ?? [];
 
@@ -300,6 +331,7 @@ function OpenItems({
           key={item.id}
           item={item}
           list={list}
+          members={members}
           rename={rename}
           describe={describe}
           categories={categories}
@@ -319,28 +351,49 @@ function OpenItems({
 
 interface DoneItemsProps {
   list: List;
+  /** The section's title. */
+  header: string;
   items: Item[];
+  /** A row under the Items, on the same cell (a Todo list's «Выполненные ранее»). */
+  after?: ReactNode;
+  /** Footer lines under the section's own. */
+  messages?: readonly (SectionMessage | false)[];
   setDone: (item: Item, done: boolean) => Promise<void>;
   remove: (item: Item) => Promise<void>;
+  /** «Скрыть» in the header, pressed: a Todo list's «Выполнено» while it has Items. */
+  onHide?: () => void;
 }
 
 /**
- * The Done Items, most recently done first, ticked; deleted like the open ones. A Shopping list's
+ * A section of Done Items, most recently done first, ticked; deleted like the open ones: the List
+ * screen's Done section and a Todo list's «Выполненные ранее» screen. A Shopping list's
  * are headed by «Очистить», which asks, then deletes every one shown here (one Item delete each;
- * one ticked off elsewhere and not pulled yet stays).
+ * one ticked off elsewhere and not pulled yet stays). With `onHide` the header has «Скрыть»
+ * instead, which acts at once, with no question.
  */
-function DoneItems({ list, items, setDone, remove }: DoneItemsProps) {
+export function DoneItems({
+  list,
+  header,
+  items,
+  after,
+  messages = [],
+  setDone,
+  remove,
+  onHide,
+}: DoneItemsProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const texts = KIND_TEXTS[list.kind];
   const editable = useEditableList();
   const [clearing, setClearing] = useState(false);
+  const members = useFamilyMembers();
 
   return (
     <>
       <GroupedSection
-        header={t(texts.done)}
-        edit={editable.edit}
+        header={header}
+        {...(items.length > 0 && { edit: editable.edit })}
+        after={after}
         {...(list.kind === 'SHOPPING' && {
           action: {
             label: t('lists.clearBought'),
@@ -349,13 +402,18 @@ function DoneItems({ list, items, setDone, remove }: DoneItemsProps) {
             },
           },
         })}
-        messages={[lines.failure(editable.error)]}
+        {...(onHide !== undefined && {
+          action: { label: t('lists.hideDone'), onClick: onHide },
+        })}
+        messages={[lines.failure(editable.error), ...messages]}
       >
         {items.map((item) => (
           <EditableRow
             key={item.id}
             title={item.text}
+            textTo={listItemPath(list.id, item.id)}
             muted
+            caption={itemCaption(list, item, members, t)}
             leading={
               <DoneToggle
                 label={t(texts.doneToggle, { text: item.text })}
@@ -394,6 +452,8 @@ function DoneItems({ list, items, setDone, remove }: DoneItemsProps) {
 interface ItemRowProps {
   item: Item;
   list: List;
+  /** The Family's Members, for the Assignee's name on a todo item's row line. */
+  members: ReadonlyMap<string, FamilyMember> | undefined;
   rename: (item: Item, text: string) => Promise<string>;
   describe: (item: Item, description: string) => Promise<string>;
   /** The List's named Categories, if any: the Category chip. */
@@ -411,6 +471,7 @@ interface ItemRowProps {
 function ItemRow({
   item,
   list,
+  members,
   rename,
   describe,
   categories,
@@ -456,10 +517,43 @@ function ItemRow({
       }}
       {...(categories !== undefined &&
         categories.length > 0 && { chip: categoryChip(list, categories, item, move, t) })}
+      details={{ label: t('lists.itemDetails'), to: listItemPath(list.id, item.id) }}
+      caption={itemCaption(list, item, members, t)}
       confirm={{ title: t('lists.confirmDeleteItem', { text: item.text }) }}
       onDelete={onDelete}
     />
   );
+}
+
+/**
+ * The small line under a todo item's name and Description: its Due date, the repeat mark ↻ when an
+ * open Item has a Repeat, then on a Shared list its Assignee's name («15 нояб., 15:00 ↻ · Даша»), or the name
+ * alone without a Due date. An overdue Due date is red on an open Item. By the device's clock, read
+ * when the row renders.
+ */
+function itemCaption(
+  list: List,
+  item: Item,
+  members: ReadonlyMap<string, FamilyMember> | undefined,
+  t: TFunction,
+): RowCaptionPart[] {
+  if (list.kind !== 'TODO') return [];
+  const now = new Date();
+  const due = dueDateText(t, item, now);
+  const assignee = assigneeOf(list, item, members)?.displayName;
+  return [
+    // Overdue is red on an open Item only: a Done one is no longer late.
+    due !== undefined && {
+      text: due,
+      ...(!item.done && isOverdue(item, now) && { tone: 'destructive' as const }),
+    },
+    // A Done Item's Repeat has gone to its next occurrence (ADR-0009): one ticked here and not
+    // pulled back yet still holds it, and the row leaves the mark out at once.
+    due !== undefined && !item.done && item.repeat != null && { text: t('lists.repeat.mark') },
+    assignee !== undefined && {
+      text: due === undefined ? assignee : t('lists.assignee.afterDueDate', { name: assignee }),
+    },
+  ].filter((part) => part !== false);
 }
 
 /**

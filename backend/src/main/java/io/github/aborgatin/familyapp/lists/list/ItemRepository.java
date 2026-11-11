@@ -37,6 +37,16 @@ interface ItemRepository extends Repository<ItemEntity, UUID> {
   void bumpVersionsInList(@Param("listId") UUID listId);
 
   /**
+   * Removes the Assignee from every Item of the List, Done ones included, when the List is made
+   * Private (spec #81): nobody else sees it any more.
+   */
+  @Modifying(flushAutomatically = true, clearAutomatically = true)
+  @Query(
+      "UPDATE ItemEntity i SET i.assigneeId = NULL WHERE i.listId = :listId"
+          + " AND i.assigneeId IS NOT NULL")
+  void clearAssigneesInList(@Param("listId") UUID listId);
+
+  /**
    * Moves the Category's Items, Done ones included, to the Unnamed category when the Category is
    * deleted: each gets a new Version from the trigger, so devices pull them there.
    */

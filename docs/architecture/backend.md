@@ -43,7 +43,7 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 | Module    | Public API (root package)                                                                              | Internal                                                                                  |
 | --------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`, `Family`, `FirstMemberRegistered`          | `family.auth`, `family.member`, `family.child`, `family.childfield`                       |
+| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | none                                                                                                   | `lists.list`                                                                              |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
@@ -52,8 +52,9 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
 `sync → error`, `command → family`. (`lists` reaches Members through `Operation.memberId()`, and
-`family` only for the `FirstMemberRegistered` event; the spec also allows `Members` and
-`FamilyLock` when a ticket needs them.) The Version
+`family` for the `FirstMemberRegistered` and `ChildDeleted` events, for `Children` (Child
+lists, #90) and for `Members.byId` (an Item's Assignee must be a Member, #85); the spec also
+allows `FamilyLock` when a ticket needs it.) The Version
 sequence and trigger are database objects from `V1`; `sync` only reads `version_seq` for the push
 answer (see [`sync.md`](sync.md)).
 
@@ -71,7 +72,7 @@ purpose, because none of them belongs to the Family domain and each is shared or
 
 ### `family`
 
-Owns Family, Member, Invite, Password reset, Child and Child field, plus authentication, because
+Owns Family, Member, Invite, Password reset, Child, Child field and Child field value, plus authentication, because
 Members are the principals. Sub-packages:
 
 - `family.auth`: everything web and security: `SecurityConfig`, `SessionLogin`,
@@ -81,10 +82,28 @@ Members are the principals. Sub-packages:
   `MembersController` (`/api/members`), `PasswordResetController` (`/api/password-resets`).
 - `family.member`: `Member`, `Invite`, `PasswordReset` entities and repositories; `BootstrapService`,
   `LoginService`, `MemberService`, `InviteService`; `RegistrationRequest` (registration body and the
-  shared static checks `checkPassword`, `checkDisplayName`, `checkGrammaticalGender`);
+  shared static checks `checkPassword`, `checkDisplayName`);
   `OneTimeTokens`; `PasswordEncoderConfig`; `MemberSyncTable` (the `member` table of the pull).
 - `family.child`: `Child`, `ChildService` (the `child` `SyncableTable`), `ChildRequest`,
   `ChildColorPalette`. No REST endpoint: Children are written by the push and read by the pull.
+  Deleting a Child publishes `ChildDeleted` (below).
+- Child field values (#91, ADR-0007) are in `family.childfield` too: `ChildFieldValue` (`child_id`,
+  `child_field_id`, `value`, `recorded_at`; no setters, an entry never changes),
+  `ChildFieldValueRepository` (`markDeletedOfChild`, `markDeletedOfChildField`: bulk JPQL updates
+  that flush and clear the persistence context), `ChildFieldValueRequest` (`validate()`: the two
+  ids and the value required, the value trimmed → `Valid`, whose `valueOf(valueType)` checks it by
+  the Value type) and `ChildFieldValueService`, the `child_field_value` `SyncableTable`:
+  - `apply`: `Outcome.deleteWins`; an upsert of a known entry is `APPLIED` and writes nothing; of
+    an unknown one: `validate()`, then the Child (`family.Children.known`) and the Child field must exist
+    (`child.not_found` / `child_field.not_found`), a deleted one of either → `IGNORED`, then the
+    value by the field's Value type, then the entry is inserted with `recordedAt` from the
+    `Clock`. A delete soft-deletes the entry.
+  - Cascades: `onChildDeleted` listens for `ChildDeleted` (a synchronous `@EventListener`, so
+    inside the delete operation's savepoint) and soft-deletes the Child's entries in one bulk
+    update (`markDeletedOfChild`); `ChildFieldService`'s delete calls
+    `childFieldDeleted(id)` for the field's.
+  - `changesSince`: `childId`, `childFieldId`, `value`, `recordedAt`; every Member sees every
+    entry. The latest entry is the client's to pick: the highest Version ([`sync.md`](sync.md)).
 - `family.childfield`: `ChildField`, `ChildFieldService` (the `child_field` `SyncableTable`),
   `ChildFieldRequest`, `ValueType` (`TEXT`, `DATE`). No REST endpoint: Child fields are written by
   the push and read by the pull.
@@ -117,11 +136,25 @@ Shared patterns inside `family`:
   in Version order (sync.md "Versions commit in order") and check-then-insert races run one after
   another. Taking it publishes `sync.SyncableWriteStarted`, which is what sends live updates after
   the commit (see `sync` below).
+- **`ChildDeleted(childId)`** (public): `ChildService` publishes it inside the push operation that
+  deletes a Child, right after the soft delete. Listeners are plain synchronous `@EventListener`s
+  that soft-delete what belongs to the Child in the same operation (its Child field values); one
+  that throws rejects the delete.
 - **`FirstMemberRegistered(memberId)`** (public): `BootstrapService` publishes it after saving the
   first Member, inside the bootstrap transaction (which holds `FamilyLock`); Invite acceptance
   never does. Listeners are plain synchronous `@EventListener`s, so what they write commits or
   rolls back with the Member: `lists.list.ShoppingListDefaults` creates the Default Shopping lists
   (see `lists` below and "Defaults" under Flyway).
+- **`Children`** (public): `known(id)` (a Child with this id was ever created, deleted or not)
+  and `present(id)` (created and not deleted), for another module's rows that are about a Child.
+  `lists` checks a new Child list's `childId` with it. It reads `child` with `JdbcTemplate`, like
+  `Family`, so the `family.child` types stay internal.
+- **`ChildDeleted(childId)`** (public): `ChildService` publishes it when a delete operation
+  soft-deletes a Child, inside that push operation (its savepoint, under `FamilyLock`). Listeners
+  are plain synchronous `@EventListener`s that soft-delete what their module keeps about the
+  Child, each named `onChildDeleted`: `family.childfield.ChildFieldValueService` deletes the
+  Child field values, `lists.list.ListService` the Child lists (see `lists` below). A
+  listener that throws rejects the delete operation.
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.
 - **Validation** collects every bad field in a `FieldErrors` and throws once. Body records read
@@ -129,6 +162,8 @@ Shared patterns inside `family`:
   parse error. Each body record validates itself: `RegistrationRequest.validate()`,
   `ChildFieldRequest.validate()` and `ChildRequest.validate(palette)` (a bean the check needs is
   passed in) return the normalized values or throw. Services call it before taking `FamilyLock`.
+  Shared values are read one way, by `FieldErrors` (see Errors): an enum, a UUID, a
+  `YYYY-MM-DD` day.
 
 ### `sync`
 
@@ -150,8 +185,8 @@ The push and the pull ([`sync.md`](sync.md) has the semantics). Public API:
     rows, a tombstone for a deleted record or one `visible` refuses, else the fields in the order
     put.
 - `Operation(memberId, id, type, fields)`: `type` `UPSERT` / `DELETE`; `has(field)`,
-  `text(field)` and `number(field)` (a value of another JSON type is `validation.failed` /
-  `value.invalid`) read the raw JSON fields.
+  `text(field)`, `number(field)`, `bool(field)` and `uuid(field)` (a value of another JSON type,
+  or text that isn't a UUID, is `validation.failed` / `value.invalid`) read the raw JSON fields.
 - `SyncLock`: the lock the push takes; `family.FamilyLock` implements it, so `sync` doesn't depend
   on `family`.
 - `SyncableWriteStarted`: the event the lock publishes inside every transaction that writes a
@@ -199,12 +234,36 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   Visibility change also gives the List's Items, Categories and Item history a new Version
   (`bumpVersionsInList` on `ItemRepository`, `CategoryRepository` and `ItemHistoryRepository`: a
   no-op UPDATE the trigger stamps), so the pull sends them again with or without their fields. A
+  change to `PRIVATE` first removes the Assignee from every Item of the List, Done ones included
+  (#85; `ItemRepository.clearAssigneesInList`), in the same operation; a change back to `SHARED`
+  restores nothing. A
   delete soft-deletes the List, its Items, its Categories and its Item history (`markDeletedInList`
   on the three). All are bulk
   JPQL updates that flush and clear the persistence context, so later operations of the same push
   see them.
-- `changesSince`: `name`, `kind`, `visibility`, `unnamedCategoryPosition`, `ownerId`,
-  `createdAt`; a tombstone for a deleted List and for another Member's Private List
+- Child lists (#90; `list.child_id`, nullable, → `child`): a create may carry `childId`
+  (`Operation.uuid`; a non-UUID is `validation.failed`), stored for good
+  (`ListEntity.childId`, `updatable = false`). An upsert of a known List may only repeat the
+  stored value, `null` for an ordinary List (`list.child_immutable` otherwise, so a repeated push
+  stays applied, S3). With a Child, after the checks above: kind `SHOPPING` →
+  `list.child_not_shopping`; Visibility `PRIVATE`, on create or later →
+  `list.child_shared_only`; on create, a Child that never existed (`family.Children.known`) →
+  `list.child_not_found` (`params.childId`), one deleted meanwhile (`Children.present`) →
+  `IGNORED` (delete wins). Owner rules are those of any List. `onChildDeleted`
+  (`@EventListener` for `family.ChildDeleted`) soft-deletes the Child's Lists
+  (`ListRepository.findByChildIdAndDeletedFalse`) with their Items, Categories and Item history,
+  whoever owns them, the same way a List delete does (`deleteWithContent`), inside the push
+  operation that deletes the Child.
+- Hide done (#93; `list.done_hidden_at` and `list.done_hidden_press`, nullable, `V15`): an
+  upsert may carry `hideDone`, only ever a UUID, the id of one press of «Скрыть» (anything else,
+  `true` or `null` included, is `validation.failed`, `value.invalid`), and only on a Todo list
+  (`list.hide_done_not_todo`, `params.listId`). After the other checks, the server calls
+  `ListEntity.hideDone(press, clock.instant())`: its own time, as `ItemService` sets `doneAt`,
+  and the press's id; a `doneHiddenAt` the push carries is ignored. The press that set the
+  moment, pushed again, changes nothing, not even the Version (S3). Either Member may do it on a
+  Shared List. `done_hidden_press` is never pulled.
+- `changesSince`: `name`, `kind`, `visibility`, `unnamedCategoryPosition`, `ownerId`, `childId`
+  (`null` for an ordinary List), `createdAt`, `doneHiddenAt` (`null` until hidden); a tombstone for a deleted List and for another Member's Private List
   (`ListEntity.visibleTo(memberId)`).
 
 `ShoppingListDefaults` listens for `family.FirstMemberRegistered` and creates the Default Shopping
@@ -219,12 +278,12 @@ memberId)` (the List, deleted or not, or `list.not_found`), `rowsVisibleTo(membe
 listIdOfRow)` (the pull's `visible` predicate, loading the Lists once with `findAllById`).
 Items, Categories and Item history use it. `RequestFields` holds the field checks Lists,
 Categories and Items share: `name` (1–100 code points after trim), `position` (required, finite),
-`uuid(operation, field)` (absent or `null` is none, else `value.invalid` unless a UUID), and
-`listId(operation)` / `sameList(operation, listId)` for the create-only `listId` field.
+and `listId(operation)` / `sameList(operation, listId)` for the create-only `listId` field.
 `ItemService` looks an Item's List up once per operation and passes it on.
 
 Items are in the same package (an Item belongs to its List): `ItemEntity` (`list_id`, `text`,
-`category_id`, `description`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`), `ItemRepository`,
+`category_id`, `description`, `due_date`, `due_time`, `repeat`, `assignee_id`, `done`, `done_by_id`, `done_at`, `creator_id`, `created_at`),
+`DueDate` (a record of the day and the optional time of day, `NONE` for no Due date), `Repeat` (enum `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY`), `ItemRepository`,
 `ItemRequest` (text 1–1000 code points after trim, description ≤ 10000 or blank = none) → `ItemDetails`;
 `ItemService`, the `item` `SyncableTable`:
 
@@ -243,10 +302,52 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
 - Category (`categoryId`, when carried; `ItemEntity.moveTo`): `null` is the Unnamed category; a
   UUID must name a Category of the Item's own List, which must be `SHOPPING`, else
   `item.category_not_found` (`params.categoryId`); a deleted one is stored as `null`.
+- Due date (#84; `dueDate`, `dueTime`, when either is carried; `ItemService.dueDate` →
+  `ItemEntity.due(DueDate)`): columns `DATE` and `TIME`, mapped as `LocalDate` / `LocalTime`,
+  wall-clock values that never pass through a time zone. The carried fields are merged over the
+  stored `DueDate`; a `dueDate` of `null` drops the stored time. Then, in this order:
+  `item.list_not_todo` (`params.listId`) unless the List is `TODO`; `validation.failed` /
+  `value.invalid` for a day that isn't ISO `YYYY-MM-DD` (`FieldErrors.date`) or a time that isn't
+  strict `HH:mm` (`DueDate.parseTime`; the one `HH:mm` format, which the pull writes too);
+  `item.due_time_without_due_date` when a time is left without a day. An upsert carrying neither
+  field leaves the Due date alone on every kind of List.
+- Repeat (#86; `repeat`, when carried; `ItemService.repeat` → `ItemEntity.repeat`): column
+  `repeat` (`VARCHAR`, `@Enumerated(STRING)`), one of `Repeat` by its exact name or `null` for
+  none, checked against the Due date the same operation leaves. In this order:
+  `item.list_not_todo` (`params.listId`) unless the List is `TODO`, even for `null`;
+  `validation.failed` / `value.invalid` for any other value (`HOURLY`, `weekly`, `""`, a number);
+  `item.repeat_without_due_date` for a Repeat on an Item left without a Due date (none stored, or
+  `dueDate: null` in the same upsert). An upsert not carrying the field keeps the Repeat, unless
+  it leaves the Item without a Due date: then the Repeat goes too.
+- Next occurrence (#87, ADR-0009; `ItemService.save` → `ItemEntity.nextOccurrence`): when an
+  upsert turns Done true (a change from false to true, or a create carrying `done: true`) and
+  leaves a Repeat, the same operation clears the Done
+  Item's Repeat and saves a new open `ItemEntity` (id `UUID.randomUUID()`, the one Item id the
+  server makes) with the same List, text, Description, Assignee, Repeat, time of day and Creator,
+  created now. Its day is `Repeat.next(oldDay, today)`: one period on (`plusDays` / `plusWeeks` /
+  `plusMonths` / `plusYears`, which clamp to the month's last day), repeated from the clamped day
+  until after today. Today is `LocalDate.ofInstant(clock.instant(), ZoneId.systemDefault())`: the
+  JVM's default zone is the installation's, from the container's `TZ`
+  ([`deployment.md`](deployment.md)); no new setting. Done set to its current value is no turn, so
+  a second tick adds nothing. Tested by
+  `lists.ItemRepeatCopySyncTest`, with Due dates relative to today in the JVM's zone (the test
+  runs in the server's JVM; a test starting under a minute before midnight waits past it, so the
+  test and the server agree on today), so no fixed clock is needed: the month-end cases start from a past
+  31 January or 29 February, whose next occurrence is the first 28th after today.
+- Assignee (#85; `assigneeId`, when carried; `ItemService.assigneeId` → `ItemEntity.assignTo`):
+  column `assignee_id` (→ `member`), a Member's id or `null` for nobody. In this order:
+  `item.list_not_todo` (`params.listId`) unless the List is `TODO`, even for `null`;
+  `validation.failed` / `value.invalid` for a value that isn't a UUID; `null` is then accepted on
+  any Todo list (on a Private one it changes nothing, so the Owner's other device removing an
+  Assignee while the List is made Private is not rejected); `item.assignee_on_private_list`
+  (`params.listId`) for a Member on a `PRIVATE` List; `item.assignee_not_found`
+  (`params.assigneeId`) when `family.Members.byId` finds no Member (none, or a removed one). An
+  upsert not carrying the field leaves the Assignee alone. Making the List Private removes it
+  (`ListService`, above).
 - Item history: a create, a changed `text`, and Done → open each call `ItemHistoryService.used(list,
   text, now)` in the same operation (below). A delete never touches the history.
-- `changesSince`: `listId`, `text`, `categoryId`, `description`, `done`, `doneById`, `doneAt`,
-  `creatorId`, `createdAt`; a tombstone for a deleted Item and for one whose List the Member may
+- `changesSince`: `listId`, `text`, `categoryId`, `description`, `dueDate` (`YYYY-MM-DD`),
+  `dueTime` (`HH:MM`), `repeat`, `assigneeId`, `done`, `doneById`, `doneAt`, `creatorId`, `createdAt`; a tombstone for a deleted Item and for one whose List the Member may
   not see (`VisibleLists.rowsVisibleTo`).
 
 Categories are in the same package too: `CategoryEntity` (`list_id`, `name`, `position`),
@@ -347,7 +448,11 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 
 - Throw `new ApiException(HttpStatus, code[, params])` from anywhere.
 - For field validation, collect into `FieldErrors` (`add(field, code)`, then `throwIfAny()`), which
-  throws `400 validation.failed` with `params.errors = [{field, code}, …]`.
+  throws `400 validation.failed` with `params.errors = [{field, code}, …]`. It is also the one way
+  to read the values requests share, each adding its failure and returning `null`: an enum by its
+  exact name (`choice`: `null` is none, other text `value.invalid`; `requiredChoice`: missing or
+  blank is `required`), a UUID (`uuid` / `requiredUuid`, the same way), a `YYYY-MM-DD` day
+  (`date`), and anything else through a parser (`parsed(field, value, parse)`).
 - `error.internal.ApiExceptionHandler` (`@RestControllerAdvice`) is the single mapping for MVC:
   `ApiException` as is; unreadable JSON and a path value of the wrong type (e.g. a non-UUID id) →
   `400 request.invalid`; Spring's own `ErrorResponse` exceptions → `not_found`,
@@ -383,10 +488,17 @@ same `{code, params}`: `validation.failed`, `sync.table_unknown` (`params.table`
 `request.invalid` (no valid id or `op`), and per table `child_field.value_type_immutable` (an
 upsert changing an existing Child field's `valueType`) and for Lists `list.not_found`
 (`params.listId`; also for an Item or Category of such a List, or in an unknown one),
-`list.kind_immutable`, `list.wish_shared_only`, `list.owner_only`, for Categories
+`list.kind_immutable`, `list.wish_shared_only`, `list.owner_only`, for Child lists
+`list.child_not_shopping`, `list.child_shared_only`, `list.child_immutable` and
+`list.child_not_found` (`params.childId`), for Categories
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
-(`params.categoryId`). An operation on a deleted Child, Child field, List,
+(`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field (a Due date, a Repeat or an Assignee) on an Item of a Shopping
+or Wish list; its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.repeat_without_due_date` (a Repeat without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
+`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
+For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
+(`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a
+deleted Child or Child field is `ignored`.
 
 Rows marked "added" are not in spec #5's error catalogue. They cover failures Spring raises before
 or outside an endpoint's own checks (a body that isn't JSON, an unknown path, a wrong method, an
@@ -485,6 +597,11 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V7__item_description.sql`      | renames `item.note` to `description` (the glossary's Description)                                  |
 | `V8__category.sql`              | `category` (→ `list`), index on `list_id`; `list.unnamed_category_position`; `item.category_id`    |
 | `V9__item_history.sql`          | `item_history` (→ `list`), unique on (`list_id`, `normalized_name`)                                |
+| `V10__list_child.sql`           | `list.child_id` (→ `child`, nullable: a Child list), partial index on it                           |
+| `V11__child_field_value.sql`    | `child_field_value` (→ `child`, `child_field`), indexes on `child_id` and `child_field_id`         |
+| `V12__item_due_date.sql`        | `item.due_date` (`DATE`), `item.due_time` (`TIME`): a todo item's Due date, nullable, no backfill  |
+| `V13__item_assignee.sql`        | `item.assignee_id` (→ `member`): a todo item's Assignee, nullable, no backfill                     |
+| `V14__item_repeat.sql`          | `item.repeat` (`VARCHAR(16)`): a todo item's Repeat, nullable, no backfill                         |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -546,7 +663,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`), as `ChildrenSyncTest`, `lists.ListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest` and `lists.ItemHistorySyncTest` do.
+   `pull`, `change`, `fields`, `version`, `memberId`) and `ListOperations`, as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest`, `lists.ItemDueDateSyncTest`, `lists.ItemRepeatSyncTest`, `lists.ItemRepeatCopySyncTest` and `lists.ItemAssigneeSyncTest` do.
 
 ## Testing
 
@@ -565,12 +682,16 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `putJson`, `patchJson`, `delete`. Login-limit counters live for the whole cached context, so
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
-    (cascading to Invites, resets, Lists, Items, Categories and Item history) but keeps `child_field` Defaults; `removeChildFields(jdbc)`;
+    (both cascading: Invites, resets, Lists, Items, Categories, Item history and Child field values) but keeps `child_field` Defaults; `removeChildFields(jdbc)` (with their values);
     `addMember(jdbc, email, password, name, gender)`.
   - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),
-    `fields(device, table, id)` (as a first pull returns them), `version(result)`, and the two
-    devices most sync tests start from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.
+    `fields(device, table, id)` (as a first pull returns them), `version(result)`,
+    `memberId(device)` (the logged-in Member's id), and the two devices most sync tests start
+    from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.
+  - `ListOperations`: the Lists' operations most `lists.*SyncTest`s push, statically imported:
+    `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`.
+    A helper one test class needs stays in it; one a second class needs moves here.
 - Concurrency (`PullNeverSkipsASlowerWriteTest`, `MemberWritesTakeTheFamilyLockTest`): a raw JDBC
   connection holds a row lock, a request runs on another thread, and the test waits until it is
   blocked (`LockWaits.transactionsWaitingOnALock(jdbc)` reads `pg_stat_activity`,

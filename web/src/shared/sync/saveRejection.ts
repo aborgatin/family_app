@@ -17,12 +17,33 @@ const REJECTION_KEYS = {
   'list.owner_only': 'sync.rejected.listOwnerOnly',
   'list.kind_immutable': 'sync.rejected.listKindImmutable',
   'list.wish_shared_only': 'sync.rejected.listWishSharedOnly',
+  'list.child_not_shopping': 'sync.rejected.listChildNotShopping',
+  'list.child_shared_only': 'sync.rejected.listChildSharedOnly',
+  'list.child_immutable': 'sync.rejected.listChildImmutable',
+  'list.child_not_found': 'sync.rejected.listChildNotFound',
+  // «Скрыть» on a Shopping or Wish list: never offered, but its own reason (ticket #93).
+  'list.hide_done_not_todo': 'sync.rejected.listHideDoneNotTodo',
   'child_field.value_type_immutable': 'sync.rejected.childFieldValueTypeImmutable',
   'sync.read_only': 'sync.rejected.readOnly',
+  // A todo field (a Due date, an Assignee, a Repeat) on a shopping or wish Item is never
+  // offered, so its message names no field; a time without a Due date happens
+  // when the other Member removes the Due date while this one sets the time.
+  'item.list_not_todo': 'sync.rejected.itemListNotTodo',
+  'item.due_time_without_due_date': 'sync.rejected.itemDueTimeWithoutDueDate',
+  // The same for a Repeat: the other Member removed the Due date while this one chose it.
+  'item.repeat_without_due_date': 'sync.rejected.itemRepeatWithoutDueDate',
+  // An Assignee chosen while the Owner was making the List Private on another device, and one
+  // who is no longer a Member.
+  'item.assignee_on_private_list': 'sync.rejected.itemAssigneeOnPrivateList',
+  'item.assignee_not_found': 'sync.rejected.itemAssigneeNotFound',
   // Not something the Member can cause from the app (another List's Category, a Category on a Todo
   // list): plain «Не удалось сохранить».
   'category.list_not_shopping': 'sync.saveRejected',
   'item.category_not_found': 'sync.saveRejected',
+  // A Child field value for a Child or a Child field the server never had: the Outbox sends them
+  // first, so the app never causes it.
+  'child.not_found': 'sync.saveRejected',
+  'child_field.not_found': 'sync.saveRejected',
 } as const satisfies Readonly<Record<string, ErrorMessage['key']>>;
 
 export function rejectionMessage(code: string): ErrorMessage {

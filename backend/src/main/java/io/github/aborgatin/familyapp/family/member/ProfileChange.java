@@ -30,8 +30,10 @@ public record ProfileChange(
     }
     if (body.containsKey(GRAMMATICAL_GENDER) && isText(GRAMMATICAL_GENDER, body, errors)) {
       gender =
-          RegistrationRequest.checkGrammaticalGender(
-              GRAMMATICAL_GENDER, (String) body.get(GRAMMATICAL_GENDER), errors);
+          errors.requiredChoice(
+              GRAMMATICAL_GENDER,
+              (String) body.get(GRAMMATICAL_GENDER),
+              GrammaticalGender.values());
     }
     errors.throwIfAny();
     return new ProfileChange(displayName, gender);

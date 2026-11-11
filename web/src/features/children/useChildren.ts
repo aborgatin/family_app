@@ -15,6 +15,17 @@ export function useChildren() {
   return useSyncedRows<Child>('child', inOrder);
 }
 
+/**
+ * `useChildren()` with the Child of this id picked out: `child` is `undefined` while `load` is
+ * `loading`, and when the Child is unknown or deleted.
+ */
+export function useChild(id: string | undefined) {
+  const children = useChildren();
+  const { load } = children;
+  const child = load.status === 'ready' ? load.value.find((c) => c.id === id) : undefined;
+  return { ...children, child };
+}
+
 /** Children are created with an id the client generates (S3). */
 export function newChildId(): string {
   return crypto.randomUUID();

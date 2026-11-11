@@ -1,5 +1,8 @@
 package io.github.aborgatin.familyapp.lists;
 
+import static io.github.aborgatin.familyapp.ListOperations.add;
+import static io.github.aborgatin.familyapp.ListOperations.done;
+import static io.github.aborgatin.familyapp.ListOperations.list;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.MAP;
 import static org.hamcrest.Matchers.contains;
@@ -42,7 +45,7 @@ class CategoriesSyncTest {
     anna = SyncRequests.bootstrapAnna(mvc);
     boris = SyncRequests.loginBoris(mvc, jdbc);
     groceries = UUID.randomUUID();
-    SyncRequests.push(anna, ItemsSyncTest.list(groceries, "Супермаркет", "SHARED"))
+    SyncRequests.push(anna, list(groceries, "Супермаркет", "SHOPPING", "SHARED"))
         .andExpect(jsonPath("$.results[*].status", contains("applied")));
   }
 
@@ -177,7 +180,7 @@ class CategoriesSyncTest {
     long since = SyncRequests.version(SyncRequests.pull(anna, 0));
     SyncRequests.push(
         boris,
-        ItemsSyncTest.list(secret, "Подарки Анне", "PRIVATE"),
+        list(secret, "Подарки Анне", "SHOPPING", "PRIVATE"),
         category(gifts, secret, "Украшения", 1));
 
     assertThat(SyncRequests.change(anna, 0, "category", gifts)).isNull();
@@ -223,7 +226,7 @@ class CategoriesSyncTest {
     UUID gifts = UUID.randomUUID();
     UUID toys = UUID.randomUUID();
     SyncRequests.push(
-        anna, ItemsSyncTest.list(gifts, "Подарки", "PRIVATE"), category(toys, gifts, "Игрушки", 1));
+        anna, list(gifts, "Подарки", "SHOPPING", "PRIVATE"), category(toys, gifts, "Игрушки", 1));
     long hidden = SyncRequests.version(SyncRequests.pull(boris, 0));
     assertThat(SyncRequests.change(boris, 0, "category", toys)).isNull();
 
@@ -249,10 +252,7 @@ class CategoriesSyncTest {
     UUID bread = UUID.randomUUID();
     SyncRequests.push(anna, category(food, groceries, "Еда", 1));
 
-    SyncRequests.push(
-            boris,
-            addIn(milk, groceries, "Молоко", food),
-            ItemsSyncTest.add(bread, groceries, "Хлеб"))
+    SyncRequests.push(boris, addIn(milk, groceries, "Молоко", food), add(bread, groceries, "Хлеб"))
         .andExpect(jsonPath("$.results[*].status", contains("applied", "applied")));
 
     assertThat(SyncRequests.fields(anna, "item", milk))
@@ -278,11 +278,11 @@ class CategoriesSyncTest {
     UUID milk = UUID.randomUUID();
     SyncRequests.push(
         anna,
-        ItemsSyncTest.list(pharmacy, "Аптека", "SHARED"),
+        list(pharmacy, "Аптека", "SHOPPING", "SHARED"),
         SyncRequests.upsert(
             "list", chores, "{\"name\":\"Дела\",\"kind\":\"TODO\",\"visibility\":\"SHARED\"}"),
         category(medicine, pharmacy, "Лекарства", 1),
-        ItemsSyncTest.add(milk, groceries, "Молоко"));
+        add(milk, groceries, "Молоко"));
 
     SyncRequests.push(
             boris,
@@ -340,7 +340,7 @@ class CategoriesSyncTest {
         category(chemistry, groceries, "Бытовая химия", 2),
         addIn(milk, groceries, "Молоко", food),
         addIn(bread, groceries, "Хлеб", food),
-        ItemsSyncTest.done(bread, true),
+        done(bread, true),
         addIn(soap, groceries, "Мыло", chemistry));
     long since = SyncRequests.version(SyncRequests.pull(boris, 0));
 

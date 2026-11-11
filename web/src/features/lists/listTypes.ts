@@ -24,6 +24,22 @@ export interface List {
   ownerId?: string;
   /** ISO-8601. Set by the server: absent until the pull after creating the List. */
   createdAt?: string;
+  /**
+   * The Child a Child list is about, set when it is created, for good; none (`null`, or absent on
+   * a row pulled before Child lists existed) for every other List.
+   */
+  childId?: string | null;
+  /**
+   * Hide done (ticket #93): a Todo list's Done items marked Done up to this moment (ISO-8601, the
+   * server's clock) are hidden from «Выполнено». None (`null`, or absent on a row pulled before it
+   * existed) until a Member presses «Скрыть».
+   */
+  doneHiddenAt?: string | null;
+  /**
+   * When «Скрыть» was pressed on this device (ms), kept only until the server's copy with its
+   * `doneHiddenAt` arrives; never sent (the server stamps the moment itself).
+   */
+  doneHiddenHereAt?: number;
 }
 
 /** What a Member writes: everything when creating, the changed fields afterwards. */
@@ -31,7 +47,12 @@ export interface ListDetails {
   name: string;
   kind: ListKind;
   visibility: Visibility;
+  /** Only when creating a Child list: its Child. */
+  childId?: string;
 }
+
+/** How often a todo item recurs (GLOSSARY: Repeat). */
+export type Repeat = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
 
 /** An Item as the local store keeps it (the fields the sync pull sends). */
 export interface Item {
@@ -42,6 +63,19 @@ export interface Item {
   categoryId?: string | null;
   /** The Description: details or a link, several lines; `null` when there is none. */
   description: string | null;
+  /**
+   * A todo item's Due date: the day (`YYYY-MM-DD`) and, only with a day, a time of day (`HH:MM`),
+   * both as written on the wall clock; none is `null` or absent.
+   */
+  dueDate?: string | null;
+  dueTime?: string | null;
+  /** A todo item's Repeat, only with a Due date; none is `null` or absent. */
+  repeat?: Repeat | null;
+  /**
+   * A todo item's Assignee: the Member responsible, on a Shared list only; nobody is `null` or
+   * absent.
+   */
+  assigneeId?: string | null;
   /** Done, and who marked it Done and when (set by the server when Done changes). */
   done: boolean;
   doneById?: string | null;
@@ -80,6 +114,9 @@ export interface ItemHistoryName {
 
 export const LIST_KINDS: readonly ListKind[] = ['SHOPPING', 'TODO', 'WISH'];
 
+/** The kinds a Child list may have: a Child has no Shopping lists. */
+export const CHILD_LIST_KINDS: readonly ListKind[] = ['TODO', 'WISH'];
+
 /** Whether a List of this kind has a Visibility to choose: a Wish list is always Shared. */
 export function hasVisibility(kind: ListKind): boolean {
   return kind !== 'WISH';
@@ -103,6 +140,15 @@ export const KIND_TEXTS: Record<
     noItems: ParseKeys;
     /** The header of the List screen's Items. */
     items: ParseKeys;
+    /** One Item of the kind: the Item screen's title. */
+    item: ParseKeys;
+    /** The Item screen without its Item. */
+    itemNotFound: ParseKeys;
+    /**
+     * Who marked an Item Done and when, with the kind's Done verb («Купила {{name}}, {{day}}»);
+     * takes the Member's Grammatical gender as `context`.
+     */
+    doneBy: 'lists.doneBy.shopping' | 'lists.doneBy.todo' | 'lists.doneBy.wish';
     /** An Item's text field, «Товар «{{text}}»». */
     itemText: ParseKeys;
     /** The last row, which adds an Item. */
@@ -118,6 +164,9 @@ export const KIND_TEXTS: Record<
     name: 'lists.kindName.shopping',
     noItems: 'lists.noItems.shopping',
     items: 'lists.items.shopping',
+    item: 'lists.item.shopping',
+    itemNotFound: 'lists.itemNotFound.shopping',
+    doneBy: 'lists.doneBy.shopping',
     itemText: 'lists.itemText.shopping',
     newItem: 'lists.newItem.shopping',
     done: 'lists.done.shopping',
@@ -128,6 +177,9 @@ export const KIND_TEXTS: Record<
     name: 'lists.kindName.todo',
     noItems: 'lists.noItems.todo',
     items: 'lists.items.todo',
+    item: 'lists.item.todo',
+    itemNotFound: 'lists.itemNotFound.todo',
+    doneBy: 'lists.doneBy.todo',
     itemText: 'lists.itemText.todo',
     newItem: 'lists.newItem.todo',
     done: 'lists.done.todo',
@@ -138,6 +190,9 @@ export const KIND_TEXTS: Record<
     name: 'lists.kindName.wish',
     noItems: 'lists.noItems.wish',
     items: 'lists.items.wish',
+    item: 'lists.item.wish',
+    itemNotFound: 'lists.itemNotFound.wish',
+    doneBy: 'lists.doneBy.wish',
     itemText: 'lists.itemText.wish',
     newItem: 'lists.newItem.wish',
     done: 'lists.done.wish',

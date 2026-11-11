@@ -19,9 +19,10 @@ table adds it here.
 | `child`       | `V3__child.sql`                 | client (`crypto.randomUUID()`)                 | M1    |
 | `child_field` | `V4__child_field.sql`           | client; Default rows by the migration          | M1    |
 | `list`        | `V5__list.sql`                  | client; Defaults by the server at bootstrap    | M2    |
-| `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7) | M2    |
+| `item`        | `V6__item.sql`                  | client (`newItemId()`, a time-ordered UUID v7); server for a Repeat's next occurrence (#87) | M2    |
 | `category`    | `V8__category.sql`              | client; Defaults by the server at bootstrap    | M3    |
 | `item_history` | `V9__item_history.sql`         | server, when an Item is written (push: delete) | M3    |
+| `child_field_value` | `V11__child_field_value.sql` | client (`crypto.randomUUID()`)              | M4    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -51,8 +52,8 @@ repositories extend Spring Data's bare `Repository` and declare no delete method
 deletes a Member yet; `member.deleted` exists, and login, session and `MemberService` lookups
 ignore deleted Members. Email uniqueness counts deleted Members too.
 
-**Client UUIDs** (S3). Children, Child fields, Lists, Items and Categories are created with the id the client
-chose; the server never generates one for them. Item ids are UUID version 7 (the first 48 bits are
+**Client UUIDs** (S3). Children, Child fields, Child field values, Lists, Items and Categories are created with the id the client
+chose; the server never generates one for them, except for the next occurrence of a repeating Item, which the server adds (a random UUID, ADR-0009, #87). Item ids are UUID version 7 (the first 48 bits are
 the time), so Items added on one device and not yet pulled back keep the order they were added in. Members get theirs from the server at registration.
 
 **Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move is one upsert carrying
@@ -95,12 +96,37 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `list.not_found` (any operation on another Member's Private List), and the Child name limits on
   `name` (`validation.failed`). Deleting a List is a `delete` operation; anything on it afterwards
   is `ignored` (delete wins). Deleting a List soft-deletes its Items, Categories and Item history
-  in the same operation.
-- **Items** (`item`, tickets #57, #58, #69, #70): an upsert carries `listId` (create only; a later upsert
+  in the same operation. Changing a List to `PRIVATE` removes the Assignee (`assigneeId` becomes
+  `null`) from all its Items, Done ones included, in the same operation, each with a new Version
+  (#85); making it `SHARED` again restores nothing.
+- **Child lists** (`list` with a `childId`, ticket #90): a List upsert may carry `childId` (a
+  Child's id) on create only; the pull sends `childId` for every List, `null` for an ordinary
+  one. The link never changes: a later upsert may repeat the stored value (`null` on an ordinary
+  List) and anything else is `list.child_immutable`. A Child list must be of kind `TODO` or
+  `WISH` (`list.child_not_shopping`) and Shared, on create and later
+  (`list.child_shared_only`). A `childId` naming no Child is `list.child_not_found`
+  (`params.childId`), a non-UUID `validation.failed`; creating a Child list for a Child deleted
+  meanwhile is `ignored` (delete wins). Owner rules are unchanged: the Member who pushed the
+  create is the Owner, only the Owner deletes, either Member renames. **Deleting a Child**
+  soft-deletes, in the same operation, its Child lists with their Items (as a List delete does),
+  whoever owns them and whichever Member deletes the Child: the pull sends their tombstones.
+- **Hide done** (`list`, ticket #93): «Скрыть» on a Todo list is a List upsert carrying
+  `hideDone`, a new id (UUID) for each press. The device's clock can't be trusted, so the moment never comes from it: the
+  server sets the List's `doneHiddenAt` to now by its own clock (as it sets an Item's `doneAt`),
+  and the pull sends `doneHiddenAt` for every List (`null` until hidden; a `doneHiddenAt` the
+  push carries is ignored). A Todo list's Done Items with a `doneAt` not after it are hidden
+  from «Выполнено» on every device. Operations apply in Outbox order, so an Item ticked
+  offline before the press gets a `doneAt` before the moment and is hidden with it, and one
+  ticked after it gets a later one. Rejected: `hideDone` other than a UUID is
+  `validation.failed` (`value.invalid`); on a Shopping or Wish list `list.hide_done_not_todo`
+  (`params.listId`; the app never offers it). Either Member may hide a Shared List; a later
+  press (a new id) moves the moment on (Last write wins). The press that set the moment, pushed
+  again, changes nothing, not even the Version (S3: the server keeps that press's id).
+- **Items** (`item`, tickets #57, #58, #69, #70, #84, #85, #86): an upsert carries `listId` (create only; a later upsert
   naming another List is `validation.failed`, `listId` `value.invalid`), `text` (1–1000 code
   points after trim), `description` (the Description: optional, ≤ 10000 code points, over is
   `too_long`; blank is stored as none, `null`), `categoryId` (optional; `null` is the Unnamed
-  category) and `done` (`true` / `false`; another
+  category), `dueDate` and `dueTime` (a todo item's Due date, below), `repeat` (its Repeat, below), `assigneeId` (its Assignee, below) and `done` (`true` / `false`; another
   type is `value.invalid`, `null` is `required`); the pull also sends the server-set `doneById`,
   `doneAt`, `creatorId` (the Member who pushed the create) and `createdAt`. When `done` turns
   true the server sets `doneById` to the pushing Member and `doneAt` to now; when it turns false
@@ -111,6 +137,54 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   the Item's own List, which must be a Shopping list, else `item.category_not_found`
   (`params.categoryId`); one deleted meanwhile is stored as `null` (the Item is kept, in the
   Unnamed category).
+  **Due date** (#84): `dueDate` is `YYYY-MM-DD` or `null`, `dueTime` is `HH:MM` (24 hours, no
+  seconds) or `null`; both are wall-clock values, stored and sent as written, never an instant or
+  a time zone, and the pull always sends both. Each is its own field for Last write wins (a new
+  day on one device and a new text, or a new time, on the other are all kept). Setting `dueDate`
+  to `null` clears `dueTime` too, unless the same upsert carries one. Rejected: either field, even
+  as `null`, on an Item of a Shopping or Wish list is `item.list_not_todo` (`params.listId`); a
+  value of another shape (`15.11.2026`, `2026-02-30`, `9:05`, `15:00:30`, `25:00`, `""`, a number)
+  is `validation.failed` with `value.invalid` for that field; a time that would be left without a
+  day (a `dueTime` on an Item with no Due date, or sent with `dueDate: null`) is
+  `item.due_time_without_due_date`. The app never sends the first two; the third happens when one
+  device sets a time while the other removes the Due date and its operation arrives first. A Done
+  Item's Due date is not locked by the server (the app shows it read-only).
+  **Repeat** (#86): `repeat` is `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY` or `null` (none), only on
+  an Item of a Todo list with a Due date; the pull always sends it. It is its own field for Last
+  write wins. Setting `dueDate` to `null` clears `repeat` too, and a Due date given back later
+  does not bring it back. Rejected: the field, even as `null`, on an Item of a Shopping or Wish
+  list is `item.list_not_todo` (`params.listId`); any other value (`HOURLY`, `weekly`, `""`, a
+  number) is `validation.failed` with `value.invalid` for `repeat`; a Repeat on an Item that would
+  be left without a Due date (none stored, or sent with `dueDate: null`) is
+  `item.repeat_without_due_date`. The app never sends the first two; the third happens when one
+  device chooses a Repeat while the other removes the Due date and its operation arrives first. A
+  Done Item's Repeat is not locked by the server (the app shows it read-only).
+  **Next occurrence** (#87, ADR-0009): when an upsert turns `done` true on an Item that the
+  operation leaves with a Repeat (a change from `false` to `true`, or a create carrying `done:
+  true`), the server, in the same operation, clears that
+  Item's `repeat` and inserts a new open Item with a server-generated id in the same List: the same
+  `text`, `description`, `assigneeId`, `repeat`, `dueTime` and `creatorId` (the original Creator,
+  not the Member who ticked), `categoryId` `null`, `createdAt` now, and `dueDate` the old one
+  advanced by the Repeat's period, at least once, until it is after today. Today is the server
+  clock's date in the installation's time zone (`TZ`, the JVM's default zone). A month or year
+  step to a day the month doesn't have lands on its last day, and later steps go on from there
+  (31 Jan → 28 Feb → 28 Mar; 29 Feb → 28 Feb). Both rows get new Versions, so both Members get
+  them through the pull and a live update. `done: true` on an Item already Done changes nothing,
+  so the other device's tick adds no second copy; `done: false` does nothing extra (the Item is
+  open without a Repeat; the copy stays). Devices never create the copy: marked Done offline, the Item is in «Выполнено» at
+  once and its next occurrence arrives with the next pull.
+  **Assignee** (#85): `assigneeId` is a Member's id or `null` (nobody), only on an Item of a
+  Shared Todo list; the pull always sends it. It is its own field for Last write wins (an
+  Assignee set on one device and a Due date on the other are both kept). Rejected: the field,
+  even as `null`, on an Item of a Shopping or Wish list is `item.list_not_todo`
+  (`params.listId`); a value that isn't a UUID is `validation.failed` with `value.invalid`; a
+  Member on an Item of a Private list is `item.assignee_on_private_list` (`params.listId`); an id
+  that names no Member, or a removed one, is `item.assignee_not_found` (`params.assigneeId`).
+  `null` on a Private Todo list is applied and changes nothing: its Items have no Assignee (see
+  Lists: making a List Private removes them), and the Owner's other device may send it meanwhile.
+  The app never offers the first three; the Private one happens when a device chooses an
+  Assignee while the Owner makes the List Private elsewhere and that arrives first. A Done Item's
+  Assignee is not locked by the server (the app shows it read-only).
 - **Item history** (`item_history`, tickets #74, #78): the server writes it; the push may only
   delete a row (a Member removing a mistyped name), and every upsert is `sync.read_only`. Rules
   of the delete: a row of another Member's Private List is `list.not_found`; deleting a deleted or
@@ -132,6 +206,23 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   them in the Unnamed category (until then the client shows them there anyway). A move sends only
   the moved Category's `position`, or only the List's `unnamedCategoryPosition`, so two devices
   moving different Categories are both kept.
+- **Child field values** (`child_field_value`, ticket #91; ADR-0007): a timeline. An upsert of an
+  unknown id appends an entry and carries `childId`, `childFieldId` and `value` (text, trimmed; all
+  three required, the ids UUIDs, else `validation.failed`); the pull also sends the server-set
+  `recordedAt` (now). The value is checked by the Child field's Value type: `TEXT` up to 1000 code
+  points (`too_long`), `DATE` written `YYYY-MM-DD` and a day that exists (`value.invalid`); empty
+  is a cleared value, allowed for both. An entry never changes: an upsert of a known id is
+  `applied` and leaves it as it is, with its Version (S3: a repeated push). An entry for a deleted
+  Child or Child field is `ignored` (delete wins), before its value is checked; for a Child or
+  Child field that never existed it is `child.not_found` (`params.childId`) /
+  `child_field.not_found` (`params.childFieldId`), which the app never causes: the Outbox sends
+  them first. The **latest** entry of a Child and a Child field is the one with the highest
+  Version, so the one the server received last, never a client time and not `recordedAt`: two
+  devices saving the same value keep both entries and agree on the latest. A `delete` soft-deletes
+  an entry (the app sends none yet).
+- **Deleting a Child** soft-deletes its Child field values in the same operation; **deleting a
+  Child field** soft-deletes its values for every Child. They get new Versions, so devices pull
+  their tombstones.
 - Auth, Invites and Member account changes stay online-only REST (S4 exception). Their effects
   reach other devices through the pull.
 
@@ -212,10 +303,14 @@ auth.required` without one) tells open apps when to pull:
 ## Client
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
-  table (`member`, `child`, `child_field`, `list`, `item`, `category`), the Outbox (`++seq`) and the stored
-  Version. The app asks for persistent storage at start. Dexie upgrades keep every table not
+  table (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`,
+  `item_history`), the Outbox (`++seq`) and the stored
+  Version. A row is the fields the pull sent plus `version`, the Version it was pulled with (absent
+  on a row created here and not pulled back yet): what tells the latest Child field value. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives
-  store upgrades.
+  store upgrades. A new field of an existing table (an Item's `dueDate` / `dueTime`, #84, `assigneeId`, #85, and `repeat`, #86) needs no
+  store version: rows are stored whole, and one pulled before the field existed simply has none
+  until the server sends it again.
 - **Writing a change** (`upsertRow`, `deleteRow`): the row changes locally and an operation is
   appended to the Outbox in the same transaction, then the engine is asked to sync. An upsert
   carries only the fields that differ from the local row (none: nothing is written); one written
@@ -223,7 +318,10 @@ auth.required` without one) tells open apps when to pull:
   also carry `local` fields: written to the local row and kept with the operation (so a pull
   while it is pending applies them again), never pushed; the server's copy replaces them. Used for
   when an Item was ticked off on this device, which orders it among the Done Items until the
-  server's `doneAt` arrives (no client timestamp is ever sent).
+  server's `doneAt` arrives (no client timestamp is ever sent), and when «Скрыть» was pressed
+  here (a List's `doneHiddenHereAt`, until its `doneHiddenAt` arrives; #93). Each press carries a
+  new `hideDone` id, so `upsertRow` sends every press. A new
+  List field (`doneHiddenAt`, #93) needs no store version either.
 - **Sync engine** (`engine.ts`): pushes the Outbox in order (batches of 100), drops what the server
   answered, then pulls. It runs at start, when the app returns to the foreground
   (`visibilitychange`), when the server becomes reachable again (any API answer, or the browser's
@@ -243,7 +341,9 @@ auth.required` without one) tells open apps when to pull:
   back with only the pending fields.
 - **Gone rows take their dependents**: a row removed locally because it is gone on the server (a
   tombstone, or `ignored` below) takes the rows that belong to it, declared with the tables in
-  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history. So a tombstoned List
+  `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history, a Child's
+  Child lists (which take their Items in turn; #90), and the Child field values of a Child and of
+  a Child field (#91). So a tombstoned List
   (deleted, or made Private by its Owner) takes its local Items, Categories and Item history, and the engine
   names no table. A Category is not a parent: its tombstone leaves its Items, which then show in
   the Unnamed category.
@@ -253,8 +353,10 @@ auth.required` without one) tells open apps when to pull:
 - **Rejected operation**: dropped from the Outbox; «Не удалось сохранить» shows once, app-wide,
   wherever the Member is by then (`useSaveRejection`, a `Toast` placed by the app), with the
   reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
-  `list.kind_immutable`, `list.wish_shared_only`, `child_field.value_type_immutable`,
-  `sync.read_only`; anything else plain, including `category.list_not_shopping` and
+  `list.kind_immutable`, `list.wish_shared_only`, the four `list.child_*` codes,
+  `list.hide_done_not_todo`,
+  `child_field.value_type_immutable`, `sync.read_only`, `item.list_not_todo`,
+  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping` and
   `item.category_not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.
@@ -276,6 +378,11 @@ auth.required` without one) tells open apps when to pull:
   added to) without starting the engine; once the server answers the session again, the engine
   starts for the same Member, or the app goes to `/login` (store and Outbox kept for the same
   Member) or `/setup` (`frontend.md`, "Offline cold start").
+- **Child field values** (#91): a save appends an entry with a new id, and only when the value
+  differs from the latest one (`useChildFieldValues`). The latest is the local entry with the
+  highest `version`; an entry not pulled back yet has none and is later than every pulled one,
+  the last saved first among them by a device-only `savedHereAt` (an `upsertRow` `local` field,
+  never sent). Device and server order are never compared.
 - Children, Child fields, Lists and Items are on the store, and live updates (`changed` → pull)
   run. The List screen has its open Items (add, edit in place, delete; #57), Done and its Done
   group (#58) and List settings (rename, Visibility, delete; #56); Home shows each List's open
@@ -284,4 +391,5 @@ auth.required` without one) tells open apps when to pull:
   reorders and deletes them (#72). Item history is on the store, and a Shopping list's add fields
   suggest names from it (#74); the × on a suggestion removes the name, offline too (#78). Adding a name a Shopping list already has never makes a duplicate:
   an open Item is highlighted (preferred to a Done one), else the most recently created Done one
-  is set open in that field's Category, offline too (#75).
+  is set open in that field's Category, offline too (#75). Child lists are created on the Child
+  page, offline too, and Home leaves them out (#90; store version 6 indexes `list` by `childId`).

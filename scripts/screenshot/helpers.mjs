@@ -17,6 +17,31 @@ export const noLists = `
   };
 `;
 
+/** Init script: every sync pull answers with only the Children of these names (none: no Children). */
+export const onlyChildren = (...names) => `
+  const f = window.fetch;
+  window.fetch = async (i, o) => {
+    const r = await f(i, o);
+    if (!String(i && i.url ? i.url : i).includes('/api/sync/pull')) return r;
+    const body = await r.json();
+    const names = ${JSON.stringify(names)};
+    body.changes = body.changes.filter((c) => c.table !== 'child' || (c.fields && names.includes(c.fields.name)));
+    return new Response(JSON.stringify(body), { status: r.status, headers: r.headers });
+  };
+`;
+
+/** Init script: every sync pull answers without Child fields (the Child profile's empty state). */
+export const noChildFields = `
+  const f = window.fetch;
+  window.fetch = async (i, o) => {
+    const r = await f(i, o);
+    if (!String(i && i.url ? i.url : i).includes('/api/sync/pull')) return r;
+    const body = await r.json();
+    body.changes = body.changes.filter((c) => c.table !== 'child_field' && c.table !== 'child_field_value');
+    return new Response(JSON.stringify(body), { status: r.status, headers: r.headers });
+  };
+`;
+
 /**
  * Init script: the server rejects every pushed operation with `code` (the rejection Toast). The
  * operations never reach the server (an empty push fetches the Version), so the server's value

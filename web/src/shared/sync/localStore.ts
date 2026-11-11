@@ -15,6 +15,7 @@ export const SYNCED_TABLES = [
   'member',
   'child',
   'child_field',
+  'child_field_value',
   'list',
   'item',
   'category',
@@ -26,7 +27,10 @@ export function isSyncedTable(name: string): name is SyncedTable {
   return (SYNCED_TABLES as readonly string[]).includes(name);
 }
 
-/** A row of a syncable table: its id and the fields the server sends for it. */
+/**
+ * A row of a syncable table: its id and the fields the server sends for it, plus the Version the
+ * pull sent it with (`version`; absent on a row this device created and no pull has brought yet).
+ */
 export interface Row {
   id: string;
   [field: string]: unknown;
@@ -61,10 +65,34 @@ export interface Operation {
  */
 export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTable; key: string }[] =
   [
+    { parent: 'child', table: 'list', key: 'childId' },
+    { parent: 'child', table: 'child_field_value', key: 'childId' },
+    { parent: 'child_field', table: 'child_field_value', key: 'childFieldId' },
     { parent: 'list', table: 'item', key: 'listId' },
     { parent: 'list', table: 'category', key: 'listId' },
     { parent: 'list', table: 'item_history', key: 'listId' },
   ];
+
+/**
+ * The store's schema, one entry per Dexie version (the first is version 1), each with the tables
+ * it adds or re-indexes. A new table or index is a new entry at the end; an entry never changes,
+ * so a device's older store upgrades on open. The store-upgrade tests build an older store from
+ * the first entries (`upgradeStoreFrom` in `@/test/olderStore`).
+ */
+export const STORE_SCHEMA: readonly Readonly<Record<string, string>>[] = [
+  { member: 'id', child: 'id', outbox: '++seq', meta: 'key' },
+  { child_field: 'id', list: 'id' },
+  // Items are indexed by their List: a tombstoned List takes its local Items with it.
+  { item: 'id, listId' },
+  // Categories of a Shopping list, indexed by their List like Items (a dependent table).
+  { category: 'id, listId' },
+  // A Shopping list's Item history (names for autocomplete), a dependent table of the List too.
+  { item_history: 'id, listId' },
+  // Child lists: a List may belong to a Child, so Lists are indexed by it (a dependent table).
+  { list: 'id, childId' },
+  // Child field values (a timeline of entries), dependent on their Child and their Child field.
+  { child_field_value: 'id, childId, childFieldId' },
+];
 
 interface Meta {
   key: string;
@@ -77,14 +105,7 @@ class LocalStore extends Dexie {
 
   constructor() {
     super('family-app');
-    this.version(1).stores({ member: 'id', child: 'id', outbox: '++seq', meta: 'key' });
-    this.version(2).stores({ child_field: 'id', list: 'id' });
-    // Items are indexed by their List: a tombstoned List takes its local Items with it.
-    this.version(3).stores({ item: 'id, listId' });
-    // Categories of a Shopping list, indexed by their List like Items (a dependent table).
-    this.version(4).stores({ category: 'id, listId' });
-    // A Shopping list's Item history (names for autocomplete), a dependent table of the List too.
-    this.version(5).stores({ item_history: 'id, listId' });
+    STORE_SCHEMA.forEach((stores, index) => this.version(index + 1).stores(stores));
   }
 
   rows(table: SyncedTable): Table<Row, string> {

@@ -1,18 +1,20 @@
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
   type FocusEvent,
   type KeyboardEvent,
-  type MouseEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link as RouterLink } from 'react-router';
 import { ActionSheet } from './ActionSheet';
+import { controlClasses } from './controlStyles';
 import { FIELD_FOCUS } from './fieldFocus';
 import { ROW_FRAME, useEditing, useSectionRow } from './GroupedSection';
 import { Icon } from './Icon';
+import { LinkedText } from './LinkedText';
 import { MenuChip, type MenuChipProps } from './MenuChip';
 import { LEADING_INSET, ROW_LAYOUT, RowInside, TAPPABLE, type RowContentProps } from './ListRow';
 import { RowContextMenu } from './RowContextMenu';
@@ -24,6 +26,12 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
   title: string;
   /** Opens another screen (chevron), as a `ListRow` with `to`; not in edit mode. */
   to?: string;
+  /**
+   * Makes only the title a link to another screen, with no chevron: for a row whose `leading` is a
+   * control of its own (a Done Item: the toggle unticks, the text opens the Item screen). Not in
+   * edit mode, and not with `input`.
+   */
+  textTo?: string;
   /**
    * The action sheet that asks before deleting: the question, and an optional explanation. Without
    * it (and `onDelete`) the row can't be deleted: no ⊖, swipe or right-click menu (e.g. the
@@ -46,7 +54,7 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
   /**
    * With `input`: a grey multi-line secondary line under the title (an Item's Description). While
    * the row is being edited (the focus is in it) it is a text field with `placeholder`; out of it a
-   * non-empty value is one line cut with «…», its links opening in a new tab, and tapping it starts
+   * non-empty value is up to two lines cut with «…», its links opening in a new tab, and tapping it starts
    * editing. Not in edit mode.
    */
   secondary?: RowSecondaryProps;
@@ -56,10 +64,31 @@ interface EditableRowProps extends Omit<RowContentProps, 'title'> {
    */
   chip?: Omit<MenuChipProps, 'onOpenChange'>;
   /**
+   * With `secondary`: a small text link at the end of the line under the secondary field while the
+   * row is being edited, opening the screen with everything about the row (an Item's «Подробнее»).
+   * What is typed in the row is saved first.
+   */
+  details?: { label: string; to: string };
+  /**
+   * A small grey line under the title and the secondary line, shown in every state of the row:
+   * facts about it in a few words (a todo item's Due date, «15 нояб., 15:00»). Its parts are
+   * joined by spaces; one with `tone: 'destructive'` is red (an overdue Due date,
+   * `data-tone="destructive"`). Empty: no line.
+   */
+  caption?: readonly RowCaptionPart[];
+  /**
    * Points the row out (e.g. an Item added again by name): scrolled into view and tinted with the
    * accent while set (`data-highlighted`), fading back when unset.
    */
   highlighted?: boolean;
+}
+
+/** One part of an `EditableRow`'s `caption`. */
+export interface RowCaptionPart {
+  /** Already translated. */
+  text: string;
+  /** Red: something that needs attention (overdue). */
+  tone?: 'destructive';
 }
 
 /** An `EditableRow`'s title as a text field (`useAutoSaveText()`'s `input`, plus a `label`). */
@@ -104,12 +133,15 @@ export interface RowSecondaryProps {
 export function EditableRow({
   title,
   to,
+  textTo,
   confirm,
   onDelete,
   sortable,
   input,
   secondary,
   chip,
+  details,
+  caption = [],
   highlighted = false,
   ...content
 }: EditableRowProps) {
@@ -132,32 +164,77 @@ export function EditableRow({
   const deletable = confirm !== undefined && onDelete !== undefined;
   const link = to !== undefined && !editing;
   const withSecondary = input !== undefined && secondary !== undefined && !editing;
+  const captionLine = caption.length > 0 && <Caption parts={caption} />;
 
   const inside =
-    input === undefined || editing ? (
-      <RowInside title={title} chevron={link} {...content} />
+    textTo !== undefined && input === undefined && !editing ? (
+      <RowInside
+        {...content}
+        title={
+          <RouterLink to={textTo} className={TEXT_LINK}>
+            {title}
+          </RouterLink>
+        }
+        below={captionLine}
+        field
+      />
+    ) : input === undefined || editing ? (
+      <RowInside title={title} chevron={link} below={captionLine} {...content} />
     ) : (
       <RowInside
         {...content}
         title={<RowInput {...input} />}
         below={
-          withSecondary &&
-          (active || choosing ? (
-            <>
-              <SecondaryInput {...secondary} takeFocus={tapped} />
-              {chip !== undefined && <MenuChip {...chip} onOpenChange={setChoosing} />}
-            </>
-          ) : (
-            secondary.value.trim() !== '' && (
-              <SecondaryLine
-                text={secondary.value}
-                onOpen={() => {
-                  setTapped(true);
-                  setActive(true);
-                }}
-              />
-            )
-          ))
+          <>
+            {withSecondary &&
+              (active || choosing ? (
+                <SecondaryInput {...secondary} takeFocus={tapped} />
+              ) : (
+                secondary.value.trim() !== '' && (
+                  <SecondaryLine
+                    text={secondary.value}
+                    onOpen={() => {
+                      setTapped(true);
+                      setActive(true);
+                    }}
+                  />
+                )
+              ))}
+            {captionLine}
+            {withSecondary && (active || choosing) && (
+              <>
+                {(chip !== undefined || details !== undefined) && (
+                  <span className="flex items-center gap-3">
+                    {chip !== undefined && (
+                      <span className="flex min-w-0">
+                        <MenuChip {...chip} onOpenChange={setChoosing} />
+                      </span>
+                    )}
+                    {details !== undefined && (
+                      <span className="mt-1.5 ml-auto flex shrink-0">
+                        <RouterLink
+                          to={details.to}
+                          // The fields keep the focus (Safari gives a clicked link none), so the row
+                          // is still being edited, and the link still there, when the click arrives.
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                          }}
+                          // Leaving the row this way fires no blur: save what was typed.
+                          onClick={() => {
+                            input.onCommit();
+                            secondary.onCommit();
+                          }}
+                          className={controlClasses('plain', 'small')}
+                        >
+                          {details.label}
+                        </RouterLink>
+                      </span>
+                    )}
+                  </span>
+                )}
+              </>
+            )}
+          </>
         }
         field
         busy={input.busy || content.busy === true}
@@ -168,6 +245,9 @@ export function EditableRow({
     onFocus: (event: FocusEvent<HTMLDivElement>) => {
       // A link in the line takes the focus on press: editing now would remove it before the click.
       if (event.target instanceof HTMLAnchorElement) return;
+      // The leading control (the Done circle) is a control of its own: opening the row on its press
+      // would grow the row and move the circle away before the release, so the click would miss.
+      if (event.target.closest('[data-row-leading]') !== null) return;
       setActive(true);
     },
     onBlur: (event: FocusEvent<HTMLDivElement>) => {
@@ -243,6 +323,15 @@ export function EditableRow({
   );
 }
 
+/**
+ * A title that is a link (`textTo`): it looks like the title, cut with «…», and its target is the
+ * whole height of the row beside the leading control.
+ */
+const TEXT_LINK =
+  '-my-2.5 block cursor-pointer truncate rounded-md py-2.5 text-inherit no-underline ' +
+  'pointer-fine:-my-1.5 pointer-fine:py-1.5 active:opacity-50 focus-visible:outline-2 ' +
+  'focus-visible:-outline-offset-2 focus-visible:outline-accent';
+
 /** A tint over the whole row (above its swipe layer), shown while `highlighted`. */
 const HIGHLIGHT =
   'after:pointer-events-none after:absolute after:inset-0 after:z-10 after:bg-accent/15 ' +
@@ -253,6 +342,25 @@ const HIGHLIGHT =
  * empty on a row that can't be deleted, so its title lines up with the others.
  */
 const DELETE_SLOT = 'shrink-0 pl-4 w-[calc(1rem+1.375rem)] pointer-coarse:min-w-11';
+
+/** The `caption` line: small and grey, its `destructive` parts red. */
+function Caption({ parts }: { parts: readonly RowCaptionPart[] }) {
+  return (
+    <span className="mt-0.5 block truncate text-footnote text-secondary-label">
+      {parts.map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && ' '}
+          <span
+            data-tone={part.tone}
+            className={part.tone === 'destructive' ? 'text-destructive' : undefined}
+          >
+            {part.text}
+          </span>
+        </Fragment>
+      ))}
+    </span>
+  );
+}
 
 /** The title of a row renamed in place: a text field that looks like the title. */
 function RowInput({ label, name, value, onChange, onCommit, onRevert }: RowInputProps) {
@@ -351,49 +459,16 @@ function SecondaryInput({
 }
 
 /**
- * The secondary line out of editing: one grey line cut with «…», its links opening in a new tab;
+ * The secondary line out of editing: up to two grey lines cut with «…», its links opening in a new tab;
  * a tap beside them starts editing.
  */
 function SecondaryLine({ text, onOpen }: { text: string; onOpen: () => void }) {
   return (
     <span
       onClick={onOpen}
-      className="mt-0.5 block cursor-text truncate text-subhead text-secondary-label"
+      className="mt-0.5 line-clamp-2 cursor-text wrap-anywhere text-subhead text-secondary-label"
     >
-      {linkParts(text).map((part, n) =>
-        part.link ? (
-          <a
-            key={n}
-            href={part.text}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event: MouseEvent) => {
-              event.stopPropagation();
-            }}
-            className="text-accent underline"
-          >
-            {part.text}
-          </a>
-        ) : (
-          part.text
-        ),
-      )}
+      <LinkedText text={text} />
     </span>
   );
-}
-
-/** An http(s) address, up to a space; punctuation at its end belongs to the sentence. */
-const LINK = /https?:\/\/\S+?(?=[.,;:!?)»"']*(?:\s|$))/g;
-
-/** The text cut into plain parts and links, in order. */
-function linkParts(text: string): { text: string; link: boolean }[] {
-  const parts: { text: string; link: boolean }[] = [];
-  let last = 0;
-  for (const match of text.matchAll(LINK)) {
-    if (match.index > last) parts.push({ text: text.slice(last, match.index), link: false });
-    parts.push({ text: match[0], link: true });
-    last = match.index + match[0].length;
-  }
-  if (last < text.length) parts.push({ text: text.slice(last), link: false });
-  return parts;
 }

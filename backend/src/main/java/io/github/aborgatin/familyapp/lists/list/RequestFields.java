@@ -7,7 +7,7 @@ import java.util.UUID;
 import org.springframework.lang.Nullable;
 
 /**
- * The field checks the Lists, Categories and Items share: a name, an ordering key, and the ids an
+ * The field checks the Lists, Categories and Items share: a name, an ordering key, and the List an
  * operation names. Each adds its field code to {@code validation.failed}.
  */
 final class RequestFields {
@@ -40,31 +40,12 @@ final class RequestFields {
     return value;
   }
 
-  /**
-   * The operation's {@code field} as a UUID, {@code null} when absent or {@code null}; anything
-   * else that isn't one is {@code validation.failed} ({@code value.invalid}).
-   */
-  @Nullable
-  static UUID uuid(Operation operation, String field) {
-    String value = operation.text(field);
-    if (value == null) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      new FieldErrors().add(field, FieldErrors.VALUE_INVALID).throwIfAny();
-      throw e;
-    }
-  }
-
   /** The operation's {@code listId}: required, a UUID ({@code validation.failed} otherwise). */
   static UUID listId(Operation operation) {
-    String value = operation.text("listId");
-    if (value == null || value.isBlank()) {
-      new FieldErrors().add("listId", FieldErrors.REQUIRED).throwIfAny();
-    }
-    return Objects.requireNonNull(uuid(operation, "listId"));
+    FieldErrors errors = new FieldErrors();
+    UUID listId = errors.requiredUuid("listId", operation.text("listId"));
+    errors.throwIfAny();
+    return Objects.requireNonNull(listId);
   }
 
   /** {@code validation.failed} when an upsert of a known row names another List than its own. */

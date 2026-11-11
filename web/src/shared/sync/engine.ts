@@ -260,7 +260,11 @@ async function pull(current: () => boolean) {
           // A tombstoned List (deleted, or made Private by its Owner) takes its Items with it.
           await removeLocally(change.table, [change.id]);
         } else {
-          await localStore.rows(change.table).put({ ...change.fields, id: change.id });
+          await localStore.rows(change.table).put({
+            ...change.fields,
+            id: change.id,
+            version: change.version,
+          });
         }
       }
       const pending: Operation[] = await localStore.outbox.orderBy('seq').toArray();
