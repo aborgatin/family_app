@@ -347,10 +347,9 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
   JVM's default zone is the installation's, from the container's `TZ`
   ([`deployment.md`](deployment.md)); no new setting. Done set to its current value is no turn, so
   a second tick adds nothing. Tested by
-  `lists.ItemRepeatCopySyncTest`, with Due dates relative to today in the JVM's zone (the test
-  runs in the server's JVM; a test starting under a minute before midnight waits past it, so the
-  test and the server agree on today), so no fixed clock is needed: the month-end cases start from a past
-  31 January or 29 February, whose next occurrence is the first 28th after today.
+  `lists.ItemRepeatCopySyncTest`, with today fixed by a `TestClock` (Testing) so the test and the
+  server agree on it at any hour: the month-end cases start from a past 31 January or 29 February,
+  whose next occurrence is the first 28th after today.
 - Assignee (#85; `assigneeId`, when carried; `ItemService.assigneeId` → `ItemEntity.assignTo`):
   column `assignee_id` (→ `member`), a Member's id or `null` for nobody. In this order:
   `item.list_not_todo` (`params.listId`) unless the List is `TODO`, even for `null`;
@@ -667,8 +666,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
      fields (`operation.has/text`) over the stored ones, validate everything (unknown id: every
      required field must be there), throw `FieldErrors`/`ApiException` to reject, then create or
      change and `saveAndFlush` → `APPLIED`. Server-set fields (Owner, Creator…) come from
-     `operation.memberId()`, never from `fields`; times from a `Clock` field
-     (`Clock.systemUTC()`; `ClockTest` fails on a bare `Instant.now()` and the like). The push
+     `operation.memberId()`, never from `fields`; times from the injected `Clock`
+     bean (a `Clock clock` constructor parameter; `ClockTest` fails on a bare `Instant.now()` or
+     `Clock.system…()`, Testing). The push
      already holds `FamilyLock`; the Family id is `Family.id()`.
 5. Pull: `changesSince(version, memberId)`: `SyncRow.changes(repository.findByVersionGreaterThan(version),
    visible, (row, fields) -> …)` putting what the client stores (no secrets; nullable values

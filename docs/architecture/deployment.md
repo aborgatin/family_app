@@ -4,6 +4,23 @@ How the app is built, shipped and run. One installation per Family (ADR-0004). T
 `Dockerfile`, `.github/workflows/ci.yml`, `deploy/` and `scripts/`; the header comments of the
 scripts are authoritative for their options.
 
+## Contents
+
+Read this index, then only the sections for your area (`scripts/check-doc-index.sh` keeps it in
+step with the headings).
+
+- [Image](#image): the multi-stage `Dockerfile`, what each stage builds
+- [CI/CD](#cicd): the CI jobs, which run on a pull request, `scripts/check.sh` locally, image tags
+- [Server layout](#server-layout): the VPS, the `deploy/` copy and `.env` on it
+- [Compose services](#compose-services): the services of `deploy/docker-compose.yml`, logs, and the local dev database (`docker-compose.dev.yml`, `scripts/dev.sh`)
+- [Caddy](#caddy): HTTPS, redirects, compression, headers in `deploy/Caddyfile`
+- [Environment variables](#environment-variables): every `deploy/.env` setting and what reads it
+- [Deploy and rollback](#deploy-and-rollback): pulling a new image, rolling back to a tag
+- [Password reset](#password-reset): the operator's one-time reset link
+- [Backups](#backups): `deploy/backup.sh`, the Storage Box, pruning, cron
+- [Restore](#restore): `deploy/restore.sh`, listing and restoring a dump
+- [Server set-up checklist](#server-set-up-checklist): first-time set-up of the server, in order
+
 ## Image
 
 `Dockerfile` (repo root) builds everything from source; `docker build .` needs no prior local build.

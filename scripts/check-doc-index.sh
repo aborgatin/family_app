@@ -5,7 +5,7 @@
 # the headings differ (missing, extra, out of order, wrong anchor, no summary). Headings inside
 # code fences don't count. Runs in CI (job `migrations`) and in scripts/check.sh, from anywhere:
 #
-#   scripts/check-doc-index.sh            # frontend.md, backend.md, sync.md, design.md
+#   scripts/check-doc-index.sh            # every docs/architecture/*.md and docs/design.md
 #   scripts/check-doc-index.sh <file>...  # just these files (the self-test uses this)
 #
 # Self-test: scripts/check-doc-index-test.sh
@@ -15,7 +15,7 @@ if [[ $# -gt 0 ]]; then
   files=("$@")
 else
   cd "$(cd "$(dirname "$0")/.." && pwd)"
-  files=(docs/architecture/frontend.md docs/architecture/backend.md docs/architecture/sync.md docs/design.md)
+  files=(docs/architecture/*.md docs/design.md)
 fi
 
 found=0
