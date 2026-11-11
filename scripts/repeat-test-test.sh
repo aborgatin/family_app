@@ -53,6 +53,7 @@ expect() {
 }
 
 expect 0 passing-prints-only-the-count 'passes.test.ts: 3/3 runs passed' 'RUN' passes.test.ts 3
+JAVA_HOME="$tmp/no-jdk" expect 0 needs-no-jdk 'passes.test.ts: 1/1 runs passed' '' passes.test.ts 1
 expect 0 default-is-ten-runs '10/10 runs passed' '' passes.test.ts
 expect 1 failing-prints-the-failure 'boom' '' fails.test.ts 2
 expect 1 failing-counts-no-passes '0/2 runs passed' '' fails.test.ts 2

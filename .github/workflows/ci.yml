@@ -130,8 +130,12 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
-      # Needs Node 22 (set up above) and a JDK (the runner's default), so it runs here rather than
-      # with the other guards in `migrations`.
+      # The wrapper's self-test checks it finds JDK 21 and Node 22, so it runs here, with both set
+      # up, rather than with the other guards in `migrations`.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
       - name: Toolchain wrapper self-test
         run: ../scripts/with-toolchain-test.sh
       - name: repeat-test.sh self-test

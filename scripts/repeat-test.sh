@@ -5,7 +5,8 @@
 #   scripts/repeat-test.sh web/src/features/lists/categories.test.tsx
 #   scripts/repeat-test.sh src/features/lists/categories.test.tsx 30     # from web/
 #
-# The file is found from the current directory or from web/. Node 22 is found as check.sh finds it.
+# The file is found from the current directory or from web/. Node 22 is found as check.sh finds it
+# (no JDK needed).
 # A flaky test is fixed test-first: this script red (some runs fail), then green (n/n).
 # REPEAT_TEST_DIR replaces web/ as the project to run in (the self-test uses it).
 # Self-test: scripts/repeat-test-test.sh
@@ -34,10 +35,17 @@ fi
 # vitest matches the path as written, so pass it relative to the project.
 file="${file#"$dir/"}"
 
+# Web only: Node 22, no JDK.
+source "$scripts/lib/toolchain.sh"
+use_node22 || {
+  echo "repeat-test.sh: Node 22+ not found on PATH or in /opt/homebrew/opt/node@22/bin (brew install node@22)." >&2
+  exit 1
+}
+
 cd "$dir"
 passed=0
 for ((i = 1; i <= runs; i++)); do
-  if out="$("$scripts/with-toolchain.sh" node_modules/.bin/vitest run "$file" 2>&1)"; then
+  if out="$(node_modules/.bin/vitest run "$file" 2>&1)"; then
     passed=$((passed + 1))
   else
     echo "=== run $i of $runs failed"

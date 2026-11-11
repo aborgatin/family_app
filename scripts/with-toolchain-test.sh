@@ -20,7 +20,7 @@ fail() {
 if out="$(cd "$tmp" && "$wrapper" sh -c 'pwd; java -version 2>&1; node -p process.versions.node' 2>&1)"; then
   [[ "$out" == *"$(cd "$tmp" && pwd -P)"* || "$out" == *"$tmp"* ]] && ok runs-in-callers-directory ||
     fail runs-in-callers-directory "pwd was not $tmp: $out"
-  [[ "$out" == *version* ]] && ok java-on-path || fail java-on-path "$out"
+  [[ "$out" == *'version "21'* ]] && ok java-21-on-path || fail java-21-on-path "$out"
   [[ "$(sed -n '$p' <<<"$out")" == 2[2-9].* || "$(sed -n '$p' <<<"$out")" == [3-9][0-9].* ]] &&
     ok node-22-on-path || fail node-22-on-path "$out"
 else
@@ -45,6 +45,20 @@ if [[ $status -ne 0 && "$out" == *"JDK 21"* && ! -e "$tmp/ran" ]]; then
   ok missing-jdk-fails-clearly
 else
   fail missing-jdk-fails-clearly "exit $status, output: $out"
+fi
+
+# A JAVA_HOME with another JDK is refused, naming the version it found.
+mkdir -p "$tmp/otherjdk/bin"
+printf '%s\n' '#!/bin/sh' "echo 'openjdk version \"17.0.2\" 2022-01-18' >&2" >"$tmp/otherjdk/bin/java"
+chmod +x "$tmp/otherjdk/bin/java"
+set +e
+out="$(JAVA_HOME="$tmp/otherjdk" "$wrapper" touch "$tmp/ran" 2>&1)"
+status=$?
+set -e
+if [[ $status -ne 0 && "$out" == *"JDK 21"* && "$out" == *"JDK 17"* && ! -e "$tmp/ran" ]]; then
+  ok jdk-17-is-refused
+else
+  fail jdk-17-is-refused "exit $status, output: $out"
 fi
 
 # No command is a usage error.

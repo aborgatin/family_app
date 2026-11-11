@@ -22,7 +22,12 @@ use_node22 || {
   exit 1
 }
 use_jdk21 || {
-  echo "with-toolchain.sh: JDK 21 not found (JAVA_HOME=${JAVA_HOME:-unset}): set JAVA_HOME or brew install openjdk@21." >&2
+  if [[ -n "${JAVA_HOME:-}" ]]; then
+    found="$(java_major "$JAVA_HOME/bin/java")"
+    echo "with-toolchain.sh: JDK 21 needed, but JAVA_HOME=$JAVA_HOME is ${found:+JDK }${found:-no JDK}: point JAVA_HOME at JDK 21 or unset it." >&2
+  else
+    echo "with-toolchain.sh: JDK 21 not found: set JAVA_HOME or brew install openjdk@21." >&2
+  fi
   exit 1
 }
 [[ -n "${JAVA_HOME:-}" ]] && PATH="$JAVA_HOME/bin:$PATH"
