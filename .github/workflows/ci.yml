@@ -126,6 +126,8 @@ jobs:
       # with the other guards in `migrations`.
       - name: Toolchain wrapper self-test
         run: ../scripts/with-toolchain-test.sh
+      - name: repeat-test.sh self-test
+        run: ../scripts/repeat-test-test.sh
       - name: Prettier
         run: npm run format:check
       - name: ESLint
@@ -134,6 +136,8 @@ jobs:
         run: npm run typecheck
       - name: Vitest
         run: npm test
+      - name: Vitest with the clock a year ahead
+        run: npm run test:next-year
       - name: Production build
         run: npm run build
 

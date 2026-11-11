@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import i18next from 'eslint-plugin-i18next';
 import reactHooks from 'eslint-plugin-react-hooks';
+import testingLibrary from 'eslint-plugin-testing-library';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
@@ -210,6 +211,27 @@ export default defineConfig([
           message: 'User-visible text must come from the ru i18n file (I2)',
         },
       ],
+    },
+  },
+
+  // Testing Library's async rules: an un-awaited async query or util, waitFor around a getBy (use
+  // findBy), side effects or several assertions inside waitFor. These make a test pass or fail by
+  // timing (the M4 retro, #94). Tested in src/test/lintRules.test.ts.
+  {
+    name: 'testing-library/async',
+    files: TEST_FILES,
+    plugins: { 'testing-library': testingLibrary },
+    rules: {
+      'testing-library/await-async-events': 'error',
+      'testing-library/await-async-queries': 'error',
+      'testing-library/await-async-utils': 'error',
+      'testing-library/no-await-sync-events': 'error',
+      'testing-library/no-await-sync-queries': 'error',
+      'testing-library/no-promise-in-fire-event': 'error',
+      'testing-library/no-wait-for-multiple-assertions': 'error',
+      'testing-library/no-wait-for-side-effects': 'error',
+      'testing-library/no-wait-for-snapshot': 'error',
+      'testing-library/prefer-find-by': 'error',
     },
   },
 

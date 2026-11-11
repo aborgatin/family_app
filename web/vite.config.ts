@@ -99,5 +99,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // One time zone on every laptop and in CI, ahead of UTC like the family's, so a test can't
+    // pass in one zone and fail in another (the M4 retro, #94).
+    env: { TZ: 'Europe/Moscow' },
   },
 });

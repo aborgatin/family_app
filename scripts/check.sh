@@ -71,6 +71,8 @@ if [[ ! -f node_modules/.package-lock.json || package-lock.json -nt node_modules
   step "web: npm ci"
   npm ci
 fi
+step "repeat-test.sh self-test"
+"$root/scripts/repeat-test-test.sh" | { grep -v '^ok ' || true; }
 for script in format:check lint typecheck test build; do
   step "web: $script"
   npm run "$script"

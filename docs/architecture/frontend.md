@@ -835,6 +835,15 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,
   `sessionHandler`.
+- Every test runs in one time zone, `Europe/Moscow` (`test.env.TZ` in `vite.config.ts`), on every
+  laptop and in CI. `npm run test:next-year` (`TEST_YEARS_AHEAD=1`, `src/test/yearsAhead.ts`)
+  runs the suite with the real clock a year ahead; CI runs it too, so a fixture that only works
+  before some real date fails a year early. `src/test/clock.test.ts` checks both.
+- Async Testing Library rules are lint errors in tests (`eslint-plugin-testing-library`: an
+  un-awaited `waitFor` or `findBy`, `waitFor` around a `getBy` instead of `findBy`, side effects
+  or several assertions inside `waitFor`): they make a test pass or fail by timing.
+- A test that fails only sometimes is fixed test-first: `scripts/repeat-test.sh <file> [n]` red
+  (some runs fail), fix, then n/n.
 - The device clock: `vi.useFakeTimers({ toFake: ['Date'], now })` in `beforeEach` and
   `vi.useRealTimers()` after (`children.test.tsx` for ages, `doneEarlier.test.tsx` for the Done
   window, whose Done times are built from local dates so the tests pass in any time zone,

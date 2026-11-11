@@ -45,6 +45,7 @@ diff disables, weakens or bypasses one of them (config change, suppression comme
 | `scripts/check-shell.sh` | tracked `*.sh` | a pipe into `grep -q` or `head` in a script with `set -o pipefail` (fails at random when the reader exits early) |
 | ArchUnit `ClockTest` | `/backend` | a bare `Instant.now()`, `LocalDate.now()`… instead of the class's `Clock` field |
 | ESLint `reuse/dates-from-shared-dates` | `/web/src` | a `YYYY-MM-DD` day parsed by hand (`split('-')`, a `\d{4}-` pattern) outside `@/shared/dates` |
+| eslint-plugin-testing-library (async rules) | `/web` tests | an un-awaited async query or util, `waitFor` around a `getBy`, side effects or several assertions in `waitFor` |
 | ESLint `reuse/store-versions-in-older-store` | `/web` tests | a test declaring the local store's versions instead of `upgradeStoreFrom` (`@/test/olderStore`) |
 | ESLint `@typescript-eslint/no-restricted-imports` (`data-access/components-use-hooks`) | `/web/src` `.tsx` | components importing `@/shared/sync` writers or internals, or Dexie (frontend.md "Data access") |
 

@@ -46,6 +46,45 @@ describe('reuse/dates-from-shared-dates', () => {
   });
 });
 
+describe('testing-library async rules', () => {
+  const lint = async (body: string) => {
+    const code = `import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { expect, it } from 'vitest';
+it('x', async () => {
+${body}
+});
+`;
+    const [result] = await eslint.lintText(code, { filePath: TEST_FILE });
+    return (result?.messages ?? [])
+      .map((m) => m.ruleId)
+      .filter((rule) => rule?.startsWith('testing-library/'));
+  };
+
+  it('rejects an un-awaited waitFor', async () => {
+    expect(await lint(`  void waitFor(() => { expect(1).toBe(1); });`)).toContain(
+      'testing-library/await-async-utils',
+    );
+  });
+
+  it('rejects waiting for a getBy query instead of findBy', async () => {
+    expect(await lint(`  await waitFor(() => screen.getByText('Молоко'));`)).toContain(
+      'testing-library/prefer-find-by',
+    );
+  });
+
+  it('rejects a side effect inside waitFor', async () => {
+    expect(
+      await lint(`  await waitFor(() => {
+    fireEvent.click(screen.getByRole('button'));
+  });`),
+    ).toContain('testing-library/no-wait-for-side-effects');
+  });
+
+  it('allows awaiting a findBy query', async () => {
+    expect(await lint(`  expect(await screen.findByText('Молоко')).toBeVisible();`)).toEqual([]);
+  });
+});
+
 describe('reuse/store-versions-in-older-store', () => {
   const RULE = 'reuse/store-versions-in-older-store';
   const declared = `import Dexie from 'dexie';
