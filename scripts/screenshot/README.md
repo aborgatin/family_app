@@ -74,7 +74,9 @@ or update its route there, so the next change shoots it too. A route has:
   `{hover: sel}`, `{waitFor: sel}`, `{scroll: sel}`, `{wait: ms}`, `{eval: 'js'}`, or in a `.mjs`
   file `async (page, ctx) => {}` with `ctx.hasTouch` etc. `helpers.mjs` has `editIn(section)`,
   `toSection(section, by)`, `rowActions(section)` (swipe on touch, right-click on mouse) and
-  `slowPut(prefix, ms)`.
+  `slowPut(prefix, ms)`. Interactions are real Playwright clicks, taps and keys:
+  `scripts/check-screens.sh` (in `check.sh` and CI) rejects `dispatchEvent`, `force: true` and a
+  click inside `evaluate` or an `eval` step.
 
 Selectors are Playwright's, by role and Russian name like the tests:
 `role=button[name="Добавить ребёнка"]`, `role=region[name="Дети"] >> role=listitem >> nth=0`.

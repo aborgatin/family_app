@@ -23,4 +23,7 @@ How to run things, so the worktree guard lets every call through:
   `scripts/screenshot.sh --out <dir> --only <route,route,…>`, at all four variants. Add a route to
   `scripts/screenshot/screens.mjs` for each new screen or state. Shoot only those routes: a full run
   (every route) takes tens of minutes, while a few routes take a minute or two. Look at the phone
-  width yourself before reporting.
+  width yourself before reporting. Steps use real Playwright clicks, taps and keys
+  (`scripts/check-screens.sh` rejects `dispatchEvent`, `force: true` and clicks inside
+  `evaluate`): a step that works only with a faked interaction is a bug in the screen, to fix in
+  the ticket or report.

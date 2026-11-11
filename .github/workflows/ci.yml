@@ -81,6 +81,10 @@ jobs:
         run: scripts/check-doc-index-test.sh
       - name: Doc indexes match their headings
         run: scripts/check-doc-index.sh
+      - name: Screenshot guard self-test
+        run: scripts/check-screens-test.sh
+      - name: Screenshot routes click for real
+        run: scripts/check-screens.sh
 
   backend:
     name: backend

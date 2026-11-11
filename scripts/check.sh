@@ -64,6 +64,10 @@ step "doc index guard"
 "$root/scripts/check-doc-index-test.sh" | { grep -v '^ok ' || true; }
 "$root/scripts/check-doc-index.sh"
 
+step "screenshot guard (real clicks)"
+"$root/scripts/check-screens-test.sh" | { grep -v '^ok ' || true; }
+"$root/scripts/check-screens.sh"
+
 step "toolchain wrapper self-test"
 "$root/scripts/with-toolchain-test.sh" | { grep -v '^ok ' || true; }
 
