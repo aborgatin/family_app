@@ -1,6 +1,6 @@
 # Family App
 
-Architecture and conventions live in `docs/architecture/` (`backend.md`, `frontend.md`, `sync.md`, `deployment.md`): read the file for the area you're changing first.
+Architecture and conventions live in `docs/architecture/` (`backend.md`, `frontend.md`, `sync.md`, `deployment.md`) and `docs/design.md`: before changing an area, read the file's `## Contents` index, then only the sections for your area (Read with `offset`/`limit`).
 
 Run all checks with `scripts/check.sh` (add `--image` to build and smoke-test the Docker image); query the local dev database with `scripts/db.sh "<sql>"`; screenshot the web app at phone and desktop width, light and dark, with `scripts/screenshot.sh --out <dir>`.
 

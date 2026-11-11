@@ -5,6 +5,26 @@ What exists in `/web` after Spec #1 (M0 + M1), the M1.5 UI foundation (spec #35)
 [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md) (M3, I2, I3, S4, T1, U1). Look, tokens and
 component rules: [`design.md`](../design.md). Backend contract: [`backend.md`](backend.md).
 
+## Contents
+
+Read this index, then only the sections for your area (`scripts/check-doc-index.sh` keeps it in
+step with the headings).
+
+- [Stack](#stack): libraries and versions, npm scripts, running a script or test with the toolchain, local development
+- [Folders and import rules](#folders-and-import-rules): the `src/` tree, feature folders, layer direction and the lint that enforces it (M3)
+- [Routing and the auth guard](#routing-and-the-auth-guard): every route and screen, `AuthGuard`, session states, logout and pending logout
+- [API client and errors](#api-client-and-errors): `@/shared/api`, CSRF, `ApiError`, mapping error codes to messages (I3)
+- [Local store and sync](#local-store-and-sync): the Dexie store and its versions, the Outbox, the sync engine, pulls and SSE
+- [Data access](#data-access): one hook per synced feature, what each hook reads and writes, online-only screens
+- [i18n](#i18n): the `ru` resource file, key naming, plurals and gendered verbs (I2)
+- [Look and theme](#look-and-theme): Tailwind tokens, light and dark theme, where the UI kit is specified
+- [Settings](#settings): the Settings screen: Members, Invites, profile, password, theme, Child fields
+- [Home «Дети» and the Child page](#home-дети-and-the-child-page): Child tiles on Home, the Child page, Child lists and fields
+- [PWA](#pwa): manifest, icons, service worker and updates
+- [iOS and macOS](#ios-and-macos): installed-app cookies, ITP, Safari quirks
+- [Testing](#testing): shared test helpers, `renderApp`, the fake sync server, store-upgrade tests, clock and time zone, flaky tests
+- [Screenshots](#screenshots): `scripts/screenshot.sh` and the routes in `screens.mjs`
+
 ## Stack
 
 React 19, TypeScript 6 (`strict`, `noUncheckedIndexedAccess`), Vite 8, `vite-plugin-pwa` 2

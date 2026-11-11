@@ -60,6 +60,10 @@ step "shell guard"
 "$root/scripts/check-shell-test.sh" | { grep -v '^ok ' || true; }
 "$root/scripts/check-shell.sh"
 
+step "doc index guard"
+"$root/scripts/check-doc-index-test.sh" | { grep -v '^ok ' || true; }
+"$root/scripts/check-doc-index.sh"
+
 step "toolchain wrapper self-test"
 "$root/scripts/with-toolchain-test.sh" | { grep -v '^ok ' || true; }
 

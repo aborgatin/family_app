@@ -5,6 +5,22 @@ What exists in `/backend` after Spec #1 (M0 + M1), the M2 sync core (spec #3, ti
 Categories (#70) and Item history (#74). Vocabulary: [`GLOSSARY.md`](../../GLOSSARY.md).
 Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`sync.md`](sync.md).
 
+## Contents
+
+Read this index, then only the sections for your area (`scripts/check-doc-index.sh` keeps it in
+step with the headings).
+
+- [Stack](#stack): Spring Boot, Java 21, Error Prone, Spotless, what the build copies from the web app
+- [Configuration](#configuration): the environment variables `application.yml` reads and their defaults
+- [Modules](#modules): the Modulith modules (`family`, `sync`, `lists`, `command`, `webapp`), their public API and internals
+- [API conventions](#api-conventions): JSON shape, timestamps and dates, which resources are REST and which go through sync
+- [Errors](#errors): `ApiException`, `FieldErrors`, the error-code catalogue (I1, I3)
+- [Security, sessions, CSRF](#security-sessions-csrf): the security chains, public endpoints, sessions, CSRF, login limits
+- [Flyway](#flyway): every migration and what it creates; append-only (S5)
+- [Adding a syncable table](#adding-a-syncable-table): the steps from migration to client store, with the tests to copy
+- [Testing](#testing): the one `Clock`, the HTTP seam, shared test helpers and when to use each, running tests
+- [Local development](#local-development): `scripts/dev.sh`, the dev database, `scripts/db.sh`
+
 ## Stack
 
 - Spring Boot 3.5 (`backend/build.gradle.kts`), Java 21 toolchain, Gradle wrapper with Kotlin DSL.
@@ -725,7 +741,18 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   one class: `--tests '*ItemSyncTest'`). The wrapper finds JDK 21 and Node 22 as `check.sh` does,
   so no `JAVA_HOME` or `source` is needed. CI runs `spotlessCheck`,
   `compileJava compileTestJava` and `test`.
-- `scripts/check.sh` runs everything from any directory: the migration guard,
-  `./gradlew spotlessApply build`, and all web checks (`--image` adds the image build and smoke test).
-- Inspect the local dev database (`deploy/docker-compose.dev.yml`) with `scripts/db.sh "<sql>"`;
-  `-c <container>` targets another PostgreSQL container, e.g. a Testcontainers one from `docker ps`.
+- `scripts/check.sh` runs everything from any directory: the guards and the cheap web steps first
+  (`format`, `lint`, `typecheck`), then `./gradlew spotlessApply build`, then the web `test` and
+  `build` (`--image` adds the image build and smoke test).
+
+## Local development
+
+- `scripts/dev.sh` starts the dev PostgreSQL (`deploy/docker-compose.dev.yml`), the backend
+  (`bootRun` against it, port 8080) and Vite (port 5173) with the toolchain, waits until both
+  answer and prints the local and network URLs; Ctrl-C stops the backend and Vite (the database
+  keeps running). Flyway migrates the dev database to the branch's latest version on start.
+- `scripts/dev.sh --fresh-db` first backs up the dev database to a printed path
+  (`~/.cache/family-app/dev-db-backups/`), then empties it, so the app starts as a fresh install.
+  Restore a backup with `scripts/db.sh` (header of `dev.sh`).
+- Inspect the dev database with `scripts/db.sh "<sql>"`; `-c <container>` targets another
+  PostgreSQL container, e.g. a Testcontainers one from `docker ps`.
