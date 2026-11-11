@@ -41,7 +41,7 @@ class ClockTest {
         .callMethod(OffsetDateTime.class, "now")
         .orShould()
         .callMethod(ZonedDateTime.class, "now")
-        .because("times come from a Clock field, so tests can fix them (backend.md)")
+        .because("times come from the injected Clock bean, so tests can fix them (backend.md)")
         .check(main);
   }
 

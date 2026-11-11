@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
+import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -27,39 +27,43 @@ import org.springframework.context.annotation.Primary;
  */
 public final class TestClock extends Clock {
 
-  private volatile Instant now;
+  // Shared by this clock and every view of it in another zone (withZone).
+  private final AtomicReference<Instant> now;
+  private final ZoneId zone;
 
-  private TestClock(Instant now) {
+  private TestClock(AtomicReference<Instant> now, ZoneId zone) {
     this.now = now;
+    this.zone = zone;
   }
 
   /** Moves the clock to this instant. */
   public void set(Instant instant) {
-    now = instant;
+    now.set(instant);
   }
 
   /**
-   * Moves the clock to noon of this day in the JVM's zone (the installation's time zone), far from
-   * either midnight, and returns the day.
+   * Moves the clock to noon of this day in its zone, far from either midnight, and returns the day.
    */
   public LocalDate setToday(LocalDate day) {
-    now = day.atTime(LocalTime.NOON).atZone(ZoneId.systemDefault()).toInstant();
+    now.set(day.atTime(LocalTime.NOON).atZone(zone).toInstant());
     return day;
   }
 
   @Override
   public Instant instant() {
-    return now;
+    return now.get();
   }
 
+  /** The JVM's default zone (the installation's, where the services count today), or withZone's. */
   @Override
   public ZoneId getZone() {
-    return ZoneOffset.UTC;
+    return zone;
   }
 
+  /** The same clock seen from another zone: it follows every later {@link #set}. */
   @Override
-  public Clock withZone(ZoneId zone) {
-    return Clock.fixed(now, zone);
+  public Clock withZone(ZoneId otherZone) {
+    return new TestClock(now, otherZone);
   }
 
   /** Puts a {@code TestClock} in the context, in place of the app's {@code Clock}. */
@@ -69,7 +73,8 @@ public final class TestClock extends Clock {
     @Bean
     @Primary
     TestClock testClock() {
-      return new TestClock(Instant.parse("2026-01-01T12:00:00Z"));
+      return new TestClock(
+          new AtomicReference<>(Instant.parse("2026-01-01T12:00:00Z")), ZoneId.systemDefault());
     }
   }
 }
