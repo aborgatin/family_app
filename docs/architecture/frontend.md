@@ -19,11 +19,13 @@ Scripts (`web/package.json`): `dev`, `build` (does not typecheck), `typecheck` (
 `lint` (`--max-warnings 0`), `format` / `format:check`, `test` (`vitest run`). CI job `web` runs
 `npm ci`, `format:check`, `lint`, `typecheck`, `test`, `build`. `scripts/check.sh` runs the same
 (plus the backend build) from any directory and finds Node 22 by itself, including Homebrew's keg-only
-`node@22` in `/opt/homebrew/opt/node@22/bin`.
+`node@22` in `/opt/homebrew/opt/node@22/bin`. Run one script or test file the same way with
+`scripts/with-toolchain.sh`, from `web/`: `../scripts/with-toolchain.sh npm run typecheck`,
+`../scripts/with-toolchain.sh npx vitest run src/features/lists`.
 
-Local development: start PostgreSQL with `docker compose -f deploy/docker-compose.dev.yml up -d`,
-run the backend (see the header of that file), then `npm run dev`. Vite proxies `/api` to
-`BACKEND_URL` (default `http://localhost:8080`). Query that database with `scripts/db.sh "<sql>"`.
+Local development: `scripts/dev.sh` starts the dev PostgreSQL, the backend and Vite and prints the
+URLs (header of that script). Vite proxies `/api` to `BACKEND_URL` (default
+`http://localhost:8080`). Query that database with `scripts/db.sh "<sql>"`.
 
 ## Folders and import rules
 

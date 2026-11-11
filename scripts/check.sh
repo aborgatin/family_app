@@ -60,6 +60,9 @@ step "shell guard"
 "$root/scripts/check-shell-test.sh" | { grep -v '^ok ' || true; }
 "$root/scripts/check-shell.sh"
 
+step "toolchain wrapper self-test"
+"$root/scripts/with-toolchain-test.sh" | { grep -v '^ok ' || true; }
+
 step "backend: spotlessApply build"
 (cd "$root/backend" && ./gradlew spotlessApply build)
 

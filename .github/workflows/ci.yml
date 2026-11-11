@@ -122,6 +122,10 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      # Needs Node 22 (set up above) and a JDK (the runner's default), so it runs here rather than
+      # with the other guards in `migrations`.
+      - name: Toolchain wrapper self-test
+        run: ../scripts/with-toolchain-test.sh
       - name: Prettier
         run: npm run format:check
       - name: ESLint

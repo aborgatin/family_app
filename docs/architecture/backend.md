@@ -13,7 +13,8 @@ Rules: [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md). Sync specifics: [`syn
 - javac runs with `-Xlint:all -Werror` plus Error Prone: every warning fails the build. A
   `@SuppressWarnings` needs a reason.
 - Spotless: google-java-format for Java, ktfmt (Google style) for `*.gradle.kts`. Run
-  `./gradlew spotlessApply` before committing; CI runs `spotlessCheck`.
+  `scripts/with-toolchain.sh ./gradlew spotlessApply` (from `backend/`) before committing; CI runs
+  `spotlessCheck`.
 - `processResources` copies `web/src/shared/palette/childColors.json` into the jar as
   `palette/childColors.json` (the Child color palette is defined once, in the web app).
 
@@ -708,7 +709,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   `TestRestTemplate`; test bundle in `src/test/resources/static/`), `ForwardedHeadersTest`
   (`TRUSTED_PROXIES=127\.0\.0\.1` + `X-Forwarded-For`), `PasswordResetCommandTest` (runs the command
   entry point against Testcontainers), `HealthEndpointTest`, `ApiErrorsTest`.
-- Run with `./gradlew test` (Docker must be running). CI runs `spotlessCheck`,
+- Run with `../scripts/with-toolchain.sh ./gradlew test` from `backend/` (Docker must be running;
+  one class: `--tests '*ItemSyncTest'`). The wrapper finds JDK 21 and Node 22 as `check.sh` does,
+  so no `JAVA_HOME` or `source` is needed. CI runs `spotlessCheck`,
   `compileJava compileTestJava` and `test`.
 - `scripts/check.sh` runs everything from any directory: the migration guard,
   `./gradlew spotlessApply build`, and all web checks (`--image` adds the image build and smoke test).
