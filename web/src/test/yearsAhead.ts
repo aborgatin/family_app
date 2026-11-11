@@ -17,7 +17,7 @@ if (years) {
   class DateAhead extends RealDate {
     constructor(...args: [] | ConstructorParameters<DateConstructor>) {
       if (args.length === 0) super(RealDate.now() + offset);
-      else super(...(args as ConstructorParameters<DateConstructor>));
+      else super(...args);
     }
 
     static override now(): number {
