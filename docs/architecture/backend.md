@@ -675,6 +675,18 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   `PostgresTestcontainer` provides PostgreSQL 18 through `@ServiceConnection`; Spring reuses one
   container per test context. Flyway runs as in production. Assertions go through HTTP only; JDBC is
   used for fixture set-up.
+- Shared helpers at a glance: reach for these before writing a helper of your own (details below).
+
+  | Helper | Use it when |
+  | --- | --- |
+  | `PostgresTestcontainer` | every `@SpringBootTest`: `@Import` it for PostgreSQL 18 |
+  | `Browser` | any HTTP test: one device on MockMvc with cookies and CSRF |
+  | `FreshInstallation` | `@BeforeEach` of a test that needs an empty Family, or adds Members by JDBC |
+  | `SyncRequests` | any sync test: push/pull operations, read a pulled change, the two usual devices |
+  | `ListOperations` | a `lists.*SyncTest`: the List and Item operations it pushes |
+  | `HttpDevice` | a real port: restarts, SSE streams |
+  | `LockWaits` | proving a request waits on the Family lock |
+
 - Shared helpers, public, in the root test package `src/test/java/io/github/aborgatin/familyapp/`
   (every module's tests import them):
   - `Browser`: one device on MockMvc. Keeps cookies, sends `X-XSRF-TOKEN` on writes, and has its own

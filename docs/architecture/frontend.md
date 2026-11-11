@@ -765,6 +765,23 @@ a Vite native-config-loader warning).
 
 ## Testing
 
+Shared test helpers (in `src/test/`): reach for these before writing a helper of your own; a
+helper a second test file needs moves here.
+
+| Helper | Use it when |
+| --- | --- |
+| `renderApp(path, { offline })` (`@/test/renderApp`) | any screen test: mounts the whole app at `path`; render twice for an app restart |
+| `syncServer` (`@/test/syncServer`) | any synced data: `seed` rows, `change` as the other Member, read `row`/`pushes`, `goOffline`, `holdPulls` |
+| `server` (`@/test/server`) | a non-sync endpoint: `server.use(http.get(…))` for that test |
+| `network` (`@/test/network`) | a real loss of signal: every request fails, whatever handler would answer |
+| `FakeEventSource` (`@/test/eventSource`) | live updates: `latest().emit('changed', …)`, a dropped connection |
+| `upgradeStoreFrom(version, seed)` (`@/test/olderStore`) | a store-upgrade test: an older store with rows or Outbox operations, then the current one opened over it (lint rejects store versions declared anywhere else) |
+| `anna`, `boris`, `masha`, `petya`, `weight`, `height`, `sessionHandler`, `membersHandler`, `invitesHandler` (`@/test/fixtures`) | Members, Children, Child fields and the auth/settings handlers every test needs |
+| `dayParts`, `localDay` (`@/shared/dates`, app code) | a `YYYY-MM-DD` day in a test or in code: lint rejects parsing one by hand elsewhere |
+
+Run one file with `../scripts/with-toolchain.sh npx vitest run <file>` from `web/`; a test that
+fails only sometimes, with `scripts/repeat-test.sh <file> [n]`.
+
 - Tests sit next to the feature (`<feature>/*.test.tsx`) and render the **whole app**:
   `renderApp(path)` from `@/test/renderApp` mounts the real `routes` and `AppProviders` in a memory
   router and returns Testing Library's result plus `location()` (path + search + hash).

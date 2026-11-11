@@ -107,6 +107,36 @@ const RAW_COLOURS = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Reuse — code one shared module owns is not written again elsewhere (the M4 retro, #94). Each
+// rule is its own rule name, so it doesn't replace (or get replaced by) the no-restricted-syntax
+// blocks below. Tested in src/test/lintRules.test.ts.
+// ---------------------------------------------------------------------------
+
+/** A rule reporting every node matching `selector` (an esquery selector) with `message`. */
+function syntaxRule(selector, message) {
+  return {
+    meta: { type: 'problem', schema: [] },
+    create: (context) => ({ [selector]: (node) => context.report({ node, message }) }),
+  };
+}
+
+const reuse = {
+  rules: {
+    'dates-from-shared-dates': syntaxRule(
+      [
+        "CallExpression[callee.property.name='split'][arguments.0.value='-']",
+        'Literal[regex.pattern=/\\\\d\\{4\\}-/]',
+      ].join(', '),
+      'Parse and format `YYYY-MM-DD` days with `@/shared/dates` (dayParts, localDay…); add what is missing there.',
+    ),
+    'store-versions-in-older-store': syntaxRule(
+      "CallExpression[callee.property.name='stores'][callee.object.callee.property.name='version']",
+      'Build an older local store with `upgradeStoreFrom(version, seed)` from `@/test/olderStore`, not by declaring its versions in the test.',
+    ),
+  },
+};
+
 /**
  * Builds one config block per file depth under `root`, each banning relative imports that would
  * climb out of `root`, plus the layer's own `groups`.
@@ -181,6 +211,21 @@ export default defineConfig([
         },
       ],
     },
+  },
+
+  {
+    name: 'reuse/dates-from-shared-dates',
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/shared/dates/**'],
+    plugins: { reuse },
+    rules: { 'reuse/dates-from-shared-dates': 'error' },
+  },
+  {
+    name: 'reuse/store-versions-in-older-store',
+    files: TEST_FILES,
+    ignores: ['src/test/olderStore.ts'],
+    plugins: { reuse },
+    rules: { 'reuse/store-versions-in-older-store': 'error' },
   },
 
   // no-restricted-syntax blocks replace each other per file, like no-restricted-imports, so each
