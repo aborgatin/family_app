@@ -28,10 +28,14 @@ class ChildFieldValueService implements SyncableTable {
   private final ChildFieldValueRepository values;
   private final ChildFieldRepository childFields;
   private final Children children;
-  private final Clock clock = Clock.systemUTC();
+  private final Clock clock;
 
   ChildFieldValueService(
-      ChildFieldValueRepository values, ChildFieldRepository childFields, Children children) {
+      ChildFieldValueRepository values,
+      ChildFieldRepository childFields,
+      Children children,
+      Clock clock) {
+    this.clock = clock;
     this.values = values;
     this.childFields = childFields;
     this.children = children;

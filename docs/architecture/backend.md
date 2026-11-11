@@ -684,9 +684,13 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 
 ## Testing
 
-- **Time**: main code reads time from a `Clock` field (`private final Clock clock =
-  Clock.systemUTC()`), never a bare `Instant.now()`, `LocalDate.now()` and the like. `ClockTest`
-  (ArchUnit) enforces it.
+- **Time**: there is one `Clock` bean (`TimeConfig`, `Clock.systemUTC()`), and every class that
+  needs the time takes it by constructor injection into a `Clock clock` field; main code never calls
+  a bare `Instant.now()`, `LocalDate.now()` and the like, nor `Clock.system…()` outside
+  `TimeConfig`. `ClockTest` (ArchUnit) enforces both. A test fixes the time with `TestClock`:
+  `@Import({PostgresTestcontainer.class, TestClock.Config.class})`, `@Autowired TestClock clock`,
+  then `clock.setToday(LocalDate.of(…))` (noon of that day in the JVM's zone, far from midnight)
+  or `clock.set(instant)`; see `lists.ItemRepeatCopySyncTest`.
 - **HTTP seam (T1)**: `@SpringBootTest @AutoConfigureMockMvc @Import(PostgresTestcontainer.class)`.
   `PostgresTestcontainer` provides PostgreSQL 18 through `@ServiceConnection`; Spring reuses one
   container per test context. Flyway runs as in production. Assertions go through HTTP only; JDBC is
@@ -702,6 +706,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   | `ListOperations` | a `lists.*SyncTest`: the List and Item operations it pushes |
   | `HttpDevice` | a real port: restarts, SSE streams |
   | `LockWaits` | proving a request waits on the Family lock |
+  | `TestClock` | a test whose answer depends on today or now: fix the server's clock |
 
 - Shared helpers, public, in the root test package `src/test/java/io/github/aborgatin/familyapp/`
   (every module's tests import them):

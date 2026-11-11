@@ -18,11 +18,12 @@ import org.springframework.stereotype.Component;
 @Component
 class ShoppingListDefaults {
 
-  private final Clock clock = Clock.systemUTC();
+  private final Clock clock;
   private final ListRepository lists;
   private final CategoryRepository categories;
 
-  ShoppingListDefaults(ListRepository lists, CategoryRepository categories) {
+  ShoppingListDefaults(ListRepository lists, CategoryRepository categories, Clock clock) {
+    this.clock = clock;
     this.lists = lists;
     this.categories = categories;
   }

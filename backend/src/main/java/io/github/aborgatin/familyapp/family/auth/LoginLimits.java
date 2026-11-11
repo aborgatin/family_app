@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
 @Component
 class LoginLimits {
 
-  private final Clock clock = Clock.systemUTC();
+  private final Clock clock;
   private final Duration window;
   private final SlidingWindow byEmail;
   private final SlidingWindow byIp;
@@ -33,7 +33,9 @@ class LoginLimits {
   LoginLimits(
       @Value("${LOGIN_LIMIT_PER_EMAIL:10}") int perEmail,
       @Value("${LOGIN_LIMIT_PER_IP:20}") int perIp,
-      @Value("${LOGIN_LIMIT_WINDOW:15m}") Duration window) {
+      @Value("${LOGIN_LIMIT_WINDOW:15m}") Duration window,
+      Clock clock) {
+    this.clock = clock;
     this.window = window;
     this.byEmail = new SlidingWindow(perEmail);
     this.byIp = new SlidingWindow(perIp);

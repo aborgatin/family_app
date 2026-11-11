@@ -34,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PasswordResets {
 
-  private final Clock clock = Clock.systemUTC();
+  private final Clock clock;
   private final MemberRepository members;
   private final PasswordResetRepository resets;
   private final PasswordEncoder passwordEncoder;
@@ -48,7 +48,9 @@ public class PasswordResets {
       PasswordEncoder passwordEncoder,
       FamilyLock familyLock,
       @Value("${PASSWORD_RESET_TTL:1h}") Duration ttl,
-      @Value("${DOMAIN:localhost}") String domain) {
+      @Value("${DOMAIN:localhost}") String domain,
+      Clock clock) {
+    this.clock = clock;
     this.members = members;
     this.resets = resets;
     this.passwordEncoder = passwordEncoder;

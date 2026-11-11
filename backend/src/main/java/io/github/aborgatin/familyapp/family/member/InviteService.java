@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class InviteService {
 
-  private final Clock clock = Clock.systemUTC();
+  private final Clock clock;
   private final FamilyLock familyLock;
   private final Family family;
   private final MemberRepository members;
@@ -40,7 +40,9 @@ public class InviteService {
       InviteRepository invites,
       PasswordEncoder passwordEncoder,
       @Value("${INVITE_TTL:7d}") Duration ttl,
-      @Value("${DOMAIN:localhost}") String domain) {
+      @Value("${DOMAIN:localhost}") String domain,
+      Clock clock) {
+    this.clock = clock;
     this.familyLock = familyLock;
     this.family = family;
     this.members = members;
