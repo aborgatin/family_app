@@ -126,8 +126,11 @@ const reuse = {
   rules: {
     'dates-from-shared-dates': syntaxRule(
       [
-        "CallExpression[callee.property.name='split'][arguments.0.value='-']",
+        // `day.split('-').map(Number)`: a day taken apart by hand.
+        "CallExpression[callee.property.name='map'][arguments.0.name='Number'] > MemberExpression.callee > CallExpression.object[callee.property.name='split'][arguments.0.value='-']",
+        // A `\d{4}-` pattern, as a regex literal or a string given to RegExp.
         'Literal[regex.pattern=/\\\\d\\{4\\}-/]',
+        ':matches(NewExpression, CallExpression)[callee.name="RegExp"] > Literal.arguments[value=/\\\\d\\{4\\}-/]',
       ].join(', '),
       'Parse and format `YYYY-MM-DD` days with `@/shared/dates` (dayParts, localDay…); add what is missing there.',
     ),

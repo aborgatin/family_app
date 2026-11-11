@@ -40,8 +40,18 @@ describe('reuse/dates-from-shared-dates', () => {
     expect(await messages(handParsed, DATES_MODULE, RULE)).toEqual([]);
   });
 
-  it('leaves other splits alone', async () => {
-    const other = `export const words = (s: string) => s.split(' ');\n`;
+  it('rejects a date pattern built with new RegExp', async () => {
+    const found = await messages(
+      `export const isDay = (s: string) => new RegExp('^\\\\d{4}-\\\\d{2}').test(s);\n`,
+      FEATURE_FILE,
+      RULE,
+    );
+    expect(found).toHaveLength(1);
+  });
+
+  it('leaves splits that are not dates alone', async () => {
+    const other = `export const words = (s: string) => s.split(' ');
+export const prefix = (id: string) => id.split('-')[0];\n`;
     expect(await messages(other, FEATURE_FILE, RULE)).toEqual([]);
   });
 });
