@@ -14,5 +14,5 @@ Use **PostgreSQL** (Docker container), schema managed by **Flyway** migrations.
 - Standard Spring Data JPA / JDBC tooling; huge documentation base.
 - Built-in full-text search with Russian stemming; JSONB available for flexible fields
   (e.g. user-defined child profile fields if needed).
-- Backups: nightly `pg_dump` to Hetzner Storage Box; restore procedure must be documented and tested.
+- Backups: nightly `pg_dump`, encrypted, to two object stores at other companies (Backblaze B2, Cloudflare R2; originally a Hetzner Storage Box); restore procedure must be documented and tested.
 - Slightly more to run than SQLite — acceptable inside Docker Compose.

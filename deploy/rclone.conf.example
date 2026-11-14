@@ -1,0 +1,23 @@
+# Copy to `rclone.conf` next to docker-compose.yml (chmod 600) and fill in real keys. Placeholders
+# only: never commit the real `rclone.conf` (CODING_STANDARDS A2). Each [section] is a remote that
+# BACKUP_REMOTES in `.env` names as `<section>:<bucket>`, e.g.
+#   BACKUP_REMOTES="b2:family-backups-xxxx r2:family-backups"
+# backup.sh encrypts every dump with BACKUP_PASSPHRASE before it reaches either one.
+
+# Backblaze B2: an application key limited to the one bucket (keyID and applicationKey).
+[b2]
+type = b2
+account = 000xxxxxxxxxxxx0000000000
+key = K000xxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Cloudflare R2: an R2 API token with Object Read & Write on the one bucket. The endpoint is
+# https://<account id>.r2.cloudflarestorage.com (with `.eu.` before `r2` for an EU-jurisdiction
+# bucket). no_check_bucket: the token can't create buckets, and needn't.
+[r2]
+type = s3
+provider = Cloudflare
+access_key_id = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+secret_access_key = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+endpoint = https://xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.r2.cloudflarestorage.com
+acl = private
+no_check_bucket = true

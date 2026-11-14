@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 # Nightly database backup (spec #5, Backups). Dumps the database with pg_dump (custom format) inside
-# the running `postgres` container, uploads it over SFTP with the dedicated backup key to
-# BACKUP_TARGET (user@host:path on the Storage Box) as family-YYYYMMDDTHHMMSSZ.dump (UTC), then
-# deletes dumps there older than BACKUP_RETENTION_DAYS (default 90).
+# the running `postgres` container, then for each target in BACKUP_REMOTES: uploads it encrypted
+# (with BACKUP_PASSPHRASE) as family-YYYYMMDDTHHMMSSZ.dump (UTC; stored as `.dump.bin`) and deletes
+# dumps there older than BACKUP_RETENTION_DAYS (default 90). Uploads go through rclone in a
+# container; see backup-common.sh for the settings.
 #
-# Settings (in deploy/.env): BACKUP_TARGET, BACKUP_RETENTION_DAYS, BACKUP_SSH_KEY (default
-# ~/.ssh/family_backup), BACKUP_SSH_PORT (default 23, the Storage Box's SSH port),
-# BACKUP_SSH_KNOWN_HOSTS (default ~/.ssh/known_hosts; the target's host key must already be in it).
-#
-# Exits non-zero and logs a "backup failed" line on stderr when any step fails.
+# A failing target doesn't stop the others: every target is tried, then the script exits non-zero
+# and logs "backup failed: <remote>" on stderr for each one that failed.
 #
 # Installed by the operator as a host cron entry at BACKUP_TIME in the server's TZ; print the
 # entry with `deploy/backup.sh --cron-entry` (see that function below).
@@ -40,30 +38,28 @@ cutoff() {
   date -u -d "-$days days" +%Y%m%dT%H%M%SZ 2>/dev/null || date -u -v "-${days}d" +%Y%m%dT%H%M%SZ
 }
 
-backup() {
-  local days name dump old
-  days="$(setting BACKUP_RETENTION_DAYS 90)"
-  [[ "$days" =~ ^[0-9]+$ ]] || { log "BACKUP_RETENTION_DAYS must be a number (got '${days}')"; return 1; }
-  parse_target
-
+dump_database() {
   name="family-$(date -u +%Y%m%dT%H%M%SZ).dump"
-  dump="$work/$name"
   log "dumping database to $name"
   # shellcheck disable=SC2016 # expanded by the container's shell
-  compose exec -T postgres sh -c 'exec pg_dump --format=custom -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >"$dump"
-  [ -s "$dump" ] || { log "pg_dump produced an empty file"; return 1; }
+  compose exec -T postgres sh -c 'exec pg_dump --format=custom -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >"$work/$name"
+  [ -s "$work/$name" ] || { log "pg_dump produced an empty file"; return 1; }
+}
 
+# upload REMOTE: the dump to one target, then prune that target.
+upload() {
+  local remote="$1" old
   # Upload under a temporary name and rename, so a broken upload never looks like a dump.
-  log "uploading $name ($(wc -c <"$dump" | tr -d ' ') bytes) to $target_host:$target_dir"
-  printf '%s\n' "-mkdir $target_dir" "put $dump $target_dir/$name.part" \
-    "rename $target_dir/$name.part $target_dir/$name" | target_sftp >/dev/null
+  log "uploading $name ($(wc -c <"$work/$name" | tr -d ' ') bytes) to $remote"
+  CRYPT_REMOTE="$remote" rclone copyto "/work/$name" ":crypt:$name.part"
+  CRYPT_REMOTE="$remote" rclone moveto ":crypt:$name.part" ":crypt:$name"
 
-  old="$(list_dumps | awk -v cutoff="family-$(cutoff "$days").dump" '$0 < cutoff')"
+  old="$(list_dumps "$remote" | awk -v cutoff="family-$(cutoff "$days").dump" '$0 < cutoff')"
   if [ -n "$old" ]; then
-    log "pruning dumps older than $days days: $(echo "$old" | tr '\n' ' ')"
-    echo "$old" | sed "s|^|rm $target_dir/|" | target_sftp >/dev/null
+    log "pruning dumps on $remote older than $days days: $(echo "$old" | tr '\n' ' ')"
+    echo "$old" | CRYPT_REMOTE="$remote" rclone delete :crypt: --files-from -
   fi
-  log "backup done: $name"
+  log "backup done: $name on $remote"
 }
 
 if [ "${1:-}" = "--cron-entry" ]; then
@@ -72,15 +68,28 @@ if [ "${1:-}" = "--cron-entry" ]; then
 fi
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
-# A plain subshell keeps `set -e` active inside backup (an `if` or `||` would turn it off).
-set +e
-(
+# Any failure, here or in a target below, ends with a "backup failed" line.
+trap 'status=$?; rm -rf "$work"; [ "$status" -eq 0 ] || log "backup failed (exit $status)"' EXIT
+
+days="$(setting BACKUP_RETENTION_DAYS 90)"
+[[ "$days" =~ ^[0-9]+$ ]] || { log "BACKUP_RETENTION_DAYS must be a number (got '${days}')"; exit 1; }
+remotes >"$work/remotes"
+load_passphrase
+dump_database
+
+failed=0
+while read -r remote; do
+  # A plain subshell keeps `set -e` active inside upload (an `if` or `||` would turn it off).
+  set +e
+  (
+    set -e
+    upload "$remote"
+  ) </dev/null
+  status=$?
   set -e
-  backup
-)
-status=$?
-if [ "$status" -ne 0 ]; then
-  log "backup failed (exit $status)"
-  exit 1
-fi
+  if [ "$status" -ne 0 ]; then
+    log "backup failed: $remote (exit $status)"
+    failed=1
+  fi
+done <"$work/remotes"
+exit "$failed"

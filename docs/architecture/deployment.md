@@ -17,7 +17,7 @@ step with the headings).
 - [Environment variables](#environment-variables): every `deploy/.env` setting and what reads it
 - [Deploy and rollback](#deploy-and-rollback): pulling a new image, rolling back to a tag
 - [Password reset](#password-reset): the operator's one-time reset link
-- [Backups](#backups): `deploy/backup.sh`, the Storage Box, pruning, cron
+- [Backups](#backups): `deploy/backup.sh`, the B2 and R2 targets, encryption, pruning, cron
 - [Restore](#restore): `deploy/restore.sh`, listing and restoring a dump
 - [Server set-up checklist](#server-set-up-checklist): first-time set-up of the server, in order
 
@@ -86,7 +86,7 @@ Test scripts (each takes an `APP_IMAGE_TAG` or image name and cleans up after it
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `scripts/image-smoke-test.sh <image>`  | image + throwaway PostgreSQL 18: health UP, `/` and `/settings` return `index.html`, manifest, caching headers, `bootstrapRequired: true`                                                  |
 | `scripts/deploy-stack-test.sh <tag>`   | the production Compose stack with `DOMAIN=localhost` over real HTTPS through Caddy, real client IPs behind Caddy, data survives `down && up`. Needs host ports 80/443 free                 |
-| `scripts/backup-restore-test.sh <tag>` | app + PostgreSQL with a local SFTP container as the Storage Box: backup, pruning, failure exit, cron entry, `--list`, scratch restore, live restore after wiping the volume. No host ports |
+| `scripts/backup-restore-test.sh <tag>` | app + PostgreSQL with folders on a local SFTP container as the targets: backup to every target, encryption, pruning, one failing target, cron entry, `--list`, wrong passphrase, scratch restore, live restore after wiping the volume. No host ports |
 
 ## Server layout
 
@@ -98,7 +98,9 @@ Test scripts (each takes an `APP_IMAGE_TAG` or image name and cleans up after it
 - Docker volumes: `postgres-data` (database), `caddy-data` (certificates, ACME account),
   `caddy-config`. Compose project name `family-app`.
 - `deploy/backup.log`: output of the nightly backup cron job.
-- A Hetzner Storage Box in Helsinki (a different site from the VPS) receives the nightly dumps.
+- `deploy/rclone.conf` (not in git, mode 600): the keys for the backup targets.
+- Backblaze B2 (EU Central) and Cloudflare R2 (Eastern North America) each receive the nightly
+  dumps, encrypted: two other companies at two other sites.
 
 ## Compose services
 
@@ -156,12 +158,12 @@ the backup scripts (`ENV_FILE` overrides the path; process environment wins over
 | `PASSWORD_RESET_TTL`                                                | `1h`                                       | app                                                                    |
 | `LOGIN_LIMIT_PER_EMAIL`, `LOGIN_LIMIT_PER_IP`, `LOGIN_LIMIT_WINDOW` | `10`, `20`, `15m`                          | app: failed-login limits (in memory)                                   |
 | `TZ`                                                                | `Europe/Berlin`                            | all containers; the host must use the same zone for cron               |
-| `BACKUP_TARGET`                                                     | `user@host:path`                           | `backup.sh`, `restore.sh`                                              |
+| `BACKUP_REMOTES`                                                    | `"b2:<bucket> r2:<bucket>"` (required)     | `backup.sh`, `restore.sh`: rclone targets, space-separated             |
+| `BACKUP_PASSPHRASE`                                                 | required                                   | backup scripts: encrypts the dumps (rclone crypt)                      |
+| `BACKUP_RCLONE_CONFIG`                                              | `deploy/rclone.conf`                       | backup scripts                                                         |
+| `BACKUP_DOCKER_NETWORK`                                             | none                                       | backup scripts: Docker network for rclone (the test uses it)           |
 | `BACKUP_RETENTION_DAYS`                                             | `90`                                       | `backup.sh`                                                            |
 | `BACKUP_TIME`                                                       | `03:30`                                    | `backup.sh --cron-entry`                                               |
-| `BACKUP_SSH_KEY`                                                    | `~/.ssh/family_backup`                     | backup scripts                                                         |
-| `BACKUP_SSH_PORT`                                                   | `23` (the Storage Box's SSH port)          | backup scripts                                                         |
-| `BACKUP_SSH_KNOWN_HOSTS`                                            | `~/.ssh/known_hosts`                       | backup scripts (strict host key checking)                              |
 
 A new app setting needs a line in `.env.example` and in the `app` service's `environment:`.
 
@@ -202,14 +204,21 @@ and logs the Member out on every device, then logs them in on the current one.
 `deploy/backup.sh` (shared code in `deploy/backup-common.sh`):
 
 1. `pg_dump --format=custom` inside the running `postgres` container.
-2. Upload over SFTP with the dedicated key to `BACKUP_TARGET` as
+2. For each target in `BACKUP_REMOTES`, in order: upload the dump as
    `family-YYYYMMDDTHHMMSSZ.dump` (UTC), first as `.part`, then renamed, so a broken upload never
-   looks like a dump.
-3. Delete dumps on the target older than `BACKUP_RETENTION_DAYS` (by the date in the name; other
-   files are left alone).
+   looks like a dump; then delete dumps there older than `BACKUP_RETENTION_DAYS` (by the date in
+   the name; other files are left alone).
 
-Any failure exits non-zero and logs `backup failed` on stderr. Host keys are checked strictly
-(`StrictHostKeyChecking=yes`), so the target's key must be in `BACKUP_SSH_KNOWN_HOSTS` first.
+Uploads go through rclone (`rclone/rclone`, pinned in `backup-common.sh`) in a container, so
+nothing is installed on the host; its remotes and keys are in `deploy/rclone.conf` (copy
+`rclone.conf.example`). Every target is wrapped in rclone's crypt backend with `BACKUP_PASSPHRASE`:
+dumps are encrypted and authenticated on the server, stored as `<name>.bin`, and only the names stay
+readable. Without the passphrase no dump can be restored, so keep it, with `.env` and
+`rclone.conf`, in a password manager. By hand: `rclone copy` through a `crypt` remote with
+`filename_encryption = off` and the same passphrase.
+
+A failing target doesn't stop the others. Any failure exits non-zero and logs `backup failed` on
+stderr, with `backup failed: <remote>` for each target that failed.
 
 Nightly run: a host cron entry at `BACKUP_TIME`. Cron uses the host's time zone, so set the host to
 `TZ` first (`timedatectl set-timezone Europe/Berlin`), then install the entry:
@@ -226,18 +235,21 @@ The entry appends output to `deploy/backup.log`. Only the database is backed up:
 `deploy/restore.sh`:
 
 ```sh
-deploy/restore.sh --list                  # dumps on BACKUP_TARGET, oldest first
+deploy/restore.sh --list                  # "<remote> <dump>" on every target, oldest first
 deploy/restore.sh --scratch <db> <dump>   # restore into a new database <db>; live data untouched
 deploy/restore.sh <dump>                  # replace the live database (asks for confirmation)
 ```
 
-`<dump>` is a local file or a dump name from `--list` (downloaded first). Restores use
+`<dump>` is a local file or a dump name from `--list`, downloaded and decrypted first: from the
+first target in `BACKUP_REMOTES` that has it, or from the one given with `--from <remote>` before
+the other arguments (`deploy/restore.sh --from r2:family-backups --scratch restore_check <dump>`). Restores use
 `pg_restore --exit-on-error --single-transaction --no-owner`.
 
 **Check a backup (restore drill):**
 
 1. `deploy/restore.sh --list` and pick the newest dump.
-2. `deploy/restore.sh --scratch restore_check <dump>`.
+2. `deploy/restore.sh --from <remote> --scratch restore_check <dump>`, once for each target (drop
+   `restore_check` in between), so both copies are known to work.
 3. Inspect it, e.g.
    `docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d restore_check -c "SELECT email FROM member"'`.
 4. Drop it: `docker compose exec postgres sh -c 'dropdb -U "$POSTGRES_USER" restore_check'`.
@@ -263,10 +275,10 @@ deploy/restore.sh <dump>                  # replace the live database (asks for 
    read-only token on the server.
 5. Copy `deploy/` to the server; create `.env` from `.env.example` with real values (strong
    `POSTGRES_PASSWORD`, `DOMAIN`, `ACME_EMAIL`).
-6. Storage Box in Helsinki: create a sub-account with an SSH key for backups; put the private key
-   at `BACKUP_SSH_KEY`, add the host key to `BACKUP_SSH_KNOWN_HOSTS`
-   (`ssh-keyscan -p 23 <host> >> ~/.ssh/known_hosts`), set `BACKUP_TARGET` and
-   `BACKUP_SSH_PORT=23`, run `deploy/backup.sh` once by hand, then install the cron entry.
+6. Backup targets: a Backblaze B2 bucket (EU Central) with an application key for that bucket only,
+   and a Cloudflare R2 bucket with an API token for that bucket only. Fill `rclone.conf` from
+   `rclone.conf.example` (`chmod 600`), set `BACKUP_REMOTES` and `BACKUP_PASSPHRASE`, run
+   `deploy/backup.sh` once by hand, check `deploy/restore.sh --list`, then install the cron entry.
 7. First deploy: `docker compose pull && docker compose up -d`; check HTTPS, register the first
    Member at `/setup`, install the app on each phone, send the Invite to the second Member.
 8. Restore drill: restore last night's dump into a scratch database (see [Restore](#restore)).
