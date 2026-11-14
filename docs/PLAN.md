@@ -48,6 +48,10 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 - **R2 — Links:** save links from Instagram / Telegram / YouTube etc. via iOS Shortcut in the share sheet; archive media (yt-dlp worker) so it survives source deletion.
 - **R3 — Recipes:** manual entry, import from URL, "add ingredients to shopping list".
 - **R4 — Travel planning:** trip page, itinerary, bookings, packing list (reuses lists), links (reuses R2).
+- **R5 — Medical card:** one per Member and per Child. A Member's card is private (only that Member sees it); a Child's card is shared by both Members.
+  - Documents: doctors' reports and test results stored on the card (files, e.g. PDFs and photos).
+  - Illness tracking for Children: timestamped records ("26 Nov, 22:00: temperature 38.5 °C, gave ibuprofen 5 ml"), grouped into one illness, plus custom records on an illness. The medicine dose is suggested from the Child's latest weight (Child field «Вес»).
+  - To grill before starting, after researching similar apps: the source and limits of dose data (per-medicine mg/kg, concentration of the syrup, maximum daily dose, minimum interval), reading «Вес» as a number (Child fields hold only text or dates), how a suggestion is shown so it is never mistaken for medical advice, file storage and its backups, extra protection for medical data (who can see a Private card, encryption at rest), and whether illnesses apply to Members too.
 
 ### Backlog (ideas, not committed)
 
