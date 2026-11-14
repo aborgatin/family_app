@@ -1,8 +1,12 @@
 # One image serves the API and the web bundle (spec #5, "Single image").
 # Builds everything from source: `docker build .` from the repo root needs no prior local build.
 
+# The image is built for linux/amd64 and linux/arm64 (the VPS is ARM64). The web bundle and the jar
+# are the same on every CPU, so their stages run on the build machine's own platform and only the
+# runtime stage is built per target platform.
+
 # --- web bundle -------------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS web
+FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
@@ -10,7 +14,7 @@ COPY web/ ./
 RUN npm run build
 
 # --- backend jar with the bundle in its static resources --------------------------------------
-FROM eclipse-temurin:21-jdk-noble AS backend
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk-noble AS backend
 WORKDIR /backend
 COPY backend/gradlew backend/settings.gradle.kts backend/build.gradle.kts ./
 COPY backend/gradle/ gradle/
