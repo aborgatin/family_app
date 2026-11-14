@@ -78,7 +78,7 @@ Chores/rewards, shared expenses, "reserved by" on wish lists, in-app calendar.
         ▼
  Spring Boot 3 / Java 21 — modular monolith (serves API + built web app)
         ▼
- PostgreSQL (Flyway migrations)  ──nightly pg_dump──▶  Hetzner Storage Box
+ PostgreSQL (Flyway migrations)  ──nightly pg_dump──▶  Backblaze B2 + Cloudflare R2 (encrypted)
 ```
 
 - **Client:** PWA first, native later if needed ([ADR-0001](adr/0001-pwa-first-client.md)). Share-to-app on iOS via a Shortcut that POSTs to the API.

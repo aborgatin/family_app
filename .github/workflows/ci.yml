@@ -181,7 +181,7 @@ jobs:
         run: scripts/image-smoke-test.sh "$IMAGE:$GITHUB_SHA"
       - name: Deploy stack test (Compose + Caddy over HTTPS)
         run: scripts/deploy-stack-test.sh "$GITHUB_SHA"
-      - name: Backup and restore test (against a local SFTP target)
+      - name: Backup and restore test (two targets on a local SFTP server)
         run: scripts/backup-restore-test.sh "$GITHUB_SHA"
 
   # The linux/arm64 image, built natively on an ARM runner and smoke-tested.

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Restores a dump made by backup.sh into the running stack (spec #5, Backups).
 #
-#   deploy/restore.sh --list                      dumps on BACKUP_TARGET, oldest first
-#   deploy/restore.sh <dump>                      replace the live database (asks first)
-#   deploy/restore.sh --scratch <db> <dump>       restore into a new database <db> instead
+#   deploy/restore.sh --list                          "<remote> <dump>" for each target, oldest first
+#   deploy/restore.sh [--from <remote>] <dump>        replace the live database (asks first)
+#   deploy/restore.sh [--from <remote>] --scratch <db> <dump>   restore into a new database <db>
 #
-# <dump> is a local file path, or the name of a dump on BACKUP_TARGET (as --list prints it),
-# which is downloaded first. Same settings as backup.sh (deploy/.env).
+# <dump> is a local pg_dump file, or the name of a dump on a target (as --list prints it), which is
+# downloaded and decrypted first: from <remote>, or else from the first of BACKUP_REMOTES that has
+# it. Same settings as backup.sh (deploy/.env).
 #
 # Replacing the live database stops the app, drops and recreates the database, restores the dump
 # and starts the app again. Everything written since the dump is lost, so it asks the operator to
@@ -30,18 +31,41 @@ in_postgres() {
   compose exec -T postgres sh -c "$*" </dev/null
 }
 
-# Echoes a local path to the chosen dump, downloading it from the target when it is a name.
+# Echoes a local path to the chosen dump, downloading it when it is a name: from $from, or else
+# from the first remote that has it.
 fetch_dump() {
-  local dump="$1"
+  local dump="$1" remote
   if [ -f "$dump" ]; then
     echo "$dump"
     return
   fi
   [[ "$dump" =~ ^family-[0-9]{8}T[0-9]{6}Z\.dump$ ]] || { log "no such file or dump name: $dump"; return 1; }
-  parse_target
-  log "downloading $dump from $target_host:$target_dir"
-  echo "get $target_dir/$dump $work/$dump" | target_sftp >/dev/null
-  echo "$work/$dump"
+  load_passphrase
+  for remote in ${from:-$(remotes)}; do
+    log "downloading $dump from $remote"
+    if CRYPT_REMOTE="$remote" rclone copyto ":crypt:$dump" "/work/$dump" </dev/null && [ -s "$work/$dump" ]; then
+      echo "$work/$dump"
+      return
+    fi
+    log "could not download $dump from $remote"
+  done
+  log "$dump is on none of the targets"
+  return 1
+}
+
+# Every target's dumps; a target that can't be listed is logged and the others are still listed.
+list_all() {
+  local remote dumps failed=0
+  load_passphrase
+  for remote in $(remotes); do
+    if dumps="$(list_dumps "$remote" </dev/null)"; then
+      [ -z "$dumps" ] || printf '%s\n' "$dumps" | sed "s|^|$remote |"
+    else
+      log "could not list $remote"
+      failed=1
+    fi
+  done
+  return "$failed"
 }
 
 restore_into() {
@@ -90,6 +114,12 @@ live_restore() {
   log "restore done"
 }
 
+from=""
+if [ "${1:-}" = "--from" ]; then
+  [ $# -ge 2 ] || usage
+  from="$2"
+  shift 2
+fi
 [ $# -ge 1 ] || usage
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -97,8 +127,7 @@ trap 'rm -rf "$work"' EXIT
 case "$1" in
   --list)
     [ $# -eq 1 ] || usage
-    parse_target
-    list_dumps
+    list_all
     ;;
   --scratch)
     [ $# -eq 3 ] || usage

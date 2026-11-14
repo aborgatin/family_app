@@ -34,6 +34,7 @@ build/
 
 # Deploy secrets (CODING_STANDARDS A2)
 deploy/.env
+deploy/rclone.conf
 
 # Node dependencies and tool caches (Vite, Vitest), wherever they appear
 node_modules/
