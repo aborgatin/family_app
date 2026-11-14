@@ -34,23 +34,27 @@ One image serves the API and the web bundle. Program arguments after the image n
 the app, which is how operator commands run ([Password reset](#password-reset)). `.dockerignore`
 excludes `.git`, `node_modules`, build output and `docs`.
 
+Stages 1 and 2 run on the build machine's platform (`FROM --platform=$BUILDPLATFORM`), since the
+bundle and the jar are the same on every CPU; stage 3 is built per target platform, linux/amd64 or
+linux/arm64 (see `publish` in [CI/CD](#cicd)).
+
 ## CI/CD
 
 `.github/workflows/ci.yml` runs on every pull request and on push to `main`. On a push to `main`
 every job runs. On a pull request a **changes** job (`dorny/paths-filter`) decides which of
-`backend`, `web` and `image` run, and each of them skips itself with `if:`:
+`backend`, `web`, `image` and `image-arm64` run, and each of them skips itself with `if:`:
 
-| Job       | Runs on a pull request when changed                                                                                                                                              |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `backend` | `backend/**`, `web/src/shared/palette/**` (the backend build copies the Child color palette), or `ci.yml`                                                                        |
-| `web`     | `web/**` or `ci.yml`                                                                                                                                                             |
-| `image`   | `backend/**`, `web/**`, `Dockerfile`, `.dockerignore`, `deploy/**`, `scripts/image-smoke-test.sh`, `scripts/deploy-stack-test.sh`, `scripts/backup-restore-test.sh`, or `ci.yml` |
+| Job                    | Runs on a pull request when changed                                                                                                                                              |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backend`              | `backend/**`, `web/src/shared/palette/**` (the backend build copies the Child color palette), or `ci.yml`                                                                        |
+| `web`                  | `web/**` or `ci.yml`                                                                                                                                                             |
+| `image`, `image-arm64` | `backend/**`, `web/**`, `Dockerfile`, `.dockerignore`, `deploy/**`, `scripts/image-smoke-test.sh`, `scripts/deploy-stack-test.sh`, `scripts/backup-restore-test.sh`, or `ci.yml` |
 
 `migrations` always runs. Never filter with workflow-level `paths:`: a skipped workflow leaves
 required checks pending forever, while a skipped job counts as passed (#17). When a job starts
 reading a file outside its folder, add that path to its filter. The `if:` conditions fail open: if
-**changes** itself fails, `backend`, `web` and `image` run rather than skip, since a skipped required
-check would let the PR merge untested.
+**changes** itself fails, `backend`, `web`, `image` and `image-arm64` run rather than skip, since a
+skipped required check would let the PR merge untested.
 
 - **migrations**: `scripts/check-migrations-test.sh` (the guard's self-test), then
   `scripts/check-migrations.sh` against the PR's target branch, or on push to `main` against the
@@ -60,9 +64,14 @@ check would let the PR merge untested.
 - **backend**: `spotlessCheck`, `compileJava compileTestJava` (Error Prone, `-Werror`), `test`
   (Testcontainers, Modulith).
 - **web**: `npm ci`, `format:check`, `lint`, `typecheck`, `test`, `build`.
-- **image**: builds the image (`load: true`, GitHub Actions cache), then
+- **image**: builds the linux/amd64 image (`load: true`, GitHub Actions cache), then
   `scripts/image-smoke-test.sh`, `scripts/deploy-stack-test.sh`, `scripts/backup-restore-test.sh`.
-  Only on push to `main` it logs in to GHCR with `GITHUB_TOKEN` (`packages: write`) and pushes.
+- **image-arm64**: builds the linux/arm64 image natively on an ARM runner (`ubuntu-24.04-arm`) and
+  runs `scripts/image-smoke-test.sh` on it. The VPS is ARM64.
+- **publish**: only on push to `main`, after `image` and `image-arm64` pass. Logs in to GHCR with
+  `GITHUB_TOKEN` (`packages: write`) and pushes one multi-platform image (linux/amd64 and
+  linux/arm64) under both tags; `docker compose pull` picks the server's platform. Only the runtime
+  stage is built for arm64 here, under QEMU (see [Image](#image)).
 
 Locally, `scripts/check.sh` runs the guards, the cheap web checks (format, lint, typecheck), the backend
 build and the web tests and build in one command from any directory; `scripts/check.sh --image` also builds the image and runs
@@ -81,8 +90,8 @@ Test scripts (each takes an `APP_IMAGE_TAG` or image name and cleans up after it
 
 ## Server layout
 
-- One Hetzner VPS (shared x86, 2 vCPU / 4 GB, Germany, Ubuntu LTS) with Docker Engine and the
-  Compose plugin. Firewall: 22, 80, 443.
+- One Hetzner VPS (Cost-Optimized ARM64, 2 vCPU / 4 GB / 40 GB, Nuremberg, Ubuntu 26.04 LTS) with
+  Docker Engine and the Compose plugin. Firewall: 22, 80, 443 (TCP) and 443 (UDP, HTTP/3).
 - A copy of the repository's `deploy/` directory on the server, plus its `.env` (not in git). All
   `docker compose` commands below run in that directory. `backup.sh` and `restore.sh` find the
   Compose file and `.env` next to themselves, so they run from anywhere.
