@@ -757,8 +757,8 @@ a Vite native-config-loader warning).
   white. `injectThemeColor: false`: `index.html` has its own `theme-color`, switched by the theme
   script.
 - **iOS meta tags** in `web/index.html`: `apple-mobile-web-app-capable`,
-  `mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style` (`black-translucent`: the page
-  draws under the status bar, the nav bar pads by `safe-area-inset-top`),
+  `mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style` (`default`: an opaque status bar above
+  the page; `black-translucent` let iOS 26+ blur the nav bar's buttons),
   `apple-mobile-web-app-title`, `viewport-fit=cover`.
 - **Service worker** (`sw.js`, registered by the injected `registerSW.js`): precaches the built
   shell (`**/*.{js,css,html,svg,png,ico}` + manifest), no runtime caching, navigation fallback to

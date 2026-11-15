@@ -7,10 +7,11 @@
          the manifest link are injected by vite-plugin-pwa at build time. -->
     <title>%APP_NAME%</title>
     <!-- iOS Home Screen: open full-screen, with the app's own name under the icon. The status bar
-         is drawn over the page; the nav bar pads by safe-area-inset-top (shared/ui Page). -->
+         is opaque in theme-color, above the page: with black-translucent (page drawn under it),
+         iOS 26+ blurred the nav bar's buttons at rest with its status-bar edge effect. -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="%APP_NAME%" />
     <!-- The grouped background of the active theme; the script below keeps it in step. -->
     <meta name="theme-color" content="#f2f2f7" />

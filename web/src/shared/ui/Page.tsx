@@ -25,16 +25,11 @@ export function Page({ title, back, actions, children }: PageProps) {
 
   return (
     <>
-      {/* At rest the bar is solid in the page's colour, not see-through: on a transparent sticky
-          bar under the status bar, iOS 26+ draws its scroll-edge blur over the bar's own buttons in
-          the home-screen app; a solid one makes it extend that colour instead. */}
       <header
         ref={bar}
         className={
           'sticky top-0 z-10 border-b pt-safe-0 transition-colors duration-200 ' +
-          (underBar
-            ? 'border-separator bg-bar backdrop-blur-xl'
-            : 'border-transparent bg-background')
+          (underBar ? 'border-separator bg-bar backdrop-blur-xl' : 'border-transparent')
         }
       >
         <div className="mx-auto grid min-h-11 max-w-160 grid-cols-[minmax(max-content,1fr)_minmax(0,auto)_minmax(max-content,1fr)] items-center gap-2 px-safe-2">

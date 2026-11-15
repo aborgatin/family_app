@@ -85,8 +85,9 @@ starts, so the wrong theme never flashes: it sets `<html data-theme="light|dark"
 `storage` event. After changing the stored choice, dispatch
 `new StorageEvent('storage', { key: 'theme' })` on `window` to apply it in the same window.
 
-The status bar is `black-translucent`: the page draws under it, and the nav bar pads by
-`safe-area-inset-top`. The page bottom pads by `safe-area-inset-bottom`, the sides by
+The status bar is `default`: opaque, above the page, not over it (with `black-translucent`
+iOS 26+ blurred the nav bar's buttons at rest under its status-bar edge effect). The nav bar
+still pads by `safe-area-inset-top`, which is 0 then. The page bottom pads by `safe-area-inset-bottom`, the sides by
 `safe-area-inset-left/right`. Components pad with the utilities in `theme.css`: `px-safe-<n>`
 (the side inset, but at least spacing `n`), `pt-safe-<n>` / `pb-safe-<n>` (the inset plus
 spacing `n`).
@@ -172,10 +173,8 @@ layout adds a sidebar next to it here, so screens don't change. Screens never us
 Every logged-in screen is one `Page`: `title`, optional `back` (`{to, title}` of the previous
 screen) and `actions` (the nav bar's trailing slot), then the content.
 
-- The nav bar is sticky. At the top it is solid `background`, so it looks part of the page (never
-  transparent: iOS 26+ blurs a see-through bar's buttons under its status-bar edge effect in the
-  home-screen app); once content scrolls under it, it turns translucent (`bar` + backdrop blur)
-  with a hairline. The large title (`h1`) scrolls away with the
+- The nav bar is sticky. At the top it is transparent; once content scrolls under it, it turns
+  translucent (`bar` + backdrop blur) with a hairline. The large title (`h1`) scrolls away with the
   content; when it has gone under the bar, the small centred title fades in.
 - Back button: a chevron and the previous screen's title, left. Actions: icon `Button`s or `Link`s,
   right; or the one text `Button` that confirms a screen («Готово» on the password screen),
