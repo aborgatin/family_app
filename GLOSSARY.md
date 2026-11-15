@@ -195,4 +195,4 @@ _Avoid_: Merge, conflict resolution
 
 ## Future
 
-Links (R2), recipes (R3), trips (R4) and medical cards (R5) will add their own terms when designed; a trip's packing list reuses List and Item.
+Links (R2), recipes (R3), trips (R4) and medical cards (M5.5) will add their own terms when designed; a trip's packing list reuses List and Item.
