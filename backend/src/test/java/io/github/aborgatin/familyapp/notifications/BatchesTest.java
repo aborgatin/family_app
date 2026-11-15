@@ -327,6 +327,19 @@ class BatchesTest {
   }
 
   @Test
+  void aPushThatThrowsCostsOnlyItselfAndTheStepSendsTheRest() throws Exception {
+    pushApplied(anna, add(UUID.randomUUID(), home, "Купить хлеб"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Починить кран"));
+    gateway.throwOnNextSend();
+
+    later(Duration.ofMinutes(2));
+
+    assertThat(gateway.endpoints()).hasSize(1).containsAnyOf(ANNA_PHONE, BORIS_PHONE);
+    later(Duration.ofMinutes(2));
+    assertThat(gateway.endpoints()).hasSize(1); // the lost push is not retried
+  }
+
+  @Test
   void everyDeviceOfTheRecipientGetsItAndAGoneOneIsForgotten() throws Exception {
     String tablet = "https://web.push.apple.com/anna-tablet";
     Browser annaTablet = new Browser(mvc);

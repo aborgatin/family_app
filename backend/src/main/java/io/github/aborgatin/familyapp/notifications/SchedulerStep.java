@@ -8,6 +8,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -18,6 +21,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 public class SchedulerStep {
+
+  private static final Logger log = LoggerFactory.getLogger(SchedulerStep.class);
 
   /** How long a push service keeps a Notification or Reminder for a device that is offline. */
   static final Duration TTL = Duration.ofHours(24);
@@ -65,10 +70,19 @@ public class SchedulerStep {
                   previous.map(after -> reminders.due(after, now)).orElse(List.of()));
             });
     for (Batches.Notification notification : due.notifications()) {
-      pushes.sendTo(notification.recipientId(), notification.payload(), TTL, Urgency.NORMAL);
+      send(notification.recipientId(), notification.payload(), Urgency.NORMAL);
     }
     for (Reminders.Reminder reminder : due.reminders()) {
-      pushes.sendTo(reminder.recipientId(), reminder.payload(), TTL, Urgency.HIGH);
+      send(reminder.recipientId(), reminder.payload(), Urgency.HIGH);
+    }
+  }
+
+  /** One push; a failure costs only this one, logged and not retried. */
+  private void send(UUID recipientId, String payload, Urgency urgency) {
+    try {
+      pushes.sendTo(recipientId, payload, TTL, urgency);
+    } catch (RuntimeException e) {
+      log.warn("A push to Member {} failed; it is not retried", recipientId, e);
     }
   }
 }

@@ -19,7 +19,7 @@ import org.springframework.context.annotation.Primary;
 /**
  * The push gateway tests use in place of the real one (spec #104, Testing): it sends nothing,
  * records every push and answers {@code DELIVERED}, or what a test told it to answer for a
- * subscription. Import {@link Config} and autowire the {@code FakePushGateway}; call {@link
+ * subscription, or throws once when told to. Import {@link Config} and autowire the {@code FakePushGateway}; call {@link
  * #reset()} in {@code @BeforeEach}, as the context (and this fake) is shared by the test classes
  * that import it.
  */
@@ -49,10 +49,15 @@ public final class FakePushGateway implements PushGateway {
 
   private final List<Push> pushes = new ArrayList<>();
   private final Map<String, PushResult> answers = new ConcurrentHashMap<>();
+  private boolean throwNext;
 
   @Override
   public synchronized PushResult send(
       PushSubscription subscription, String payload, Duration ttl, Urgency urgency) {
+    if (throwNext) {
+      throwNext = false;
+      throw new IllegalStateException("The fake push gateway was told to throw");
+    }
     pushes.add(new Push(subscription, payload, ttl, urgency));
     return answers.getOrDefault(subscription.endpoint(), PushResult.DELIVERED);
   }
@@ -60,6 +65,14 @@ public final class FakePushGateway implements PushGateway {
   /** From now on, pushes to this endpoint get this answer ({@code GONE}, {@code FAILED}). */
   public void answer(String endpoint, PushResult result) {
     answers.put(endpoint, result);
+  }
+
+  /**
+   * The next push throws instead of being sent (and is not recorded), as a database call on the
+   * way out could: the push after it goes through again.
+   */
+  public synchronized void throwOnNextSend() {
+    throwNext = true;
   }
 
   /** Every push received since the last {@link #reset()}, in order. */
@@ -76,6 +89,7 @@ public final class FakePushGateway implements PushGateway {
   public synchronized void reset() {
     pushes.clear();
     answers.clear();
+    throwNext = false;
   }
 
   /** Puts a {@code FakePushGateway} in the context, in place of the real gateway. */
