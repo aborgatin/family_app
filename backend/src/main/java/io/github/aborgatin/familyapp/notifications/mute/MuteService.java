@@ -2,6 +2,7 @@ package io.github.aborgatin.familyapp.notifications.mute;
 
 import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.error.FieldErrors;
+import io.github.aborgatin.familyapp.lists.ListSummary;
 import io.github.aborgatin.familyapp.lists.ListUnshared;
 import io.github.aborgatin.familyapp.lists.Lists;
 import io.github.aborgatin.familyapp.lists.Visibility;
@@ -58,15 +59,16 @@ class MuteService implements SyncableTable {
     FieldErrors errors = new FieldErrors();
     UUID listId = errors.requiredUuid("listId", operation.text("listId"));
     errors.throwIfAny();
-    if (lists.deleted(listId)) {
+    Optional<ListSummary> list = lists.find(listId);
+    if (list.isEmpty() && lists.deleted(listId)) {
       // The List was deleted meanwhile, and its Mutes with it: delete wins.
       return Outcome.IGNORED;
     }
-    if (!lists.visibleTo(listId, operation.memberId())) {
+    if (list.isEmpty() || !list.get().seenBy().contains(operation.memberId())) {
       throw new ApiException(
           HttpStatus.NOT_FOUND, "list.not_found", Map.of("listId", listId.toString()));
     }
-    if (lists.find(listId).orElseThrow().visibility() == Visibility.PRIVATE) {
+    if (list.get().visibility() == Visibility.PRIVATE) {
       throw new ApiException(
           HttpStatus.BAD_REQUEST, "mute.private_list", Map.of("listId", listId.toString()));
     }

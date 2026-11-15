@@ -128,7 +128,7 @@ class RemindersTest {
 
   @Test
   void remindersStillArriveOnAMutedList() throws Exception {
-    pushApplied(boris, MuteSyncTest.mute(UUID.randomUUID(), home));
+    pushApplied(boris, ListOperations.mute(UUID.randomUUID(), home));
     due(home, "Починить кран", today, "10:00");
 
     stepAt(at(today, "10:00"));

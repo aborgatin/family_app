@@ -880,8 +880,8 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     compare.
     See `notifications.PushSubscriptionsTest`.
   - `ListOperations`: the Lists' operations most `lists.*SyncTest`s push, statically imported:
-    `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`.
-    A helper one test class needs stays in it; one a second class needs moves here.
+    `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`,
+    `mute(id, listId)` (a Mute of the List, used by the `notifications` tests). A helper one test class needs stays in it; one a second class needs moves here.
 - Concurrency (`PullNeverSkipsASlowerWriteTest`, `MemberWritesTakeTheFamilyLockTest`): a raw JDBC
   connection holds a row lock, a request runs on another thread, and the test waits until it is
   blocked (`LockWaits.transactionsWaitingOnALock(jdbc)` reads `pg_stat_activity`,

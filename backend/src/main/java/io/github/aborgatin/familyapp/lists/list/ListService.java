@@ -132,15 +132,13 @@ class ListService implements SyncableTable {
       if (list.visibility() == Visibility.PRIVATE) {
         // A Private list's Items have no Assignee; making it Shared again restores none.
         items.clearAssigneesInList(list.id());
+        unshared(list);
       }
       // The pull sends the Items, Categories and Item history again: with their fields to a
       // Member who may now see the List, as tombstones to one who no longer may.
       items.bumpVersionsInList(list.id());
       categories.bumpVersionsInList(list.id());
       history.bumpVersionsInList(list.id());
-      if (list.visibility() == Visibility.PRIVATE) {
-        events.publishEvent(new ListUnshared(list.id()));
-      }
     }
     return Outcome.APPLIED;
   }
@@ -236,8 +234,13 @@ class ListService implements SyncableTable {
     categories.markDeletedInList(list.id());
     history.markDeletedInList(list.id());
     if (list.visibility() == Visibility.SHARED) {
-      events.publishEvent(new ListUnshared(list.id()));
+      unshared(list);
     }
+  }
+
+  /** The List stopped being Shared (deleted, or made Private), in this operation. */
+  private void unshared(ListEntity list) {
+    events.publishEvent(new ListUnshared(list.id()));
   }
 
   private static ApiException ownerOnly() {

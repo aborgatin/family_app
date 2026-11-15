@@ -408,7 +408,7 @@ class BatchesTest {
 
   @Test
   void aMutedListSendsNoAdditionsButAssignmentsStillArrive() throws Exception {
-    pushApplied(anna, MuteSyncTest.mute(UUID.randomUUID(), home));
+    pushApplied(anna, ListOperations.mute(UUID.randomUUID(), home));
     UUID gift = UUID.randomUUID();
 
     pushApplied(
@@ -433,7 +433,7 @@ class BatchesTest {
     pushApplied(boris, add(UUID.randomUUID(), home, "Починить кран"));
     later(Duration.ofSeconds(60));
 
-    pushApplied(anna, MuteSyncTest.mute(UUID.randomUUID(), home));
+    pushApplied(anna, ListOperations.mute(UUID.randomUUID(), home));
     later(Duration.ofMinutes(2));
 
     assertThat(gateway.pushes()).isEmpty();
@@ -442,14 +442,14 @@ class BatchesTest {
   @Test
   void aMuteIsItsMembersOnlyAndUnmutingBringsAdditionsBack() throws Exception {
     UUID annasMute = UUID.randomUUID();
-    pushApplied(anna, MuteSyncTest.mute(annasMute, home));
+    pushApplied(anna, ListOperations.mute(annasMute, home));
 
     pushApplied(anna, add(UUID.randomUUID(), home, "Полить цветы"));
     later(Duration.ofMinutes(2));
     assertThat(gateway.endpoints()).containsExactly(BORIS_PHONE);
 
     gateway.reset();
-    pushApplied(anna, SyncRequests.delete(MuteSyncTest.TABLE, annasMute));
+    pushApplied(anna, SyncRequests.delete("mute", annasMute));
     pushApplied(boris, add(UUID.randomUUID(), home, "Починить кран"));
     later(Duration.ofMinutes(2));
     assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE);

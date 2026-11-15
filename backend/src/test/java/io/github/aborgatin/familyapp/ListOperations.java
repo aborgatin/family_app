@@ -29,4 +29,9 @@ public final class ListOperations {
   public static String done(UUID id, boolean done) {
     return SyncRequests.upsert("item", id, "{\"done\":%s}".formatted(done));
   }
+
+  /** Mutes the List for the pushing Member: a new row of the {@code mute} table (#111). */
+  public static String mute(UUID id, UUID listId) {
+    return SyncRequests.upsert("mute", id, "{\"listId\":\"%s\"}".formatted(listId));
+  }
 }

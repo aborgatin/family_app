@@ -1,6 +1,7 @@
 package io.github.aborgatin.familyapp.notifications;
 
 import static io.github.aborgatin.familyapp.ListOperations.list;
+import static io.github.aborgatin.familyapp.ListOperations.mute;
 import static io.github.aborgatin.familyapp.SyncRequests.pushApplied;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -45,11 +46,6 @@ class MuteSyncTest {
     anna = SyncRequests.bootstrapAnna(mvc);
     boris = SyncRequests.loginBoris(mvc, jdbc);
     pushApplied(anna, list(home, "Дом", "TODO", "SHARED"));
-  }
-
-  /** The upsert that Mutes {@code listId}. */
-  static String mute(UUID id, UUID listId) {
-    return SyncRequests.upsert(TABLE, id, "{\"listId\":\"%s\"}".formatted(listId));
   }
 
   @Test
