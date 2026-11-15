@@ -250,8 +250,10 @@ the other arguments (`deploy/restore.sh --from r2:family-backups --scratch resto
 1. `deploy/restore.sh --list` and pick the newest dump.
 2. `deploy/restore.sh --from <remote> --scratch restore_check <dump>`, once for each target (drop
    `restore_check` in between), so both copies are known to work.
-3. Inspect it, e.g.
-   `docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d restore_check -c "SELECT email FROM member"'`.
+3. Check the Members and Children are there, and the row counts match the live database (run the
+   same query with `-d "$POSTGRES_DB"`):
+   `docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d restore_check -c "SELECT email FROM member" -c "SELECT name FROM child" -c "SELECT (SELECT count(*) FROM list) lists, (SELECT count(*) FROM item) items"'`.
+   To test with today's data rather than last night's, run `deploy/backup.sh` by hand first.
 4. Drop it: `docker compose exec postgres sh -c 'dropdb -U "$POSTGRES_USER" restore_check'`.
 
 **Replace the live database** (data loss, server rebuild):
