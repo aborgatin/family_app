@@ -12,6 +12,8 @@ export interface Member {
   email: string;
   displayName: string;
   grammaticalGender: GrammaticalGender;
+  /** The Notifications switch: whether this Member gets push messages at all (spec #104). */
+  notificationsEnabled: boolean;
   version: number;
   updatedAt: string;
 }

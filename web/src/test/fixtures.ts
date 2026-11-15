@@ -6,6 +6,7 @@ export const anna = {
   email: 'anna@example.com',
   displayName: 'Анна',
   grammaticalGender: 'FEMININE',
+  notificationsEnabled: false,
   version: 1,
   updatedAt: '2026-11-07T10:00:00Z',
 };
@@ -16,6 +17,7 @@ export const boris: typeof anna = {
   email: 'boris@example.com',
   displayName: 'Борис',
   grammaticalGender: 'MASCULINE',
+  notificationsEnabled: false,
   version: 2,
   updatedAt: '2026-11-07T10:05:00Z',
 };

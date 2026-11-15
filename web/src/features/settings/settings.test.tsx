@@ -34,6 +34,7 @@ describe('Settings', () => {
       'Ваш профиль',
       'Дети',
       'Поля профиля',
+      'Уведомления',
       'Оформление',
     ]);
     expect(screen.getByRole('button', { name: 'Выйти' })).toBeInTheDocument();

@@ -3,6 +3,7 @@ import { LogoutSection } from '@/features/auth';
 import { ChildFieldsSettings } from '@/features/child-fields';
 import { ChildrenSettings } from '@/features/children';
 import { MembersSettings } from '@/features/members';
+import { NotificationsSection } from '@/features/notifications';
 import { Page, Sections } from '@/shared/ui';
 import { AppearanceSection } from './AppearanceSection';
 
@@ -23,6 +24,7 @@ export function SettingsPage({ homePath }: SettingsPageProps) {
         <MembersSettings />
         <ChildrenSettings />
         <ChildFieldsSettings />
+        <NotificationsSection />
         <AppearanceSection />
         <LogoutSection />
       </Sections>
