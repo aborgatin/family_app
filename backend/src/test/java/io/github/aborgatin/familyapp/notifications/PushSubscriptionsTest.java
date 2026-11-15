@@ -10,6 +10,7 @@ import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
 import io.github.aborgatin.familyapp.SyncRequests;
 import io.github.aborgatin.familyapp.TestClock;
+import io.github.aborgatin.familyapp.family.PasswordResets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -44,6 +45,7 @@ class PushSubscriptionsTest {
   @Autowired FakePushGateway gateway;
   @Autowired TestClock clock;
   @Autowired Pushes pushes;
+  @Autowired PasswordResets passwordResets;
 
   Browser anna;
   UUID annaId;
@@ -127,8 +129,166 @@ class PushSubscriptionsTest {
         .andExpect(jsonPath("$.code").value("auth.required"));
   }
 
-  // --- helpers
-  // ------------------------------------------------------------------------------------
+  @Test
+  void badSubscriptionsGetFieldCodes() throws Exception {
+    anna.postJson("/api/push/subscriptions", "{}")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("validation.failed"))
+        .andExpect(jsonPath("$.params.errors[?(@.field=='endpoint')].code").value("required"))
+        .andExpect(jsonPath("$.params.errors[?(@.field=='keys.p256dh')].code").value("required"))
+        .andExpect(jsonPath("$.params.errors[?(@.field=='keys.auth')].code").value("required"));
+
+    anna.postJson(
+            "/api/push/subscriptions",
+            """
+            {"endpoint":"http://push.example.com/x","keys":{"p256dh":"bm90IGEga2V5","auth":"!!"}}
+            """)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.params.errors[?(@.field=='endpoint')].code").value("value.invalid"))
+        .andExpect(
+            jsonPath("$.params.errors[?(@.field=='keys.p256dh')].code").value("value.invalid"))
+        .andExpect(
+            jsonPath("$.params.errors[?(@.field=='keys.auth')].code").value("value.invalid"));
+
+    anna.postJson(
+            "/api/push/subscriptions",
+            subscription("https://web.push.apple.com/" + "x".repeat(2048)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.params.errors[?(@.field=='endpoint')].code").value("too_long"));
+
+    anna.deleteJson("/api/push/subscriptions", "{\"endpoint\":\"\"}")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.params.errors[?(@.field=='endpoint')].code").value("required"));
+
+    send(annaId);
+    assertThat(gateway.pushes()).isEmpty();
+  }
+
+  @Test
+  void aDeviceSubscribedByOneMemberMovesToTheOtherWhoSubscribesIt() throws Exception {
+    subscribe(anna, PHONE).andExpect(status().isNoContent());
+    Browser boris = SyncRequests.loginBoris(mvc, jdbc);
+    UUID borisId = UUID.fromString(SyncRequests.memberId(boris));
+    switchNotifications(boris, true);
+
+    subscribe(boris, PHONE).andExpect(status().isNoContent());
+
+    send(annaId);
+    assertThat(gateway.pushes()).isEmpty();
+    send(borisId);
+    assertThat(gateway.endpoints()).containsExactly(PHONE);
+  }
+
+  @Test
+  void aDeviceLoggedInAsTheOtherMemberNoLongerGetsTheFirstOnesPushes() throws Exception {
+    subscribe(anna, PHONE).andExpect(status().isNoContent());
+    SyncRequests.loginBoris(mvc, jdbc);
+
+    // Boris logs in on Anna's phone without logging her out first (the session row stays).
+    anna.postJson(
+            "/api/auth/login", "{\"email\":\"boris@example.com\",\"password\":\"boris-pass\"}")
+        .andExpect(status().isOk());
+
+    send(annaId);
+    assertThat(gateway.pushes()).isEmpty();
+  }
+
+  @Test
+  void aMemberUnsubscribesOnlyTheirOwnDevice() throws Exception {
+    subscribe(anna, PHONE).andExpect(status().isNoContent());
+    Browser tablet = logIn("anna@example.com", "secret123");
+    subscribe(tablet, TABLET).andExpect(status().isNoContent());
+    Browser boris = SyncRequests.loginBoris(mvc, jdbc);
+
+    // Boris cannot remove Anna's device; an unknown endpoint is a no-op.
+    boris
+        .deleteJson("/api/push/subscriptions", "{\"endpoint\":\"" + PHONE + "\"}")
+        .andExpect(status().isNoContent());
+    anna.deleteJson("/api/push/subscriptions", "{\"endpoint\":\"https://push.example.com/none\"}")
+        .andExpect(status().isNoContent());
+    send(annaId);
+    assertThat(gateway.endpoints()).containsExactlyInAnyOrder(PHONE, TABLET);
+
+    gateway.reset();
+    anna.deleteJson("/api/push/subscriptions", "{\"endpoint\":\"" + PHONE + "\"}")
+        .andExpect(status().isNoContent());
+    send(annaId);
+    assertThat(gateway.endpoints()).containsExactly(TABLET);
+  }
+
+  @Test
+  void loggingOutDeletesThatDevicesSubscriptionOnly() throws Exception {
+    subscribe(anna, PHONE).andExpect(status().isNoContent());
+    Browser tablet = logIn("anna@example.com", "secret123");
+    subscribe(tablet, TABLET).andExpect(status().isNoContent());
+
+    anna.post("/api/auth/logout").andExpect(status().isNoContent());
+
+    send(annaId);
+    assertThat(gateway.endpoints()).containsExactly(TABLET);
+    // Logging in again on the phone does not bring it back: the app subscribes again.
+    gateway.reset();
+    Browser phoneAgain = logIn("anna@example.com", "secret123");
+    send(annaId);
+    assertThat(gateway.endpoints()).containsExactly(TABLET);
+    subscribe(phoneAgain, PHONE).andExpect(status().isNoContent());
+    gateway.reset();
+    send(annaId);
+    assertThat(gateway.endpoints()).containsExactlyInAnyOrder(PHONE, TABLET);
+  }
+
+  @Test
+  void aPasswordResetEndingEverySessionDeletesEverySubscription() throws Exception {
+    subscribe(anna, PHONE).andExpect(status().isNoContent());
+    Browser tablet = logIn("anna@example.com", "secret123");
+    subscribe(tablet, TABLET).andExpect(status().isNoContent());
+    String url = passwordResets.createForEmail("anna@example.com").orElseThrow().url();
+    String token = url.substring(url.lastIndexOf('/') + 1);
+
+    Browser laptop = new Browser(mvc);
+    laptop.openApp();
+    laptop
+        .postJson(
+            "/api/password-resets/by-token/" + token + "/complete",
+            "{\"newPassword\":\"brand-new-secret\"}")
+        .andExpect(status().isOk());
+
+    send(annaId);
+    assertThat(gateway.pushes()).isEmpty();
+  }
+
+  @Test
+  void aSubscriptionEndsWhenItsSessionExpires() throws Exception {
+    subscribe(anna, PHONE).andExpect(status().isNoContent());
+
+    // SESSION_TIMEOUT is 180 days without a request (sessions keep their own clock, the real one).
+    clock.set(Instant.now().plus(Duration.ofDays(179)));
+    send(annaId);
+    assertThat(gateway.endpoints()).containsExactly(PHONE);
+
+    gateway.reset();
+    clock.set(Instant.now().plus(Duration.ofDays(181)));
+    send(annaId);
+    assertThat(gateway.pushes()).isEmpty();
+  }
+
+  @Test
+  void aGoneSubscriptionIsDeletedAndAFailedOneKept() throws Exception {
+    subscribe(anna, PHONE).andExpect(status().isNoContent());
+    Browser tablet = logIn("anna@example.com", "secret123");
+    subscribe(tablet, TABLET).andExpect(status().isNoContent());
+    gateway.answer(PHONE, PushResult.GONE);
+    gateway.answer(TABLET, PushResult.FAILED);
+
+    send(annaId);
+    assertThat(gateway.endpoints()).containsExactlyInAnyOrder(PHONE, TABLET);
+
+    gateway.reset();
+    send(annaId);
+    assertThat(gateway.endpoints()).containsExactly(TABLET);
+  }
+
+  // --- helpers ---
 
   static String subscription(String endpoint) {
     return """
