@@ -34,7 +34,9 @@ public class Batches {
   /** A Notification for one recipient: the push payload, JSON. */
   public record Message(UUID recipientId, String payload) {}
 
-  /** The push payload of a Notification, as the service worker reads it ({@code pushPayload.ts}). */
+  /**
+   * The push payload of a Notification, as the service worker reads it ({@code pushPayload.ts}).
+   */
   record NotificationPayload(
       String type,
       String actorName,
@@ -75,9 +77,7 @@ public class Batches {
   private List<Message> messages(PendingBatches.Batch batch) {
     Optional<ListSummary> found = lists.find(batch.listId());
     Optional<MemberSummary> actor = members.byId(batch.actorId());
-    if (found.isEmpty()
-        || actor.isEmpty()
-        || found.get().visibility() == Visibility.PRIVATE) {
+    if (found.isEmpty() || actor.isEmpty() || found.get().visibility() == Visibility.PRIVATE) {
       return List.of();
     }
     ListSummary list = found.get();

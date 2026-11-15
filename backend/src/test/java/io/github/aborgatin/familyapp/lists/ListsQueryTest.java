@@ -71,12 +71,7 @@ class ListsQueryTest {
     assertThat(lists.find(home))
         .contains(
             new ListSummary(
-                home,
-                "Дом",
-                ListKind.TODO,
-                Visibility.SHARED,
-                annaId,
-                List.of(annaId, borisId)));
+                home, "Дом", ListKind.TODO, Visibility.SHARED, annaId, List.of(annaId, borisId)));
     assertThat(lists.find(mine).orElseThrow().seenBy()).containsExactly(annaId);
     assertThat(lists.find(mine).orElseThrow().kind()).isEqualTo(ListKind.SHOPPING);
     assertThat(lists.find(UUID.randomUUID())).isEmpty();
@@ -137,7 +132,12 @@ class ListsQueryTest {
     assertThat(due)
         .containsExactly(
             new DueItem(
-                atThree, "Забрать справку", home, null, LocalDate.of(2026, 3, 10), LocalTime.of(15, 0)),
+                atThree,
+                "Забрать справку",
+                home,
+                null,
+                LocalDate.of(2026, 3, 10),
+                LocalTime.of(15, 0)),
             new DueItem(morning, "Позвонить маме", home, null, LocalDate.of(2026, 3, 11), null));
   }
 

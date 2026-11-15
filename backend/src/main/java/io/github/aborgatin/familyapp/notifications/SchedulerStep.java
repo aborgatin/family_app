@@ -27,11 +27,7 @@ public class SchedulerStep {
   private final Clock clock;
 
   SchedulerStep(
-      Batches batches,
-      StepRuns runs,
-      Pushes pushes,
-      TransactionTemplate transaction,
-      Clock clock) {
+      Batches batches, StepRuns runs, Pushes pushes, TransactionTemplate transaction, Clock clock) {
     this.batches = batches;
     this.runs = runs;
     this.pushes = pushes;

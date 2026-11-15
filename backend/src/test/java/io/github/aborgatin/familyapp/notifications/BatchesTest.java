@@ -98,7 +98,6 @@ class BatchesTest {
     assertThat(gateway.pushes()).hasSize(1);
   }
 
-
   @Test
   void aBusyMemberIsStillSentTenMinutesAfterTheirFirstChange() throws Exception {
     for (int i = 1; i <= 6; i++) {

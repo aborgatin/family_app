@@ -36,6 +36,7 @@ class SchedulerScheduleTest {
                 .filter(CronTask.class::isInstance)
                 .map(task -> ((CronTask) task).getExpression() + " " + task))
         .anySatisfy(
-            task -> assertThat(task).startsWith("0 * * * * * ").endsWith("SchedulerConfig.runStep"));
+            task ->
+                assertThat(task).startsWith("0 * * * * * ").endsWith("SchedulerConfig.runStep"));
   }
 }

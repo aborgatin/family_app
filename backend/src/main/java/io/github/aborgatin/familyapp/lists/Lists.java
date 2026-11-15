@@ -17,10 +17,14 @@ public interface Lists {
   /** The List, or empty when it is unknown or deleted. */
   Optional<ListSummary> find(UUID listId);
 
-  /** Whether the List exists and this Member sees it (every Shared List, their own Private ones). */
+  /**
+   * Whether the List exists and this Member sees it (every Shared List, their own Private ones).
+   */
   boolean visibleTo(UUID listId, UUID memberId);
 
-  /** Those of these Items that still exist, open or Done, by id; unknown and deleted ones left out. */
+  /**
+   * Those of these Items that still exist, open or Done, by id; unknown and deleted ones left out.
+   */
   Map<UUID, ItemSummary> items(Collection<UUID> itemIds);
 
   /**

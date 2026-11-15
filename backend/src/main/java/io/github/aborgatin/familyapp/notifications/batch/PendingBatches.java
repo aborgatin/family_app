@@ -43,7 +43,12 @@ class PendingBatches {
    */
   @Transactional(propagation = Propagation.MANDATORY)
   void record(
-      UUID actorId, UUID listId, UUID itemId, boolean added, @Nullable UUID assigneeId, Instant at) {
+      UUID actorId,
+      UUID listId,
+      UUID itemId,
+      boolean added,
+      @Nullable UUID assigneeId,
+      Instant at) {
     Timestamp time = Timestamp.from(at);
     jdbc.update(
         """
@@ -86,7 +91,9 @@ class PendingBatches {
             FOR UPDATE SKIP LOCKED
             """,
             (rs, row) ->
-                new UUID[] {rs.getObject("actor_id", UUID.class), rs.getObject("list_id", UUID.class)},
+                new UUID[] {
+                  rs.getObject("actor_id", UUID.class), rs.getObject("list_id", UUID.class)
+                },
             Timestamp.from(now.minus(QUIET)),
             Timestamp.from(now.minus(LONGEST)));
     List<Batch> due =

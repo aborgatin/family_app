@@ -61,8 +61,7 @@ class ListQueries implements Lists {
   public List<DueItem> dueBetween(Instant after, Instant until, LocalTime morningTime) {
     ZoneId zone = ZoneId.systemDefault();
     return items
-        .findOpenDueBetween(
-            LocalDate.ofInstant(after, zone), LocalDate.ofInstant(until, zone))
+        .findOpenDueBetween(LocalDate.ofInstant(after, zone), LocalDate.ofInstant(until, zone))
         .stream()
         .map(item -> Map.entry(dueMoment(item.dueDate(), morningTime, zone), item))
         .filter(due -> due.getKey().isAfter(after) && !due.getKey().isAfter(until))
