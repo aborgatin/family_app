@@ -12,7 +12,8 @@ import org.springframework.context.ConfigurableApplicationContext;
  * Runs an operator command instead of the web app when the image is started with one, e.g. {@code
  * java -jar app.jar reset-password anna@example.com}. The application starts without the web server
  * (no port is opened, so it can run next to the live app), runs the command and stops. Arguments
- * starting with {@code --} are Spring properties, as for the web app.
+ * starting with {@code --} are Spring properties, as for the web app. {@code generate-vapid-keys}
+ * runs without starting the application at all.
  */
 public final class Commands {
 
@@ -24,13 +25,19 @@ public final class Commands {
 
   /** Whether these program arguments name a command rather than starting the web app. */
   public static boolean isCommand(String[] args) {
-    return args.length > 0 && args[0].equals(PasswordResetCommand.NAME);
+    return args.length > 0
+        && (args[0].equals(PasswordResetCommand.NAME)
+            || args[0].equals(GenerateVapidKeysCommand.NAME));
   }
 
   /** Runs the command the arguments name and returns the process exit code. */
   public static int run(Class<?> application, String[] args, PrintStream out, PrintStream err) {
     List<String> commandArgs =
         Arrays.stream(args).skip(1).filter(arg -> !arg.startsWith("--")).toList();
+    if (args[0].equals(GenerateVapidKeysCommand.NAME)) {
+      // Before the application starts: it is how the operator gets the settings it requires.
+      return GenerateVapidKeysCommand.run(commandArgs, out, err);
+    }
     try (ConfigurableApplicationContext context =
         new SpringApplicationBuilder(application)
             .web(WebApplicationType.NONE)
