@@ -41,6 +41,10 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
    - Batching: "Даша добавила 7 товаров в Супермаркет" instead of 7 pushes.
    - Reminders (todo due dates) always fire unless notifications are globally off.
 7. **Auth:** email + password, long-lived session per device, invite link to add the second adult. Passkeys later.
+8. **Medical card** (M5.5, after or alongside M5): one per Member and per Child. A Member's card is private (only that Member sees it); a Child's card is shared by both Members.
+   - Documents: doctors' reports and test results stored on the card (files, e.g. PDFs and photos).
+   - Illness tracking for Children: timestamped records ("26 Nov, 22:00: temperature 38.5 °C, gave ibuprofen 5 ml"), grouped into one illness, plus custom records on an illness. The medicine dose is suggested from the Child's latest weight (Child field «Вес»).
+   - To grill before starting, after researching similar apps: the source and limits of dose data (per-medicine mg/kg, concentration of the syrup, maximum daily dose, minimum interval), reading «Вес» as a number (Child fields hold only text or dates), how a suggestion is shown so it is never mistaken for medical advice, file storage and its backups, extra protection for medical data (who can see a Private card, encryption at rest), and whether illnesses apply to Members too.
 
 ### Later releases (outline only — to be brainstormed when we get there)
 
@@ -48,10 +52,7 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 - **R2 — Links:** save links from Instagram / Telegram / YouTube etc. via iOS Shortcut in the share sheet; archive media (yt-dlp worker) so it survives source deletion.
 - **R3 — Recipes:** manual entry, import from URL, "add ingredients to shopping list".
 - **R4 — Travel planning:** trip page, itinerary, bookings, packing list (reuses lists), links (reuses R2).
-- **R5 — Medical card:** one per Member and per Child. A Member's card is private (only that Member sees it); a Child's card is shared by both Members.
-  - Documents: doctors' reports and test results stored on the card (files, e.g. PDFs and photos).
-  - Illness tracking for Children: timestamped records ("26 Nov, 22:00: temperature 38.5 °C, gave ibuprofen 5 ml"), grouped into one illness, plus custom records on an illness. The medicine dose is suggested from the Child's latest weight (Child field «Вес»).
-  - To grill before starting, after researching similar apps: the source and limits of dose data (per-medicine mg/kg, concentration of the syrup, maximum daily dose, minimum interval), reading «Вес» as a number (Child fields hold only text or dates), how a suggestion is shown so it is never mistaken for medical advice, file storage and its backups, extra protection for medical data (who can see a Private card, encryption at rest), and whether illnesses apply to Members too.
+- **Handover (was M6):** an install README so other families can run their own copy, and a hardening pass (security headers, login rate limits, what an outsider sees in the repo). The backup/restore drill (#29) is done and the repo is already public.
 
 ### Backlog (ideas, not committed)
 
@@ -163,5 +164,7 @@ Secrets only in the server's `.env`, never in git.
 - [ ] Web Push subscription (iOS 16.4+ installed PWA), global toggle, per-list mute.
 - [ ] Change notifications with batching (skip own changes); due-date reminder scheduler.
 
-**M6 — Hardening & handover**
-- [ ] Install README for other families; backup/restore drill; make repo public.
+**M5.5 — Medical card** (may run alongside M5, or before it)
+- [ ] Grill first (open questions in §1, item 8), then spec and tickets.
+- [ ] Member and Child cards, documents (file storage included in the backups), Child illnesses with records and dose suggestions.
+- [ ] Dose reminders ("next dose allowed at …") come after both M5 and M5.5.
