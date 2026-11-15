@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import {
@@ -8,6 +8,7 @@ import {
   subscribeServerReachable,
 } from '@/shared/api';
 import { useLoad } from '@/shared/load';
+import { resyncSubscription } from '@/shared/push';
 import {
   claimLocalStore,
   onSessionEnded,
@@ -159,6 +160,17 @@ export function AuthGuard() {
       active = false;
       stop?.();
     };
+  }, [memberId, confirmed]);
+
+  // At launch (and after logging in), this device's push subscription goes to the server again
+  // while the Notifications switch is on: iOS may have replaced it (spec #104 "Client re-sync").
+  // Only the Member and the server's answer start it, not later changes of the switch.
+  const notificationsEnabled = member?.notificationsEnabled === true;
+  const resync = useEffectEvent(() => {
+    if (notificationsEnabled) void resyncSubscription();
+  });
+  useEffect(() => {
+    if (memberId !== undefined && confirmed) resync();
   }, [memberId, confirmed]);
 
   // A session that ends while syncing (expired, reset elsewhere) sends the Member to `/login` from

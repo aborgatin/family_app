@@ -18,7 +18,7 @@ step with the headings).
 - [Data access](#data-access): one hook per synced feature, what each hook reads and writes, online-only screens
 - [i18n](#i18n): the `ru` resource file, key naming, plurals and gendered verbs (I2)
 - [Look and theme](#look-and-theme): Tailwind tokens, light and dark theme, where the UI kit is specified
-- [Settings](#settings): the Settings screen: Members, Invites, profile, password, theme, Child fields
+- [Settings](#settings): the Settings screen: Members, Invites, profile, password, Notifications and this device's push subscription, theme, Child fields
 - [Home «Дети» and the Child page](#home-дети-and-the-child-page): Child tiles on Home, the Child page, Child lists and fields
 - [PWA](#pwa): manifest, icons, the service worker (precache, push, tap), the push payload contract, updates
 - [iOS and macOS](#ios-and-macos): installed-app cookies, ITP, Safari quirks
@@ -77,6 +77,8 @@ web/src/
                         useFamilyMembers() (the Members on the local store, by id)
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(), useChild(id),
                         ChildrenTiles («Дети» on Home), ChildPage (the Child page, CHILD_PATH)
+    notifications/      NotificationsSection (Settings «Уведомления»: the switch, this device),
+                        usePushDevice, notificationsApi (the switch's PATCH)
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
                         ChildProfileSection («Профиль» on the Child page), useChildFieldValues(childId)
   shared/
@@ -85,6 +87,8 @@ web/src/
     load/               useLoad(): load / failed / retry for anything fetched once
     sync/               local store (Dexie), sync engine, useRows / useSyncedRows / upsertRow /
                         deleteRow, useSaveRejection, startSync / stopSync / onSessionEnded
+    push/               this device and push: readPushState, subscribeThisDevice,
+                        resyncSubscription (launch), forgetSubscription (logout), pushApi
     palette/            Child color palette (childColors.json)
     dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests),
                         daysFromToday(day, now), shortDay(date, now) («15 нояб.»)
@@ -92,7 +96,7 @@ web/src/
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, TextAreaRow (+ LinkedText, not exported), DateRow,
-                        SegmentedControl, SelectRow, ColorChoice, Swatch, ListRow,
+                        SegmentedControl, SwitchRow, SelectRow, ColorChoice, Swatch, ListRow,
                         LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         TileGrid + Tile,
@@ -651,7 +655,7 @@ row per Member: initial, name, email, «(вы)» on the own one; not tappable; t
 взрослого…»), «Приглашения» (an edit-mode list, see Invites above), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
 Members list; then the «Изменить пароль» chevron row), «Дети» (below), «Поля профиля» (below),
-«Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, a `ConfirmRow`;
+«Уведомления» (below), «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, a `ConfirmRow`;
 after logging out the guard shows `/login`). Logout sends the Outbox first; when that fails
 (other than `401`) a second `ActionSheet` warns «Нет соединения с сервером. Несохранённые
 изменения будут потеряны» with a red «Выйти» (log out, wipe) and «Отменить» (keep everything). A
@@ -665,6 +669,45 @@ the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessag
 failed delete or load, `form({...})` for a form's field errors and its failure. The edit-mode
 lists («Приглашения», «Дети», «Поля профиля») keep their edit mode, the row being deleted and the
 failure in `useEditableList()`.
+
+«Уведомления» (`NotificationsSection`, `features/notifications`, spec #104) is the Notifications
+switch and this device. The `SwitchRow` «Уведомления» shows the session's
+`member.notificationsEnabled` and saves at once (`useAutoSaveChoice`, `PATCH /api/members/me`
+with only `notificationsEnabled`, online only; `memberChanged` updates the session); its hint is
+«Списки, которые меняет другой взрослый, и напоминания о сроках задач.», replaced by the
+auto-save failure while there is one. Below it, by this device's state (`readPushState()` from
+`@/shared/push`, read when the screen opens):
+
+- `unavailable` (no `Notification`, `PushManager` or `serviceWorker`: Safari on iPhone outside
+  the installed app has none): the footer «Чтобы получать уведомления на iPhone, добавьте
+  приложение на экран «Домой»: …».
+- `denied`: the footer «Уведомления запрещены. Разрешите их в Настройках iOS → Уведомления →
+  Семья.», whether the switch is on or off.
+- `notSubscribed` (permission not asked here yet, or granted with no subscription) while the
+  switch is on: an accent row «Включить на этом устройстве».
+
+Turning the switch on calls `subscribeThisDevice()` inside the tap, before the `PATCH` is awaited
+(iOS shows its permission prompt only during a tap): `Notification.requestPermission()`, then
+with `granted` the subscription the device holds or a new one
+(`pushManager.subscribe({userVisibleOnly, applicationServerKey})` with the key from
+`GET /api/push/vapid-public-key`), sent with `POST /api/push/subscriptions` (its `toJSON()`). A
+refusal leaves the switch on (it is the Member's, not the device's) and shows the denied
+footer. When the server can't be told, the footer says why (`useFooterLines().failure`) and the
+row offers this device again. The row does the same as turning the switch on, without the
+`PATCH`. Turning the switch off only `PATCH`es: the device keeps its subscription (the server
+stops sending), so turning it back on asks nothing.
+
+Outside Settings, `@/shared/push` is used twice by `features/auth`:
+
+- **Launch re-sync**: `AuthGuard` calls `resyncSubscription()` once the server has confirmed a
+  Member (at every launch, and after logging in) when their switch is on. With permission
+  `granted` it reads `pushManager.getSubscription()` (subscribing again when iOS dropped it) and
+  `POST`s it; idempotent on the server. A failure is silent, and the next launch tries again.
+  `readPushState()` waits for a re-sync under way, so Settings opened at launch shows its result.
+- **Logout**: `useLogout` calls `forgetSubscription()` before `POST /api/auth/logout`, while the
+  session lasts: `DELETE /api/push/subscriptions` with the device's endpoint. Any failure is
+  ignored; the server deletes a session's subscriptions when it ends. The device keeps its own
+  subscription; the next login re-sends it (and the server moves it to that Member).
 
 The password screen `/settings/password` (`PasswordPage`, `PASSWORD_PATH` from
 `features/members`) is a `Page` «Изменить пароль», back to «Настройки»: «Текущий пароль» and
@@ -837,6 +880,7 @@ helper a second test file needs moves here.
 | `server` (`@/test/server`) | a non-sync endpoint: `server.use(http.get(…))` for that test |
 | `network` (`@/test/network`) | a real loss of signal: every request fails, whatever handler would answer |
 | `FakeEventSource` (`@/test/eventSource`) | live updates: `latest().emit('changed', …)`, a dropped connection |
+| `fakePushDevice({permission, answer, subscribedAt})`, `pushServer()` (`@/test/pushDevice`) | a device that can receive push (jsdom has none: without it every test is a device without push): fake `Notification`, `PushManager`, `serviceWorker.ready`; the server's VAPID key and subscription endpoints, recording `posted` / `deleted` |
 | `upgradeStoreFrom(version, seed)` (`@/test/olderStore`) | a store-upgrade test: an older store with rows or Outbox operations, then the current one opened over it (lint rejects store versions declared anywhere else) |
 | `anna`, `boris`, `masha`, `petya`, `weight`, `height`, `sessionHandler`, `membersHandler`, `invitesHandler` (`@/test/fixtures`) | Members, Children, Child fields and the auth/settings handlers every test needs |
 | `dayParts`, `localDay` (`@/shared/dates`, app code) | a `YYYY-MM-DD` day in a test or in code: lint rejects parsing one by hand elsewhere |

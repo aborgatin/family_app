@@ -67,6 +67,55 @@ export const failClipboard = `
   }; } });
 `;
 
+/**
+ * Init script: this device and push, for Settings «Уведомления». `permission` is `none` (no Push
+ * API: Safari on iPhone, not installed), `default`, `denied` or `granted`; `subscribed` gives the
+ * device a subscription (with keys the server accepts); `switchOn` makes the session say Анна's
+ * Notifications switch is on. Service workers are blocked in these runs, so `serviceWorker.ready`
+ * is faked too.
+ */
+export const pushDevice = ({ permission, subscribed = false, switchOn = false }) => `
+  ${
+    permission === 'none'
+      ? 'delete window.Notification; delete window.PushManager;'
+      : `
+  const json = {
+    endpoint: 'https://push.example/screenshots',
+    expirationTime: null,
+    keys: {
+      p256dh: 'BAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-P0A',
+      auth: 'AAECAwQFBgcICQoLDA0ODw',
+    },
+  };
+  const subscription = ${subscribed} ? { endpoint: json.endpoint, toJSON: () => json } : null;
+  Object.defineProperty(window, 'Notification', { configurable: true, value: {
+    permission: '${permission}',
+    requestPermission: () => Promise.resolve('${permission}'),
+  } });
+  Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: {
+    ready: Promise.resolve({ pushManager: {
+      getSubscription: () => Promise.resolve(subscription),
+      subscribe: () => Promise.reject(new DOMException('', 'NotAllowedError')),
+    } }),
+    register: () => new Promise(() => {}),
+    getRegistration: () => Promise.resolve(undefined),
+  } });`
+  }
+  ${
+    switchOn
+      ? `
+  const f = window.fetch;
+  window.fetch = async (i, o) => {
+    const r = await f(i, o);
+    if (!String(i && i.url ? i.url : i).includes('/api/auth/session')) return r;
+    const body = await r.json();
+    if (body.member) body.member.notificationsEnabled = true;
+    return new Response(JSON.stringify(body), { status: r.status, headers: r.headers });
+  };`
+      : ''
+  }
+`;
+
 /** Init script: PUTs whose path starts with `prefix` wait `ms` before going out (a slow save). */
 export const slowPut = (prefix, ms) => async (page) => {
   await page.route(
