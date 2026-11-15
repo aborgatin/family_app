@@ -16,8 +16,13 @@ import { deleteSubscription, fetchVapidPublicKey, sendSubscription } from './pus
 export type PushState = 'unavailable' | 'denied' | 'notSubscribed' | 'subscribed';
 
 /** Whether this browser has the Push API at all. */
-export function pushAvailable(): boolean {
+function pushAvailable(): boolean {
   return 'Notification' in window && 'PushManager' in window && 'serviceWorker' in navigator;
+}
+
+/** Whether this browser has the Push API and the Member allowed push on this device. */
+function pushGranted(): boolean {
+  return pushAvailable() && Notification.permission === 'granted';
 }
 
 /** The launch re-sync under way, if any (`resyncSubscription`). */
@@ -29,10 +34,10 @@ let resyncing: Promise<void> | undefined;
  * failure is silent; the next launch tries again.
  */
 export function resyncSubscription(): Promise<void> {
-  if (!pushAvailable() || Notification.permission !== 'granted') return Promise.resolve();
+  if (!pushGranted()) return Promise.resolve();
   const run = (async () => {
     try {
-      await sendSubscription((await currentOrNewSubscription()).toJSON());
+      await sendCurrentOrNewSubscription();
     } catch {
       // Silent: the next launch sends it again.
     }
@@ -51,8 +56,7 @@ export async function readPushState(): Promise<PushState> {
   const permission = Notification.permission;
   if (permission === 'denied') return 'denied';
   if (permission !== 'granted') return 'notSubscribed';
-  const { pushManager } = await navigator.serviceWorker.ready;
-  return (await pushManager.getSubscription()) === null ? 'notSubscribed' : 'subscribed';
+  return (await heldSubscription()) === null ? 'notSubscribed' : 'subscribed';
 }
 
 /**
@@ -67,15 +71,25 @@ export function subscribeThisDevice(): Promise<PushState> {
   return asking.then(async (permission) => {
     if (permission === 'denied') return 'denied';
     if (permission !== 'granted') return 'notSubscribed';
-    await sendSubscription((await currentOrNewSubscription()).toJSON());
+    await sendCurrentOrNewSubscription();
     return 'subscribed';
   });
 }
 
-async function currentOrNewSubscription(): Promise<PushSubscription> {
+/** The subscription this device holds, or `null`. */
+async function heldSubscription(): Promise<PushSubscription | null> {
   const { pushManager } = await navigator.serviceWorker.ready;
-  const current = await pushManager.getSubscription();
-  if (current !== null) return current;
+  return pushManager.getSubscription();
+}
+
+/** Sends the server the subscription this device holds, subscribing first when it holds none. */
+async function sendCurrentOrNewSubscription(): Promise<void> {
+  const subscription = (await heldSubscription()) ?? (await newSubscription());
+  await sendSubscription(subscription.toJSON());
+}
+
+async function newSubscription(): Promise<PushSubscription> {
+  const { pushManager } = await navigator.serviceWorker.ready;
   return pushManager.subscribe({
     // eslint-disable-next-line no-restricted-syntax -- the Push API's own option name
     userVisibleOnly: true,
@@ -90,10 +104,9 @@ async function currentOrNewSubscription(): Promise<PushSubscription> {
  * its subscription; the next login sends it again.
  */
 export async function forgetSubscription(): Promise<void> {
-  if (!pushAvailable() || Notification.permission !== 'granted') return;
+  if (!pushGranted()) return;
   try {
-    const { pushManager } = await navigator.serviceWorker.ready;
-    const subscription = await pushManager.getSubscription();
+    const subscription = await heldSubscription();
     if (subscription !== null) await deleteSubscription(subscription.endpoint);
   } catch {
     // The session's end deletes it on the server.

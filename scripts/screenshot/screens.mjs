@@ -12,11 +12,12 @@ import {
   rowActions,
   section,
   toSection,
-} from './helpers.mjs';
+} from "./helpers.mjs";
 
 const INVITE = 'role=button[name="Пригласить взрослого…"]';
 /** The tile of the Child with this name in «Дети» on Home. */
-const childTile = (name) => `role=region[name="Дети"] >> role=link[name=/${name}/]`;
+const childTile = (name) =>
+  `role=region[name="Дети"] >> role=link[name=/${name}/]`;
 const ITEM = 'role=textbox[name="Товар «Молоко 3,2%»"]';
 /** Steps from Home to the «Настройки списка» screen of the List with this name. */
 const listSettings = (name) => [
@@ -26,12 +27,12 @@ const listSettings = (name) => [
 ];
 /** Steps on /setup of a fresh installation: Анна registers and lands on Home with the Defaults. */
 const registerFirstMember = [
-  { fill: 'role=textbox[name="Электронная почта"]', value: 'anna@example.com' },
-  { fill: 'input[type=password]', value: 'password123' },
-  { fill: 'role=textbox[name="Имя"]', value: 'Анна' },
-  { click: 'text=Женский' },
+  { fill: 'role=textbox[name="Электронная почта"]', value: "anna@example.com" },
+  { fill: "input[type=password]", value: "password123" },
+  { fill: 'role=textbox[name="Имя"]', value: "Анна" },
+  { click: "text=Женский" },
   { click: 'role=button[name="Зарегистрироваться"]' },
-  { waitFor: 'role=link[name=/Аптека/]' },
+  { waitFor: "role=link[name=/Аптека/]" },
 ];
 /** Steps from Home to the «Категории» screen of the Shopping list with this name. */
 const categories = (name) => [
@@ -54,7 +55,7 @@ const openDoneItem = (listName, text) => [
 ];
 /** Steps from Home to the «Выполненные ранее» screen of «Дела по дому». */
 const doneEarlier = [
-  { click: 'role=link[name=/Дела по дому/]' },
+  { click: "role=link[name=/Дела по дому/]" },
   { click: 'role=link[name="Выполненные ранее"]' },
   { waitFor: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
 ];
@@ -66,95 +67,134 @@ const showInvites = async (page) => {
 export default {
   routes: [
     // Auth
-    { name: 'setup', path: '/setup', auth: 'fresh' },
+    { name: "setup", path: "/setup", auth: "fresh" },
     {
-      name: 'setup-field-error',
-      path: '/setup',
-      auth: 'fresh',
+      name: "setup-field-error",
+      path: "/setup",
+      auth: "fresh",
       steps: [
-        { fill: 'role=textbox[name="Электронная почта"]', value: 'anna@example' },
+        {
+          fill: 'role=textbox[name="Электронная почта"]',
+          value: "anna@example",
+        },
         { click: 'role=button[name="Зарегистрироваться"]' },
         { wait: 300 },
       ],
     },
-    { name: 'login', path: '/login', auth: 'loggedOut' },
+    { name: "login", path: "/login", auth: "loggedOut" },
     {
-      name: 'login-form-error',
-      path: '/login',
-      auth: 'loggedOut',
+      name: "login-form-error",
+      path: "/login",
+      auth: "loggedOut",
       steps: [
-        { fill: 'role=textbox[name="Электронная почта"]', value: 'anna@example.com' },
-        { fill: 'input[type=password]', value: 'wrong-password' },
-        { press: 'Enter' },
-        { waitFor: 'role=alert' },
+        {
+          fill: 'role=textbox[name="Электронная почта"]',
+          value: "anna@example.com",
+        },
+        { fill: "input[type=password]", value: "wrong-password" },
+        { press: "Enter" },
+        { waitFor: "role=alert" },
       ],
     },
     {
-      name: 'invite-checking',
-      path: '/invite/{inviteToken}',
-      auth: 'loggedOut',
-      initScript: hang('/api/invites/by-token/'),
+      name: "invite-checking",
+      path: "/invite/{inviteToken}",
+      auth: "loggedOut",
+      initScript: hang("/api/invites/by-token/"),
     },
-    { name: 'invite-invalid', path: '/invite/no-such-token-0123456789abcdefghijklmnopqrstu', auth: 'loggedOut' },
-    { name: 'invite-form', path: '/invite/{inviteToken}', auth: 'loggedOut' },
-    { name: 'reset-password', path: '/reset-password/{resetToken}', auth: 'loggedOut' },
+    {
+      name: "invite-invalid",
+      path: "/invite/no-such-token-0123456789abcdefghijklmnopqrstu",
+      auth: "loggedOut",
+    },
+    { name: "invite-form", path: "/invite/{inviteToken}", auth: "loggedOut" },
+    {
+      name: "reset-password",
+      path: "/reset-password/{resetToken}",
+      auth: "loggedOut",
+    },
 
     // Home
     // «Дети» with the seed's three Children (the odd last tile at the left), above «Списки».
-    { name: 'home', path: '/', steps: [{ waitFor: 'text=Супермаркет' }, { waitFor: childTile('Соня') }] },
-    // No Children: no «Дети» section at all.
-    { name: 'home-no-children', path: '/', initScript: onlyChildren(), steps: [{ waitFor: 'text=Супермаркет' }] },
     {
-      name: 'home-one-child',
-      path: '/',
-      initScript: onlyChildren('Маша'),
-      steps: [{ waitFor: 'text=Супермаркет' }, { waitFor: childTile('Маша') }],
+      name: "home",
+      path: "/",
+      steps: [{ waitFor: "text=Супермаркет" }, { waitFor: childTile("Соня") }],
+    },
+    // No Children: no «Дети» section at all.
+    {
+      name: "home-no-children",
+      path: "/",
+      initScript: onlyChildren(),
+      steps: [{ waitFor: "text=Супермаркет" }],
+    },
+    {
+      name: "home-one-child",
+      path: "/",
+      initScript: onlyChildren("Маша"),
+      steps: [{ waitFor: "text=Супермаркет" }, { waitFor: childTile("Маша") }],
     },
     {
       // Петя has no birthday: the name only.
-      name: 'home-two-children',
-      path: '/',
-      initScript: onlyChildren('Маша', 'Петя'),
-      steps: [{ waitFor: 'text=Супермаркет' }, { waitFor: childTile('Петя') }],
+      name: "home-two-children",
+      path: "/",
+      initScript: onlyChildren("Маша", "Петя"),
+      steps: [{ waitFor: "text=Супермаркет" }, { waitFor: childTile("Петя") }],
     },
     {
       // A tile reached with Tab: the focus outline.
-      name: 'home-child-tile-focus',
-      path: '/',
+      name: "home-child-tile-focus",
+      path: "/",
       fullPage: false,
       steps: [
-        { waitFor: childTile('Соня') },
+        { waitFor: childTile("Соня") },
         async (page) => {
-          await page.locator(childTile('Маша')).focus();
-          await page.keyboard.press('Tab');
+          await page.locator(childTile("Маша")).focus();
+          await page.keyboard.press("Tab");
         },
         { wait: 200 },
       ],
     },
-    { name: 'home-empty', path: '/', initScript: noLists, steps: [{ waitFor: 'text=Списков пока нет' }] },
-    // A fresh installation right after the first Member registers: the Default Shopping lists.
-    { name: 'home-defaults', path: '/setup', auth: 'fresh', isolate: true, steps: [...registerFirstMember] },
     {
-      name: 'list-defaults-supermarket',
-      path: '/setup',
-      auth: 'fresh',
+      name: "home-empty",
+      path: "/",
+      initScript: noLists,
+      steps: [{ waitFor: "text=Списков пока нет" }],
+    },
+    // A fresh installation right after the first Member registers: the Default Shopping lists.
+    {
+      name: "home-defaults",
+      path: "/setup",
+      auth: "fresh",
+      isolate: true,
+      steps: [...registerFirstMember],
+    },
+    {
+      name: "list-defaults-supermarket",
+      path: "/setup",
+      auth: "fresh",
       isolate: true,
       steps: [
         ...registerFirstMember,
-        { click: 'role=link[name=/Супермаркет/]' },
+        { click: "role=link[name=/Супермаркет/]" },
         { waitFor: 'role=button[name="Новая категория"]' },
       ],
     },
     {
-      name: 'home-scrolled',
-      path: '/',
+      name: "home-scrolled",
+      path: "/",
       fullPage: false,
-      steps: [{ eval: "document.body.style.minHeight = '3000px'; window.scrollTo(0, 120)" }, { wait: 400 }],
+      steps: [
+        {
+          eval: "document.body.style.minHeight = '3000px'; window.scrollTo(0, 120)",
+        },
+        { wait: 400 },
+      ],
     },
     {
-      name: 'home-offline-popover',
-      path: '/',
-      offline: 'afterLoad',
+      name: "home-offline-popover",
+      path: "/",
+      offline: "afterLoad",
       steps: [
         // Home sends no requests; fail one on Settings, then go back with the globe still shown.
         { click: 'role=link[name="Настройки"]' },
@@ -164,38 +204,44 @@ export default {
           await page.locator('role=heading[name="Семья"]').waitFor();
         },
         { click: 'role=button[name="Нет связи с сервером"]' },
-        { waitFor: 'role=dialog' },
+        { waitFor: "role=dialog" },
         { wait: 300 },
       ],
     },
 
     // Lists
     {
-      name: 'new-list-sheet',
-      path: '/',
+      name: "new-list-sheet",
+      path: "/",
       fullPage: false,
       steps: [
         { click: 'role=button[name="Добавить список"]' },
-        { fill: 'role=dialog >> role=textbox[name="Название"]', value: 'Ремонт на даче' },
-        { click: 'role=dialog >> text=TODO' },
-        { click: 'role=dialog >> text=Личный' },
+        {
+          fill: 'role=dialog >> role=textbox[name="Название"]',
+          value: "Ремонт на даче",
+        },
+        { click: "role=dialog >> text=TODO" },
+        { click: "role=dialog >> text=Личный" },
         { wait: 400 },
       ],
     },
     {
-      name: 'new-list-sheet-wish',
-      path: '/',
+      name: "new-list-sheet-wish",
+      path: "/",
       fullPage: false,
       steps: [
         { click: 'role=button[name="Добавить список"]' },
-        { fill: 'role=dialog >> role=textbox[name="Название"]', value: 'Подарки на Новый год' },
-        { click: 'role=dialog >> text=Желания' },
+        {
+          fill: 'role=dialog >> role=textbox[name="Название"]',
+          value: "Подарки на Новый год",
+        },
+        { click: "role=dialog >> text=Желания" },
         { wait: 400 },
       ],
     },
     {
-      name: 'new-list-sheet-errors',
-      path: '/',
+      name: "new-list-sheet-errors",
+      path: "/",
       fullPage: false,
       steps: [
         { click: 'role=button[name="Добавить список"]' },
@@ -204,115 +250,139 @@ export default {
       ],
     },
     {
-      name: 'list-shopping',
-      path: '/',
-      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: ITEM }],
+      name: "list-shopping",
+      path: "/",
+      steps: [{ click: "role=link[name=/Супермаркет/]" }, { waitFor: ITEM }],
     },
     {
-      name: 'list-shopping-empty',
-      path: '/',
-      steps: [{ click: 'role=link[name=/Аптека/]' }, { waitFor: 'text=Товаров пока нет' }],
+      name: "list-shopping-empty",
+      path: "/",
+      steps: [
+        { click: "role=link[name=/Аптека/]" },
+        { waitFor: "text=Товаров пока нет" },
+      ],
     },
     {
       // A Shopping list with Categories: «Еда», «Бытовая химия» (empty), then the untitled Unnamed
       // category, each with its own «Новый товар»; «Новая категория» above «Куплено».
-      name: 'list-categories',
-      path: '/',
-      steps: [{ click: 'role=link[name=/Гипермаркет/]' }, { waitFor: 'role=textbox[name="Товар «Батарейки»"]' }],
+      name: "list-categories",
+      path: "/",
+      steps: [
+        { click: "role=link[name=/Гипермаркет/]" },
+        { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
+      ],
     },
     {
       // «Новая категория» tapped: a new section at the end with its title being typed.
-      name: 'list-category-naming',
-      path: '/',
+      name: "list-category-naming",
+      path: "/",
       steps: [
-        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: "role=link[name=/Гипермаркет/]" },
         { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
         { click: 'role=button[name="Новая категория"]' },
-        { fill: 'role=textbox[name="Название категории"]', value: 'Напит' },
+        { fill: 'role=textbox[name="Название категории"]', value: "Напит" },
         { wait: 200 },
       ],
     },
     {
       // Enter named it «Напитки»: the focus is in its own «Новый товар».
-      name: 'list-category-added',
-      path: '/',
+      name: "list-category-added",
+      path: "/",
       isolate: true,
       steps: [
-        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: "role=link[name=/Гипермаркет/]" },
         { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
         { click: 'role=button[name="Новая категория"]' },
-        { fill: 'role=textbox[name="Название категории"]', value: 'Напитки' },
-        { press: 'Enter' },
-        { waitFor: 'role=region[name="Напитки"] >> role=textbox[name="Новый товар"]' },
+        { fill: 'role=textbox[name="Название категории"]', value: "Напитки" },
+        { press: "Enter" },
+        {
+          waitFor:
+            'role=region[name="Напитки"] >> role=textbox[name="Новый товар"]',
+        },
         { wait: 300 },
       ],
     },
     {
       // A shopping Item being edited on a list with Categories: its Description, then the
       // Category chip «Еда ⌄».
-      name: 'list-item-category-chip',
-      path: '/',
+      name: "list-item-category-chip",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: "role=link[name=/Гипермаркет/]" },
         { click: 'role=textbox[name="Товар «Молоко»"]' },
         { waitFor: 'role=button[name="Категория: Еда"]' },
       ],
     },
     {
       // The chip's menu: the Categories in order, «Без категории» in its place, «Еда» ticked.
-      name: 'list-item-category-menu',
-      path: '/',
+      name: "list-item-category-menu",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: "role=link[name=/Гипермаркет/]" },
         { click: 'role=textbox[name="Товар «Молоко»"]' },
         { click: 'role=button[name="Категория: Еда"]' },
-        { waitFor: 'role=menu' },
+        { waitFor: "role=menu" },
         { wait: 200 },
       ],
     },
     {
       // «мо» typed in «Еда»'s «Новый товар»: up to 5 names from the List's Item history under it,
       // cleared ones included.
-      name: 'list-suggestions',
-      path: '/',
+      name: "list-suggestions",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: "role=link[name=/Гипермаркет/]" },
         { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
-        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
-        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'мо' },
+        {
+          click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]',
+        },
+        {
+          fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]',
+          value: "мо",
+        },
         { waitFor: 'role=group[name="Подсказки"]' },
         { wait: 200 },
       ],
     },
     {
       // No name in the history starts with «щ»: no suggestions, just the typed text.
-      name: 'list-suggestions-none',
-      path: '/',
+      name: "list-suggestions-none",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: "role=link[name=/Гипермаркет/]" },
         { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
-        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
-        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'щ' },
+        {
+          click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]',
+        },
+        {
+          fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]',
+          value: "щ",
+        },
         { wait: 200 },
       ],
     },
     {
       // «Морковь» removed from the Item history with its ×, offline (#78): gone from the suggestions
       // at once, no action sheet; «мо» stays typed and the field keeps the focus.
-      name: 'list-suggestion-removed-offline',
-      path: '/',
+      name: "list-suggestion-removed-offline",
+      path: "/",
       fullPage: false,
       isolate: true,
-      offline: 'afterLoad',
+      offline: "afterLoad",
       steps: [
-        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: "role=link[name=/Гипермаркет/]" },
         { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
-        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
-        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'мо' },
+        {
+          click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]',
+        },
+        {
+          fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]',
+          value: "мо",
+        },
         { click: 'role=button[name="Удалить подсказку „Морковь“"]' },
         { wait: 300 },
       ],
@@ -320,33 +390,48 @@ export default {
     {
       // «молоко» added again (in «Бытовая химия»): no duplicate, the open «Молоко» in «Еда» is
       // highlighted, and the add field is empty and keeps the focus.
-      name: 'list-re-adding-open',
-      path: '/',
+      name: "list-re-adding-open",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: "role=link[name=/Гипермаркет/]" },
         { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
-        { click: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]' },
-        { fill: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]', value: ' молоко' },
-        { press: 'Enter' },
-        { waitFor: '[data-highlighted]' },
+        {
+          click:
+            'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]',
+        },
+        {
+          fill: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]',
+          value: " молоко",
+        },
+        { press: "Enter" },
+        { waitFor: "[data-highlighted]" },
         { wait: 100 },
       ],
     },
     {
       // The bought «Яблоки» added again in «Бытовая химия», offline: it leaves «Куплено» and is open
       // in «Бытовая химия» at once.
-      name: 'list-re-adding-bought-offline',
-      path: '/',
+      name: "list-re-adding-bought-offline",
+      path: "/",
       isolate: true,
-      offline: 'afterLoad',
+      offline: "afterLoad",
       steps: [
-        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: "role=link[name=/Гипермаркет/]" },
         { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
-        { click: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]' },
-        { fill: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]', value: 'яблоки' },
-        { press: 'Enter' },
-        { waitFor: 'role=region[name="Бытовая химия"] >> role=textbox[name="Товар «Яблоки»"]' },
+        {
+          click:
+            'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]',
+        },
+        {
+          fill: 'role=region[name="Бытовая химия"] >> role=textbox[name="Новый товар"]',
+          value: "яблоки",
+        },
+        { press: "Enter" },
+        {
+          waitFor:
+            'role=region[name="Бытовая химия"] >> role=textbox[name="Товар «Яблоки»"]',
+        },
         { wait: 200 },
       ],
     },
@@ -354,10 +439,10 @@ export default {
       // Open Items by Due date (#84), the overdue ones' in red, two with ↻ (#86), the ones without
       // last. «Выполнено»
       // holds the last 7 days (today and 6 days ago); the row under it opens the rest.
-      name: 'list-todo',
-      path: '/',
+      name: "list-todo",
+      path: "/",
       steps: [
-        { click: 'role=link[name=/Дела по дому/]' },
+        { click: "role=link[name=/Дела по дому/]" },
         { waitFor: 'role=textbox[name^="Задача"]' },
         { waitFor: 'role=link[name="Выполненные ранее"]' },
       ],
@@ -366,245 +451,313 @@ export default {
       // A repeating item marked Done (#87): «Оплатить садик» (monthly, due yesterday) is in
       // «Выполнено» without ↻, and its next occurrence, made by the server, is open in its place
       // in the order, a month after the old Due date.
-      name: 'list-todo-repeat-done',
-      path: '/',
+      name: "list-todo-repeat-done",
+      path: "/",
       isolate: true,
       steps: [
-        { click: 'role=link[name=/Дела по дому/]' },
+        { click: "role=link[name=/Дела по дому/]" },
         { waitFor: 'role=link[name="Выполненные ранее"]' },
         { click: 'role=checkbox[name="Выполнено «Оплатить садик»"]' },
-        { waitFor: 'role=region[name="Выполнено"] >> role=checkbox[name="Выполнено «Оплатить садик»"]' },
-        { waitFor: 'role=region[name="Задачи"] >> role=textbox[name="Задача «Оплатить садик»"]' },
+        {
+          waitFor:
+            'role=region[name="Выполнено"] >> role=checkbox[name="Выполнено «Оплатить садик»"]',
+        },
+        {
+          waitFor:
+            'role=region[name="Задачи"] >> role=textbox[name="Задача «Оплатить садик»"]',
+        },
         { wait: 200 },
       ],
     },
     {
       // The same with no connection: the item is in «Выполнено» at once, without ↻, and the
       // next occurrence comes only when the device syncs.
-      name: 'list-todo-repeat-done-offline',
-      path: '/',
+      name: "list-todo-repeat-done-offline",
+      path: "/",
       isolate: true,
-      offline: 'afterLoad',
+      offline: "afterLoad",
       steps: [
-        { click: 'role=link[name=/Дела по дому/]' },
+        { click: "role=link[name=/Дела по дому/]" },
         { waitFor: 'role=link[name="Выполненные ранее"]' },
         { click: 'role=checkbox[name="Выполнено «Оплатить садик»"]' },
-        { waitFor: 'role=region[name="Выполнено"] >> role=checkbox[name="Выполнено «Оплатить садик»"]' },
+        {
+          waitFor:
+            'role=region[name="Выполнено"] >> role=checkbox[name="Выполнено «Оплатить садик»"]',
+        },
         { wait: 200 },
       ],
     },
     {
       // «Скрыть» pressed (#93): «Выполнено» is only the row «Выполненные ранее», without «Скрыть».
-      name: 'list-todo-hidden',
-      path: '/',
+      name: "list-todo-hidden",
+      path: "/",
       isolate: true,
       steps: [
-        { click: 'role=link[name=/Дела по дому/]' },
-        { click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]' },
-        { waitFor: 'role=region[name="Выполнено"] >> role=link[name="Выполненные ранее"]' },
-        async (page) => page.locator('role=button[name="Скрыть"]').waitFor({ state: 'detached' }),
+        { click: "role=link[name=/Дела по дому/]" },
+        {
+          click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]',
+        },
+        {
+          waitFor:
+            'role=region[name="Выполнено"] >> role=link[name="Выполненные ранее"]',
+        },
+        async (page) =>
+          page
+            .locator('role=button[name="Скрыть"]')
+            .waitFor({ state: "detached" }),
         { wait: 200 },
       ],
     },
     {
       // The same with no connection: «Выполнено» empties at once.
-      name: 'list-todo-hidden-offline',
-      path: '/',
+      name: "list-todo-hidden-offline",
+      path: "/",
       isolate: true,
-      offline: 'afterLoad',
+      offline: "afterLoad",
       steps: [
-        { click: 'role=link[name=/Дела по дому/]' },
-        { click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]' },
-        async (page) => page.locator('role=button[name="Скрыть"]').waitFor({ state: 'detached' }),
+        { click: "role=link[name=/Дела по дому/]" },
+        {
+          click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]',
+        },
+        async (page) =>
+          page
+            .locator('role=button[name="Скрыть"]')
+            .waitFor({ state: "detached" }),
         { wait: 200 },
       ],
     },
     {
       // «Выполненные ранее» after «Скрыть»: the hidden Items of the last 7 days with the older
       // ones, most recent first.
-      name: 'done-earlier-hidden',
-      path: '/',
+      name: "done-earlier-hidden",
+      path: "/",
       isolate: true,
       steps: [
-        { click: 'role=link[name=/Дела по дому/]' },
-        { click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]' },
-        { click: 'role=region[name="Выполнено"] >> role=link[name="Выполненные ранее"]' },
+        { click: "role=link[name=/Дела по дому/]" },
+        {
+          click: 'role=region[name="Выполнено"] >> role=button[name="Скрыть"]',
+        },
+        {
+          click:
+            'role=region[name="Выполнено"] >> role=link[name="Выполненные ранее"]',
+        },
         { waitFor: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
       ],
     },
     {
-      name: 'list-todo-empty',
-      path: '/',
-      steps: [{ click: 'role=link[name=/Ремонт/]' }, { waitFor: 'text=Задач пока нет' }],
+      name: "list-todo-empty",
+      path: "/",
+      steps: [
+        { click: "role=link[name=/Ремонт/]" },
+        { waitFor: "text=Задач пока нет" },
+      ],
     },
     // «Выполненные ранее»: the Done Items older than 7 days, most recent first.
-    { name: 'done-earlier', path: '/', steps: doneEarlier },
-    { name: 'done-earlier-edit', path: '/', steps: [...doneEarlier, editIn('Выполненные ранее')] },
-    { name: 'done-earlier-row-actions', path: '/', fullPage: false, steps: [...doneEarlier, rowActions('Выполненные ранее')] },
+    { name: "done-earlier", path: "/", steps: doneEarlier },
+    {
+      name: "done-earlier-edit",
+      path: "/",
+      steps: [...doneEarlier, editIn("Выполненные ранее")],
+    },
+    {
+      name: "done-earlier-row-actions",
+      path: "/",
+      fullPage: false,
+      steps: [...doneEarlier, rowActions("Выполненные ранее")],
+    },
     {
       // Both ticked back on, offline: they are open again, and the screen says nothing is left.
-      name: 'done-earlier-empty',
-      path: '/',
+      name: "done-earlier-empty",
+      path: "/",
       isolate: true,
-      offline: 'afterLoad',
+      offline: "afterLoad",
       steps: [
         ...doneEarlier,
         { click: 'role=checkbox[name="Выполнено «Помыть окна»"]' },
-        { click: 'role=checkbox[name="Выполнено «Сдать батарейки в переработку»"]' },
-        { waitFor: 'text=Выполненных ранее задач нет' },
+        {
+          click:
+            'role=checkbox[name="Выполнено «Сдать батарейки в переработку»"]',
+        },
+        { waitFor: "text=Выполненных ранее задач нет" },
       ],
     },
     {
       // A Shopping list has no such screen.
-      name: 'done-earlier-not-todo',
-      path: '/',
+      name: "done-earlier-not-todo",
+      path: "/",
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
+        { click: "role=link[name=/Супермаркет/]" },
         { waitFor: ITEM },
         async (page) => {
           await page.goto(`${page.url()}/done-earlier`);
         },
-        { waitFor: 'role=alert' },
+        { waitFor: "role=alert" },
       ],
     },
     {
       // Enter added «Масло» and keeps the focus in «Новый товар» for the next Item.
-      name: 'list-item-adding',
-      path: '/',
+      name: "list-item-adding",
+      path: "/",
       isolate: true,
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
+        { click: "role=link[name=/Супермаркет/]" },
         { waitFor: ITEM },
         { click: 'role=textbox[name="Новый товар"]' },
-        { fill: 'role=textbox[name="Новый товар"]', value: 'Масло' },
-        { press: 'Enter' },
-        { fill: 'role=textbox[name="Новый товар"]', value: 'Ке' },
-        toSection('Товары', 120),
+        { fill: 'role=textbox[name="Новый товар"]', value: "Масло" },
+        { press: "Enter" },
+        { fill: 'role=textbox[name="Новый товар"]', value: "Ке" },
+        toSection("Товары", 120),
         { wait: 300 },
       ],
     },
     {
       // «Масло» typed in «Новый товар»: the Description icon button at the field's end (#79).
-      name: 'list-add-description-button',
-      path: '/',
+      name: "list-add-description-button",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
+        { click: "role=link[name=/Супермаркет/]" },
         { waitFor: ITEM },
         { click: 'role=textbox[name="Новый товар"]' },
-        { fill: 'role=textbox[name="Новый товар"]', value: 'Масло сливочное 82,5%' },
-        toSection('Товары', 120),
+        {
+          fill: 'role=textbox[name="Новый товар"]',
+          value: "Масло сливочное 82,5%",
+        },
+        toSection("Товары", 120),
         { wait: 300 },
       ],
     },
     {
       // The icon tapped in «Еда»'s «Новый товар»: the grey one-line «Описание» under the typed
       // name, focused, being typed in; the suggestions hidden (#79).
-      name: 'list-add-description-open',
-      path: '/',
+      name: "list-add-description-open",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Гипермаркет/]' },
+        { click: "role=link[name=/Гипермаркет/]" },
         { waitFor: 'role=textbox[name="Товар «Батарейки»"]' },
-        { click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]' },
-        { fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]', value: 'Мука' },
-        { click: 'role=region[name="Еда"] >> role=button[name="Добавить описание"]' },
-        { fill: 'role=region[name="Еда"] >> role=textbox[name="Описание"]', value: 'Цельнозерновая' },
+        {
+          click: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]',
+        },
+        {
+          fill: 'role=region[name="Еда"] >> role=textbox[name="Новый товар"]',
+          value: "Мука",
+        },
+        {
+          click:
+            'role=region[name="Еда"] >> role=button[name="Добавить описание"]',
+        },
+        {
+          fill: 'role=region[name="Еда"] >> role=textbox[name="Описание"]',
+          value: "Цельнозерновая",
+        },
         { wait: 300 },
       ],
     },
     {
       // The Item being edited: its grey «Описание» line, empty, under the title, and «Подробнее»
       // at the end of the line under it (#83).
-      name: 'list-item-description-empty',
-      path: '/',
+      name: "list-item-description-empty",
+      path: "/",
       fullPage: false,
-      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { click: ITEM }, { waitFor: 'role=textbox[name="Описание «Молоко 3,2%»"]' }],
+      steps: [
+        { click: "role=link[name=/Супермаркет/]" },
+        { click: ITEM },
+        { waitFor: 'role=textbox[name="Описание «Молоко 3,2%»"]' },
+      ],
     },
     {
       // Tapping the cut Description line opens it in full; Enter started a second line.
-      name: 'list-item-description-editing',
-      path: '/',
+      name: "list-item-description-editing",
+      path: "/",
       isolate: true,
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
-        { click: 'text=Нарезанный, половинку' },
+        { click: "role=link[name=/Супермаркет/]" },
+        { click: "text=Нарезанный, половинку" },
         { waitFor: 'role=textbox[name="Описание «Хлеб бородинский»"]' },
-        async (page) => page.keyboard.type('\nВитрина справа от кассы'),
+        async (page) => page.keyboard.type("\nВитрина справа от кассы"),
         { wait: 200 },
       ],
     },
     {
       // A Todo Item's Description being edited.
-      name: 'list-todo-description-editing',
-      path: '/',
+      name: "list-todo-description-editing",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Дела по дому/]' },
-        { click: 'text=Детская стоматология' },
-        { waitFor: 'role=textbox[name="Описание «Записать Машу к стоматологу»"]' },
+        { click: "role=link[name=/Дела по дому/]" },
+        { click: "text=Детская стоматология" },
+        {
+          waitFor:
+            'role=textbox[name="Описание «Записать Машу к стоматологу»"]',
+        },
       ],
     },
     {
-      name: 'list-item-empty-text',
-      path: '/',
+      name: "list-item-empty-text",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
-        { fill: ITEM, value: '' },
-        { press: 'Enter' },
-        { waitFor: 'text=Заполните это поле' },
+        { click: "role=link[name=/Супермаркет/]" },
+        { fill: ITEM, value: "" },
+        { press: "Enter" },
+        { waitFor: "text=Заполните это поле" },
       ],
     },
     {
-      name: 'list-items-edit',
-      path: '/',
+      name: "list-items-edit",
+      path: "/",
       fullPage: false,
-      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: ITEM }, editIn('Товары'), toSection('Товары', 0)],
+      steps: [
+        { click: "role=link[name=/Супермаркет/]" },
+        { waitFor: ITEM },
+        editIn("Товары"),
+        toSection("Товары", 0),
+      ],
     },
     {
       // Touch: the first Item swiped left; mouse: its context menu.
-      name: 'list-item-actions',
-      path: '/',
+      name: "list-item-actions",
+      path: "/",
       fullPage: false,
-      steps: [{ click: 'role=link[name=/Супермаркет/]' }, rowActions('Товары')],
+      steps: [{ click: "role=link[name=/Супермаркет/]" }, rowActions("Товары")],
     },
     {
-      name: 'list-item-delete-confirm',
-      path: '/',
+      name: "list-item-delete-confirm",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
-        editIn('Товары'),
+        { click: "role=link[name=/Супермаркет/]" },
+        editIn("Товары"),
         { click: 'role=button[name="Удалить «Молоко 3,2%»"]' },
-        { waitFor: 'role=dialog' },
+        { waitFor: "role=dialog" },
         { wait: 400 },
       ],
     },
     {
       // Added offline: shown at once, with the offline indicator as the only sign.
-      name: 'list-items-offline',
-      path: '/',
+      name: "list-items-offline",
+      path: "/",
       isolate: true,
-      offline: 'afterLoad',
+      offline: "afterLoad",
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
+        { click: "role=link[name=/Супермаркет/]" },
         { waitFor: ITEM },
-        { fill: 'role=textbox[name="Новый товар"]', value: 'Кефир' },
-        { press: 'Enter' },
+        { fill: 'role=textbox[name="Новый товар"]', value: "Кефир" },
+        { press: "Enter" },
         { waitFor: 'role=textbox[name="Товар «Кефир»"]' },
       ],
     },
     {
       // Ticked off offline: under «Куплено» at once, on top, with the offline indicator.
-      name: 'list-item-done-offline',
-      path: '/',
+      name: "list-item-done-offline",
+      path: "/",
       isolate: true,
-      offline: 'afterLoad',
+      offline: "afterLoad",
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
+        { click: "role=link[name=/Супермаркет/]" },
         { waitFor: ITEM },
         { click: 'role=checkbox[name="Куплено «Яйца, десяток»"]' },
         { waitFor: 'role=checkbox[name="Куплено «Яйца, десяток»"][checked]' },
@@ -612,168 +765,221 @@ export default {
     },
     {
       // The server rejects the change: the app-wide Toast with the reason, the server's value back.
-      name: 'list-save-rejected',
-      path: '/',
+      name: "list-save-rejected",
+      path: "/",
       isolate: true,
-      initScript: rejectPushes('list.owner_only'),
+      initScript: rejectPushes("list.owner_only"),
       steps: [
-        ...listSettings('Супермаркет'),
+        ...listSettings("Супермаркет"),
         { click: 'role=radiogroup[name="Видимость"] >> text=Личный' },
-        { waitFor: 'role=alert' },
+        { waitFor: "role=alert" },
         { wait: 300 },
       ],
     },
     {
-      name: 'list-done-edit',
-      path: '/',
+      name: "list-done-edit",
+      path: "/",
       fullPage: false,
-      steps: [{ click: 'role=link[name=/Супермаркет/]' }, { waitFor: ITEM }, editIn('Куплено'), toSection('Куплено', 0)],
+      steps: [
+        { click: "role=link[name=/Супермаркет/]" },
+        { waitFor: ITEM },
+        editIn("Куплено"),
+        toSection("Куплено", 0),
+      ],
     },
     {
       // «Очистить» on «Куплено»: the plural action sheet.
-      name: 'list-clear-confirm',
-      path: '/',
+      name: "list-clear-confirm",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
+        { click: "role=link[name=/Супермаркет/]" },
         { waitFor: ITEM },
-        { click: `${section('Куплено')} >> role=button[name="Очистить"]` },
-        { waitFor: 'role=dialog' },
+        { click: `${section("Куплено")} >> role=button[name="Очистить"]` },
+        { waitFor: "role=dialog" },
         { wait: 400 },
       ],
     },
     {
       // Cleared offline: «Куплено» goes at once, with the offline indicator as the only sign.
-      name: 'list-cleared-offline',
-      path: '/',
+      name: "list-cleared-offline",
+      path: "/",
       isolate: true,
-      offline: 'afterLoad',
+      offline: "afterLoad",
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
+        { click: "role=link[name=/Супермаркет/]" },
         { waitFor: ITEM },
-        { click: `${section('Куплено')} >> role=button[name="Очистить"]` },
+        { click: `${section("Куплено")} >> role=button[name="Очистить"]` },
         { click: 'role=dialog >> role=button[name="Очистить"]' },
-        async (page) => page.locator(section('Куплено')).waitFor({ state: 'detached' }),
+        async (page) =>
+          page.locator(section("Куплено")).waitFor({ state: "detached" }),
         { wait: 300 },
       ],
     },
     {
-      name: 'list-wish',
-      path: '/',
-      steps: [{ click: 'role=link[name=/Подарки/]' }, { waitFor: 'text=Исполнено' }],
+      name: "list-wish",
+      path: "/",
+      steps: [
+        { click: "role=link[name=/Подарки/]" },
+        { waitFor: "text=Исполнено" },
+      ],
     },
     {
-      name: 'list-wish-empty',
-      path: '/',
-      steps: [{ click: 'role=link[name=/Книги/]' }, { waitFor: 'text=Желаний пока нет' }],
+      name: "list-wish-empty",
+      path: "/",
+      steps: [
+        { click: "role=link[name=/Книги/]" },
+        { waitFor: "text=Желаний пока нет" },
+      ],
     },
 
     // The Item screen (#83), opened by «Подробнее» on the row being edited, or a Done row's text
     // A shopping Item: the name, the large «Описание» with its link, the Done toggle, who added it.
-    { name: 'item-shopping', path: '/', steps: openItem('Супермаркет', 'Товар', 'Хлеб бородинский') },
+    {
+      name: "item-shopping",
+      path: "/",
+      steps: openItem("Супермаркет", "Товар", "Хлеб бородинский"),
+    },
     // A Done one: ticked, with «Купила Анна, …» under «Добавила Анна, …».
-    { name: 'item-shopping-done', path: '/', steps: openDoneItem('Супермаркет', 'Сыр') },
+    {
+      name: "item-shopping-done",
+      path: "/",
+      steps: openDoneItem("Супермаркет", "Сыр"),
+    },
     // A todo item on a Shared list with a Due date (#84), a Repeat (#86) and an Assignee (#85):
     // «Срок», «Время», «Повтор» and «Ответственный» under the Done toggle.
-    { name: 'item-todo', path: '/', steps: openItem('Дела по дому', 'Задача', 'Записать Машу к стоматологу') },
+    {
+      name: "item-todo",
+      path: "/",
+      steps: openItem("Дела по дому", "Задача", "Записать Машу к стоматологу"),
+    },
     // One without: «Срок» empty, «Время» and «Повтор» dimmed until there is a day, «Ответственный»
     // «Никто».
-    { name: 'item-todo-no-due-date', path: '/', steps: openItem('Дела по дому', 'Задача', 'Поменять лампочку в коридоре') },
+    {
+      name: "item-todo-no-due-date",
+      path: "/",
+      steps: openItem("Дела по дому", "Задача", "Поменять лампочку в коридоре"),
+    },
     // A Done one: «Срок», «Время», «Повтор» and «Ответственный» read-only.
-    { name: 'item-todo-done', path: '/', steps: openDoneItem('Дела по дому', 'Оплатить интернет') },
+    {
+      name: "item-todo-done",
+      path: "/",
+      steps: openDoneItem("Дела по дому", "Оплатить интернет"),
+    },
     {
       // A todo item on a Private list (#85), added here since the seed's «Ремонт» is empty: no
       // «Ответственный».
-      name: 'item-todo-private',
-      path: '/',
+      name: "item-todo-private",
+      path: "/",
       isolate: true,
       steps: [
-        { click: 'role=link[name=/Ремонт/]' },
-        { fill: 'role=textbox[name="Новая задача"]', value: 'Купить краску' },
-        { press: 'Enter' },
-        ...openItem('Ремонт', 'Задача', 'Купить краску').slice(1),
+        { click: "role=link[name=/Ремонт/]" },
+        { fill: 'role=textbox[name="Новая задача"]', value: "Купить краску" },
+        { press: "Enter" },
+        ...openItem("Ремонт", "Задача", "Купить краску").slice(1),
       ],
     },
     // A wish without a Description: the empty large field.
-    { name: 'item-wish', path: '/', steps: openItem('Подарки', 'Желание', 'Самокат') },
-    { name: 'item-wish-done', path: '/', steps: openDoneItem('Подарки', 'Набор фломастеров') },
+    {
+      name: "item-wish",
+      path: "/",
+      steps: openItem("Подарки", "Желание", "Самокат"),
+    },
+    {
+      name: "item-wish-done",
+      path: "/",
+      steps: openDoneItem("Подарки", "Набор фломастеров"),
+    },
     {
       // The Description tapped beside its link: one field with the whole text, a paragraph added.
-      name: 'item-description-editing',
-      path: '/',
+      name: "item-description-editing",
+      path: "/",
       isolate: true,
       steps: [
-        ...openItem('Супермаркет', 'Товар', 'Хлеб бородинский'),
+        ...openItem("Супермаркет", "Товар", "Хлеб бородинский"),
         // Its first line: the middle of the text is the link.
-        async (page) => page.locator('p:has-text("Нарезанный, половинку")').click({ position: { x: 8, y: 8 } }),
-        async (page) => page.keyboard.type('\n\nВитрина справа от кассы, верхняя полка'),
+        async (page) =>
+          page
+            .locator('p:has-text("Нарезанный, половинку")')
+            .click({ position: { x: 8, y: 8 } }),
+        async (page) =>
+          page.keyboard.type("\n\nВитрина справа от кассы, верхняя полка"),
         { wait: 200 },
       ],
     },
     {
-      name: 'item-delete-confirm',
-      path: '/',
+      name: "item-delete-confirm",
+      path: "/",
       fullPage: false,
       steps: [
-        ...openItem('Супермаркет', 'Товар', 'Молоко 3,2%'),
+        ...openItem("Супермаркет", "Товар", "Молоко 3,2%"),
         { click: 'role=button[name="Удалить"]' },
-        { waitFor: 'role=dialog' },
+        { waitFor: "role=dialog" },
         { wait: 400 },
       ],
     },
     {
       // An Item that is unknown, or was deleted meanwhile: the List is there, the Item is not.
-      name: 'item-missing',
-      path: '/',
+      name: "item-missing",
+      path: "/",
       steps: [
-        { click: 'role=link[name=/Супермаркет/]' },
+        { click: "role=link[name=/Супермаркет/]" },
         { waitFor: ITEM },
-        async (page) => page.goto(`${page.url()}/items/00000000-0000-7000-8000-000000000000`),
-        { waitFor: 'role=alert' },
+        async (page) =>
+          page.goto(`${page.url()}/items/00000000-0000-7000-8000-000000000000`),
+        { waitFor: "role=alert" },
       ],
     },
     {
       // Deleted in another tab while the Item screen is open here.
-      name: 'item-gone',
-      path: '/',
+      name: "item-gone",
+      path: "/",
       isolate: true,
       steps: [
-        ...openItem('Супермаркет', 'Товар', 'Молоко 3,2%'),
+        ...openItem("Супермаркет", "Товар", "Молоко 3,2%"),
         async (page) => {
           const other = await page.context().newPage();
           await other.goto(page.url());
           await other.locator('role=button[name="Удалить"]').click();
-          await other.locator('role=dialog >> role=button[name="Удалить"]').click();
-          await other.locator(ITEM.replace('Молоко 3,2%', 'Яйца, десяток')).waitFor();
+          await other
+            .locator('role=dialog >> role=button[name="Удалить"]')
+            .click();
+          await other
+            .locator(ITEM.replace("Молоко 3,2%", "Яйца, десяток"))
+            .waitFor();
           await other.close();
         },
-        { waitFor: 'role=alert' },
+        { waitFor: "role=alert" },
       ],
     },
 
     // «Настройки списка», opened by the gear on the List screen
-    { name: 'list-settings', path: '/', steps: listSettings('Супермаркет') },
+    { name: "list-settings", path: "/", steps: listSettings("Супермаркет") },
     // Борис's Shared List: Анна may rename it, but sees no Visibility and no «Удалить список».
-    { name: 'list-settings-not-owner', path: '/', steps: listSettings('Гараж') },
-    // A Wish list is always Shared: no Visibility, even for its Owner.
-    { name: 'list-settings-wish', path: '/', steps: listSettings('Подарки') },
     {
-      name: 'list-delete-confirm',
-      path: '/',
+      name: "list-settings-not-owner",
+      path: "/",
+      steps: listSettings("Гараж"),
+    },
+    // A Wish list is always Shared: no Visibility, even for its Owner.
+    { name: "list-settings-wish", path: "/", steps: listSettings("Подарки") },
+    {
+      name: "list-delete-confirm",
+      path: "/",
       fullPage: false,
       steps: [
-        ...listSettings('Аптека'),
+        ...listSettings("Аптека"),
         { click: 'role=button[name="Удалить список"]' },
-        { waitFor: 'role=dialog' },
+        { waitFor: "role=dialog" },
         { wait: 400 },
       ],
     },
     {
-      name: 'list-deleted',
-      path: '/',
+      name: "list-deleted",
+      path: "/",
       isolate: true,
       steps: [
-        ...listSettings('Аптека'),
+        ...listSettings("Аптека"),
         { click: 'role=button[name="Удалить список"]' },
         { click: 'role=dialog >> role=button[name="Удалить"]' },
         { waitFor: 'role=heading[name="Семья"]' },
@@ -782,76 +988,87 @@ export default {
     },
     {
       // Deleted in another tab while «Настройки списка» is open here.
-      name: 'list-settings-gone',
-      path: '/',
+      name: "list-settings-gone",
+      path: "/",
       isolate: true,
       steps: [
-        ...listSettings('Аптека'),
+        ...listSettings("Аптека"),
         async (page) => {
           const other = await page.context().newPage();
           await other.goto(page.url());
           await other.locator('role=button[name="Удалить список"]').click();
-          await other.locator('role=dialog >> role=button[name="Удалить"]').click();
+          await other
+            .locator('role=dialog >> role=button[name="Удалить"]')
+            .click();
           await other.locator('role=heading[name="Семья"]').waitFor();
           await other.close();
         },
-        { waitFor: 'role=alert' },
+        { waitFor: "role=alert" },
       ],
     },
 
     // «Категории», from a Shopping list's «Настройки списка»
     // «Еда», «Бытовая химия», then «Без категории» (grey), and «Новая категория».
-    { name: 'categories', path: '/', steps: categories('Гипермаркет') },
+    { name: "categories", path: "/", steps: categories("Гипермаркет") },
     // A Shopping list without Categories: only «Без категории».
-    { name: 'categories-empty', path: '/', steps: categories('Аптека') },
+    { name: "categories-empty", path: "/", steps: categories("Аптека") },
     // Edit mode: ⊖ and drag handles; «Без категории» has a handle but no ⊖.
-    { name: 'categories-edit', path: '/', steps: [...categories('Гипермаркет'), editIn('Категории')] },
-    { name: 'categories-row-actions', path: '/', fullPage: false, steps: [...categories('Гипермаркет'), rowActions('Категории')] },
+    {
+      name: "categories-edit",
+      path: "/",
+      steps: [...categories("Гипермаркет"), editIn("Категории")],
+    },
+    {
+      name: "categories-row-actions",
+      path: "/",
+      fullPage: false,
+      steps: [...categories("Гипермаркет"), rowActions("Категории")],
+    },
     {
       // «Еда» has three Items (two open, one Done): they stay in the list without a Category.
-      name: 'categories-delete-confirm',
-      path: '/',
+      name: "categories-delete-confirm",
+      path: "/",
       fullPage: false,
       steps: [
-        ...categories('Гипермаркет'),
-        editIn('Категории'),
+        ...categories("Гипермаркет"),
+        editIn("Категории"),
         { click: 'role=button[name="Удалить «Еда»"]' },
-        { waitFor: 'role=dialog' },
+        { waitFor: "role=dialog" },
         { wait: 400 },
       ],
     },
     {
       // «Бытовая химия» is empty: the sheet has no message.
-      name: 'categories-delete-confirm-empty',
-      path: '/',
+      name: "categories-delete-confirm-empty",
+      path: "/",
       fullPage: false,
       steps: [
-        ...categories('Гипермаркет'),
-        editIn('Категории'),
+        ...categories("Гипермаркет"),
+        editIn("Категории"),
         { click: 'role=button[name="Удалить «Бытовая химия»"]' },
-        { waitFor: 'role=dialog' },
+        { waitFor: "role=dialog" },
         { wait: 400 },
       ],
     },
     {
       // A name can't be empty: the footer says so and the saved name comes back on blur.
-      name: 'categories-name-required',
-      path: '/',
+      name: "categories-name-required",
+      path: "/",
       steps: [
-        ...categories('Гипермаркет'),
-        { fill: 'role=textbox[name="Категория „Еда“"]', value: '' },
-        { press: 'Enter' },
+        ...categories("Гипермаркет"),
+        { fill: 'role=textbox[name="Категория „Еда“"]', value: "" },
+        { press: "Enter" },
         { wait: 300 },
       ],
     },
     {
       // After deleting «Еда»: its Items are in the Unnamed category on the List screen.
-      name: 'categories-deleted-list',
-      path: '/',
+      name: "categories-deleted-list",
+      path: "/",
       isolate: true,
       steps: [
-        ...categories('Гипермаркет'),
-        editIn('Категории'),
+        ...categories("Гипермаркет"),
+        editIn("Категории"),
         { click: 'role=button[name="Удалить «Еда»"]' },
         { click: 'role=dialog >> role=button[name="Удалить"]' },
         { waitFor: 'role=button[name="Удалить «Бытовая химия»"]' },
@@ -862,56 +1079,68 @@ export default {
       ],
     },
     {
-      name: 'list-not-found',
-      path: '/lists/00000000-0000-4000-8000-000000000000',
-      steps: [{ waitFor: 'role=alert' }],
+      name: "list-not-found",
+      path: "/lists/00000000-0000-4000-8000-000000000000",
+      steps: [{ waitFor: "role=alert" }],
     },
 
     // Settings
-    { name: 'settings', path: '/settings' },
+    { name: "settings", path: "/settings" },
     {
-      name: 'settings-invites-edit',
-      path: '/settings',
+      name: "settings-invites-edit",
+      path: "/settings",
       fullPage: false,
-      steps: [editIn('Приглашения'), toSection('Приглашения', 120)],
+      steps: [editIn("Приглашения"), toSection("Приглашения", 120)],
     },
     {
-      name: 'settings-children-edit',
-      path: '/settings',
+      name: "settings-children-edit",
+      path: "/settings",
       fullPage: false,
-      steps: [editIn('Дети'), toSection('Дети', 120)],
+      steps: [editIn("Дети"), toSection("Дети", 120)],
     },
     {
-      name: 'settings-fields-edit',
-      path: '/settings',
+      name: "settings-fields-edit",
+      path: "/settings",
       fullPage: false,
-      steps: [editIn('Поля профиля'), toSection('Поля профиля', 120)],
+      steps: [editIn("Поля профиля"), toSection("Поля профиля", 120)],
     },
     // Touch variants show the swipe, mouse variants the context menu.
-    { name: 'settings-row-actions', path: '/settings', fullPage: false, steps: [rowActions('Приглашения')] },
     {
-      name: 'settings-save-failed',
-      path: '/settings',
-      offline: 'afterLoad',
+      name: "settings-row-actions",
+      path: "/settings",
+      fullPage: false,
+      steps: [rowActions("Приглашения")],
+    },
+    {
+      name: "settings-save-failed",
+      path: "/settings",
+      offline: "afterLoad",
       fullPage: false,
       steps: [
-        { fill: `${section('Ваш профиль')} >> role=textbox[name="Имя"]`, value: 'Анна Петровна' },
-        { press: 'Enter' },
+        {
+          fill: `${section("Ваш профиль")} >> role=textbox[name="Имя"]`,
+          value: "Анна Петровна",
+        },
+        { press: "Enter" },
         { waitFor: 'role=button[name="Повторить"]' },
-        toSection('Ваш профиль'),
+        toSection("Ваш профиль"),
         { wait: 300 },
       ],
     },
     {
-      name: 'settings-link-copied',
-      path: '/settings',
+      name: "settings-link-copied",
+      path: "/settings",
       fullPage: false,
       isolate: true,
-      steps: [{ click: INVITE }, { waitFor: 'text=Ссылка скопирована' }, showInvites],
+      steps: [
+        { click: INVITE },
+        { waitFor: "text=Ссылка скопирована" },
+        showInvites,
+      ],
     },
     {
-      name: 'settings-copy-failed',
-      path: '/settings',
+      name: "settings-copy-failed",
+      path: "/settings",
       fullPage: false,
       isolate: true,
       initScript: failClipboard,
@@ -919,77 +1148,124 @@ export default {
         { click: INVITE },
         { waitFor: 'role=button[name="Скопировать"]' },
         { click: 'role=button[name="Скопировать"]' },
-        { waitFor: 'role=alert' },
+        { waitFor: "role=alert" },
         showInvites,
       ],
     },
     {
-      name: 'settings-no-invites',
-      path: '/settings',
+      name: "settings-no-invites",
+      path: "/settings",
       fullPage: false,
       isolate: true,
       steps: [
         // The seed leaves one active Invite: revoke it through the UI's own confirmation.
-        editIn('Приглашения'),
-        { click: `${section('Приглашения')} >> role=button[name=/^Удалить «/] >> nth=0` },
+        editIn("Приглашения"),
+        {
+          click: `${section("Приглашения")} >> role=button[name=/^Удалить «/] >> nth=0`,
+        },
         { click: 'role=dialog >> role=button[name="Удалить"]' },
-        { waitFor: 'text=Активных приглашений нет' },
-        toSection('Приглашения', -150),
+        { waitFor: "text=Активных приглашений нет" },
+        toSection("Приглашения", -150),
       ],
     },
     // «Уведомления» by this device's state (pushDevice fakes the Push API; switchOn the session).
     {
-      name: 'settings-notifications-unavailable',
-      path: '/settings',
+      name: "settings-notifications-unavailable",
+      path: "/settings",
       fullPage: false,
-      initScript: pushDevice({ permission: 'none' }),
-      steps: [{ waitFor: 'text=/добавьте приложение на экран/' }, toSection('Уведомления', -150)],
-    },
-    {
-      name: 'settings-notifications-denied',
-      path: '/settings',
-      fullPage: false,
-      initScript: pushDevice({ permission: 'denied', switchOn: true }),
-      steps: [{ waitFor: 'text=/Уведомления запрещены/' }, toSection('Уведомления', -150)],
-    },
-    {
-      name: 'settings-notifications-not-subscribed',
-      path: '/settings',
-      fullPage: false,
-      initScript: pushDevice({ permission: 'default', switchOn: true }),
+      initScript: pushDevice({ permission: "none" }),
       steps: [
-        { waitFor: 'role=button[name="Включить на этом устройстве"]' },
-        toSection('Уведомления', -150),
+        { waitFor: "text=/добавьте приложение на экран/" },
+        toSection("Уведомления", -150),
       ],
     },
     {
-      name: 'settings-notifications-on',
-      path: '/settings',
+      name: "settings-notifications-denied",
+      path: "/settings",
       fullPage: false,
-      initScript: pushDevice({ permission: 'granted', subscribed: true, switchOn: true }),
+      initScript: pushDevice({ permission: "denied", switchOn: true }),
+      steps: [
+        { waitFor: "text=/Уведомления запрещены/" },
+        toSection("Уведомления", -150),
+      ],
+    },
+    {
+      name: "settings-notifications-not-subscribed",
+      path: "/settings",
+      fullPage: false,
+      initScript: pushDevice({ permission: "default", switchOn: true }),
+      steps: [
+        { waitFor: 'role=button[name="Включить на этом устройстве"]' },
+        toSection("Уведомления", -150),
+      ],
+    },
+    {
+      name: "settings-notifications-on",
+      path: "/settings",
+      fullPage: false,
+      initScript: pushDevice({
+        permission: "granted",
+        subscribed: true,
+        switchOn: true,
+      }),
       steps: [
         { waitFor: 'role=switch[name="Уведомления"][checked]' },
         { wait: 300 },
-        toSection('Уведомления', -150),
+        toSection("Уведомления", -150),
       ],
     },
     {
-      name: 'settings-logout',
-      path: '/settings',
+      // Turned on offline: the save fails, the switch goes back, the footer offers «Повторить».
+      name: "settings-notifications-save-failed",
+      path: "/settings",
+      offline: "afterLoad",
       fullPage: false,
-      steps: [{ click: 'role=button[name="Выйти"]' }, { waitFor: 'role=dialog' }, { wait: 400 }],
+      initScript: pushDevice({ permission: "none" }),
+      steps: [
+        toSection("Уведомления", -150),
+        { click: `${section("Уведомления")} >> label` },
+        {
+          waitFor: `${section("Уведомления")} >> role=button[name="Повторить"]`,
+        },
+        { wait: 300 },
+      ],
+    },
+    {
+      // «Включить на этом устройстве» when this device can't subscribe: the footer says why.
+      name: "settings-notifications-device-failed",
+      path: "/settings",
+      fullPage: false,
+      initScript: pushDevice({ permission: "granted", switchOn: true }),
+      steps: [
+        toSection("Уведомления", -150),
+        {
+          click: `${section("Уведомления")} >> role=button[name="Включить на этом устройстве"]`,
+        },
+        { waitFor: `${section("Уведомления")} >> role=alert` },
+        { wait: 300 },
+      ],
+    },
+    {
+      name: "settings-logout",
+      path: "/settings",
+      fullPage: false,
+      steps: [
+        { click: 'role=button[name="Выйти"]' },
+        { waitFor: "role=dialog" },
+        { wait: 400 },
+      ],
     },
     {
       // Logout with an unsent change (a Child renamed offline): the warning that it will be lost.
-      name: 'settings-logout-unsent',
-      path: '/settings',
-      offline: 'afterLoad',
+      name: "settings-logout-unsent",
+      path: "/settings",
+      offline: "afterLoad",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Маша/]' },
+        { click: "role=link[name=/Маша/]" },
         { waitFor: 'role=radiogroup[name="Цвет"]' },
-        { fill: 'role=textbox[name="Имя"]', value: 'Мария' },
-        { press: 'Enter' },
+        { fill: 'role=textbox[name="Имя"]', value: "Мария" },
+        { press: "Enter" },
         { wait: 300 },
         async (page) => page.goBack(),
         { click: 'role=button[name="Выйти"]' },
@@ -1000,83 +1276,90 @@ export default {
     },
 
     // Password
-    { name: 'password-empty', path: '/settings/password' },
+    { name: "password-empty", path: "/settings/password" },
     {
-      name: 'password-error',
-      path: '/settings/password',
+      name: "password-error",
+      path: "/settings/password",
       steps: [
-        { fill: 'input[name="currentPassword"]', value: 'not-my-password' },
-        { fill: 'input[name="newPassword"]', value: 'brand-new-pass' },
+        { fill: 'input[name="currentPassword"]', value: "not-my-password" },
+        { fill: 'input[name="newPassword"]', value: "brand-new-pass" },
         { click: 'role=button[name="Готово"]' },
-        { waitFor: 'role=alert' },
+        { waitFor: "role=alert" },
       ],
     },
     {
-      name: 'settings-password-changed',
-      path: '/settings/password',
+      name: "settings-password-changed",
+      path: "/settings/password",
       fullPage: false,
       isolate: true,
       steps: [
-        { fill: 'input[name="currentPassword"]', value: 'password123' },
-        { fill: 'input[name="newPassword"]', value: 'password456' },
+        { fill: 'input[name="currentPassword"]', value: "password123" },
+        { fill: 'input[name="newPassword"]', value: "password456" },
         { click: 'role=button[name="Готово"]' },
-        { waitFor: 'text=Пароль изменён' },
-        toSection('Ваш профиль', -100),
+        { waitFor: "text=Пароль изменён" },
+        toSection("Ваш профиль", -100),
       ],
     },
 
     // The Child page, opened from a tile of «Дети» on Home
     {
       // Маша has a value for every Child field (text and date) and two Child lists under «Списки».
-      name: 'child-page',
-      path: '/',
+      name: "child-page",
+      path: "/",
       steps: [
-        { click: childTile('Маша') },
-        { waitFor: `${section('Профиль')} >> role=textbox[name="Размер обуви"]` },
+        { click: childTile("Маша") },
+        {
+          waitFor: `${section("Профиль")} >> role=textbox[name="Размер обуви"]`,
+        },
         { waitFor: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
       ],
     },
     {
       // Петя has no birthday («Не указан»), no values (every Child field is empty) and no Child
       // lists («Списков пока нет»).
-      name: 'child-page-no-birthday',
-      path: '/',
+      name: "child-page-no-birthday",
+      path: "/",
       steps: [
-        { click: childTile('Петя') },
-        { waitFor: 'text=Не указан' },
-        { waitFor: `${section('Профиль')} >> role=textbox[name="Размер обуви"]` },
-        { waitFor: 'text=Списков пока нет' },
+        { click: childTile("Петя") },
+        { waitFor: "text=Не указан" },
+        {
+          waitFor: `${section("Профиль")} >> role=textbox[name="Размер обуви"]`,
+        },
+        { waitFor: "text=Списков пока нет" },
       ],
     },
     {
       // «Новый список» opened on a Child page: Вид is TODO / Желания only, no Visibility.
-      name: 'child-new-list-sheet',
-      path: '/',
+      name: "child-new-list-sheet",
+      path: "/",
       fullPage: false,
       steps: [
-        { click: childTile('Маша') },
+        { click: childTile("Маша") },
         { click: 'role=button[name="Добавить список"]' },
-        { fill: 'role=dialog >> role=textbox[name="Название"]', value: 'Кружки' },
-        { click: 'role=dialog >> text=TODO' },
+        {
+          fill: 'role=dialog >> role=textbox[name="Название"]',
+          value: "Кружки",
+        },
+        { click: "role=dialog >> text=TODO" },
         { wait: 400 },
       ],
     },
     {
       // A Child list is the usual List screen; its back button is the Child page («Маша»).
-      name: 'child-list',
-      path: '/',
+      name: "child-list",
+      path: "/",
       steps: [
-        { click: childTile('Маша') },
+        { click: childTile("Маша") },
         { click: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
         { waitFor: 'role=textbox[name="Новая задача"]' },
       ],
     },
     {
       // A Child list's settings: no Visibility.
-      name: 'child-list-settings',
-      path: '/',
+      name: "child-list-settings",
+      path: "/",
       steps: [
-        { click: childTile('Маша') },
+        { click: childTile("Маша") },
         { click: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
         { click: 'role=link[name="Настройки списка"]' },
         { waitFor: 'role=textbox[name="Название"]' },
@@ -1084,64 +1367,76 @@ export default {
     },
     {
       // No Child fields defined: the hint to add them in Settings.
-      name: 'child-page-no-fields',
-      path: '/',
+      name: "child-page-no-fields",
+      path: "/",
       initScript: noChildFields,
-      steps: [{ click: childTile('Маша') }, { waitFor: 'text=Полей профиля нет' }],
-    },
-    {
-      // A text value over 1000 characters is refused: the footer says so about its row.
-      name: 'child-page-value-too-long',
-      path: '/',
       steps: [
-        { click: childTile('Маша') },
-        { fill: `${section('Профиль')} >> role=textbox[name="Размер обуви"]`, value: '31 '.repeat(334) },
-        { press: 'Enter' },
-        { waitFor: `${section('Профиль')} >> role=alert` },
+        { click: childTile("Маша") },
+        { waitFor: "text=Полей профиля нет" },
       ],
     },
     {
-      name: 'child-page-not-found',
-      path: '/children/00000000-0000-4000-8000-000000000000',
-      steps: [{ waitFor: 'role=alert' }],
+      // A text value over 1000 characters is refused: the footer says so about its row.
+      name: "child-page-value-too-long",
+      path: "/",
+      steps: [
+        { click: childTile("Маша") },
+        {
+          fill: `${section("Профиль")} >> role=textbox[name="Размер обуви"]`,
+          value: "31 ".repeat(334),
+        },
+        { press: "Enter" },
+        { waitFor: `${section("Профиль")} >> role=alert` },
+      ],
+    },
+    {
+      name: "child-page-not-found",
+      path: "/children/00000000-0000-4000-8000-000000000000",
+      steps: [{ waitFor: "role=alert" }],
     },
 
     // Child screen and sheets
     {
-      name: 'child',
-      path: '/settings',
-      steps: [{ click: 'role=link[name=/Маша/]' }, { waitFor: 'role=radiogroup[name="Цвет"]' }],
+      name: "child",
+      path: "/settings",
+      steps: [
+        { click: "role=link[name=/Маша/]" },
+        { waitFor: 'role=radiogroup[name="Цвет"]' },
+      ],
     },
     {
-      name: 'child-delete-confirm',
-      path: '/settings',
+      name: "child-delete-confirm",
+      path: "/settings",
       fullPage: false,
       steps: [
-        { click: 'role=link[name=/Соня/]' },
+        { click: "role=link[name=/Соня/]" },
         { click: 'role=button[name="Удалить ребёнка"]' },
-        { waitFor: 'role=dialog' },
+        { waitFor: "role=dialog" },
         { wait: 400 },
       ],
     },
     {
-      name: 'new-child-sheet',
-      path: '/settings',
+      name: "new-child-sheet",
+      path: "/settings",
       fullPage: false,
       steps: [
         { click: 'role=button[name="Добавить ребёнка"]' },
-        { fill: 'role=dialog >> role=textbox[name="Имя"]', value: 'Ваня' },
+        { fill: 'role=dialog >> role=textbox[name="Имя"]', value: "Ваня" },
         { click: 'role=dialog >> role=radio[name="Оранжевый"]' },
         { wait: 400 },
       ],
     },
     {
-      name: 'new-field-sheet',
-      path: '/settings',
+      name: "new-field-sheet",
+      path: "/settings",
       fullPage: false,
       steps: [
         { click: 'role=button[name="Добавить поле"]' },
-        { fill: 'role=dialog >> role=textbox[name="Название"]', value: 'Группа крови' },
-        { click: 'role=dialog >> text=Дата' },
+        {
+          fill: 'role=dialog >> role=textbox[name="Название"]',
+          value: "Группа крови",
+        },
+        { click: "role=dialog >> text=Дата" },
         { wait: 300 },
       ],
     },

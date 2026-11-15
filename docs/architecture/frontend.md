@@ -77,8 +77,8 @@ web/src/
                         useFamilyMembers() (the Members on the local store, by id)
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(), useChild(id),
                         ChildrenTiles («Дети» on Home), ChildPage (the Child page, CHILD_PATH)
-    notifications/      NotificationsSection (Settings «Уведомления»: the switch, this device),
-                        usePushDevice, notificationsApi (the switch's PATCH)
+    notifications/      NotificationsSection (Settings «Уведомления»: the switch, saved with
+                        `updateProfile` from `features/members`; this device), usePushDevice
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
                         ChildProfileSection («Профиль» on the Child page), useChildFieldValues(childId)
   shared/

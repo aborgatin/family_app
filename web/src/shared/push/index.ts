@@ -1,6 +1,5 @@
 export {
   forgetSubscription,
-  pushAvailable,
   readPushState,
   resyncSubscription,
   subscribeThisDevice,

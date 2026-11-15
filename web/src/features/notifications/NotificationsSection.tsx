@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSession } from '@/features/auth';
+import { updateProfile } from '@/features/members';
 import {
   autoSaveMessages,
   GroupedSection,
@@ -10,10 +11,10 @@ import {
   useFooterLines,
   type SectionMessage,
 } from '@/shared/ui';
-import { switchNotifications } from './notificationsApi';
 import { usePushDevice } from './usePushDevice';
 
-const SWITCH = 'notificationsEnabled';
+/** The switch row's `name`, which its footer messages refer to. */
+const SWITCH_ROW = 'notificationsEnabled';
 
 /**
  * Settings «Уведомления»: the Member's Notifications switch (saved at once, online only, S4
@@ -30,21 +31,18 @@ export function NotificationsSection() {
     async (value: boolean) => {
       // Inside the tap, before anything is awaited: iOS shows its prompt only then.
       if (value) enable();
-      const updated = await switchNotifications(value);
+      const updated = await updateProfile({ notificationsEnabled: value });
       memberChanged(updated);
       return updated.notificationsEnabled;
     },
     [enable, memberChanged],
   );
-  const toggle = useAutoSaveChoice({ name: SWITCH, saved: enabled, save });
+  const toggle = useAutoSaveChoice({ name: SWITCH_ROW, saved: enabled, save });
 
   const lines = useFooterLines();
   const failures = autoSaveMessages([toggle.failure]);
-  const messages: (SectionMessage | false)[] = [
-    ...(failures.length > 0
-      ? failures
-      : [{ text: t('settings.notifications.about'), row: SWITCH }]),
-  ];
+  const messages: (SectionMessage | false)[] =
+    failures.length > 0 ? failures : [{ text: t('settings.notifications.about'), row: SWITCH_ROW }];
   if (device.state === 'unavailable') {
     messages.push({ text: t('settings.notifications.unavailable') });
   } else if (device.state === 'denied') {
