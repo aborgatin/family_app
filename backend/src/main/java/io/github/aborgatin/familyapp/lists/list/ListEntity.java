@@ -1,6 +1,8 @@
 package io.github.aborgatin.familyapp.lists.list;
 
 import io.github.aborgatin.familyapp.error.ApiException;
+import io.github.aborgatin.familyapp.lists.ListKind;
+import io.github.aborgatin.familyapp.lists.Visibility;
 import io.github.aborgatin.familyapp.sync.SyncedRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

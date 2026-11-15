@@ -3,6 +3,8 @@ package io.github.aborgatin.familyapp.lists.list;
 import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.error.FieldErrors;
 import io.github.aborgatin.familyapp.family.Members;
+import io.github.aborgatin.familyapp.lists.ListKind;
+import io.github.aborgatin.familyapp.lists.Visibility;
 import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
 import io.github.aborgatin.familyapp.sync.SyncRow;
