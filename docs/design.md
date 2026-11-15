@@ -172,8 +172,10 @@ layout adds a sidebar next to it here, so screens don't change. Screens never us
 Every logged-in screen is one `Page`: `title`, optional `back` (`{to, title}` of the previous
 screen) and `actions` (the nav bar's trailing slot), then the content.
 
-- The nav bar is sticky. At the top it is transparent; once content scrolls under it, it turns
-  translucent (`bar` + backdrop blur) with a hairline. The large title (`h1`) scrolls away with the
+- The nav bar is sticky. At the top it is solid `background`, so it looks part of the page (never
+  transparent: iOS 26+ blurs a see-through bar's buttons under its status-bar edge effect in the
+  home-screen app); once content scrolls under it, it turns translucent (`bar` + backdrop blur)
+  with a hairline. The large title (`h1`) scrolls away with the
   content; when it has gone under the bar, the small centred title fades in.
 - Back button: a chevron and the previous screen's title, left. Actions: icon `Button`s or `Link`s,
   right; or the one text `Button` that confirms a screen («Готово» on the password screen),
