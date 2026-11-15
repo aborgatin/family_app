@@ -143,12 +143,17 @@ class MuteSyncTest {
   @Test
   void aMutePushedAgainChangesNothing() throws Exception {
     UUID annasMute = UUID.randomUUID();
+    UUID garden = UUID.randomUUID();
+    pushApplied(anna, list(garden, "Дача", "TODO", "SHARED"));
     pushApplied(anna, mute(annasMute, home));
     long muted = SyncRequests.version(SyncRequests.pull(anna, 0));
 
-    pushApplied(anna, mute(annasMute, home));
+    // Pushed again, as an Outbox does after a lost answer, and even carrying another List.
+    pushApplied(anna, mute(annasMute, home), mute(annasMute, garden));
 
     assertThat(SyncRequests.change(anna, muted, TABLE, annasMute)).isNull();
+    assertThat(SyncRequests.fields(anna, TABLE, annasMute))
+        .containsEntry("listId", home.toString());
   }
 
   @Test
