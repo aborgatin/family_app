@@ -21,9 +21,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Mute through the sync push and pull (spec #104 "Mute", ticket #111): a per-Member row saying
- * «Без уведомлений» for one Shared list. Two {@code Browser}s play Anna's phone and Boris's phone;
- * every test starts with Anna's Shared list «Дом».
+ * Mute through the sync push and pull (spec #104 "Mute", ticket #111): a per-Member row saying «Без
+ * уведомлений» for one Shared list. Two {@code Browser}s play Anna's phone and Boris's phone; every
+ * test starts with Anna's Shared list «Дом».
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -160,7 +160,8 @@ class MuteSyncTest {
         .andExpect(jsonPath("$.results[*].status", contains("rejected", "rejected")))
         .andExpect(jsonPath("$.results[*].code", contains("mute.not_found", "mute.not_found")));
 
-    assertThat(SyncRequests.fields(anna, TABLE, annasMute)).containsEntry("listId", home.toString());
+    assertThat(SyncRequests.fields(anna, TABLE, annasMute))
+        .containsEntry("listId", home.toString());
     assertThat(SyncRequests.fields(boris, TABLE, annasMute)).isNull();
   }
 

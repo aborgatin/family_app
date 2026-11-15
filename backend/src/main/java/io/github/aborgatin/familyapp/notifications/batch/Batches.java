@@ -57,8 +57,7 @@ public class Batches {
   private final Mutes mutes;
   private final ObjectMapper json;
 
-  Batches(
-      PendingBatches batches, Lists lists, Members members, Mutes mutes, ObjectMapper json) {
+  Batches(PendingBatches batches, Lists lists, Members members, Mutes mutes, ObjectMapper json) {
     this.batches = batches;
     this.lists = lists;
     this.members = members;
