@@ -1,6 +1,7 @@
 package io.github.aborgatin.familyapp.notifications;
 
 import io.github.aborgatin.familyapp.notifications.batch.Batches;
+import io.github.aborgatin.familyapp.notifications.schedule.StepRuns;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -20,12 +21,19 @@ public class SchedulerStep {
   static final Duration TTL = Duration.ofHours(24);
 
   private final Batches batches;
+  private final StepRuns runs;
   private final Pushes pushes;
   private final TransactionTemplate transaction;
   private final Clock clock;
 
-  SchedulerStep(Batches batches, Pushes pushes, TransactionTemplate transaction, Clock clock) {
+  SchedulerStep(
+      Batches batches,
+      StepRuns runs,
+      Pushes pushes,
+      TransactionTemplate transaction,
+      Clock clock) {
     this.batches = batches;
+    this.runs = runs;
     this.pushes = pushes;
     this.transaction = transaction;
     this.clock = clock;
@@ -37,7 +45,12 @@ public class SchedulerStep {
    */
   public void run() {
     Instant now = clock.instant();
-    List<Batches.Message> messages = transaction.execute(status -> batches.takeDue(now));
+    List<Batches.Message> messages =
+        transaction.execute(
+            status -> {
+              runs.ranAt(now);
+              return batches.takeDue(now);
+            });
     for (Batches.Message message : messages) {
       pushes.sendTo(message.recipientId(), message.payload(), TTL, Urgency.NORMAL);
     }

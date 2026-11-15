@@ -8,7 +8,9 @@ import io.github.aborgatin.familyapp.lists.ListSummary;
 import io.github.aborgatin.familyapp.lists.Lists;
 import io.github.aborgatin.familyapp.lists.Visibility;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +59,31 @@ class ListQueries implements Lists {
 
   @Override
   public List<DueItem> dueBetween(Instant after, Instant until, LocalTime morningTime) {
-    throw new UnsupportedOperationException("not yet");
+    ZoneId zone = ZoneId.systemDefault();
+    return items
+        .findOpenDueBetween(
+            LocalDate.ofInstant(after, zone), LocalDate.ofInstant(until, zone))
+        .stream()
+        .map(item -> Map.entry(dueMoment(item.dueDate(), morningTime, zone), item))
+        .filter(due -> due.getKey().isAfter(after) && !due.getKey().isAfter(until))
+        .sorted(Map.Entry.comparingByKey())
+        .map(Map.Entry::getValue)
+        .map(
+            item ->
+                new DueItem(
+                    item.id(),
+                    item.text(),
+                    item.listId(),
+                    item.assigneeId(),
+                    item.dueDate().day(),
+                    item.dueDate().time()))
+        .toList();
+  }
+
+  /** The Due date at its time, or at {@code morningTime} without one, in {@code zone}. */
+  private static Instant dueMoment(DueDate dueDate, LocalTime morningTime, ZoneId zone) {
+    LocalTime time = dueDate.time() == null ? morningTime : dueDate.time();
+    return dueDate.day().atTime(time).atZone(zone).toInstant();
   }
 
   private ListSummary summary(ListEntity list) {
