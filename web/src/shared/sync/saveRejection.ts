@@ -36,6 +36,8 @@ const REJECTION_KEYS = {
   // who is no longer a Member.
   'item.assignee_on_private_list': 'sync.rejected.itemAssigneeOnPrivateList',
   'item.assignee_not_found': 'sync.rejected.itemAssigneeNotFound',
+  // «Без уведомлений» set while the Owner was making the List Private on another device.
+  'mute.private_list': 'sync.rejected.mutePrivateList',
   // Not something the Member can cause from the app (another List's Category, a Category on a Todo
   // list): plain «Не удалось сохранить».
   'category.list_not_shopping': 'sync.saveRejected',
@@ -44,6 +46,8 @@ const REJECTION_KEYS = {
   // first, so the app never causes it.
   'child.not_found': 'sync.saveRejected',
   'child_field.not_found': 'sync.saveRejected',
+  // Another Member's Mute: the pull never brings one, so the app never sends it.
+  'mute.not_found': 'sync.saveRejected',
 } as const satisfies Readonly<Record<string, ErrorMessage['key']>>;
 
 export function rejectionMessage(code: string): ErrorMessage {
