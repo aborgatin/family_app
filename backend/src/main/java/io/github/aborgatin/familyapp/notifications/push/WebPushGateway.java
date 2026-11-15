@@ -14,9 +14,13 @@ import java.time.Duration;
 import nl.martijndwars.webpush.AbstractPushService;
 import nl.martijndwars.webpush.Encoding;
 import nl.martijndwars.webpush.Notification;
+import org.bouncycastle.jce.interfaces.ECPrivateKey;
+import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.math.ec.ECPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.lang.Nullable;
 
 /**
  * The real {@link PushGateway}: Web Push with VAPID. {@code nl.martijndwars:web-push} builds the
@@ -37,19 +41,31 @@ final class WebPushGateway implements PushGateway {
           .followRedirects(HttpClient.Redirect.NEVER)
           .build();
 
-  /** Fails when the key pair cannot be read, so a bad configuration stops the app at startup. */
+  /**
+   * Fails when the keys cannot be read or are not one pair, so a bad configuration stops the app at
+   * startup instead of every push being refused.
+   */
   WebPushGateway(NotificationsProperties.Vapid vapid) {
     if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
       Security.addProvider(new BouncyCastleProvider());
     }
+    RequestBuilder built;
     try {
-      requests = new RequestBuilder(vapid);
+      built = new RequestBuilder(vapid);
     } catch (GeneralSecurityException | RuntimeException e) {
-      throw new IllegalArgumentException(
-          "VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be a P-256 key pair in base64url."
-              + NotificationsProperties.HOW_TO_GENERATE,
-          e);
+      throw notAKeyPair(e);
     }
+    if (!built.isOneKeyPair()) {
+      throw notAKeyPair(null);
+    }
+    requests = built;
+  }
+
+  private static IllegalArgumentException notAKeyPair(@Nullable Exception cause) {
+    return new IllegalArgumentException(
+        "VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be a P-256 key pair in base64url."
+            + NotificationsProperties.HOW_TO_GENERATE,
+        cause);
   }
 
   @Override
@@ -109,6 +125,14 @@ final class WebPushGateway implements PushGateway {
 
     RequestBuilder(NotificationsProperties.Vapid vapid) throws GeneralSecurityException {
       super(vapid.publicKey(), vapid.privateKey(), vapid.subject());
+    }
+
+    /** Whether the public key is the private key's: d·G on P-256. */
+    boolean isOneKeyPair() {
+      ECPrivateKey privateKey = (ECPrivateKey) getPrivateKey();
+      ECPublicKey publicKey = (ECPublicKey) getPublicKey();
+      ECPoint derived = privateKey.getParameters().getG().multiply(privateKey.getD()).normalize();
+      return derived.equals(publicKey.getQ().normalize());
     }
 
     nl.martijndwars.webpush.HttpRequest prepare(Notification notification) throws Exception {
