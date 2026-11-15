@@ -36,6 +36,7 @@ table adds it here.
 | `category`    | `V8__category.sql`              | client; Defaults by the server at bootstrap    | M3    |
 | `item_history` | `V9__item_history.sql`         | server, when an Item is written (push: delete) | M3    |
 | `child_field_value` | `V11__child_field_value.sql` | client (`crypto.randomUUID()`)              | M4    |
+| `mute`        | `V18__mute.sql`                 | client (`crypto.randomUUID()`)                 | M5    |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -233,6 +234,19 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   Version, so the one the server received last, never a client time and not `recordedAt`: two
   devices saving the same value keep both entries and agree on the latest. A `delete` soft-deletes
   an entry (the app sends none yet).
+- **Mutes** (`mute`, ticket #111; owned by `notifications`): a Member's «Без уведомлений» on one
+  Shared list. An upsert of an unknown id carries `listId` (required, a UUID, else
+  `validation.failed`); the Member is the pushing one, never a field. Rules: `list.not_found`
+  (`params.listId`) for an unknown List or another Member's Private one; `mute.private_list`
+  (`params.listId`) for the Member's own Private list (a Child list is Shared, so it may be
+  Muted); Muting a deleted List is `ignored`. A Mute never changes: an upsert of a known id is
+  `applied` and changes nothing. A delete unmutes (soft delete). Another Member's Mute is unknown:
+  any operation on its id is `mute.not_found` (`params.muteId`). Two devices Muting offline may
+  make two Mutes of one List; either Mutes it, and the app's unmute deletes every one. **A Shared
+  list deleted or made Private** (`lists.ListUnshared`, in the same operation) soft-deletes its
+  Mutes, everyone's, so their Members pull tombstones; made Shared again, nobody is Muted. The
+  pull sends a Mute, `listId` only, **to its own Member only**: the other Member's pull leaves it
+  out, not even as a tombstone.
 - **Deleting a Child** soft-deletes its Child field values in the same operation; **deleting a
   Child field** soft-deletes its values for every Child. They get new Versions, so devices pull
   their tombstones.
@@ -257,6 +271,8 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   and a first sync leaves it out. Made Shared again, it is a new Version and arrives with its
   fields. Operations on it are rejected with `list.not_found`, as if it
   didn't exist.
+- **Per-Member rows.** A Mute is pulled only by its own Member; the other Member's pull leaves it
+  out entirely (no tombstone either).
 - **Visibility change.** Changing a List's Visibility gives all its Items a new Version (an UPDATE
   that changes nothing; the trigger still runs), and its Categories and Item history too, so the
   next pull sends them again: with their fields to a Member who may now see the List (a List
@@ -317,7 +333,7 @@ auth.required` without one) tells open apps when to pull:
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
   table (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`,
-  `item_history`), the Outbox (`++seq`) and the stored
+  `item_history`, `mute`), the Outbox (`++seq`) and the stored
   Version. A row is the fields the pull sent plus `version`, the Version it was pulled with (absent
   on a row created here and not pulled back yet): what tells the latest Child field value. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives
@@ -369,8 +385,8 @@ auth.required` without one) tells open apps when to pull:
   `list.kind_immutable`, `list.wish_shared_only`, the four `list.child_*` codes,
   `list.hide_done_not_todo`,
   `child_field.value_type_immutable`, `sync.read_only`, `item.list_not_todo`,
-  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping` and
-  `item.category_not_found`, which the app never sends), until closed or the Member's next change; and the next
+  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`, `mute.private_list`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping`,
+  `item.category_not_found` and `mute.not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.
 - **Owner and logout**: the store records the Member whose data it holds. At login (and at start

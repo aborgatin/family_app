@@ -963,6 +963,20 @@ export default {
     },
     // A Wish list is always Shared: no Visibility, even for its Owner.
     { name: "list-settings-wish", path: "/", steps: listSettings("Подарки") },
+    // «Без уведомлений» turned on by a tap on its row (#111).
+    {
+      name: "list-settings-muted",
+      path: "/",
+      isolate: true,
+      steps: [
+        ...listSettings("Супермаркет"),
+        { click: "text=Без уведомлений" },
+        { waitFor: 'role=switch[name="Без уведомлений"][checked]' },
+        { wait: 400 },
+      ],
+    },
+    // A Private list: no «Без уведомлений» (#111).
+    { name: "list-settings-private", path: "/", steps: listSettings("Ремонт") },
     {
       name: "list-delete-confirm",
       path: "/",

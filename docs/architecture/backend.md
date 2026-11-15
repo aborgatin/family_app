@@ -79,7 +79,7 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
 `sync → error`, `command → family`, `notifications → family`, `notifications → lists`,
-`notifications → error`. (`lists` reaches Members through `Operation.memberId()`, and
+`notifications → sync` (the `mute` table), `notifications → error`. (`lists` reaches Members through `Operation.memberId()`, and
 `family` for the `FirstMemberRegistered` and `ChildDeleted` events, for `Children` (Child
 lists, #90) and for `Members.byId` (an Item's Assignee must be a Member, #85); the spec also
 allows `FamilyLock` when a ticket needs it.) The Version
@@ -302,7 +302,9 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   assigneeId, byMemberId)` when an operation leaves an Item with a new Assignee (a create carrying
   one too), not for removing one nor for the one it already has (a repeated push stays silent,
   S3). The acting Member may be the Assignee; listeners decide. The next occurrence of a
-  repeating Item (`ItemService.save`) publishes neither.
+  repeating Item (`ItemService.save`) publishes neither. `ListUnshared(listId)` (`ListService`,
+  #111) when a Shared List is deleted (by its Owner, or with its Child) or made Private: the
+  Mutes of it go.
 - `Lists` (a bean, `lists.list.ListQueries`; read-only, as of the caller's transaction, deleted
   rows left out): `find(listId)` → `ListSummary` (name, `ListKind`, `Visibility`, Owner, `seenBy`:
   the Owner of a Private List, every Member (`family.Members.all`) for a Shared one, Child lists
@@ -310,7 +312,8 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   Done, as `ItemSummary` (List, name, Assignee) by id; `dueBetween(after, until, morningTime)` →
   the open todo items whose due moment (the Due date at its time, or at `morningTime` without
   one, in the JVM's zone) is after `after` and at or before `until`, oldest first, as `DueItem`
-  (List, Assignee, day, time). `ListKind` and `Visibility` are the module's public enums.
+  (List, Assignee, day, time); `deleted(listId)`: whether the List existed and was deleted (a
+  Mute of it is then ignored). `ListKind` and `Visibility` are the module's public enums.
   Tested by `lists.ListsQueryTest`.
 
 `ShoppingListDefaults` listens for `family.FirstMemberRegistered` and creates the Default Shopping
@@ -430,8 +433,8 @@ Item history is in the same package: `ItemHistoryEntity` (`list_id`, `normalized
 ### `notifications`
 
 Push messages (spec #104). Ticket #107 built the module's base: the Notifications switch's effect,
-push subscriptions and the push gateway. #109 added Batches and the scheduler step; Reminders and
-Mute come with later tickets.
+push subscriptions and the push gateway. #109 added Batches and the scheduler step, #111 Mute;
+Reminders come with a later ticket.
 
 - **`Pushes.sendTo(memberId, payload, ttl, urgency)`** (public) is the one way out: if the
   Member's Notifications switch is on (`family.Members.notificationsEnabled`), it sends the payload
@@ -496,6 +499,15 @@ Mute come with later tickets.
   `listName`, `listKind`, `itemNames` (the first three), `addedCount`, `assignedCount`,
   `assignedItemName` (when exactly one), `url` `/lists/:id`. Tested by
   `notifications.BatchesTest`, `BatchesSurviveRestartTest` and `SchedulerScheduleTest`.
+  A recipient who Muted the List (`notifications.mute.Mutes.mutedBy`, a live Mute at send time)
+  gets no additions, only their assignments; a Batch pending when the List is Muted loses its
+  additions for them, with nothing else to do.
+- **Mute** (`notifications.mute`, V18, ticket #111): the syncable `mute` table, a Member's
+  «Без уведомлений» on one Shared list, as in "Adding a syncable table": `Mute`,
+  `MuteRepository`, `MuteService` (the `SyncableTable`; rules in [`sync.md`](sync.md), pulled only
+  by its own Member). It listens for `lists.ListUnshared` and soft-deletes the List's Mutes in
+  that push operation. `Mutes` (a bean) answers `Batches`. Tested by `notifications.MuteSyncTest`
+  and `BatchesTest`.
 
 ### `command`
 
@@ -619,7 +631,7 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
 (`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field (a Due date, a Repeat or an Assignee) on an Item of a Shopping
 or Wish list; its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.repeat_without_due_date` (a Repeat without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
-`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member). An operation on a deleted Child, Child field, List,
+`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
 (`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a
@@ -730,6 +742,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V15__list_done_hidden_at.sql`  | `list.done_hidden_at`, `list.done_hidden_press`: Hide done on a Todo list, nullable                |
 | `V16__push_subscription.sql`    | `member.notifications_enabled` default `FALSE` (existing Members set off); `push_subscription` (→ `member`, → `spring_session` cascading) |
 | `V17__pending_batch.sql`        | `pending_batch` (key actor → `member`, List → `list`; first and last change), `pending_batch_item` (→ `pending_batch` cascading, → `item`, Assignee → `member`; `position` identity for the order), `scheduler_step` (one row, `last_run_at` `NULL` until the first step) |
+| `V18__mute.sql`                 | `mute` (syncable; → `list`, Member → `member`; indexed by List): a Member's Mute of a Shared list |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -793,7 +806,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`, `memberId`) and `ListOperations`, as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest`, `lists.ItemDueDateSyncTest`, `lists.ItemRepeatSyncTest`, `lists.ItemRepeatCopySyncTest` and `lists.ItemAssigneeSyncTest` do.
+   `pull`, `change`, `fields`, `version`, `memberId`) and `ListOperations`, as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest`, `lists.ItemDueDateSyncTest`, `lists.ItemRepeatSyncTest`, `lists.ItemRepeatCopySyncTest`, `lists.ItemAssigneeSyncTest` and `notifications.MuteSyncTest` (a per-Member table) do.
 
 ## Testing
 

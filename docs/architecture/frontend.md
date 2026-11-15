@@ -68,7 +68,7 @@ web/src/
                         ListMissing (gone / loading),
                         ItemsSection (the List screen's Items, by Category on a Shopping list),
                         listTypes (kinds, Visibility, kind texts, Item, Category,
-                        ItemHistoryName), useLists(), useItems(list), useCategories(list),
+                        ItemHistoryName), useLists(), useItems(list), useCategories(list), useMute(listId),
                         useItemHistory(list), itemKeys (normalizedName, sortableTime, compare:
                         shared by useItems and useItemHistory), dueDates (how a Due date reads
                         and when it is overdue)
@@ -232,11 +232,12 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`; `child_field`
+  (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`, `mute`; `child_field`
   and `list` came with store version 2, `item`, indexed by `listId`, with version 3, `category`,
   indexed by `listId`, with version 4, `item_history`, indexed by `listId`, with version 5;
   version 6 indexes `list` by `childId`, for Child lists; `child_field_value`, indexed by
-  `childId` and `childFieldId`, came with version 7). A row holds the
+  `childId` and `childFieldId`, came with version 7; `mute`, indexed by `listId`, with version 8).
+  A row holds the
   fields the pull sent and `version`, the Version it was pulled with (none on a row created here
   until the pull brings it back). Also there:
   `outbox` (`++seq`) and `meta` (the stored Version, the owner: the Member whose data it holds,
@@ -284,7 +285,7 @@ code that touches IndexedDB or the sync API:
     `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only`,
     `item.list_not_todo`, `item.due_time_without_due_date`, `item.repeat_without_due_date`,
     `item.assignee_on_private_list`,
-    `item.assignee_not_found`, `list.hide_done_not_todo` map to
+    `item.assignee_not_found`, `list.hide_done_not_todo`, `mute.private_list` map to
     `sync.rejected.*`, «Не удалось сохранить: …» with the reason; any other code to
     `sync.saveRejected`, plain «Не удалось сохранить»). It is recorded whatever screen is open and
     cleared by the Member's next change, `dismiss()` or a logout. Its one user is
@@ -296,7 +297,7 @@ code that touches IndexedDB or the sync API:
 entry at the end of `STORE_SCHEMA` in `localStore.ts` (one entry per Dexie version; keep the older
 entries as they are, never drop `outbox`); the pull fills it, and the feature's hook reads and writes it with `useSyncedRows` (or
 `useRows` and `upsertRow` / `deleteRow`). Rows that belong to a row of another table (an Item to
-its List, a Child field value to its Child and to its Child field) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
+its List, a Child field value to its Child and to its Child field, a Mute to its List) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
 
 ## Data access
 
@@ -346,7 +347,14 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   name): a `GroupedSection` with the auto-saved «Название» and Visibility
   «Личный» / «Общий» only when the Member is the Owner, or `ownerId` is still unset, and never for
   a Wish list: `hasVisibility(kind)`; the segments are `VISIBILITY_CHOICES`, both in
-  `listTypes.ts` and shared with «Новый список»), then on a Shopping list a «Категории» row
+  `listTypes.ts` and shared with «Новый список»), then on a Shared list (Child lists included;
+  none on a Private one) `MuteSection` (#111): a `GroupedSection` with the `SwitchRow`
+  «Без уведомлений» and the footer «Не присылать уведомления о новых товарах / задачах /
+  желаниях в этом списке. Напоминания и назначенные вам задачи придут.» (the noun by kind,
+  `KIND_TEXTS[kind].muteAbout`). It reads and writes through `useMute(listId)` (`useRows('mute')`,
+  `upsertRow` / `deleteRow`), so it switches at once, offline too: on creates a Mute (`listId`,
+  a new `crypto.randomUUID()`), off deletes every Mute of the List (two devices Muting offline
+  make two). The pull brings only the Member's own Mutes. Then on a Shopping list a «Категории» row
   opening `CategoriesPage` (`/lists/:id/categories`, `listCategoriesPath(id)`, #72): a `Page`
   «Категории» back to the settings, one `GroupedSection` with `edit` whose `SortableList` has the
   Categories and the Unnamed category («Без категории», `muted`, no `confirm`: it can only be
@@ -936,7 +944,8 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   before Assignees and Repeats (a new Item field needs no store version). A store-upgrade test
   builds the older store with `upgradeStoreFrom(version, async (older) => { … })`
   (`@/test/olderStore`: the first `version` entries of `STORE_SCHEMA`, seeded, then the current
-  store opened over it). The fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, and making a List Private there removes the Assignee from all its Items, as on the real server.
+  store opened over it); `lists/mute.test.tsx` (#111) the same for a version 7 store from before
+  Mutes. The fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, deleting a List its Mutes, and making a List Private there removes the Assignee from all its Items, as on the real server.
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,
