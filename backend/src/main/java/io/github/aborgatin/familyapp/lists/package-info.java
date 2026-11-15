@@ -6,10 +6,12 @@
  * {@code lists → error}, {@code lists → family} (the {@code FirstMemberRegistered} event, for the
  * Default Shopping lists; {@code Children} and the {@code ChildDeleted} event, for Child lists;
  * {@code Members}, for an Item's Assignee and who sees a Shared List). Types in this package are
- * the public API (spec #104): the {@link io.github.aborgatin.familyapp.lists.ItemAdded} and {@link
- * io.github.aborgatin.familyapp.lists.ItemAssigned} events and the {@link
- * io.github.aborgatin.familyapp.lists.Lists} query interface; sub-packages are internal
- * (CODING_STANDARDS M1).
+ * the public API (spec #104): the {@link io.github.aborgatin.familyapp.lists.ItemAdded}, {@link
+ * io.github.aborgatin.familyapp.lists.ItemAssigned} and {@link
+ * io.github.aborgatin.familyapp.lists.ListUnshared} events, the {@link
+ * io.github.aborgatin.familyapp.lists.Lists} query interface with what it answers ({@code
+ * ListSummary}, {@code ItemSummary}, {@code DueItem}), and the {@code ListKind} and {@code
+ * Visibility} enums; sub-packages are internal (CODING_STANDARDS M1).
  */
 @ApplicationModule(displayName = "Lists")
 package io.github.aborgatin.familyapp.lists;

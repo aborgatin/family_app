@@ -11,11 +11,14 @@ export interface NotificationPayload {
   type: 'notification';
   /** The acting Member's name. */
   actorName: string;
-  /** The acting Member's Grammatical gender; `null` when not set (the neutral wording). */
+  /**
+   * The acting Member's Grammatical gender; the server always sends it. `null` is still read (the
+   * neutral wording), defensively.
+   */
   actorGrammaticalGender: (typeof GRAMMATICAL_GENDERS)[number] | null;
   listName: string;
   listKind: (typeof LIST_KINDS)[number];
-  /** The added Items' names, in the order added (at least the first three). */
+  /** The first three added Items' names (fewer when fewer were added), in the order added. */
   itemNames: string[];
   /** How many Items were added, in all. */
   addedCount: number;
@@ -23,7 +26,7 @@ export interface NotificationPayload {
   assignedCount: number;
   /** The assigned Item's name when exactly one was assigned, else `null`. */
   assignedItemName: string | null;
-  /** The screen a tap opens: `/lists/:id` or `/lists/:id/items/:itemId`. */
+  /** The screen a tap opens: the List's, `/lists/:id`. */
   url: string;
 }
 

@@ -71,8 +71,8 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 | --------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `family`  | `Members`, `MemberSummary`, `PasswordResets`, `Sessions`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
-| `lists`   | `Lists` (with `ListSummary`, `ItemSummary`, `DueItem`), `ItemAdded`, `ItemAssigned`, `ListKind`, `Visibility` | `lists.list`                                                                              |
-| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `Urgency`, `SchedulerStep`           | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule` |
+| `lists`   | `Lists` (with `ListSummary`, `ItemSummary`, `DueItem`), `ItemAdded`, `ItemAssigned`, `ListUnshared`, `ListKind`, `Visibility` | `lists.list`                                                                              |
+| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `PushMessage`, `Urgency`, `SchedulerStep` | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule` |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
@@ -140,7 +140,8 @@ The public API (root package) is what spec #5 asks for, plus password resets:
 
 - `Members`: `current()` is the Member the request is logged in as (`401 auth.required` when it is
   not, or when that Member has been removed meanwhile); `byId(id)` is an `Optional`, empty for an
-  unknown or removed Member. Both return the record `MemberSummary(id, displayName)`, never the
+  unknown or removed Member. Both return the record `MemberSummary(id, displayName,
+  grammaticalGender)` (the gender as its name, `MASCULINE` or `FEMININE`), never the
   internal `family.member.Member` entity. `current()` reads Spring Security's context, whose
   principal is named by the Member id; `MembersApiTest` checks it from a stand-in controller of
   another module.
@@ -483,10 +484,12 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   hands back the previous run's time, where the Reminders' window starts), finds the due Reminders
   and takes the due Batches out of the database (`PendingBatches.takeDue`, `FOR
   UPDATE SKIP LOCKED`, then deleted; due when the last change is `QUIET` = 2 minutes old or the
-  first `LONGEST` = 10 minutes old, constants); `Batches` turns them into Notifications; after the
-  commit each goes out through `Pushes.sendTo` with TTL 24 h, urgency `NORMAL` for Notifications
-  and `HIGH` for Reminders. A crash between the commit and the sending loses those pushes rather
-  than sending them twice.
+  first `LONGEST` = 10 minutes old, constants); `Batches` turns them into Notifications. Both
+  come back as `PushMessage`s (recipient, payload, urgency: `NORMAL` for a Notification, `HIGH`
+  for a Reminder); after the commit each goes out through `Pushes.sendTo` with TTL 24 h,
+  Notifications first. A push that throws (a database call on the way out) is logged and costs
+  only itself; the rest of the step is still sent. A crash between the commit and the sending
+  loses those pushes rather than sending them twice.
   `notifications.schedule.SchedulerConfig` runs it at second 0 of every minute (`@Scheduled(cron
   = "0 * * * * *")`), in the web app only (`@ConditionalOnWebApplication`, so no operator
   command runs it) and unless `notifications.scheduler.enabled` is `false` (the tests' setting).
@@ -497,11 +500,13 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   Items recorded as assigned to them that still exist and still have them as Assignee. A recipient
   with neither gets nothing. One push per recipient and Batch; several due Batches are separate
   pushes. The payload is the `notification` of the contract in `web/src/serviceWorker/pushPayload.ts`
-  (frontend.md "PWA"): `actorName`, `actorGrammaticalGender` (`family.MemberSummary`),
-  `listName`, `listKind`, `itemNames` (the first three), `addedCount`, `assignedCount`,
-  `assignedItemName` (when exactly one), `url` `/lists/:id`. Each payload is a record whose
-  constant `type` is a `@JsonProperty` method; `notifications.push.PushPayloads` writes it as JSON
-  for both Notifications and Reminders. Tested by
+  (frontend.md "PWA"): `actorName`, `actorGrammaticalGender` (`family.MemberSummary`; always
+  sent, the column is `NOT NULL`),
+  `listName`, `listKind`, `itemNames` (the first three, `Batches.NAMED_ITEMS`: the server alone
+  decides how many are named), `addedCount`, `assignedCount`, `assignedItemName` (when exactly
+  one), `url` `/lists/:id`. Each payload is a record whose constant `type` is a `@JsonProperty`
+  method; `notifications.push.PushPayloads` writes it as JSON for both Notifications and
+  Reminders, and builds both screen URLs (`listUrl`, `itemUrl`). Tested by
   `notifications.BatchesTest`, `BatchesSurviveRestartTest` and `SchedulerScheduleTest`.
   A recipient who Muted the List (`notifications.mute.Mutes.mutedBy`, a live Mute at send time)
   gets no additions, only their assignments; a Batch pending when the List is Muted loses its

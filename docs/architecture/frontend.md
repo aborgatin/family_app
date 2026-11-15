@@ -832,17 +832,18 @@ a Vite native-config-loader warning).
 - **Payload contract** (`pushPayload.ts`, the one definition the worker and its tests share; the
   backend sends exactly this JSON): codes and parameters, never texts.
   - `type: 'notification'` (title: the List name): `actorName`, `actorGrammaticalGender`
-    (`MASCULINE` | `FEMININE` | `null`), `listName`, `listKind` (`SHOPPING` | `TODO` | `WISH`),
-    `itemNames` (the added Items' names in order; at least the first three), `addedCount`,
-    `assignedCount` (Items assigned to the recipient), `assignedItemName` (when exactly one was
-    assigned, else `null`), `url`.
+    (`MASCULINE` | `FEMININE`; always sent, though the worker still reads `null` as the neutral
+    wording, defensively), `listName`, `listKind` (`SHOPPING` | `TODO` | `WISH`), `itemNames` (the
+    first three added Items' names in order, fewer when fewer were added: the server decides how
+    many are named), `addedCount`, `assignedCount` (Items assigned to the recipient),
+    `assignedItemName` (when exactly one was assigned, else `null`), `url` (the List's screen,
+    `/lists/:id`).
   - `type: 'reminder'` (title: the Item name): `itemName`, `listName`, `dueDate` (`YYYY-MM-DD`),
-    `dueTime` (`HH:mm` or `null`), `url`.
-  - `url`: the screen a tap opens, `/lists/:id` or `/lists/:id/items/:itemId`.
+    `dueTime` (`HH:mm` or `null`), `url` (the Item's screen, `/lists/:id/items/:itemId`).
 - **Push texts** come from the `push.*` keys of `ru.json` through the worker's own i18next
-  instance (the app's `@/shared/i18n` also loads react-i18next). 1–3 added Items are named in
-  quotes; 4 or more are counted with the first three named («7 товаров: Молоко, Хлеб, Сыр…»);
-  additions with assignments are counted («3 задачи, 1 — вам»); assignments alone name the one
+  instance (the app's `@/shared/i18n` also loads react-i18next). Added Items are named in
+  quotes when `itemNames` holds them all (1–3); more are counted with the names sent
+  («7 товаров: Молоко, Хлеб, Сыр…»); additions with assignments are counted («3 задачи, 1 — вам»); assignments alone name the one
   Item or count them. The count nouns are `push.count.<kind>_<plural>` in the accusative
   (товар / задачу / желание); the verbs follow the actor's Grammatical gender as i18n `context`,
   with «добавил(а)» / «назначил(а)» as the neutral form. A Reminder reads «Дом · сегодня в 18:00»
