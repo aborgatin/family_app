@@ -134,12 +134,14 @@ const MUTE_ROW = 'muted';
 function MuteSection({ list }: { list: List }) {
   const { t } = useTranslation();
   const { muted, setMuted } = useMute(list.id);
+  // Until the first local read: shown off, a Muted List would flip on, and a tap would be lost.
+  if (muted === undefined) return null;
   return (
     <GroupedSection messages={[{ text: t(KIND_TEXTS[list.kind].muteAbout), row: MUTE_ROW }]}>
       <SwitchRow
         label={t('lists.mute.switch')}
         name={MUTE_ROW}
-        value={muted ?? false}
+        value={muted}
         onChange={(value) => void setMuted(value)}
       />
     </GroupedSection>

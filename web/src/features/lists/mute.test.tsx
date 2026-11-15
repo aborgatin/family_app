@@ -184,6 +184,28 @@ describe('«Без уведомлений» in «Настройки списка
   });
 });
 
+describe('A Muted List that leaves the phone', () => {
+  it('takes its Mute with it: shared again, it is not Muted', async () => {
+    syncServer.seed('list', [chores]);
+    syncServer.seed('mute', [mute(1, chores.id)]);
+
+    await openSettings(chores.id);
+    await waitFor(async () => {
+      expect(await muteSwitch()).toBeChecked();
+    });
+
+    // Its Owner makes it Private: the pull brings the List's tombstone.
+    syncServer.change('list', chores.id, 'deleted');
+    window.dispatchEvent(new Event('online'));
+    await screen.findByText('Такого списка нет: возможно, его удалили.');
+
+    syncServer.change('list', chores.id, {});
+    window.dispatchEvent(new Event('online'));
+
+    expect(await muteSwitch()).not.toBeChecked();
+  });
+});
+
 describe('The store upgrade that adds Mutes', () => {
   it('sends a change still waiting in the store of the app version before them', async () => {
     // The store as the app before Mutes created it (schema version 7), with a List renamed
