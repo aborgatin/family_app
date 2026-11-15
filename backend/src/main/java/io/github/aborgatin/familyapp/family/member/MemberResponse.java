@@ -9,6 +9,7 @@ public record MemberResponse(
     String email,
     String displayName,
     GrammaticalGender grammaticalGender,
+    boolean notificationsEnabled,
     long version,
     Instant updatedAt) {
 
@@ -18,6 +19,7 @@ public record MemberResponse(
         member.email(),
         member.displayName(),
         member.grammaticalGender(),
+        member.notificationsEnabled(),
         member.version(),
         member.updatedAt());
   }

@@ -12,7 +12,7 @@ step with the headings).
 
 - [Stack](#stack): Spring Boot, Java 21, Error Prone, Spotless, what the build copies from the web app
 - [Configuration](#configuration): the environment variables `application.yml` reads and their defaults
-- [Modules](#modules): the Modulith modules (`family`, `sync`, `lists`, `command`, `webapp`), their public API and internals
+- [Modules](#modules): the Modulith modules (`family`, `sync`, `lists`, `notifications`, `command`, `webapp`), their public API and internals
 - [API conventions](#api-conventions): JSON shape, timestamps and dates, which resources are REST and which go through sync
 - [Errors](#errors): `ApiException`, `FieldErrors`, the error-code catalogue (I1, I3)
 - [Security, sessions, CSRF](#security-sessions-csrf): the security chains, public endpoints, sessions, CSRF, login limits
@@ -47,6 +47,15 @@ step with the headings).
 | `PASSWORD_RESET_TTL`                                                | `1h`              | `PasswordResets`                                          |
 | `DOMAIN`                                                            | `localhost`       | links `https://<DOMAIN>/invite/…` and `/reset-password/…` |
 | `LOGIN_LIMIT_PER_EMAIL`, `LOGIN_LIMIT_PER_IP`, `LOGIN_LIMIT_WINDOW` | `10`, `20`, `15m` | `LoginLimits`                                             |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`                             | none (required)   | Web Push key pair, P-256 in base64url (`WebPushGateway`)  |
+| `VAPID_SUBJECT`                                                     | none (required)   | `mailto:` contact sent to the push services               |
+| `REMINDER_MORNING_TIME`                                             | `09:00`           | when a Due date without a time is due, in `TZ`            |
+
+The `notifications.*` keys bind to `notifications.push.NotificationsProperties`. A missing or
+blank VAPID variable, a subject that is not `mailto:`, or keys that are not one P-256 pair stop the
+app at startup with a message naming the variable (`NotificationsConfigurationTest`). Tests get a
+test-only pair from `src/test/resources/config/application.yml` (loaded on top of the main
+`application.yml`); local runs and the image tests from `scripts/lib/dev-vapid-keys.env`.
 
 Durations use Spring's format (`180d`, `15m`, `1h`). `spring.jpa.hibernate.ddl-auto` is `validate`
 and `open-in-view` is off. A new setting needs a line in `deploy/.env.example` and in the `app`
@@ -60,15 +69,17 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 | Module    | Public API (root package)                                                                              | Internal                                                                                  |
 | --------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
+| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `Sessions`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
-| `lists`   | none                                                                                                   | `lists.list`                                                                              |
+| `lists`   | `Lists` (with `ListSummary`, `ItemSummary`, `DueItem`), `ItemAdded`, `ItemAssigned`, `ListUnshared`, `ListKind`, `Visibility` | `lists.list`                                                                              |
+| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `PushMessage`, `Urgency`, `SchedulerStep` | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule` |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
-`sync → error`, `command → family`. (`lists` reaches Members through `Operation.memberId()`, and
+`sync → error`, `command → family`, `notifications → family`, `notifications → lists`,
+`notifications → sync` (the `mute` table), `notifications → error`. (`lists` reaches Members through `Operation.memberId()`, and
 `family` for the `FirstMemberRegistered` and `ChildDeleted` events, for `Children` (Child
 lists, #90) and for `Members.byId` (an Item's Assignee must be a Member, #85); the spec also
 allows `FamilyLock` when a ticket needs it.) The Version
@@ -129,7 +140,8 @@ The public API (root package) is what spec #5 asks for, plus password resets:
 
 - `Members`: `current()` is the Member the request is logged in as (`401 auth.required` when it is
   not, or when that Member has been removed meanwhile); `byId(id)` is an `Optional`, empty for an
-  unknown or removed Member. Both return the record `MemberSummary(id, displayName)`, never the
+  unknown or removed Member. Both return the record `MemberSummary(id, displayName,
+  grammaticalGender)` (the gender as its name, `MASCULINE` or `FEMININE`), never the
   internal `family.member.Member` entity. `current()` reads Spring Security's context, whose
   principal is named by the Member id; `MembersApiTest` checks it from a stand-in controller of
   another module.
@@ -283,6 +295,28 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   (`null` for an ordinary List), `createdAt`, `doneHiddenAt` (`null` until hidden); a tombstone for a deleted List and for another Member's Private List
   (`ListEntity.visibleTo(memberId)`).
 
+**Public API** (spec #104 "Events from lists", #109), for `notifications`:
+
+- Events, published inside the push operation (`ItemService`, after the Item is saved), so a
+  synchronous listener writes in its transaction and a rejected operation's savepoint rolls it
+  back: `ItemAdded(listId, itemId, byMemberId)` for every created Item; `ItemAssigned(itemId,
+  assigneeId, byMemberId)` when an operation leaves an Item with a new Assignee (a create carrying
+  one too), not for removing one nor for the one it already has (a repeated push stays silent,
+  S3). The acting Member may be the Assignee; listeners decide. The next occurrence of a
+  repeating Item (`ItemService.save`) publishes neither. `ListUnshared(listId)` (`ListService`,
+  #111) when a Shared List is deleted (by its Owner, or with its Child) or made Private: the
+  Mutes of it go.
+- `Lists` (a bean, `lists.list.ListQueries`; read-only, as of the caller's transaction, deleted
+  rows left out): `find(listId)` → `ListSummary` (name, `ListKind`, `Visibility`, Owner, `seenBy`:
+  the Owner of a Private List, every Member (`family.Members.all`) for a Shared one, Child lists
+  included; `isPrivate()`); `items(itemIds)` → the Items that still exist, open or
+  Done, as `ItemSummary` (List, name, Assignee) by id; `dueBetween(after, until, morningTime)` →
+  the open todo items whose due moment (the Due date at its time, or at `morningTime` without
+  one, in the JVM's zone) is after `after` and at or before `until`, oldest first, as `DueItem`
+  (List, Assignee, day, time); `deleted(listId)`: whether the List existed and was deleted (a
+  Mute of it is then ignored). `ListKind` and `Visibility` are the module's public enums.
+  Tested by `lists.ListsQueryTest`.
+
 `ShoppingListDefaults` listens for `family.FirstMemberRegistered` and creates the Default Shopping
 lists with server-made ids: Супермаркет (Shared, Owner the new Member, `unnamedCategoryPosition` 0
 so the untitled add field comes first, then Categories «Еда» position 1 and «Бытовая химия» 2) and
@@ -397,18 +431,128 @@ Item history is in the same package: `ItemHistoryEntity` (`list_id`, `normalized
 - `changesSince`: `listId`, `name`, `lastUsedAt`; a tombstone for a deleted row and for one whose
   List the Member may not see.
 
+### `notifications`
+
+Push messages (spec #104). Ticket #107 built the module's base: the Notifications switch's effect,
+push subscriptions and the push gateway. #109 added Batches and the scheduler step, #110 Reminders,
+#111 Mute.
+
+- **`Pushes.sendTo(memberId, payload, ttl, urgency)`** (public) is the one way out: if the
+  Member's Notifications switch is on (`family.Members.notificationsEnabled`), it sends the payload
+  to each of their live subscriptions, one push each, outside any transaction. `GONE` deletes the
+  subscription; `FAILED` is logged and not retried. Turning the switch off keeps the
+  subscriptions. Callers decide recipients and payloads.
+- **`PushGateway`** (public, the test seam): `send(subscription, payload, ttl, urgency)` →
+  `DELIVERED | GONE | FAILED`, never throws. The real one, `notifications.push.WebPushGateway`, has
+  `nl.martijndwars:web-push` build the request (VAPID `Authorization`, payload encrypted as
+  `aes128gcm`, the encoding Safari accepts; `TTL`, `Urgency` headers) and sends it with the JDK's
+  `HttpClient` (30 s timeouts), so neither of the library's HTTP clients is on the classpath. 404
+  and 410 are `GONE`; any other non-2xx, a timeout or an error is `FAILED`. Its constructor checks
+  that the two keys are one pair. `WebPushGatewayTest` drives it against a stand-in push service on
+  a local port. Tests replace it with `FakePushGateway` (see Testing).
+- **Subscriptions** (`notifications.push.PushSubscriptions`, `JdbcTemplate` on
+  `push_subscription`): a row per endpoint with its keys, its Member and the key of the session
+  that registered it (`session_primary_id`, a foreign key to `spring_session` with
+  `ON DELETE CASCADE`). So logout, the expired-session cleanup and a password reset ending every
+  session delete it with no code of their own. Sessions are `family`'s: `notifications` reads
+  them only through `family.Sessions` (`keyOf(sessionId)`, `liveKeysOf(memberId)`), never by SQL
+  (M2); the foreign key is the one schema link. A row counts for sending only while its session is
+  unexpired by the app's `Clock` and still logged in as its Member: logging in as the other Member
+  on the same device keeps the session's key.
+- **`PushController`** (`/api/push`, `@ConditionalOnWebApplication`): `GET /vapid-public-key`;
+  `POST /subscriptions` upserts by endpoint (`INSERT … ON CONFLICT`) for `Members.current()` and
+  this request's session, so posting again is a no-op and posting an endpoint the other Member
+  registered moves it; `DELETE /subscriptions` deletes the caller's own row with that endpoint
+  (another Member's or an unknown one: no-op). `SubscriptionRequest` validates the body:
+  `endpoint` an `https` URL with a host, at most 2048 characters (`required`, `too_long`,
+  `value.invalid`); `keys.p256dh` base64url of a 65-byte uncompressed point and `keys.auth` of 16
+  bytes (`required`, `value.invalid`). `expirationTime` is ignored.
+- **`NotificationsProperties`** (`notifications.push`): the VAPID settings and
+  `reminderMorningTime` (see Configuration).
+- **Recording a Batch** (`notifications.batch.BatchRecorder`, `@EventListener`, synchronous): each
+  `lists.ItemAdded` and `ItemAssigned` goes into the pending Batch of (actor, List) in the push
+  operation's transaction, so a rejected or rolled-back operation records nothing.
+  `PendingBatches` (`JdbcTemplate`, V17) upserts the `pending_batch` row (first and last change
+  times; a new change moves only the last) and the `pending_batch_item` row: an Item keeps its
+  first place, `added` only turns on, a later Assignee replaces an earlier one. Assigning yourself
+  is never recorded (it neither adds to a Batch nor delays it). The assigned Item's List comes
+  from `Lists.items`. V17's foreign keys to `member`, `list` and `item` are schema links only
+  (Lists, Items and Members are soft-deleted, so they never block a delete): `notifications`
+  reads those tables only through `lists.Lists` and `family.Members`, never by SQL (M2).
+- **The scheduler step** (`SchedulerStep.run()`, public): one transaction stores the run's time
+  (`notifications.schedule.StepRuns`, the single `scheduler_step` row, locked `FOR UPDATE`; it
+  hands back the previous run's time, where the Reminders' window starts), finds the due Reminders
+  and takes the due Batches out of the database (`PendingBatches.takeDue`, `FOR
+  UPDATE SKIP LOCKED`, then deleted; due when the last change is `QUIET` = 2 minutes old or the
+  first `LONGEST` = 10 minutes old, constants); `Batches` turns them into Notifications. Both
+  come back as `PushMessage`s (recipient, payload, urgency: `NORMAL` for a Notification, `HIGH`
+  for a Reminder); after the commit each goes out through `Pushes.sendTo` with TTL 24 h,
+  Notifications first. A push that throws (a database call on the way out) is logged and costs
+  only itself; the rest of the step is still sent. A crash between the commit and the sending
+  loses those pushes rather than sending them twice.
+  `notifications.schedule.SchedulerConfig` runs it at second 0 of every minute (`@Scheduled(cron
+  = "0 * * * * *")`), in the web app only (`@ConditionalOnWebApplication`, so no operator
+  command runs it) and unless `notifications.scheduler.enabled` is `false` (the tests' setting).
+- **Sending a Batch** (`notifications.batch.Batches`), everything decided at send time: nothing
+  when the List is gone or Private (a Child list is Shared). Recipients are `ListSummary.seenBy`
+  but the actor; `Pushes.sendTo` leaves out those whose switch is off. Additions are the added
+  Items that still exist (open or Done), in the order added; a recipient's assignments are the
+  Items recorded as assigned to them that still exist and still have them as Assignee. A recipient
+  with neither gets nothing. One push per recipient and Batch; several due Batches are separate
+  pushes. The payload is the `notification` of the contract in `web/src/serviceWorker/pushPayload.ts`
+  (frontend.md "PWA"): `actorName`, `actorGrammaticalGender` (`family.MemberSummary`; always
+  sent, the column is `NOT NULL`),
+  `listName`, `listKind`, `itemNames` (the first three, `Batches.NAMED_ITEMS`: the server alone
+  decides how many are named), `addedCount`, `assignedCount`, `assignedItemName` (when exactly
+  one), `url` `/lists/:id`. Each payload is a record whose constant `type` is a `@JsonProperty`
+  method; `notifications.push.PushPayloads` writes it as JSON for both Notifications and
+  Reminders, and builds both screen URLs (`listUrl`, `itemUrl`). Tested by
+  `notifications.BatchesTest`, `BatchesSurviveRestartTest` and `SchedulerScheduleTest`.
+  A recipient who Muted the List (`notifications.mute.Mutes.mutedBy`, a live Mute at send time)
+  gets no additions, only their assignments; a Batch pending when the List is Muted loses its
+  additions for them, with nothing else to do.
+- **Mute** (`notifications.mute`, V18, ticket #111): the syncable `mute` table, a Member's
+  «Без уведомлений» on one Shared list, as in "Adding a syncable table": `Mute`,
+  `MuteRepository`, `MuteService` (the `SyncableTable`; rules in [`sync.md`](sync.md), pulled only
+  by its own Member). It listens for `lists.ListUnshared` and soft-deletes the List's Mutes in
+  that push operation. `Mutes` (a bean) answers `Batches`. Tested by `notifications.MuteSyncTest`
+  and `BatchesTest`.
+
+- **Reminders** (`notifications.reminder.Reminders`): a step sends a Reminder for each open todo
+  item whose due moment is after the previous step and at or before now (`lists.Lists.dueBetween`:
+  the Due date at its time, or at `REMINDER_MORNING_TIME` without one, in the installation's
+  `TZ`). After downtime the window starts at the stored time, but never more than `CATCH_UP` = 24
+  hours back; older Reminders are dropped. Before the first step ever ran (`last_run_at` null, a
+  fresh database or the first start after V17) the window is empty, so an upgrade does not send a
+  day's worth of old Reminders. There are no per-Item jobs and nothing records what was sent:
+  each due moment falls into exactly one window, so a Due date reminds once, a Due date moved to a
+  later moment reminds again then, one set to a moment already past never reminds, an item Done
+  before its moment is not open, and the Repeat copy reminds at its own Due date. Recipients: the
+  Assignee alone, otherwise `ListSummary.seenBy` (the Owner of a Private list, every Member for a
+  Shared or Child one; a Private list's Items have no Assignee); `Pushes.sendTo` leaves out those
+  whose switch is off. Mute does not apply. The payload is the `reminder` of the contract in
+  `web/src/serviceWorker/pushPayload.ts`: `itemName`, `listName`, `dueDate` (`YYYY-MM-DD`),
+  `dueTime` (`HH:mm` or `null`), `url` `/lists/:id/items/:itemId`. Tested by
+  `notifications.RemindersTest`, which runs with `REMINDER_MORNING_TIME=08:30` (so the setting is
+  seen to be read) and switches the JVM's default zone for one test (so `TZ` is).
+
 ### `command`
 
 Operator commands run from the same image. `FamilyAppApplication.main` checks
 `Commands.isCommand(args)`; if so, `Commands.run` starts the context with
 `WebApplicationType.NONE` (no port, so it can run next to the live app), runs the command and exits
-with its code (0 ok, 1 failed, 2 usage). The only command is `reset-password <email>`
-(`PasswordResetCommand`); see [`deployment.md`](deployment.md#password-reset).
+with its code (0 ok, 1 failed, 2 usage). Commands: `reset-password <email>`
+(`PasswordResetCommand`; see [`deployment.md`](deployment.md#password-reset)) and
+`generate-vapid-keys` (`GenerateVapidKeysCommand`), which prints a fresh P-256 pair as
+`VAPID_PUBLIC_KEY=` / `VAPID_PRIVATE_KEY=` lines and runs before any context starts: it needs no
+database or settings, being how the operator gets them (see
+[`deployment.md`](deployment.md#push-keys-vapid)).
 
 Because commands start without a web server, every web-only bean must be
 `@ConditionalOnWebApplication`: `SecurityConfig`, `SessionLogin`, `SlidingSessionCookieFilter`,
-`WebBundleConfig` and every controller are. A new controller or web component without it breaks the
-command; `PasswordResetCommandTest` catches that.
+`WebBundleConfig` and every controller are. A web component without it breaks the command, and
+`PasswordResetCommandTest` catches that; a controller without it still starts there, so
+`WebOnlyBeansTest` (ArchUnit) checks every controller carries it.
 
 ### `webapp`
 
@@ -444,7 +588,10 @@ there):
 | `GET/POST /api/invites`, `DELETE /api/invites/{id}`            | list active / create (response has `url`) / revoke                                 |
 | `GET /api/invites/by-token/{token}` (public)                   | `{expiresAt}` or the Invite's state error                                          |
 | `POST /api/invites/by-token/{token}/accept` (public)           | `201 Member`, logs in                                                              |
-| `GET /api/members`, `PATCH /api/members/me`                    | list (by display name, then email) / change own `displayName`, `grammaticalGender` |
+| `GET /api/members`, `PATCH /api/members/me`                    | list (by display name, then email) / change own `displayName`, `grammaticalGender`, `notificationsEnabled` |
+| `GET /api/push/vapid-public-key`                               | `{publicKey}`: the key the browser subscribes with                                 |
+| `POST /api/push/subscriptions`                                 | `204`; body `{endpoint, keys: {p256dh, auth}}`: this device, this Member and session |
+| `DELETE /api/push/subscriptions`                               | `204`; body `{endpoint}`: the caller's own; unknown is a no-op                     |
 | `POST /api/members/me/password`                                | `204`; other sessions stay                                                         |
 | `POST /api/sync/push`                                          | `{operations}` → `{results, version}`; see [`sync.md`](sync.md)                    |
 | `GET /api/sync/pull?since=N`                                   | `{changes, version}`; see [`sync.md`](sync.md)                                     |
@@ -468,7 +615,8 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
   to read the values requests share, each adding its failure and returning `null`: an enum by its
   exact name (`choice`: `null` is none, other text `value.invalid`; `requiredChoice`: missing or
   blank is `required`), a UUID (`uuid` / `requiredUuid`, the same way), a `YYYY-MM-DD` day
-  (`date`), and anything else through a parser (`parsed(field, value, parse)`).
+  (`date`), a JSON boolean from a body map (`requiredBoolean`), and anything else through a parser
+  (`parsed(field, value, parse)` / `requiredParsed`).
 - `error.internal.ApiExceptionHandler` (`@RestControllerAdvice`) is the single mapping for MVC:
   `ApiException` as is; unreadable JSON and a path value of the wrong type (e.g. a non-UUID id) →
   `400 request.invalid`; Spring's own `ErrorResponse` exceptions → `not_found`,
@@ -510,7 +658,7 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
 (`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field (a Due date, a Repeat or an Assignee) on an Item of a Shopping
 or Wish list; its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.repeat_without_due_date` (a Repeat without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
-`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member). An operation on a deleted Child, Child field, List,
+`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
 (`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a
@@ -618,6 +766,10 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V12__item_due_date.sql`        | `item.due_date` (`DATE`), `item.due_time` (`TIME`): a todo item's Due date, nullable, no backfill  |
 | `V13__item_assignee.sql`        | `item.assignee_id` (→ `member`): a todo item's Assignee, nullable, no backfill                     |
 | `V14__item_repeat.sql`          | `item.repeat` (`VARCHAR(16)`): a todo item's Repeat, nullable, no backfill                         |
+| `V15__list_done_hidden_at.sql`  | `list.done_hidden_at`, `list.done_hidden_press`: Hide done on a Todo list, nullable                |
+| `V16__push_subscription.sql`    | `member.notifications_enabled` default `FALSE` (existing Members set off); `push_subscription` (→ `member`, → `spring_session` cascading) |
+| `V17__pending_batch.sql`        | `pending_batch` (key actor → `member`, List → `list`; first and last change), `pending_batch_item` (→ `pending_batch` cascading, → `item`, Assignee → `member`; `position` identity for the order), `scheduler_step` (one row, `last_run_at` `NULL` until the first step) |
+| `V18__mute.sql`                 | `mute` (syncable; → `list`, Member → `member`; indexed by List): a Member's Mute of a Shared list |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -631,7 +783,8 @@ Migrations are in `backend/src/main/resources/db/migration`:
   strings are allowed there (I1, "seed data"). Default rows get Versions from the trigger like any
   write.
 - Hibernate only validates the schema (`ddl-auto: validate`); the schema comes from Flyway alone.
-- Server-only tables (`family`, `password_reset`, `invite`, Spring Session) have no sync columns
+- Server-only tables (`family`, `password_reset`, `invite`, Spring Session, `push_subscription`,
+  `pending_batch`, `pending_batch_item`, `scheduler_step`) have no sync columns
   and may be hard-deleted. `token_hash` columns are `BYTEA` with a 32-byte check.
 
 ## Adding a syncable table
@@ -680,7 +833,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 8. Add the table to the list in [`sync.md`](sync.md) in the same PR (S1), and on the client to
    `SYNCED_TABLES` with a new Dexie version ([`frontend.md`](frontend.md#local-store-and-sync)).
 9. Tests through HTTP with two `Browser`s and the helpers in `SyncRequests` (`push`, `upsert`, `delete`,
-   `pull`, `change`, `fields`, `version`, `memberId`) and `ListOperations`, as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest`, `lists.ItemDueDateSyncTest`, `lists.ItemRepeatSyncTest`, `lists.ItemRepeatCopySyncTest` and `lists.ItemAssigneeSyncTest` do.
+   `pull`, `change`, `fields`, `version`, `memberId`) and `ListOperations`, as `ChildrenSyncTest`, `ChildFieldValuesSyncTest`, `lists.ListsSyncTest`, `lists.ChildListsSyncTest`, `lists.ItemsSyncTest`, `lists.CategoriesSyncTest`, `lists.ItemHistorySyncTest`, `lists.ItemDueDateSyncTest`, `lists.ItemRepeatSyncTest`, `lists.ItemRepeatCopySyncTest`, `lists.ItemAssigneeSyncTest` and `notifications.MuteSyncTest` (a per-Member table) do.
 
 ## Testing
 
@@ -707,25 +860,33 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   | `HttpDevice` | a real port: restarts, SSE streams |
   | `LockWaits` | proving a request waits on the Family lock |
   | `TestClock` | a test whose answer depends on today or now: fix the server's clock |
+  | `FakePushGateway` | a test that checks push messages: records each push, answers `GONE`/`FAILED` on request |
 
 - Shared helpers, public, in the root test package `src/test/java/io/github/aborgatin/familyapp/`
   (every module's tests import them):
   - `Browser`: one device on MockMvc. Keeps cookies, sends `X-XSRF-TOKEN` on writes, and has its own
     client IP (`new Browser(mvc)`; `new Browser(mvc, ip)` to share one; `Browser.newDeviceIp()`).
     Methods: `openApp()` (`GET /api/auth/session`), `get`, `post(path)` (no body), `postJson`,
-    `putJson`, `patchJson`, `delete`. Login-limit counters live for the whole cached context, so
+    `putJson`, `patchJson`, `delete`, `deleteJson`. Login-limit counters live for the whole cached context, so
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
     (both cascading: Invites, resets, Lists, Items, Categories, Item history and Child field values) but keeps `child_field` Defaults; `removeChildFields(jdbc)` (with their values);
-    `addMember(jdbc, email, password, name, gender)`.
+    `addMember(jdbc, email, password, name, gender)`; `neverRanTheSchedulerStep(jdbc)` (the
+    scheduler step's last run time back to `NULL`, as on a new database).
   - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),
     `fields(device, table, id)` (as a first pull returns them), `version(result)`,
     `memberId(device)` (the logged-in Member's id), and the two devices most sync tests start
     from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.
+  - `FakePushGateway`: `@Import(FakePushGateway.Config.class)` puts it in place of the real
+    gateway (`@Primary`). `pushes()` (subscription, payload, TTL, urgency), `endpoints()`,
+    `answer(endpoint, GONE | FAILED)`, `reset()` (call it in `@BeforeEach`: the context is shared);
+    `Push.payloadJson()` and the static `json(text)` parse a payload, or its expected value, to
+    compare.
+    See `notifications.PushSubscriptionsTest`.
   - `ListOperations`: the Lists' operations most `lists.*SyncTest`s push, statically imported:
-    `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`.
-    A helper one test class needs stays in it; one a second class needs moves here.
+    `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`,
+    `mute(id, listId)` (a Mute of the List, used by the `notifications` tests). A helper one test class needs stays in it; one a second class needs moves here.
 - Concurrency (`PullNeverSkipsASlowerWriteTest`, `MemberWritesTakeTheFamilyLockTest`): a raw JDBC
   connection holds a row lock, a request runs on another thread, and the test waits until it is
   blocked (`LockWaits.transactionsWaitingOnALock(jdbc)` reads `pg_stat_activity`,
@@ -733,8 +894,13 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   (T1)**: no HTTP answer can tell a request blocked on the Family lock from a slow one, so the
   ordering guarantee is proven by watching the database. Use `LockWaits` for any new such test.
 - **Restart tests**: `HttpDevice` (real port, cookies survive restarts) with
-  `HttpDevice.startApp(postgres)` against a test-owned static container; see
-  `SessionSurvivesRestartTest` and `ChildFieldDefaultsTest`.
+  `HttpDevice.startApp(postgres, testConfigurations…)` against a test-owned static container (pass
+  `FakePushGateway.Config.class`, `TestClock.Config.class` and get their beans from the context);
+  see `SessionSurvivesRestartTest`, `ChildFieldDefaultsTest` and
+  `notifications.BatchesSurviveRestartTest`.
+- **The scheduler step** never runs by itself in tests (`notifications.scheduler.enabled: false`
+  in the test `application.yml`): a test sets the `TestClock` and calls `SchedulerStep.run()`, as
+  `notifications.BatchesTest` does (`later(duration)`).
 - **Real-port tests**: `HttpDevice` (public) also works in a `RANDOM_PORT` `@SpringBootTest` via
   `new HttpDevice().at(context)`; `openLines(path)` streams a long response line
   by line. `sync.LiveUpdatesTest` reads `/api/sync/events` that way (heartbeat set to `200ms`).

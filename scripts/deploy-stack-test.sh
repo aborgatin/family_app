@@ -27,6 +27,7 @@ TZ=Europe/Berlin
 LOGIN_LIMIT_PER_IP=3
 LOGIN_LIMIT_PER_EMAIL=100
 EOF
+cat "$(dirname "$0")/lib/dev-vapid-keys.env" >>"$work/.env"
 
 compose() {
   docker compose --project-name "$project" --project-directory "$deploy_dir" \

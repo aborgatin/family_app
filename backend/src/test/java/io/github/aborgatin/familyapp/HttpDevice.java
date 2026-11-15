@@ -27,9 +27,14 @@ public final class HttpDevice {
   private final Map<String, String> cookies = new LinkedHashMap<>();
   private String base = "";
 
-  /** Starts the whole app on a random port against {@code postgres}. */
-  public static ConfigurableApplicationContext startApp(PostgreSQLContainer<?> postgres) {
+  /**
+   * Starts the whole app on a random port against {@code postgres}, with these test configurations
+   * too (such as {@code FakePushGateway.Config}, {@code TestClock.Config}).
+   */
+  public static ConfigurableApplicationContext startApp(
+      PostgreSQLContainer<?> postgres, Class<?>... testConfigurations) {
     return new SpringApplicationBuilder(FamilyAppApplication.class)
+        .sources(testConfigurations)
         .properties(
             "server.port=0",
             "DATASOURCE_URL=" + postgres.getJdbcUrl(),

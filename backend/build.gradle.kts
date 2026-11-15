@@ -33,6 +33,18 @@ dependencies {
   implementation("org.flywaydb:flyway-core")
   runtimeOnly("org.flywaydb:flyway-database-postgresql")
   runtimeOnly("org.postgresql:postgresql")
+  // Web Push with VAPID (spec #104). Only its request building (VAPID header, aes128gcm payload)
+  // is used; WebPushGateway sends with the JDK's HttpClient, so neither HTTP client it brings is
+  // needed. Its Bouncy Castle and jose4j are replaced by maintained versions (same packages).
+  implementation("nl.martijndwars:web-push:5.1.2") {
+    exclude(group = "org.asynchttpclient", module = "async-http-client")
+    exclude(group = "org.apache.httpcomponents", module = "httpasyncclient")
+    exclude(group = "com.beust", module = "jcommander")
+    exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
+    exclude(group = "org.bitbucket.b_c", module = "jose4j")
+  }
+  implementation("org.bouncycastle:bcprov-jdk18on:1.80")
+  implementation("org.bitbucket.b_c:jose4j:0.9.6")
 
   errorprone("com.google.errorprone:error_prone_core:2.52.0")
 

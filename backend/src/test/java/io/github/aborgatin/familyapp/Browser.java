@@ -73,6 +73,12 @@ public final class Browser {
     return write(MockMvcRequestBuilders.delete(path));
   }
 
+  /** A {@code DELETE} with a JSON body. */
+  public ResultActions deleteJson(String path, String json) throws Exception {
+    return write(
+        MockMvcRequestBuilders.delete(path).contentType(MediaType.APPLICATION_JSON).content(json));
+  }
+
   /** A {@code POST} without a body. */
   public ResultActions post(String path) throws Exception {
     return write(MockMvcRequestBuilders.post(path));

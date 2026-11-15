@@ -44,6 +44,7 @@ diff disables, weakens or bypasses one of them (config change, suppression comme
 | `scripts/check-error-codes.sh` | `/backend` + `/web` | a server error code with no client message, a client message for a code the server no longer sends (I3) |
 | `scripts/check-shell.sh` | tracked `*.sh` | a pipe into `grep -q` or `head` in a script with `set -o pipefail` (fails at random when the reader exits early) |
 | ArchUnit `ClockTest` | `/backend` | a bare `Instant.now()`, `LocalDate.now()`… instead of the injected `Clock`; `Clock.system…()` outside the one `Clock` bean (`TimeConfig`) |
+| ArchUnit `WebOnlyBeansTest` | `/backend` | a `@RestController` or `@Controller` without `@ConditionalOnWebApplication` (operator commands start without a web server) |
 | ESLint `reuse/dates-from-shared-dates` | `/web/src` | a `YYYY-MM-DD` day parsed by hand (`split('-').map(Number)`, a `\d{4}-` pattern in a regex literal or a `RegExp` string) outside `@/shared/dates` |
 | eslint-plugin-testing-library (async rules) | `/web` tests | an un-awaited async query or util, `waitFor` around a `getBy`, side effects or several assertions in `waitFor` |
 | ESLint `reuse/store-versions-in-older-store` | `/web` tests | a test declaring the local store's versions instead of `upgradeStoreFrom` (`@/test/olderStore`) |
@@ -120,8 +121,9 @@ or that would double-apply on retry (e.g. increments, appends), is a finding.
 **S4 — Client mutations go through the outbox.** UI code writes to the local Dexie store and enqueues
 an outbox operation; it never calls a mutating REST endpoint directly. Reads render from the local
 store, refreshed by the sync pull (triggered by SSE).
-_Exception_: auth, Invites and Member account changes (bootstrap, login, logout, creating/revoking/accepting
-an Invite, display name, password) call their REST endpoints directly and are online-only by design,
+_Exception_: auth, Invites, Member account changes and push subscriptions (bootstrap, login, logout,
+creating/revoking/accepting an Invite, display name, password, the Notifications switch, this device's
+push subscription) call their REST endpoints directly and are online-only by design,
 because they need the server's answer immediately. Logout alone also works offline: the device logs
 out at once and tells the server when it can (pending logout, `frontend.md`).
 
@@ -143,7 +145,9 @@ or Item checks that a Private list is accessed only by its Owner. Hiding it in t
 enforcement. Missing check = finding, even if no current screen exposes the path.
 
 **A2 — No secrets in git.** Credentials, VAPID keys and tokens come from environment/`.env`;
-`.env.example` holds placeholders only.
+`.env.example` holds placeholders only. The one exception is a fixed key pair for local runs and
+tests only, marked as non-secret where it is committed (`scripts/lib/dev-vapid-keys.env`,
+`backend/src/test/resources/config/application.yml`) and never used by an installation.
 
 ## Tests
 

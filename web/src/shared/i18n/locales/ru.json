@@ -20,7 +20,8 @@
       "itemDueTimeWithoutDueDate": "Не удалось сохранить: время указывается только вместе со сроком",
       "itemAssigneeOnPrivateList": "Не удалось сохранить: в личном списке нет ответственных",
       "itemAssigneeNotFound": "Не удалось сохранить: такого взрослого больше нет",
-      "itemRepeatWithoutDueDate": "Не удалось сохранить: повтор указывается только вместе со сроком"
+      "itemRepeatWithoutDueDate": "Не удалось сохранить: повтор указывается только вместе со сроком",
+      "mutePrivateList": "Не удалось сохранить: в личном списке уведомлений нет"
     }
   },
   "offline": {
@@ -136,6 +137,14 @@
       "todo": "Выполнено «{{text}}»",
       "wish": "Исполнено «{{text}}»"
     },
+    "mute": {
+      "switch": "Без уведомлений",
+      "about": {
+        "shopping": "Не присылать уведомления о новых товарах в этом списке. Напоминания и назначенные вам задачи придут.",
+        "todo": "Не присылать уведомления о новых задачах в этом списке. Напоминания и назначенные вам задачи придут.",
+        "wish": "Не присылать уведомления о новых желаниях в этом списке. Напоминания и назначенные вам задачи придут."
+      }
+    },
     "doneEarlier": "Выполненные ранее",
     "noDoneEarlier": "Выполненных ранее задач нет",
     "confirmDeleteItem": "Удалить „{{text}}“?",
@@ -205,6 +214,14 @@
     "members": "Взрослые",
     "children": "Дети",
     "childFields": "Поля профиля",
+    "notifications": {
+      "title": "Уведомления",
+      "switch": "Уведомления",
+      "about": "Списки, которые меняет другой взрослый, и напоминания о сроках задач.",
+      "unavailable": "Чтобы получать уведомления на iPhone, добавьте приложение на экран «Домой»: «Поделиться» → «На экран „Домой“».",
+      "denied": "Уведомления запрещены. Разрешите их в Настройках iOS → Уведомления → Семья.",
+      "enableHere": "Включить на этом устройстве"
+    },
     "appearance": {
       "title": "Оформление",
       "theme": "Тема",
@@ -296,6 +313,35 @@
     "label": "Пол",
     "masculine": "Мужской",
     "feminine": "Женский"
+  },
+  "push": {
+    "quoted": "«{{name}}»",
+    "added": "{{actor}} добавил(а) {{items}}",
+    "added_masculine": "{{actor}} добавил {{items}}",
+    "added_feminine": "{{actor}} добавила {{items}}",
+    "names": "{{items}}: {{names}}…",
+    "toYou": "{{items}}, {{count}} — вам",
+    "reminder": "{{list}} · {{due}}",
+    "today": "сегодня",
+    "yesterday": "вчера",
+    "dayAndTime": "{{day}} в {{time}}",
+    "assigned": "{{actor}} назначил(а) вам {{items}}",
+    "assigned_masculine": "{{actor}} назначил вам {{items}}",
+    "assigned_feminine": "{{actor}} назначила вам {{items}}",
+    "count": {
+      "SHOPPING_one": "{{count}} товар",
+      "SHOPPING_few": "{{count}} товара",
+      "SHOPPING_many": "{{count}} товаров",
+      "SHOPPING_other": "{{count}} товара",
+      "TODO_one": "{{count}} задачу",
+      "TODO_few": "{{count}} задачи",
+      "TODO_many": "{{count}} задач",
+      "TODO_other": "{{count}} задачи",
+      "WISH_one": "{{count}} желание",
+      "WISH_few": "{{count}} желания",
+      "WISH_many": "{{count}} желаний",
+      "WISH_other": "{{count}} желания"
+    }
   },
   "errors": {
     "generic": "Что-то пошло не так. Попробуйте ещё раз.",

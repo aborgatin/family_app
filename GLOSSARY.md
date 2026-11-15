@@ -159,6 +159,10 @@ _Avoid_: Seed, fixtures, presets
 
 ## Notifications
 
+**Push message** — —:
+What the server sends to a Member's device through Web Push: a Notification or a Reminder. Only the transport; code names it `Push…` (`Pushes`, `PushGateway`, `PushSubscription`). A device receives them through a push subscription, which belongs to the login session that registered it.
+_Avoid_: Alert, notification (for the transport)
+
 **Notification** — «Уведомление»:
 A push message telling a Member about another Member's change to a Shared list: Items added to it, or a todo item assigned to them. Never sent for one's own changes; always sent as a Batch.
 _Avoid_: Alert, push, message, reminder

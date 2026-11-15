@@ -20,6 +20,7 @@ export const SYNCED_TABLES = [
   'item',
   'category',
   'item_history',
+  'mute',
 ] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 
@@ -71,6 +72,7 @@ export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTabl
     { parent: 'list', table: 'item', key: 'listId' },
     { parent: 'list', table: 'category', key: 'listId' },
     { parent: 'list', table: 'item_history', key: 'listId' },
+    { parent: 'list', table: 'mute', key: 'listId' },
   ];
 
 /**
@@ -92,6 +94,8 @@ export const STORE_SCHEMA: readonly Readonly<Record<string, string>>[] = [
   { list: 'id, childId' },
   // Child field values (a timeline of entries), dependent on their Child and their Child field.
   { child_field_value: 'id, childId, childFieldId' },
+  // The Member's own Mutes (spec #104), dependent on their List.
+  { mute: 'id, listId' },
 ];
 
 interface Meta {

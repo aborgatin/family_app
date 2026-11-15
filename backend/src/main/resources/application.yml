@@ -18,6 +18,17 @@ spring:
       # The tables come from Flyway (V1).
       initialize-schema: never
 
+# Push messages (spec #104). The VAPID key pair and subject are required: an empty value stops the
+# app at startup with a message naming the variable (NotificationsProperties). Generate a pair
+# with `generate-vapid-keys` (deployment.md "Push keys (VAPID)").
+notifications:
+  vapid:
+    public-key: ${VAPID_PUBLIC_KEY:}
+    private-key: ${VAPID_PRIVATE_KEY:}
+    subject: ${VAPID_SUBJECT:}
+  # When a Due date without a time is due, in the installation's TZ.
+  reminder-morning-time: ${REMINDER_MORNING_TIME:09:00}
+
 server:
   # Sessions live in PostgreSQL (Spring Session JDBC), so they survive redeploys. The lifetime
   # slides: every request with the session renews it on the server and re-sends the cookie.

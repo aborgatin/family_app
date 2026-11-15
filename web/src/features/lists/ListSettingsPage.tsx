@@ -11,6 +11,7 @@ import {
   Page,
   SegmentedControl,
   Sections,
+  SwitchRow,
   useAutoSaveChoice,
   useAutoSaveText,
 } from '@/shared/ui';
@@ -18,6 +19,7 @@ import { ListMissing, useRouteList } from './ListMissing';
 import { listCategoriesPath, listPath } from './listPaths';
 import {
   hasVisibility,
+  KIND_TEXTS,
   type List,
   type ListDetails,
   type Visibility,
@@ -25,6 +27,7 @@ import {
 } from './listTypes';
 import { useListHome } from './useListHome';
 import { useLists } from './useLists';
+import { useMute } from './useMute';
 
 interface ListSettingsPageProps {
   /** Path of Home, where the screen goes after deleting the List, or when the List is gone. */
@@ -34,7 +37,8 @@ interface ListSettingsPageProps {
 /**
  * «Настройки списка» (`/lists/:id/settings`), back to the List: «Название» for either Member,
  * Visibility («Личный» / «Общий») only for the Owner and never for a Wish list or a Child list
- * (the server enforces all three), and «Удалить список», only for the Owner (the server enforces
+ * (the server enforces all three), «Без уведомлений» on a Shared list (Child lists included; Mute,
+ * the Member's own, through `useMute`), and «Удалить список», only for the Owner (the server enforces
  * it), which asks first and then goes back to Home, or to the Child page for a Child list
  * (`useListHome`). A List that disappears while open says so. Data only through `useLists()`.
  */
@@ -53,6 +57,7 @@ export function ListSettingsPage({ homePath }: ListSettingsPageProps) {
     <Page title={t('lists.settings')} back={{ to: listPath(list.id), title: list.name }}>
       <Sections>
         <ListDetailsSection key={list.id} list={list} owned={owned} save={save} />
+        {list.visibility === 'SHARED' && <MuteSection key={`mute-${list.id}`} list={list} />}
         {list.kind === 'SHOPPING' && (
           <GroupedSection>
             <ListRow title={t('lists.categories')} to={listCategoriesPath(list.id)} />
@@ -115,6 +120,31 @@ function ListDetailsSection({ list, owned, save }: ListDetailsSectionProps) {
           {...visibility.control}
         />
       )}
+    </GroupedSection>
+  );
+}
+
+/** The switch row's `name`, which its footer refers to. */
+const MUTE_ROW = 'muted';
+
+/**
+ * «Без уведомлений»: the Member's Mute of a Shared list, saved at once on this device and sent
+ * through the Outbox (offline too). The footer says what it stops, naming the kind's Items.
+ */
+function MuteSection({ list }: { list: List }) {
+  const { t } = useTranslation();
+  const mute = useMute(list.id);
+  // Until the first local read: shown off, a Muted List would flip on, and a tap would be lost.
+  if (mute === undefined) return null;
+  const { muted, setMuted } = mute;
+  return (
+    <GroupedSection messages={[{ text: t(KIND_TEXTS[list.kind].muteAbout), row: MUTE_ROW }]}>
+      <SwitchRow
+        label={t('lists.mute.switch')}
+        name={MUTE_ROW}
+        value={muted}
+        onChange={(value) => void setMuted(value)}
+      />
     </GroupedSection>
   );
 }

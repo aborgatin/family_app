@@ -198,9 +198,22 @@ async function buildBackend() {
   return path.join(libs, jar);
 }
 
+// The local-only VAPID key pair (the app requires one), as KEY=VALUE lines.
+function devVapidKeys() {
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'dev-vapid-keys.env');
+  return Object.fromEntries(
+    fs
+      .readFileSync(file, 'utf8')
+      .split('\n')
+      .filter((line) => /^[A-Z_]+=/.test(line))
+      .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]),
+  );
+}
+
 function backendEnv(pg, port) {
   return {
     ...process.env,
+    ...devVapidKeys(),
     DATASOURCE_URL: `jdbc:postgresql://127.0.0.1:${pg.port}/${DB.name}`,
     DATASOURCE_USERNAME: DB.user,
     DATASOURCE_PASSWORD: DB.password,

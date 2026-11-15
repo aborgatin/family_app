@@ -1,0 +1,13 @@
+# Test-only settings, loaded on top of src/main/resources/application.yml (classpath:/config/ wins
+# over classpath:/). The VAPID key pair is for tests only, never a production secret: production
+# needs its own (deployment.md "Push keys (VAPID)"). A test that checks startup without one
+# blanks it with a command-line property.
+VAPID_PUBLIC_KEY: BP_oubxAs6sub1HkjCbUTZNvXtO_gsTH-5Wsi5uheB0zE705d6mRvAQizx205aARQazMqdr4XbRZS8cg5pPefxs
+VAPID_PRIVATE_KEY: 494_2TbVXlrlwcwNylIQ7rNOe3v5onx91UaQqu1Wk4Y
+VAPID_SUBJECT: mailto:tests@example.com
+
+# Tests call the scheduler step themselves, with a TestClock; SchedulerScheduleTest checks the
+# schedule production runs.
+notifications:
+  scheduler:
+    enabled: false

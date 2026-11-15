@@ -1,6 +1,8 @@
 package io.github.aborgatin.familyapp.lists.list;
 
 import io.github.aborgatin.familyapp.family.FirstMemberRegistered;
+import io.github.aborgatin.familyapp.lists.ListKind;
+import io.github.aborgatin.familyapp.lists.Visibility;
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.context.event.EventListener;

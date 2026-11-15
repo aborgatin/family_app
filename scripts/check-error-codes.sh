@@ -21,12 +21,16 @@ main="$root/backend/src/main"
 maps=("$root/web/src/shared/api/errorMessages.ts" "$root/web/src/shared/sync/saveRejection.ts")
 
 # Codes the server sends that rightly show the generic message: a client bug or a server fault the
-# Member can do nothing about. One per line: code, then the reason.
+# Member can do nothing about; also dotted literals in backend/src/main that are not codes at all
+# (field names such as `keys.auth`), which the literal scan below cannot tell apart. One per line:
+# code, then the reason.
 SERVER_ONLY="
 internal.error       server fault: the generic message is all the Member can use
 request.invalid      malformed request: a client bug, not something the Member can fix
 method.not_allowed   wrong HTTP method: a client bug
 sync.table_unknown   push to an unknown table: a client bug
+keys.p256dh          not a code: a field name in validation.failed (the browser's subscription keys)
+keys.auth            not a code: a field name in validation.failed (the browser's subscription keys)
 "
 
 # Codes only the client produces (no server literal). Same format.
@@ -38,9 +42,12 @@ codes_of() { awk 'NF { print $1 }' <<<"$1" | sort -u; }
 
 server_codes() {
   {
-    # Dotted literals, minus file names ("index.html").
-    grep -rhoE '"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+"' "$main" --include='*.java' |
-      tr -d '"' | grep -vE '\.(html|js|css|json|sql|txt|png|svg|ico)$' || true
+    # Dotted literals, minus file names ("index.html") and minus the Spring property names in
+    # @ConditionalOnProperty(...) and @ConfigurationProperties(...), even when wrapped over lines.
+    find "$main" -name '*.java' -exec perl -0777 -ne '
+      s/\@(?:ConditionalOnProperty|ConfigurationProperties)\s*\((?:[^()"]|"[^"]*")*\)//g;
+      print "$1\n" while /"([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+)"/g' {} + |
+      grep -vE '\.(html|js|css|json|sql|txt|png|svg|ico)$' || true
     # Field codes, dotted or not, declared in FieldErrors.
     find "$main" -name FieldErrors.java -exec \
       sed -nE 's/.*static final String [A-Z_]+ = "([a-z_.]+)";.*/\1/p' {} + || true

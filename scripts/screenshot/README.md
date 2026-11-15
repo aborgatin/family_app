@@ -68,7 +68,8 @@ or update its route there, so the next change shoots it too. A route has:
 - `initScript`: JS run before the app's own code; `helpers.mjs` has `hang(part)` (a request that
   never answers), `noLists` (pulls answer without Lists: Home's empty state), `onlyChildren(…names)`
   (pulls answer with only those Children; none: no Children), `noChildFields` (pulls answer
-  without Child fields) and `failClipboard`.
+  without Child fields), `pushDevice({permission, subscribed, switchOn})` (a fake Push API in
+  each state, for Settings «Уведомления») and `failClipboard`.
 - `fullPage`: default `true`; `false` shoots the viewport only (sheets, dialogs, scrolled states).
 - `steps`, run in order: `{click: sel}`, `{tap: sel}`, `{fill: sel, value}`, `{press: 'Enter'}`,
   `{hover: sel}`, `{waitFor: sel}`, `{scroll: sel}`, `{wait: ms}`, `{eval: 'js'}`, or in a `.mjs`

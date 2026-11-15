@@ -11,6 +11,8 @@ export function fetchMembers(): Promise<Member[]> {
 export interface ProfileChange {
   displayName?: string;
   grammaticalGender?: GrammaticalGender;
+  /** The Notifications switch (Settings «Уведомления», `features/notifications`). */
+  notificationsEnabled?: boolean;
 }
 
 export function updateProfile(change: ProfileChange): Promise<Member> {

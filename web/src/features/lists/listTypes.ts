@@ -157,6 +157,8 @@ export const KIND_TEXTS: Record<
     done: ParseKeys;
     /** An Item's Done toggle, «Куплено «{{text}}»». */
     doneToggle: ParseKeys;
+    /** The footer under «Без уведомлений» in «Настройки списка», naming the kind's Items. */
+    muteAbout: ParseKeys;
   }
 > = {
   SHOPPING: {
@@ -171,6 +173,7 @@ export const KIND_TEXTS: Record<
     newItem: 'lists.newItem.shopping',
     done: 'lists.done.shopping',
     doneToggle: 'lists.doneToggle.shopping',
+    muteAbout: 'lists.mute.about.shopping',
   },
   TODO: {
     choice: 'lists.kind.todo',
@@ -184,6 +187,7 @@ export const KIND_TEXTS: Record<
     newItem: 'lists.newItem.todo',
     done: 'lists.done.todo',
     doneToggle: 'lists.doneToggle.todo',
+    muteAbout: 'lists.mute.about.todo',
   },
   WISH: {
     choice: 'lists.kind.wish',
@@ -197,5 +201,6 @@ export const KIND_TEXTS: Record<
     newItem: 'lists.newItem.wish',
     done: 'lists.done.wish',
     doneToggle: 'lists.doneToggle.wish',
+    muteAbout: 'lists.mute.about.wish',
   },
 };

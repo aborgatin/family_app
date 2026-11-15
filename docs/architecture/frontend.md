@@ -18,9 +18,9 @@ step with the headings).
 - [Data access](#data-access): one hook per synced feature, what each hook reads and writes, online-only screens
 - [i18n](#i18n): the `ru` resource file, key naming, plurals and gendered verbs (I2)
 - [Look and theme](#look-and-theme): Tailwind tokens, light and dark theme, where the UI kit is specified
-- [Settings](#settings): the Settings screen: Members, Invites, profile, password, theme, Child fields
+- [Settings](#settings): the Settings screen: Members, Invites, profile, password, Notifications and this device's push subscription, theme, Child fields
 - [Home «Дети» and the Child page](#home-дети-and-the-child-page): Child tiles on Home, the Child page, Child lists and fields
-- [PWA](#pwa): manifest, icons, service worker and updates
+- [PWA](#pwa): manifest, icons, the service worker (precache, push, tap), the push payload contract, updates
 - [iOS and macOS](#ios-and-macos): installed-app cookies, ITP, Safari quirks
 - [Testing](#testing): shared test helpers, `renderApp`, the fake sync server, store-upgrade tests, clock and time zone, flaky tests
 - [Screenshots](#screenshots): `scripts/screenshot.sh` and the routes in `screens.mjs`
@@ -68,7 +68,7 @@ web/src/
                         ListMissing (gone / loading),
                         ItemsSection (the List screen's Items, by Category on a Shopping list),
                         listTypes (kinds, Visibility, kind texts, Item, Category,
-                        ItemHistoryName), useLists(), useItems(list), useCategories(list),
+                        ItemHistoryName), useLists(), useItems(list), useCategories(list), useMute(listId),
                         useItemHistory(list), itemKeys (normalizedName, sortableTime, compare:
                         shared by useItems and useItemHistory), dueDates (how a Due date reads
                         and when it is overdue)
@@ -77,6 +77,8 @@ web/src/
                         useFamilyMembers() (the Members on the local store, by id)
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(), useChild(id),
                         ChildrenTiles («Дети» on Home), ChildPage (the Child page, CHILD_PATH)
+    notifications/      NotificationsSection (Settings «Уведомления»: the switch, saved with
+                        `updateProfile` from `features/members`; this device), usePushDevice
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
                         ChildProfileSection («Профиль» on the Child page), useChildFieldValues(childId)
   shared/
@@ -85,24 +87,30 @@ web/src/
     load/               useLoad(): load / failed / retry for anything fetched once
     sync/               local store (Dexie), sync engine, useRows / useSyncedRows / upsertRow /
                         deleteRow, useSaveRejection, startSync / stopSync / onSessionEnded
+    push/               this device and push: readPushState, subscribeThisDevice,
+                        resyncSubscription (launch), forgetSubscription (logout), pushApi
     palette/            Child color palette (childColors.json)
-    dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests)
+    dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests),
+                        daysFromToday(day, now), shortDay(date, now) («15 нояб.»)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, TextAreaRow (+ LinkedText, not exported), DateRow,
-                        SegmentedControl, SelectRow, ColorChoice, Swatch, ListRow,
+                        SegmentedControl, SwitchRow, SelectRow, ColorChoice, Swatch, ListRow,
                         LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         TileGrid + Tile,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
+  serviceWorker/        the service worker, its own bundle (see PWA): sw.ts (entry), pushPayload
+                        (the payload contract), pushMessages (payload → text), notificationClick
+                        (tap → window and URL)
   test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
 ```
 
 - Each feature's public surface is its `index.ts`. Other code imports a feature only as
   `@/features/<name>`, never `@/features/<name>/<file>`.
 - Direction is `shared → features → app`: `shared` imports neither features nor `app`; a feature
-  never imports `app`.
+  never imports `app`. `serviceWorker` imports only `shared` (no React screens in the worker).
 - Leaving your own folder (a layer, or one feature) uses the `@/` alias (`@/shared/...`,
   `@/features/<name>`, `@/app/...`). A relative `../` may not climb out of it.
 - All of this is enforced by `no-restricted-imports` blocks generated per file depth in
@@ -224,11 +232,12 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`; `child_field`
+  (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`, `mute`; `child_field`
   and `list` came with store version 2, `item`, indexed by `listId`, with version 3, `category`,
   indexed by `listId`, with version 4, `item_history`, indexed by `listId`, with version 5;
   version 6 indexes `list` by `childId`, for Child lists; `child_field_value`, indexed by
-  `childId` and `childFieldId`, came with version 7). A row holds the
+  `childId` and `childFieldId`, came with version 7; `mute`, indexed by `listId`, with version 8).
+  A row holds the
   fields the pull sent and `version`, the Version it was pulled with (none on a row created here
   until the pull brings it back). Also there:
   `outbox` (`++seq`) and `meta` (the stored Version, the owner: the Member whose data it holds,
@@ -276,7 +285,7 @@ code that touches IndexedDB or the sync API:
     `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only`,
     `item.list_not_todo`, `item.due_time_without_due_date`, `item.repeat_without_due_date`,
     `item.assignee_on_private_list`,
-    `item.assignee_not_found`, `list.hide_done_not_todo` map to
+    `item.assignee_not_found`, `list.hide_done_not_todo`, `mute.private_list` map to
     `sync.rejected.*`, «Не удалось сохранить: …» with the reason; any other code to
     `sync.saveRejected`, plain «Не удалось сохранить»). It is recorded whatever screen is open and
     cleared by the Member's next change, `dismiss()` or a logout. Its one user is
@@ -288,7 +297,7 @@ code that touches IndexedDB or the sync API:
 entry at the end of `STORE_SCHEMA` in `localStore.ts` (one entry per Dexie version; keep the older
 entries as they are, never drop `outbox`); the pull fills it, and the feature's hook reads and writes it with `useSyncedRows` (or
 `useRows` and `upsertRow` / `deleteRow`). Rows that belong to a row of another table (an Item to
-its List, a Child field value to its Child and to its Child field) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
+its List, a Child field value to its Child and to its Child field, a Mute to its List) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
 
 ## Data access
 
@@ -338,7 +347,14 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   name): a `GroupedSection` with the auto-saved «Название» and Visibility
   «Личный» / «Общий» only when the Member is the Owner, or `ownerId` is still unset, and never for
   a Wish list: `hasVisibility(kind)`; the segments are `VISIBILITY_CHOICES`, both in
-  `listTypes.ts` and shared with «Новый список»), then on a Shopping list a «Категории» row
+  `listTypes.ts` and shared with «Новый список»), then on a Shared list (Child lists included;
+  none on a Private one) `MuteSection` (#111): a `GroupedSection` with the `SwitchRow`
+  «Без уведомлений» and the footer «Не присылать уведомления о новых товарах / задачах /
+  желаниях в этом списке. Напоминания и назначенные вам задачи придут.» (the noun by kind,
+  `KIND_TEXTS[kind].muteAbout`). It reads and writes through `useMute(listId)` (`useRows('mute')`,
+  `upsertRow` / `deleteRow`), so it switches at once, offline too: on creates a Mute (`listId`,
+  a new `crypto.randomUUID()`), off deletes every Mute of the List (two devices Muting offline
+  make two). The pull brings only the Member's own Mutes. Then on a Shopping list a «Категории» row
   opening `CategoriesPage` (`/lists/:id/categories`, `listCategoriesPath(id)`, #72): a `Page`
   «Категории» back to the settings, one `GroupedSection` with `edit` whose `SortableList` has the
   Categories and the Unnamed category («Без категории», `muted`, no `confirm`: it can only be
@@ -647,7 +663,7 @@ row per Member: initial, name, email, «(вы)» on the own one; not tappable; t
 взрослого…»), «Приглашения» (an edit-mode list, see Invites above), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
 Members list; then the «Изменить пароль» chevron row), «Дети» (below), «Поля профиля» (below),
-«Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, a `ConfirmRow`;
+«Уведомления» (untitled, below), «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, a `ConfirmRow`;
 after logging out the guard shows `/login`). Logout sends the Outbox first; when that fails
 (other than `401`) a second `ActionSheet` warns «Нет соединения с сервером. Несохранённые
 изменения будут потеряны» with a red «Выйти» (log out, wipe) and «Отменить» (keep everything). A
@@ -661,6 +677,46 @@ the `shared/ui` hooks `useAutoSaveText`, `useAutoSaveChoice` and `autoSaveMessag
 failed delete or load, `form({...})` for a form's field errors and its failure. The edit-mode
 lists («Приглашения», «Дети», «Поля профиля») keep their edit mode, the row being deleted and the
 failure in `useEditableList()`.
+
+«Уведомления» (`NotificationsSection`, `features/notifications`, spec #104) is the Notifications
+switch and this device, an untitled group (`label`, no `header`): its first row already says
+«Уведомления». The `SwitchRow` «Уведомления» shows the session's
+`member.notificationsEnabled` and saves at once (`useAutoSaveChoice`, `PATCH /api/members/me`
+with only `notificationsEnabled`, online only; `memberChanged` updates the session); its hint is
+«Списки, которые меняет другой взрослый, и напоминания о сроках задач.», replaced by the
+auto-save failure while there is one. Below it, by this device's state (`readPushState()` from
+`@/shared/push`, read when the screen opens):
+
+- `unavailable` (no `Notification`, `PushManager` or `serviceWorker`: Safari on iPhone outside
+  the installed app has none): the footer «Чтобы получать уведомления на iPhone, добавьте
+  приложение на экран «Домой»: …».
+- `denied`: the footer «Уведомления запрещены. Разрешите их в Настройках iOS → Уведомления →
+  Семья.», whether the switch is on or off.
+- `notSubscribed` (permission not asked here yet, or granted with no subscription) while the
+  switch is on: an accent row «Включить на этом устройстве».
+
+Turning the switch on calls `subscribeThisDevice()` inside the tap, before the `PATCH` is awaited
+(iOS shows its permission prompt only during a tap): `Notification.requestPermission()`, then
+with `granted` the subscription the device holds or a new one
+(`pushManager.subscribe({userVisibleOnly, applicationServerKey})` with the key from
+`GET /api/push/vapid-public-key`), sent with `POST /api/push/subscriptions` (its `toJSON()`). A
+refusal leaves the switch on (it is the Member's, not the device's) and shows the denied
+footer. When the server can't be told, the footer says why (`useFooterLines().failure`) and the
+row offers this device again. The row does the same as turning the switch on, without the
+`PATCH`. Turning the switch off only `PATCH`es: the device keeps its subscription (the server
+stops sending), so turning it back on asks nothing.
+
+Outside Settings, `@/shared/push` is used twice by `features/auth`:
+
+- **Launch re-sync**: `AuthGuard` calls `resyncSubscription()` once the server has confirmed a
+  Member (at every launch, and after logging in) when their switch is on. With permission
+  `granted` it reads `pushManager.getSubscription()` (subscribing again when iOS dropped it) and
+  `POST`s it; idempotent on the server. A failure is silent, and the next launch tries again.
+  `readPushState()` waits for a re-sync under way, so Settings opened at launch shows its result.
+- **Logout**: `useLogout` calls `forgetSubscription()` before `POST /api/auth/logout`, while the
+  session lasts: `DELETE /api/push/subscriptions` with the device's endpoint. Any failure is
+  ignored; the server deletes a session's subscriptions when it ends. The device keeps its own
+  subscription; the next login re-sends it (and the server moves it to that Member).
 
 The password screen `/settings/password` (`PasswordPage`, `PASSWORD_PATH` from
 `features/members`) is a `Page` «Изменить пароль», back to «Настройки»: «Текущий пароль» and
@@ -760,11 +816,49 @@ a Vite native-config-loader warning).
   `mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style` (`default`: an opaque status bar above
   the page; `black-translucent` let iOS 26+ blur the nav bar's buttons),
   `apple-mobile-web-app-title`, `viewport-fit=cover`.
-- **Service worker** (`sw.js`, registered by the injected `registerSW.js`): precaches the built
-  shell (`**/*.{js,css,html,svg,png,ico}` + manifest), no runtime caching, navigation fallback to
-  `index.html` except `/api` and `/actuator`. So the shell opens offline, and the API is always
-  fetched from the network.
-- **Updates**: `registerType: 'autoUpdate'` with `skipWaiting` and `clientsClaim`. A new worker
+- **Service worker** (`sw.js`, registered by the injected `registerSW.js`): our own worker,
+  `web/src/serviceWorker/sw.ts`, built by `vite-plugin-pwa` with `strategies: 'injectManifest'`
+  (which injects the precache list into `self.__WB_MANIFEST`; Workbox modules `workbox-core`,
+  `-precaching`, `-routing` are bundled in). It precaches the built shell
+  (`**/*.{js,css,html,svg,png,ico}` + manifest), has no runtime caching, and falls back to
+  `index.html` for navigations except `/api` and `/actuator`. So the shell opens offline, and the
+  API is always fetched from the network. `sw.ts` is glue only; its logic is in pure functions next
+  to it, unit-tested without a worker (`pushMessages.test.ts`, `notificationClick.test.ts`).
+  `serviceWorker/` imports only `@/shared` (lint).
+- **Push** (spec #104): a `push` event **always** shows a notification, since iOS revokes the
+  subscription of a worker that shows none. `readPushMessage(data, now)` turns the push data into
+  title, body and URL; data that can't be read (no data, not JSON, an unknown `type`, missing
+  fields) gives «Семья» (`app.name`) with no body, opening `/`. The notification keeps
+  `{ url }` as its `data`.
+- **Payload contract** (`pushPayload.ts`, the one definition the worker and its tests share; the
+  backend sends exactly this JSON): codes and parameters, never texts.
+  - `type: 'notification'` (title: the List name): `actorName`, `actorGrammaticalGender`
+    (`MASCULINE` | `FEMININE`; always sent, though the worker still reads `null` as the neutral
+    wording, defensively), `listName`, `listKind` (`SHOPPING` | `TODO` | `WISH`), `itemNames` (the
+    first three added Items' names in order, fewer when fewer were added: the server decides how
+    many are named), `addedCount`, `assignedCount` (Items assigned to the recipient),
+    `assignedItemName` (when exactly one was assigned, else `null`), `url` (the List's screen,
+    `/lists/:id`).
+  - `type: 'reminder'` (title: the Item name): `itemName`, `listName`, `dueDate` (`YYYY-MM-DD`),
+    `dueTime` (`HH:mm` or `null`), `url` (the Item's screen, `/lists/:id/items/:itemId`).
+- **Push texts** come from the `push.*` keys of `ru.json` through the worker's own i18next
+  instance (the app's `@/shared/i18n` also loads react-i18next). Added Items are named in
+  quotes when `itemNames` holds them all (1–3); more are counted with the names sent
+  («7 товаров: Молоко, Хлеб, Сыр…»); additions with assignments are counted («3 задачи, 1 — вам»); assignments alone name the one
+  Item or count them. The count nouns are `push.count.<kind>_<plural>` in the accusative
+  (товар / задачу / желание); the verbs follow the actor's Grammatical gender as i18n `context`,
+  with «добавил(а)» / «назначил(а)» as the neutral form. A Reminder reads «Дом · сегодня в 18:00»
+  (or without the time), «вчера» once the device's day has moved on, and the short date
+  further back (`shortDay`, with the year when it is another one, as on Item rows).
+- **Tap** (`notificationclick`): `notificationClickTarget(data, windows, origin)` picks the
+  focused open app window, else the first, and the payload's URL (anything that isn't a path in
+  this app becomes `/`). `openScreen(clients, data, origin)` carries it out against the worker's
+  `clients` (tests pass fake windows). It navigates that window there (first, so a refused focus
+  can't stop it) and focuses it; with no window open, or one it can't navigate (not yet
+  controlled), it only opens a new window at the URL. A window already on the screen is only
+  focused.
+- **Updates**: `registerType: 'autoUpdate'`, and the worker calls `skipWaiting()` and
+  `clientsClaim()` itself (the plugin doesn't add them to an `injectManifest` worker). A new worker
   installs in the background and takes over, but the open page is never reloaded; the next launch
   runs the new code. `cleanupOutdatedCaches` removes old precaches. The backend serves `sw.js`,
   `index.html` and the manifest with `no-cache` and `/assets/**` as immutable.
@@ -796,6 +890,7 @@ helper a second test file needs moves here.
 | `server` (`@/test/server`) | a non-sync endpoint: `server.use(http.get(…))` for that test |
 | `network` (`@/test/network`) | a real loss of signal: every request fails, whatever handler would answer |
 | `FakeEventSource` (`@/test/eventSource`) | live updates: `latest().emit('changed', …)`, a dropped connection |
+| `fakePushDevice({permission, answer, subscribedAt})`, `pushServer()` (`@/test/pushDevice`) | a device that can receive push (jsdom has none: without it every test is a device without push): fake `Notification`, `PushManager`, `serviceWorker.ready`; the server's VAPID key and subscription endpoints, recording `posted` / `deleted` |
 | `upgradeStoreFrom(version, seed)` (`@/test/olderStore`) | a store-upgrade test: an older store with rows or Outbox operations, then the current one opened over it (lint rejects store versions declared anywhere else) |
 | `anna`, `boris`, `masha`, `petya`, `weight`, `height`, `sessionHandler`, `membersHandler`, `invitesHandler` (`@/test/fixtures`) | Members, Children, Child fields and the auth/settings handlers every test needs |
 | `dayParts`, `localDay` (`@/shared/dates`, app code) | a `YYYY-MM-DD` day in a test or in code: lint rejects parsing one by hand elsewhere |
@@ -851,7 +946,8 @@ FakeEventSource.CLOSED; sse.fail()`. See `features/children/liveUpdates.test.tsx
   before Assignees and Repeats (a new Item field needs no store version). A store-upgrade test
   builds the older store with `upgradeStoreFrom(version, async (older) => { … })`
   (`@/test/olderStore`: the first `version` entries of `STORE_SCHEMA`, seeded, then the current
-  store opened over it). The fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, and making a List Private there removes the Assignee from all its Items, as on the real server.
+  store opened over it); `lists/mute.test.tsx` (#111) the same for a version 7 store from before
+  Mutes. The fake server doesn't filter by Visibility or check the Child list rules (backend concerns), but deleting a Child there deletes its Child lists and their Items, deleting a List its Mutes, and making a List Private there removes the Assignee from all its Items, as on the real server.
 - Fixtures in `@/test/fixtures`: Members `anna`, `boris`; Children `masha`, `petya` (sync rows, for
   `syncServer.seed('child', …)`); Child fields `weight`, `height` (sync rows, for
   `syncServer.seed('child_field', …)`); handlers `membersHandler`, `invitesHandler`,

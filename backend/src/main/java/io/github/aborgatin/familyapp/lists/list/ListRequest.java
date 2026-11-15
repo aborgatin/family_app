@@ -1,6 +1,8 @@
 package io.github.aborgatin.familyapp.lists.list;
 
 import io.github.aborgatin.familyapp.error.FieldErrors;
+import io.github.aborgatin.familyapp.lists.ListKind;
+import io.github.aborgatin.familyapp.lists.Visibility;
 import org.springframework.lang.Nullable;
 
 /**

@@ -136,6 +136,11 @@ trap stop EXIT
 trap 'exit 130' INT TERM
 
 echo "dev.sh: starting the backend (log: $backend_log)"
+# The local-only VAPID key pair (the app requires one).
+set -a
+# shellcheck source=lib/dev-vapid-keys.env
+source "$root/scripts/lib/dev-vapid-keys.env"
+set +a
 (cd "$root/backend" &&
   DATASOURCE_URL="jdbc:postgresql://localhost:$db_port/family" \
     DATASOURCE_USERNAME=family DATASOURCE_PASSWORD=family \

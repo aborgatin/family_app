@@ -1,6 +1,7 @@
 package io.github.aborgatin.familyapp.lists.list;
 
 import io.github.aborgatin.familyapp.error.ApiException;
+import io.github.aborgatin.familyapp.lists.ListKind;
 import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
 import io.github.aborgatin.familyapp.sync.SyncRow;

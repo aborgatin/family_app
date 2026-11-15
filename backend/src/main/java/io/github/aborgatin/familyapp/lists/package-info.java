@@ -1,12 +1,17 @@
 /**
- * The {@code lists} module (spec #3 "Backend modules"): Lists (and, from ticket #57, Items), the
- * rules on their operations, and the Visibility-filtered pull. Lists are written only through the
- * sync push and read only through the sync pull: this module implements {@code sync.SyncableTable}
- * per table and has no REST endpoints. Dependencies: {@code lists → sync}, {@code lists → error},
- * {@code lists → family} (the {@code FirstMemberRegistered} event, for the Default Shopping lists;
- * {@code Children} and the {@code ChildDeleted} event, for Child lists; {@code Members}, for an
- * Item's Assignee). Types in this package are the public API (none yet); sub-packages are internal
- * (CODING_STANDARDS M1).
+ * The {@code lists} module (spec #3 "Backend modules"): Lists, Items, Categories and Item history,
+ * the rules on their operations, and the Visibility-filtered pull. Lists are written only through
+ * the sync push and read only through the sync pull: this module implements {@code
+ * sync.SyncableTable} per table and has no REST endpoints. Dependencies: {@code lists → sync},
+ * {@code lists → error}, {@code lists → family} (the {@code FirstMemberRegistered} event, for the
+ * Default Shopping lists; {@code Children} and the {@code ChildDeleted} event, for Child lists;
+ * {@code Members}, for an Item's Assignee and who sees a Shared List). Types in this package are
+ * the public API (spec #104): the {@link io.github.aborgatin.familyapp.lists.ItemAdded}, {@link
+ * io.github.aborgatin.familyapp.lists.ItemAssigned} and {@link
+ * io.github.aborgatin.familyapp.lists.ListUnshared} events, the {@link
+ * io.github.aborgatin.familyapp.lists.Lists} query interface with what it answers ({@code
+ * ListSummary}, {@code ItemSummary}, {@code DueItem}), and the {@code ListKind} and {@code
+ * Visibility} enums; sub-packages are internal (CODING_STANDARDS M1).
  */
 @ApplicationModule(displayName = "Lists")
 package io.github.aborgatin.familyapp.lists;

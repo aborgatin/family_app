@@ -37,7 +37,10 @@ class MembersController {
     return memberService.list().stream().map(MemberResponse::of).toList();
   }
 
-  /** Changes only the fields sent: {@code {displayName?, grammaticalGender?}}. */
+  /**
+   * Changes only the fields sent: {@code {displayName?, grammaticalGender?,
+   * notificationsEnabled?}}.
+   */
   @PatchMapping("/me")
   MemberResponse updateProfile(
       @AuthenticationPrincipal AuthenticatedMember me, @RequestBody Map<String, Object> body) {

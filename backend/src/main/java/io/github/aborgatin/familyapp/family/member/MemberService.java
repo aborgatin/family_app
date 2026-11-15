@@ -51,6 +51,9 @@ public class MemberService {
     if (change.grammaticalGender() != null) {
       member.changeGrammaticalGender(change.grammaticalGender());
     }
+    if (change.notificationsEnabled() != null) {
+      member.switchNotifications(change.notificationsEnabled());
+    }
     return members.saveAndFlush(member);
   }
 
