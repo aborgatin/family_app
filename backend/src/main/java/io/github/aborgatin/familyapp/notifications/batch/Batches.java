@@ -7,7 +7,6 @@ import io.github.aborgatin.familyapp.lists.ItemSummary;
 import io.github.aborgatin.familyapp.lists.ListKind;
 import io.github.aborgatin.familyapp.lists.ListSummary;
 import io.github.aborgatin.familyapp.lists.Lists;
-import io.github.aborgatin.familyapp.lists.Visibility;
 import io.github.aborgatin.familyapp.notifications.PushMessage;
 import io.github.aborgatin.familyapp.notifications.mute.Mutes;
 import io.github.aborgatin.familyapp.notifications.push.PushPayloads;
@@ -85,7 +84,7 @@ public class Batches {
   private List<PushMessage> notifications(PendingBatches.Batch batch) {
     Optional<ListSummary> found = lists.find(batch.listId());
     Optional<MemberSummary> actor = members.byId(batch.actorId());
-    if (found.isEmpty() || actor.isEmpty() || found.get().visibility() == Visibility.PRIVATE) {
+    if (found.isEmpty() || actor.isEmpty() || found.get().isPrivate()) {
       return List.of();
     }
     ListSummary list = found.get();
@@ -124,7 +123,7 @@ public class Batches {
               addedFor.size(),
               assigned.size(),
               assigned.size() == 1 ? assigned.get(0) : null,
-              "/lists/" + list.id());
+              PushPayloads.listUrl(list.id()));
       notifications.add(PushMessage.notification(recipient, payloads.write(payload)));
     }
     return notifications;

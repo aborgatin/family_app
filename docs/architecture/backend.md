@@ -308,7 +308,7 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
 - `Lists` (a bean, `lists.list.ListQueries`; read-only, as of the caller's transaction, deleted
   rows left out): `find(listId)` → `ListSummary` (name, `ListKind`, `Visibility`, Owner, `seenBy`:
   the Owner of a Private List, every Member (`family.Members.all`) for a Shared one, Child lists
-  included); `visibleTo(listId, memberId)`; `items(itemIds)` → the Items that still exist, open or
+  included; `isPrivate()`); `items(itemIds)` → the Items that still exist, open or
   Done, as `ItemSummary` (List, name, Assignee) by id; `dueBetween(after, until, morningTime)` →
   the open todo items whose due moment (the Due date at its time, or at `morningTime` without
   one, in the JVM's zone) is after `after` and at or before `until`, oldest first, as `DueItem`

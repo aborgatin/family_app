@@ -5,7 +5,6 @@ import io.github.aborgatin.familyapp.error.FieldErrors;
 import io.github.aborgatin.familyapp.lists.ListSummary;
 import io.github.aborgatin.familyapp.lists.ListUnshared;
 import io.github.aborgatin.familyapp.lists.Lists;
-import io.github.aborgatin.familyapp.lists.Visibility;
 import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
 import io.github.aborgatin.familyapp.sync.SyncRow;
@@ -68,7 +67,7 @@ class MuteService implements SyncableTable {
       throw new ApiException(
           HttpStatus.NOT_FOUND, "list.not_found", Map.of("listId", listId.toString()));
     }
-    if (list.get().visibility() == Visibility.PRIVATE) {
+    if (list.get().isPrivate()) {
       throw new ApiException(
           HttpStatus.BAD_REQUEST, "mute.private_list", Map.of("listId", listId.toString()));
     }

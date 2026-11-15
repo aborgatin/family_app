@@ -90,6 +90,6 @@ public class Reminders {
         list.name(),
         item.dueDate().toString(),
         item.dueTime() == null ? null : item.dueTime().format(HOURS_MINUTES),
-        "/lists/" + list.id() + "/items/" + item.itemId());
+        PushPayloads.itemUrl(list.id(), item.itemId()));
   }
 }

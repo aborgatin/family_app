@@ -9,4 +9,10 @@ import java.util.UUID;
  * are always Shared).
  */
 public record ListSummary(
-    UUID id, String name, ListKind kind, Visibility visibility, UUID ownerId, List<UUID> seenBy) {}
+    UUID id, String name, ListKind kind, Visibility visibility, UUID ownerId, List<UUID> seenBy) {
+
+  /** Whether the List is Private: seen by its Owner alone, so it has no Notifications or Mute. */
+  public boolean isPrivate() {
+    return visibility == Visibility.PRIVATE;
+  }
+}
