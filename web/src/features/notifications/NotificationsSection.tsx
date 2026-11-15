@@ -23,13 +23,16 @@ export function NotificationsSection() {
   const enabled = session.member?.notificationsEnabled ?? false;
   const device = usePushDevice();
 
+  const { enable } = device;
   const save = useCallback(
     async (value: boolean) => {
+      // Inside the tap, before anything is awaited: iOS shows its prompt only then.
+      if (value) enable();
       const updated = await switchNotifications(value);
       memberChanged(updated);
       return updated.notificationsEnabled;
     },
-    [memberChanged],
+    [enable, memberChanged],
   );
   const toggle = useAutoSaveChoice({ name: SWITCH, saved: enabled, save });
 

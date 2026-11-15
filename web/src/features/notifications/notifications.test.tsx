@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { anna, boris, invitesHandler, membersHandler, sessionHandler } from '@/test/fixtures';
 import { network } from '@/test/network';
+import { fakePushDevice, pushServer, subscriptionJson } from '@/test/pushDevice';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -35,6 +36,27 @@ function profileSaves() {
     }),
   );
   return received;
+}
+
+const DENIED = 'Уведомления запрещены. Разрешите их в Настройках iOS → Уведомления → Семья.';
+const ENABLE_HERE = 'Включить на этом устройстве';
+
+/** The VAPID key `pushServer()` gives, as the bytes the browser subscribes with. */
+const VAPID_KEY_BYTES = new Uint8Array([4, 1, 2]);
+
+/** `PATCH /api/members/me` that answers only when `release()` is called. */
+function heldProfileSave() {
+  let release = () => undefined as void;
+  server.use(
+    http.patch('/api/members/me', async ({ request }) => {
+      const body = (await request.json()) as object;
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return HttpResponse.json({ ...anna, ...body });
+    }),
+  );
+  return { release: () => release() };
 }
 
 async function section() {
@@ -122,5 +144,33 @@ describe('The switch', () => {
       expect(toggle).toBeChecked();
     });
     expect(received).toEqual([{ notificationsEnabled: true }]);
+  });
+});
+
+describe('Turning it on, on a device that can receive push', () => {
+  it('asks for permission in the same tap, then subscribes with the server’s key and sends it', async () => {
+    loggedInAs(anna);
+    const device = fakePushDevice({ permission: 'default', answer: 'granted' });
+    const push = pushServer();
+    const save = heldProfileSave();
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    await user.click(await notificationsSwitch());
+
+    // Asked while the switch is still saving: iOS asks only during the tap itself.
+    expect(device.requests).toBe(1);
+    save.release();
+
+    await waitFor(() => {
+      expect(push.posted).toEqual([subscriptionJson('https://push.example/1')]);
+    });
+    expect(device.subscribes).toEqual([
+      { userVisibleOnly: true, applicationServerKey: VAPID_KEY_BYTES },
+    ]);
+    const notifications = await section();
+    expect(within(notifications).getByRole('switch', { name: 'Уведомления' })).toBeChecked();
+    expect(within(notifications).queryByRole('button', { name: ENABLE_HERE })).not.toBeInTheDocument();
+    expect(within(notifications).queryByText(DENIED)).not.toBeInTheDocument();
   });
 });

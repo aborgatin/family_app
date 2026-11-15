@@ -1,1 +1,6 @@
-export { pushAvailable, readPushState, type PushState } from './pushDevice';
+export {
+  pushAvailable,
+  readPushState,
+  subscribeThisDevice,
+  type PushState,
+} from './pushDevice';
