@@ -1,5 +1,8 @@
 package io.github.aborgatin.familyapp;
 
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.is;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
@@ -40,6 +43,11 @@ public final class SyncRequests {
   public static ResultActions push(Browser device, String... operations) throws Exception {
     return device.postJson(
         "/api/sync/push", "{\"operations\":[" + String.join(",", operations) + "]}");
+  }
+
+  /** Pushes the operations as one push, and expects each one applied. */
+  public static void pushApplied(Browser device, String... operations) throws Exception {
+    push(device, operations).andExpect(jsonPath("$.results[*].status", everyItem(is("applied"))));
   }
 
   /** Pulls the changes since {@code version}. */

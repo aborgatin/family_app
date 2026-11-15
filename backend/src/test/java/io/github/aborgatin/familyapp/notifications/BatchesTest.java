@@ -3,9 +3,8 @@ package io.github.aborgatin.familyapp.notifications;
 import static io.github.aborgatin.familyapp.ListOperations.add;
 import static io.github.aborgatin.familyapp.ListOperations.list;
 import static io.github.aborgatin.familyapp.SyncRequests.push;
+import static io.github.aborgatin.familyapp.SyncRequests.pushApplied;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -78,13 +77,13 @@ class BatchesTest {
     }
     PushSubscriptionsTest.subscribe(anna, ANNA_PHONE).andExpect(status().isNoContent());
     PushSubscriptionsTest.subscribe(boris, BORIS_PHONE).andExpect(status().isNoContent());
-    act(anna, list(home, "Дом", "TODO", "SHARED"));
+    pushApplied(anna, list(home, "Дом", "TODO", "SHARED"));
     step.run(); // nothing is pending yet
   }
 
   @Test
   void anItemAddedByTheOtherMemberIsSentOnceTheyPausedForTwoMinutes() throws Exception {
-    act(boris, add(UUID.randomUUID(), home, "Починить кран"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Починить кран"));
 
     later(Duration.ofSeconds(119));
     assertThat(gateway.pushes()).isEmpty();
@@ -111,12 +110,12 @@ class BatchesTest {
   @Test
   void aBusyMemberIsStillSentTenMinutesAfterTheirFirstChange() throws Exception {
     for (int i = 1; i <= 6; i++) {
-      act(boris, add(UUID.randomUUID(), home, "Дело " + i));
+      pushApplied(boris, add(UUID.randomUUID(), home, "Дело " + i));
       later(Duration.ofSeconds(90));
     }
     assertThat(gateway.pushes()).isEmpty(); // 9 minutes in, never quiet for 2
 
-    act(boris, add(UUID.randomUUID(), home, "Дело 7"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Дело 7"));
     later(Duration.ofSeconds(60));
 
     assertThat(gateway.pushes()).hasSize(1);
@@ -125,13 +124,13 @@ class BatchesTest {
 
   @Test
   void manyItemsAddedInARowAreOneNotificationNamingTheFirstThree() throws Exception {
-    act(
+    pushApplied(
         boris,
         add(UUID.randomUUID(), home, "Молоко"),
         add(UUID.randomUUID(), home, "Хлеб"),
         add(UUID.randomUUID(), home, "Сыр"));
     later(Duration.ofSeconds(60));
-    act(boris, add(UUID.randomUUID(), home, "Масло"), add(UUID.randomUUID(), home, "Яйца"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Масло"), add(UUID.randomUUID(), home, "Яйца"));
 
     later(Duration.ofMinutes(2));
 
@@ -142,7 +141,7 @@ class BatchesTest {
 
   @Test
   void ownChangesNeverNotifyTheActor() throws Exception {
-    act(anna, add(UUID.randomUUID(), home, "Полить цветы"));
+    pushApplied(anna, add(UUID.randomUUID(), home, "Полить цветы"));
 
     later(Duration.ofMinutes(2));
 
@@ -154,10 +153,11 @@ class BatchesTest {
   @Test
   void nothingIsSentForAPrivateList() throws Exception {
     UUID mine = UUID.randomUUID();
-    act(boris, list(mine, "Моё", "TODO", "PRIVATE"), add(UUID.randomUUID(), mine, "Секрет"));
+    pushApplied(
+        boris, list(mine, "Моё", "TODO", "PRIVATE"), add(UUID.randomUUID(), mine, "Секрет"));
     // Boris adds to Anna's Shared list, and she makes it Private before it is sent.
-    act(boris, add(UUID.randomUUID(), home, "Починить кран"));
-    act(anna, SyncRequests.upsert("list", home, "{\"visibility\":\"PRIVATE\"}"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Починить кран"));
+    pushApplied(anna, SyncRequests.upsert("list", home, "{\"visibility\":\"PRIVATE\"}"));
 
     later(Duration.ofMinutes(2));
 
@@ -168,7 +168,7 @@ class BatchesTest {
   void aChildListCountsAsShared() throws Exception {
     UUID masha = UUID.randomUUID();
     UUID school = UUID.randomUUID();
-    act(
+    pushApplied(
         anna,
         SyncRequests.upsert("child", masha, "{\"name\":\"Маша\",\"color\":\"coral\"}"),
         SyncRequests.upsert(
@@ -177,7 +177,7 @@ class BatchesTest {
             "{\"name\":\"Школа\",\"kind\":\"TODO\",\"visibility\":\"SHARED\",\"childId\":\"%s\"}"
                 .formatted(masha)));
 
-    act(boris, add(UUID.randomUUID(), school, "Купить тетради"));
+    pushApplied(boris, add(UUID.randomUUID(), school, "Купить тетради"));
     later(Duration.ofMinutes(2));
 
     assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE);
@@ -189,7 +189,7 @@ class BatchesTest {
     UUID milk = UUID.randomUUID();
     UUID bread = UUID.randomUUID();
     UUID cheese = UUID.randomUUID();
-    act(
+    pushApplied(
         boris,
         add(milk, home, "Молоко"),
         add(bread, home, "Хлеб"),
@@ -204,7 +204,7 @@ class BatchesTest {
 
     gateway.reset();
     UUID typo = UUID.randomUUID();
-    act(boris, add(typo, home, "Мролоко"), SyncRequests.delete("item", typo));
+    pushApplied(boris, add(typo, home, "Мролоко"), SyncRequests.delete("item", typo));
     later(Duration.ofMinutes(2));
     assertThat(gateway.pushes()).isEmpty();
   }
@@ -212,11 +212,11 @@ class BatchesTest {
   @Test
   void assigningAnItemToTheOtherMemberNotifiesThem() throws Exception {
     UUID tap = UUID.randomUUID();
-    act(anna, add(tap, home, "Починить кран"));
+    pushApplied(anna, add(tap, home, "Починить кран"));
     later(Duration.ofMinutes(2));
     gateway.reset();
 
-    act(boris, assign(tap, annaId()));
+    pushApplied(boris, assign(tap, annaId()));
     later(Duration.ofMinutes(2));
 
     assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE);
@@ -228,7 +228,7 @@ class BatchesTest {
 
   @Test
   void itemsAddedAndAssignedInOneGoAreOneNotification() throws Exception {
-    act(
+    pushApplied(
         boris,
         add(UUID.randomUUID(), home, "Купить подарок"),
         SyncRequests.upsert(
@@ -254,12 +254,12 @@ class BatchesTest {
   void anAssignmentMovedAwayBeforeSendingIsLeftOut() throws Exception {
     UUID tap = UUID.randomUUID();
     UUID gift = UUID.randomUUID();
-    act(anna, add(tap, home, "Починить кран"), add(gift, home, "Купить подарок"));
+    pushApplied(anna, add(tap, home, "Починить кран"), add(gift, home, "Купить подарок"));
     later(Duration.ofMinutes(2));
     gateway.reset();
 
-    act(boris, assign(tap, annaId()), assign(gift, annaId()));
-    act(boris, assign(tap, null), assign(gift, borisId()));
+    pushApplied(boris, assign(tap, annaId()), assign(gift, annaId()));
+    pushApplied(boris, assign(tap, null), assign(gift, borisId()));
     later(Duration.ofMinutes(2));
 
     assertThat(gateway.pushes()).isEmpty();
@@ -268,14 +268,14 @@ class BatchesTest {
   @Test
   void anAssignmentPushedAgainIsNotSentAgain() throws Exception {
     UUID tap = UUID.randomUUID();
-    act(anna, add(tap, home, "Починить кран"));
+    pushApplied(anna, add(tap, home, "Починить кран"));
     later(Duration.ofMinutes(2));
-    act(boris, assign(tap, annaId()));
+    pushApplied(boris, assign(tap, annaId()));
     later(Duration.ofMinutes(2));
     gateway.reset();
 
     // Boris's device sends the same operation again (S3): the Assignee doesn't change.
-    act(boris, assign(tap, annaId()));
+    pushApplied(boris, assign(tap, annaId()));
     later(Duration.ofMinutes(2));
 
     assertThat(gateway.pushes()).isEmpty();
@@ -284,13 +284,13 @@ class BatchesTest {
   @Test
   void assigningYourselfIsNeverRecorded() throws Exception {
     UUID tap = UUID.randomUUID();
-    act(anna, add(tap, home, "Починить кран"));
+    pushApplied(anna, add(tap, home, "Починить кран"));
     later(Duration.ofMinutes(2));
     gateway.reset();
 
-    act(boris, add(UUID.randomUUID(), home, "Купить лампочку"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Купить лампочку"));
     later(Duration.ofSeconds(100));
-    act(boris, assign(tap, borisId())); // not a change: the Batch stays quiet
+    pushApplied(boris, assign(tap, borisId())); // not a change: the Batch stays quiet
     later(Duration.ofSeconds(20));
 
     assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE);
@@ -302,7 +302,7 @@ class BatchesTest {
   void aMemberWithTheSwitchOffGetsNothing() throws Exception {
     PushSubscriptionsTest.switchNotifications(anna, false);
 
-    act(boris, add(UUID.randomUUID(), home, "Починить кран"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Починить кран"));
     later(Duration.ofMinutes(2));
 
     assertThat(gateway.pushes()).isEmpty();
@@ -311,11 +311,11 @@ class BatchesTest {
   @Test
   void severalDueBatchesAreSeparatePushes() throws Exception {
     UUID shop = UUID.randomUUID();
-    act(anna, list(shop, "Супермаркет", "SHOPPING", "SHARED"));
+    pushApplied(anna, list(shop, "Супермаркет", "SHOPPING", "SHARED"));
     later(Duration.ofMinutes(2));
 
-    act(boris, add(UUID.randomUUID(), home, "Починить кран"));
-    act(boris, add(UUID.randomUUID(), shop, "Молоко"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Починить кран"));
+    pushApplied(boris, add(UUID.randomUUID(), shop, "Молоко"));
     later(Duration.ofMinutes(2));
 
     assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE, ANNA_PHONE);
@@ -338,12 +338,12 @@ class BatchesTest {
     gateway.answer(tablet, PushResult.GONE);
     gateway.answer(ANNA_PHONE, PushResult.FAILED);
 
-    act(boris, add(UUID.randomUUID(), home, "Починить кран"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Починить кран"));
     later(Duration.ofMinutes(2));
     assertThat(gateway.endpoints()).containsExactlyInAnyOrder(ANNA_PHONE, tablet);
 
     gateway.reset();
-    act(boris, add(UUID.randomUUID(), home, "Купить лампочку"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Купить лампочку"));
     later(Duration.ofMinutes(2));
     // The failed push is not retried; the gone device gets nothing more.
     assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE);
@@ -352,7 +352,7 @@ class BatchesTest {
   @Test
   void theNextOccurrenceOfARepeatingItemIsNeitherAddedNorAssigned() throws Exception {
     UUID trash = UUID.randomUUID();
-    act(
+    pushApplied(
         anna,
         SyncRequests.upsert(
             "item",
@@ -363,7 +363,7 @@ class BatchesTest {
     later(Duration.ofMinutes(2));
     gateway.reset();
 
-    act(boris, ListOperations.done(trash, true));
+    pushApplied(boris, ListOperations.done(trash, true));
     later(Duration.ofMinutes(2));
 
     assertThat(gateway.pushes()).isEmpty();
@@ -388,11 +388,11 @@ class BatchesTest {
   @Test
   void aPushRolledBackAfterItsEventWasRecordedRecordsNothing() throws Exception {
     UUID tap = UUID.randomUUID();
-    act(anna, add(tap, home, "Починить кран"));
+    pushApplied(anna, add(tap, home, "Починить кран"));
     later(Duration.ofMinutes(2));
     gateway.reset();
 
-    act(boris, add(UUID.randomUUID(), home, "Купить лампочку"));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Купить лампочку"));
     later(Duration.ofSeconds(100));
     // The push fails as it commits, after the assignment was announced and recorded: the recording
     // rolls back with it, so the Batch stays quiet and is sent on time, without the assignment.
@@ -424,11 +424,6 @@ class BatchesTest {
   }
 
   // --- helpers ---
-
-  /** Pushes these operations from the device; each one is applied. */
-  static void act(Browser device, String... operations) throws Exception {
-    push(device, operations).andExpect(jsonPath("$.results[*].status", everyItem(is("applied"))));
-  }
 
   static String assign(UUID item, UUID assigneeId) {
     return SyncRequests.upsert(

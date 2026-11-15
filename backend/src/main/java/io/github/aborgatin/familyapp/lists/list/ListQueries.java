@@ -38,15 +38,12 @@ class ListQueries implements Lists {
 
   @Override
   public Optional<ListSummary> find(UUID listId) {
-    return lists.findById(listId).filter(list -> !list.deleted()).map(this::summary);
+    return liveList(listId).map(this::summary);
   }
 
   @Override
   public boolean visibleTo(UUID listId, UUID memberId) {
-    return lists
-        .findById(listId)
-        .filter(list -> !list.deleted() && list.visibleTo(memberId))
-        .isPresent();
+    return liveList(listId).filter(list -> list.visibleTo(memberId)).isPresent();
   }
 
   @Override
@@ -83,6 +80,11 @@ class ListQueries implements Lists {
   private static Instant dueMoment(DueDate dueDate, LocalTime morningTime, ZoneId zone) {
     LocalTime time = dueDate.time() == null ? morningTime : dueDate.time();
     return dueDate.day().atTime(time).atZone(zone).toInstant();
+  }
+
+  /** The List, unless it is unknown or deleted. */
+  private Optional<ListEntity> liveList(UUID listId) {
+    return lists.findById(listId).filter(list -> !list.deleted());
   }
 
   private ListSummary summary(ListEntity list) {

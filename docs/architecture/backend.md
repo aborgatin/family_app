@@ -472,12 +472,14 @@ Mute come with later tickets.
   times; a new change moves only the last) and the `pending_batch_item` row: an Item keeps its
   first place, `added` only turns on, a later Assignee replaces an earlier one. Assigning yourself
   is never recorded (it neither adds to a Batch nor delays it). The assigned Item's List comes
-  from `Lists.items`.
+  from `Lists.items`. V17's foreign keys to `member`, `list` and `item` are schema links only
+  (Lists, Items and Members are soft-deleted, so they never block a delete): `notifications`
+  reads those tables only through `lists.Lists` and `family.Members`, never by SQL (M2).
 - **The scheduler step** (`SchedulerStep.run()`, public): one transaction stores the run's time
   (`notifications.schedule.StepRuns`, the single `scheduler_step` row; the Reminders start their
   window there) and takes the due Batches out of the database (`PendingBatches.takeDue`, `FOR
   UPDATE SKIP LOCKED`, then deleted; due when the last change is `QUIET` = 2 minutes old or the
-  first `LONGEST` = 10 minutes old, constants); `Batches` turns them into messages; after the
+  first `LONGEST` = 10 minutes old, constants); `Batches` turns them into Notifications; after the
   commit each goes out through `Pushes.sendTo` with TTL 24 h and urgency `NORMAL`. A crash
   between the commit and the sending loses those Notifications rather than sending them twice.
   `notifications.schedule.SchedulerConfig` runs it at second 0 of every minute (`@Scheduled(cron

@@ -29,7 +29,11 @@ class BatchRecorder {
 
   @EventListener
   void onItemAdded(ItemAdded event) {
-    batches.record(event.byMemberId(), event.listId(), event.itemId(), true, null, clock.instant());
+    batches.record(
+        event.byMemberId(),
+        event.listId(),
+        new PendingBatches.Entry(event.itemId(), true, null),
+        clock.instant());
   }
 
   /** Assigning yourself is never recorded. */
@@ -44,9 +48,7 @@ class BatchRecorder {
     batches.record(
         event.byMemberId(),
         item.listId(),
-        event.itemId(),
-        false,
-        event.assigneeId(),
+        new PendingBatches.Entry(event.itemId(), false, event.assigneeId()),
         clock.instant());
   }
 }

@@ -4,9 +4,6 @@ import static io.github.aborgatin.familyapp.ListOperations.add;
 import static io.github.aborgatin.familyapp.ListOperations.done;
 import static io.github.aborgatin.familyapp.ListOperations.list;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.is;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FreshInstallation;
@@ -63,7 +60,8 @@ class ListsQueryTest {
     boris = SyncRequests.loginBoris(mvc, jdbc);
     annaId = UUID.fromString(SyncRequests.memberId(anna));
     borisId = UUID.fromString(SyncRequests.memberId(boris));
-    act(anna, list(home, "Дом", "TODO", "SHARED"), list(mine, "Моё", "SHOPPING", "PRIVATE"));
+    SyncRequests.pushApplied(
+        anna, list(home, "Дом", "TODO", "SHARED"), list(mine, "Моё", "SHOPPING", "PRIVATE"));
   }
 
   @Test
@@ -79,7 +77,7 @@ class ListsQueryTest {
 
   @Test
   void aDeletedListIsNotFoundNorVisible() throws Exception {
-    act(anna, SyncRequests.delete("list", home));
+    SyncRequests.pushApplied(anna, SyncRequests.delete("list", home));
 
     assertThat(lists.find(home)).isEmpty();
     assertThat(lists.visibleTo(home, annaId)).isFalse();
@@ -98,7 +96,7 @@ class ListsQueryTest {
     UUID tap = UUID.randomUUID();
     UUID bulb = UUID.randomUUID();
     UUID gone = UUID.randomUUID();
-    act(
+    SyncRequests.pushApplied(
         anna,
         SyncRequests.upsert(
             "item",
@@ -124,7 +122,7 @@ class ListsQueryTest {
     due("Уже было", "2026-03-10", "09:00");
     UUID doneItem = due("Сделано", "2026-03-10", "16:00");
     UUID deleted = due("Удалено", "2026-03-10", "16:00");
-    act(anna, done(doneItem, true), SyncRequests.delete("item", deleted));
+    SyncRequests.pushApplied(anna, done(doneItem, true), SyncRequests.delete("item", deleted));
 
     // After 09:00 on the 10th, up to and including 09:00 on the 11th.
     List<DueItem> due = lists.dueBetween(at("2026-03-10T09:00"), at("2026-03-11T09:00"), MORNING);
@@ -144,10 +142,10 @@ class ListsQueryTest {
   @Test
   void aDueItemCarriesItsAssigneeAndPrivateListsCount() throws Exception {
     UUID todo = UUID.randomUUID();
-    act(anna, list(todo, "Мои дела", "TODO", "PRIVATE"));
+    SyncRequests.pushApplied(anna, list(todo, "Мои дела", "TODO", "PRIVATE"));
     UUID own = UUID.randomUUID();
     UUID assigned = UUID.randomUUID();
-    act(
+    SyncRequests.pushApplied(
         anna,
         SyncRequests.upsert(
             "item",
@@ -175,7 +173,7 @@ class ListsQueryTest {
   private UUID due(String text, String day, String time) throws Exception {
     UUID id = UUID.randomUUID();
     String dueTime = time == null ? "" : ",\"dueTime\":\"%s\"".formatted(time);
-    act(
+    SyncRequests.pushApplied(
         anna,
         SyncRequests.upsert(
             "item",
@@ -187,10 +185,5 @@ class ListsQueryTest {
 
   private static Instant at(String localDateTime) {
     return LocalDateTime.parse(localDateTime).atZone(ZONE).toInstant();
-  }
-
-  private static void act(Browser device, String... operations) throws Exception {
-    SyncRequests.push(device, operations)
-        .andExpect(jsonPath("$.results[*].status", everyItem(is("applied"))));
   }
 }

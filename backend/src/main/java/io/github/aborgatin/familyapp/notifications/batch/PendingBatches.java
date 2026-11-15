@@ -30,6 +30,9 @@ class PendingBatches {
   /** An Item of a Batch: added, and/or assigned to {@code assigneeId}. */
   record Entry(UUID itemId, boolean added, @Nullable UUID assigneeId) {}
 
+  /** Which Batch: the acting Member's, for one List. */
+  private record Key(UUID actorId, UUID listId) {}
+
   private final JdbcTemplate jdbc;
 
   PendingBatches(JdbcTemplate jdbc) {
@@ -42,13 +45,7 @@ class PendingBatches {
    * turns on, and a later Assignee replaces an earlier one.
    */
   @Transactional(propagation = Propagation.MANDATORY)
-  void record(
-      UUID actorId,
-      UUID listId,
-      UUID itemId,
-      boolean added,
-      @Nullable UUID assigneeId,
-      Instant at) {
+  void record(UUID actorId, UUID listId, Entry change, Instant at) {
     Timestamp time = Timestamp.from(at);
     jdbc.update(
         """
@@ -70,9 +67,9 @@ class PendingBatches {
         """,
         actorId,
         listId,
-        itemId,
-        added,
-        assigneeId);
+        change.itemId(),
+        change.added(),
+        change.assigneeId());
   }
 
   /**
@@ -82,7 +79,7 @@ class PendingBatches {
    */
   @Transactional(propagation = Propagation.MANDATORY)
   List<Batch> takeDue(Instant now) {
-    List<UUID[]> keys =
+    List<Key> keys =
         jdbc.query(
             """
             SELECT actor_id, list_id FROM pending_batch
@@ -91,13 +88,11 @@ class PendingBatches {
             FOR UPDATE SKIP LOCKED
             """,
             (rs, row) ->
-                new UUID[] {
-                  rs.getObject("actor_id", UUID.class), rs.getObject("list_id", UUID.class)
-                },
+                new Key(rs.getObject("actor_id", UUID.class), rs.getObject("list_id", UUID.class)),
             Timestamp.from(now.minus(QUIET)),
             Timestamp.from(now.minus(LONGEST)));
     List<Batch> due =
-        keys.stream().map(key -> new Batch(key[0], key[1], entries(key[0], key[1]))).toList();
+        keys.stream().map(key -> new Batch(key.actorId(), key.listId(), entries(key))).toList();
     for (Batch batch : due) {
       jdbc.update(
           "DELETE FROM pending_batch WHERE actor_id = ? AND list_id = ?",
@@ -107,7 +102,7 @@ class PendingBatches {
     return due;
   }
 
-  private List<Entry> entries(UUID actorId, UUID listId) {
+  private List<Entry> entries(Key key) {
     return jdbc.query(
         """
         SELECT item_id, added, assignee_id FROM pending_batch_item
@@ -118,7 +113,7 @@ class PendingBatches {
                 rs.getObject("item_id", UUID.class),
                 rs.getBoolean("added"),
                 rs.getObject("assignee_id", UUID.class)),
-        actorId,
-        listId);
+        key.actorId(),
+        key.listId());
   }
 }

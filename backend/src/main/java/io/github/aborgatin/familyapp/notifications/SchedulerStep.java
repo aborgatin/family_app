@@ -41,14 +41,14 @@ public class SchedulerStep {
    */
   public void run() {
     Instant now = clock.instant();
-    List<Batches.Message> messages =
+    List<Batches.Notification> notifications =
         transaction.execute(
             status -> {
               runs.ranAt(now);
               return batches.takeDue(now);
             });
-    for (Batches.Message message : messages) {
-      pushes.sendTo(message.recipientId(), message.payload(), TTL, Urgency.NORMAL);
+    for (Batches.Notification notification : notifications) {
+      pushes.sendTo(notification.recipientId(), notification.payload(), TTL, Urgency.NORMAL);
     }
   }
 }
