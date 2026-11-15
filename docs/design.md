@@ -85,9 +85,10 @@ starts, so the wrong theme never flashes: it sets `<html data-theme="light|dark"
 `storage` event. After changing the stored choice, dispatch
 `new StorageEvent('storage', { key: 'theme' })` on `window` to apply it in the same window.
 
-The status bar is `default`: opaque, above the page, not over it (with `black-translucent`
-iOS 26+ blurred the nav bar's buttons at rest under its status-bar edge effect). The nav bar
-still pads by `safe-area-inset-top`, which is 0 then. The page bottom pads by `safe-area-inset-bottom`, the sides by
+The status bar is `default`: opaque, above the page, not over it. The nav bar pads by
+`safe-area-inset-top` (`pt-bar`), plus 1.5rem in the Home Screen app (`display-mode:
+standalone`): iOS 26+ blurs the top of a Home Screen app's page over the nav bar's buttons, and
+neither status-bar style nor a solid bar stopped it on iOS 27.2.1. The page bottom pads by `safe-area-inset-bottom`, the sides by
 `safe-area-inset-left/right`. Components pad with the utilities in `theme.css`: `px-safe-<n>`
 (the side inset, but at least spacing `n`), `pt-safe-<n>` / `pb-safe-<n>` (the inset plus
 spacing `n`).

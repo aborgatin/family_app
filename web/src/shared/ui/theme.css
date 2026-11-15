@@ -91,6 +91,17 @@
 @utility pt-safe-* {
   padding-top: calc(env(safe-area-inset-top) + var(--spacing) * --value(integer));
 }
+/*
+ * The nav bar's top padding: the top inset, plus 1.5rem in the Home Screen app. iOS 26+ blurs the
+ * top of a Home Screen app's page, below the status bar, over the bar's buttons (seen on iOS 27.2.1
+ * with either status-bar style); 1.5rem moves the buttons out of that band. Safari tabs unchanged.
+ */
+@utility pt-bar {
+  padding-top: env(safe-area-inset-top);
+  @media (display-mode: standalone) {
+    padding-top: calc(env(safe-area-inset-top) + 1.5rem);
+  }
+}
 @utility pb-safe-* {
   padding-bottom: calc(env(safe-area-inset-bottom) + var(--spacing) * --value(integer));
 }
