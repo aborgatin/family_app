@@ -20,7 +20,7 @@ step with the headings).
 - [Look and theme](#look-and-theme): Tailwind tokens, light and dark theme, where the UI kit is specified
 - [Settings](#settings): the Settings screen: Members, Invites, profile, password, theme, Child fields
 - [Home «Дети» and the Child page](#home-дети-and-the-child-page): Child tiles on Home, the Child page, Child lists and fields
-- [PWA](#pwa): manifest, icons, service worker and updates
+- [PWA](#pwa): manifest, icons, the service worker (precache, push, tap), the push payload contract, updates
 - [iOS and macOS](#ios-and-macos): installed-app cookies, ITP, Safari quirks
 - [Testing](#testing): shared test helpers, `renderApp`, the fake sync server, store-upgrade tests, clock and time zone, flaky tests
 - [Screenshots](#screenshots): `scripts/screenshot.sh` and the routes in `screens.mjs`
@@ -86,7 +86,8 @@ web/src/
     sync/               local store (Dexie), sync engine, useRows / useSyncedRows / upsertRow /
                         deleteRow, useSaveRejection, startSync / stopSync / onSessionEnded
     palette/            Child color palette (childColors.json)
-    dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests)
+    dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests),
+                        daysFromToday(day, now), shortDay(date, now) («15 нояб.»)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
@@ -96,13 +97,16 @@ web/src/
                         RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         TileGrid + Tile,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
+  serviceWorker/        the service worker, its own bundle (see PWA): sw.ts (entry), pushPayload
+                        (the payload contract), pushMessages (payload → text), notificationClick
+                        (tap → window and URL)
   test/                 renderApp, MSW server, fake sync server, EventSource stub, fixtures, setup
 ```
 
 - Each feature's public surface is its `index.ts`. Other code imports a feature only as
   `@/features/<name>`, never `@/features/<name>/<file>`.
 - Direction is `shared → features → app`: `shared` imports neither features nor `app`; a feature
-  never imports `app`.
+  never imports `app`. `serviceWorker` imports only `shared` (no React screens in the worker).
 - Leaving your own folder (a layer, or one feature) uses the `@/` alias (`@/shared/...`,
   `@/features/<name>`, `@/app/...`). A relative `../` may not climb out of it.
 - All of this is enforced by `no-restricted-imports` blocks generated per file depth in
@@ -760,11 +764,48 @@ a Vite native-config-loader warning).
   `mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style` (`default`: an opaque status bar above
   the page; `black-translucent` let iOS 26+ blur the nav bar's buttons),
   `apple-mobile-web-app-title`, `viewport-fit=cover`.
-- **Service worker** (`sw.js`, registered by the injected `registerSW.js`): precaches the built
-  shell (`**/*.{js,css,html,svg,png,ico}` + manifest), no runtime caching, navigation fallback to
-  `index.html` except `/api` and `/actuator`. So the shell opens offline, and the API is always
-  fetched from the network.
-- **Updates**: `registerType: 'autoUpdate'` with `skipWaiting` and `clientsClaim`. A new worker
+- **Service worker** (`sw.js`, registered by the injected `registerSW.js`): our own worker,
+  `web/src/serviceWorker/sw.ts`, built by `vite-plugin-pwa` with `strategies: 'injectManifest'`
+  (which injects the precache list into `self.__WB_MANIFEST`; Workbox modules `workbox-core`,
+  `-precaching`, `-routing` are bundled in). It precaches the built shell
+  (`**/*.{js,css,html,svg,png,ico}` + manifest), has no runtime caching, and falls back to
+  `index.html` for navigations except `/api` and `/actuator`. So the shell opens offline, and the
+  API is always fetched from the network. `sw.ts` is glue only; its logic is in pure functions next
+  to it, unit-tested without a worker (`pushMessages.test.ts`, `notificationClick.test.ts`).
+  `serviceWorker/` imports only `@/shared` (lint).
+- **Push** (spec #104): a `push` event **always** shows a notification, since iOS revokes the
+  subscription of a worker that shows none. `readPushMessage(data, now)` turns the push data into
+  title, body and URL; data that can't be read (no data, not JSON, an unknown `type`, missing
+  fields) gives «Семья» (`app.name`) with no body, opening `/`. The notification keeps
+  `{ url }` as its `data`.
+- **Payload contract** (`pushPayload.ts`, the one definition the worker and its tests share; the
+  backend sends exactly this JSON): codes and parameters, never texts.
+  - `type: 'notification'` (title: the List name): `actorName`, `actorGrammaticalGender`
+    (`MASCULINE` | `FEMININE` | `null`), `listName`, `listKind` (`SHOPPING` | `TODO` | `WISH`),
+    `itemNames` (the added Items' names in order; at least the first three), `addedCount`,
+    `assignedCount` (Items assigned to the recipient), `assignedItemName` (when exactly one was
+    assigned, else `null`), `url`.
+  - `type: 'reminder'` (title: the Item name): `itemName`, `listName`, `dueDate` (`YYYY-MM-DD`),
+    `dueTime` (`HH:mm` or `null`), `url`.
+  - `url`: the screen a tap opens, `/lists/:id` or `/lists/:id/items/:itemId`.
+- **Push texts** come from the `push.*` keys of `ru.json` through the worker's own i18next
+  instance (the app's `@/shared/i18n` also loads react-i18next). 1–3 added Items are named in
+  quotes; 4 or more are counted with the first three named («7 товаров: Молоко, Хлеб, Сыр…»);
+  additions with assignments are counted («3 задачи, 1 — вам»); assignments alone name the one
+  Item or count them. The count nouns are `push.count.<kind>_<plural>` in the accusative
+  (товар / задачу / желание); the verbs follow the actor's Grammatical gender as i18n `context`,
+  with «добавил(а)» / «назначил(а)» as the neutral form. A Reminder reads «Дом · сегодня в 18:00»
+  (or without the time), «вчера» once the device's day has moved on, and the short date
+  further back (`shortDay`, with the year when it is another one, as on Item rows).
+- **Tap** (`notificationclick`): `notificationClickTarget(data, windows, origin)` picks the
+  focused open app window, else the first, and the payload's URL (anything that isn't a path in
+  this app becomes `/`). `openScreen(clients, data, origin)` carries it out against the worker's
+  `clients` (tests pass fake windows). It navigates that window there (first, so a refused focus
+  can't stop it) and focuses it; with no window open, or one it can't navigate (not yet
+  controlled), it only opens a new window at the URL. A window already on the screen is only
+  focused.
+- **Updates**: `registerType: 'autoUpdate'`, and the worker calls `skipWaiting()` and
+  `clientsClaim()` itself (the plugin doesn't add them to an `injectManifest` worker). A new worker
   installs in the background and takes over, but the open page is never reloaded; the next launch
   runs the new code. `cleanupOutdatedCaches` removes old precaches. The backend serves `sw.js`,
   `index.html` and the manifest with `no-cache` and `/assets/**` as immutable.
