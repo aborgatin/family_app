@@ -19,9 +19,9 @@ import org.springframework.context.annotation.Primary;
 /**
  * The push gateway tests use in place of the real one (spec #104, Testing): it sends nothing,
  * records every push and answers {@code DELIVERED}, or what a test told it to answer for a
- * subscription, or throws once when told to. Import {@link Config} and autowire the {@code FakePushGateway}; call {@link
- * #reset()} in {@code @BeforeEach}, as the context (and this fake) is shared by the test classes
- * that import it.
+ * subscription, or throws once when told to. Import {@link Config} and autowire the {@code
+ * FakePushGateway}; call {@link #reset()} in {@code @BeforeEach}, as the context (and this fake) is
+ * shared by the test classes that import it.
  */
 public final class FakePushGateway implements PushGateway {
 
@@ -68,8 +68,8 @@ public final class FakePushGateway implements PushGateway {
   }
 
   /**
-   * The next push throws instead of being sent (and is not recorded), as a database call on the
-   * way out could: the push after it goes through again.
+   * The next push throws instead of being sent (and is not recorded), as a database call on the way
+   * out could: the push after it goes through again.
    */
   public synchronized void throwOnNextSend() {
     throwNext = true;

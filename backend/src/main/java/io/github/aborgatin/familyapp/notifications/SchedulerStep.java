@@ -6,9 +6,9 @@ import io.github.aborgatin.familyapp.notifications.schedule.StepRuns;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -49,40 +49,33 @@ public class SchedulerStep {
     this.clock = clock;
   }
 
-  /** What one step sends, decided in its transaction. */
-  private record Due(
-      List<Batches.Notification> notifications, List<Reminders.Reminder> reminders) {}
-
   /**
    * Runs one step: in one transaction, records this run's time, takes the due Batches out of the
    * database and finds the Reminders due since the previous run (none before the first run ever, so
-   * a new database or an upgrade sends no old ones); then sends, one push per recipient and Batch
-   * or Reminder, outside it.
+   * a new database or an upgrade sends no old ones); then sends them outside it, Notifications
+   * first, one push per recipient and Batch or Reminder.
    */
   public void run() {
     Instant now = clock.instant();
-    Due due =
+    List<PushMessage> due =
         transaction.execute(
             status -> {
               Optional<Instant> previous = runs.replaceLastRun(now);
-              return new Due(
-                  batches.takeDue(now),
-                  previous.map(after -> reminders.due(after, now)).orElse(List.of()));
+              List<PushMessage> messages = new ArrayList<>(batches.takeDue(now));
+              previous.ifPresent(after -> messages.addAll(reminders.due(after, now)));
+              return messages;
             });
-    for (Batches.Notification notification : due.notifications()) {
-      send(notification.recipientId(), notification.payload(), Urgency.NORMAL);
-    }
-    for (Reminders.Reminder reminder : due.reminders()) {
-      send(reminder.recipientId(), reminder.payload(), Urgency.HIGH);
+    for (PushMessage message : due) {
+      send(message);
     }
   }
 
   /** One push; a failure costs only this one, logged and not retried. */
-  private void send(UUID recipientId, String payload, Urgency urgency) {
+  private void send(PushMessage message) {
     try {
-      pushes.sendTo(recipientId, payload, TTL, urgency);
+      pushes.sendTo(message.recipientId(), message.payload(), TTL, message.urgency());
     } catch (RuntimeException e) {
-      log.warn("A push to Member {} failed; it is not retried", recipientId, e);
+      log.warn("A push to Member {} failed; it is not retried", message.recipientId(), e);
     }
   }
 }

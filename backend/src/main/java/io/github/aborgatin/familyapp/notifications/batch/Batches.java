@@ -8,6 +8,7 @@ import io.github.aborgatin.familyapp.lists.ListKind;
 import io.github.aborgatin.familyapp.lists.ListSummary;
 import io.github.aborgatin.familyapp.lists.Lists;
 import io.github.aborgatin.familyapp.lists.Visibility;
+import io.github.aborgatin.familyapp.notifications.PushMessage;
 import io.github.aborgatin.familyapp.notifications.mute.Mutes;
 import io.github.aborgatin.familyapp.notifications.push.PushPayloads;
 import java.time.Instant;
@@ -32,9 +33,6 @@ public class Batches {
 
   /** How many added Items a Notification names. */
   static final int NAMED_ITEMS = 3;
-
-  /** A Notification for one recipient: the push payload, JSON. */
-  public record Notification(UUID recipientId, String payload) {}
 
   /**
    * The push payload of a Notification, as the service worker reads it ({@code pushPayload.ts}).
@@ -76,15 +74,15 @@ public class Batches {
    * one per recipient and Batch, in the caller's transaction (the sending happens after it).
    */
   @Transactional(propagation = Propagation.MANDATORY)
-  public List<Notification> takeDue(Instant now) {
-    List<Notification> notifications = new ArrayList<>();
+  public List<PushMessage> takeDue(Instant now) {
+    List<PushMessage> notifications = new ArrayList<>();
     for (PendingBatches.Batch batch : batches.takeDue(now)) {
       notifications.addAll(notifications(batch));
     }
     return notifications;
   }
 
-  private List<Notification> notifications(PendingBatches.Batch batch) {
+  private List<PushMessage> notifications(PendingBatches.Batch batch) {
     Optional<ListSummary> found = lists.find(batch.listId());
     Optional<MemberSummary> actor = members.byId(batch.actorId());
     if (found.isEmpty() || actor.isEmpty() || found.get().visibility() == Visibility.PRIVATE) {
@@ -99,7 +97,7 @@ public class Batches {
             .map(entry -> items.get(entry.itemId()).name())
             .toList();
     Set<UUID> mutedBy = mutes.mutedBy(list.id());
-    List<Notification> notifications = new ArrayList<>();
+    List<PushMessage> notifications = new ArrayList<>();
     for (UUID recipient : list.seenBy()) {
       if (recipient.equals(batch.actorId())) {
         continue;
@@ -127,7 +125,7 @@ public class Batches {
               assigned.size(),
               assigned.size() == 1 ? assigned.get(0) : null,
               "/lists/" + list.id());
-      notifications.add(new Notification(recipient, payloads.write(payload)));
+      notifications.add(PushMessage.notification(recipient, payloads.write(payload)));
     }
     return notifications;
   }

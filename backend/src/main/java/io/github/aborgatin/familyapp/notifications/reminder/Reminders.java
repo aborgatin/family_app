@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.aborgatin.familyapp.lists.DueItem;
 import io.github.aborgatin.familyapp.lists.ListSummary;
 import io.github.aborgatin.familyapp.lists.Lists;
+import io.github.aborgatin.familyapp.notifications.PushMessage;
 import io.github.aborgatin.familyapp.notifications.push.NotificationsProperties;
 import io.github.aborgatin.familyapp.notifications.push.PushPayloads;
 import java.time.Duration;
@@ -34,9 +35,6 @@ public class Reminders {
 
   private static final DateTimeFormatter HOURS_MINUTES = DateTimeFormatter.ofPattern("HH:mm");
 
-  /** A Reminder for one recipient: the push payload, JSON. */
-  public record Reminder(UUID recipientId, String payload) {}
-
   /** The push payload of a Reminder, as the service worker reads it ({@code pushPayload.ts}). */
   record ReminderPayload(
       String itemName, String listName, String dueDate, @Nullable String dueTime, String url) {
@@ -63,11 +61,11 @@ public class Reminders {
    * transaction.
    */
   @Transactional(propagation = Propagation.MANDATORY)
-  public List<Reminder> due(Instant previousStep, Instant now) {
+  public List<PushMessage> due(Instant previousStep, Instant now) {
     Instant oldest = now.minus(CATCH_UP);
     Instant after = previousStep.isBefore(oldest) ? oldest : previousStep;
     Map<UUID, Optional<ListSummary>> listsById = new HashMap<>();
-    List<Reminder> reminders = new ArrayList<>();
+    List<PushMessage> reminders = new ArrayList<>();
     for (DueItem item : lists.dueBetween(after, now, properties.reminderMorningTime())) {
       Optional<ListSummary> list = listsById.computeIfAbsent(item.listId(), lists::find);
       if (list.isEmpty()) {
@@ -75,7 +73,7 @@ public class Reminders {
       }
       String payload = payloads.write(payload(item, list.get()));
       for (UUID recipient : recipients(item, list.get())) {
-        reminders.add(new Reminder(recipient, payload));
+        reminders.add(PushMessage.reminder(recipient, payload));
       }
     }
     return reminders;
