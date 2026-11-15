@@ -16,6 +16,9 @@ interface ItemRepository extends Repository<ItemEntity, UUID> {
   /** The Item with this id, deleted or not, so an operation can tell "deleted" from "new". */
   Optional<ItemEntity> findById(UUID id);
 
+  /** The Items with these ids, deleted or not. */
+  List<ItemEntity> findAllById(Iterable<UUID> ids);
+
   /** Every Item written after this Version, deleted ones included (the sync pull). */
   List<ItemEntity> findByVersionGreaterThan(long version);
 

@@ -3,6 +3,8 @@ package io.github.aborgatin.familyapp.lists.list;
 import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.error.FieldErrors;
 import io.github.aborgatin.familyapp.family.Members;
+import io.github.aborgatin.familyapp.lists.ItemAdded;
+import io.github.aborgatin.familyapp.lists.ItemAssigned;
 import io.github.aborgatin.familyapp.lists.ListKind;
 import io.github.aborgatin.familyapp.lists.Visibility;
 import io.github.aborgatin.familyapp.sync.Operation;
@@ -20,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -38,6 +41,7 @@ class ItemService implements SyncableTable {
   private final VisibleLists visibleLists;
   private final ItemHistoryService history;
   private final Members members;
+  private final ApplicationEventPublisher events;
 
   ItemService(
       ItemRepository items,
@@ -45,6 +49,7 @@ class ItemService implements SyncableTable {
       VisibleLists visibleLists,
       ItemHistoryService history,
       Members members,
+      ApplicationEventPublisher events,
       Clock clock) {
     this.clock = clock;
     this.items = items;
@@ -52,6 +57,7 @@ class ItemService implements SyncableTable {
     this.visibleLists = visibleLists;
     this.history = history;
     this.members = members;
+    this.events = events;
   }
 
   @Override
@@ -104,6 +110,8 @@ class ItemService implements SyncableTable {
     item.markDone(done, operation.memberId(), now);
     save(item, done, now);
     history.used(list, item.text(), now);
+    events.publishEvent(new ItemAdded(listId, item.id(), operation.memberId()));
+    assigned(item, null, operation);
     return Outcome.APPLIED;
   }
 
@@ -123,6 +131,7 @@ class ItemService implements SyncableTable {
     // The history keeps a name when it is given (a new text) or used again (Done → open).
     boolean nameUsed = !details.text().equals(item.text()) || (item.done() && !done);
     boolean turnsDone = done && !item.done();
+    UUID previousAssigneeId = item.assigneeId();
     Instant now = clock.instant();
     item.replace(details);
     item.moveTo(categoryId);
@@ -135,7 +144,16 @@ class ItemService implements SyncableTable {
     if (nameUsed) {
       history.used(list, item.text(), now);
     }
+    assigned(item, previousAssigneeId, operation);
     return Outcome.APPLIED;
+  }
+
+  /** Announces a new Assignee of the Item (spec #104), inside the push operation. */
+  private void assigned(ItemEntity item, @Nullable UUID previousAssigneeId, Operation operation) {
+    UUID assigneeId = item.assigneeId();
+    if (assigneeId != null && !assigneeId.equals(previousAssigneeId)) {
+      events.publishEvent(new ItemAssigned(item.id(), assigneeId, operation.memberId()));
+    }
   }
 
   /**
