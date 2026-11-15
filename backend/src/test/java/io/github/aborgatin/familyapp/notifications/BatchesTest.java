@@ -18,6 +18,7 @@ import io.github.aborgatin.familyapp.ListOperations;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
 import io.github.aborgatin.familyapp.SyncRequests;
 import io.github.aborgatin.familyapp.TestClock;
+import io.github.aborgatin.familyapp.lists.ItemAssigned;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -28,9 +29,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Notifications (spec #104 "Pending Batches", "Sending a Batch"; ticket #109): a Member's changes
@@ -40,7 +44,12 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({PostgresTestcontainer.class, TestClock.Config.class, FakePushGateway.Config.class})
+@Import({
+  PostgresTestcontainer.class,
+  TestClock.Config.class,
+  FakePushGateway.Config.class,
+  BatchesTest.FailingCommits.class
+})
 class BatchesTest {
 
   static final String ANNA_PHONE = "https://web.push.apple.com/anna-phone";
@@ -51,6 +60,7 @@ class BatchesTest {
   @Autowired FakePushGateway gateway;
   @Autowired TestClock clock;
   @Autowired SchedulerStep step;
+  @Autowired FailingCommits failingCommits;
 
   Browser anna;
   Browser boris;
@@ -360,7 +370,7 @@ class BatchesTest {
   }
 
   @Test
-  void aRejectedOperationRecordsNothing() throws Exception {
+  void anOperationRejectedForItsOwnInputRecordsNothing() throws Exception {
     push(
             boris,
             SyncRequests.upsert(
@@ -373,6 +383,44 @@ class BatchesTest {
     later(Duration.ofMinutes(10));
 
     assertThat(gateway.pushes()).isEmpty();
+  }
+
+  @Test
+  void aPushRolledBackAfterItsEventWasRecordedRecordsNothing() throws Exception {
+    UUID tap = UUID.randomUUID();
+    act(anna, add(tap, home, "Починить кран"));
+    later(Duration.ofMinutes(2));
+    gateway.reset();
+
+    act(boris, add(UUID.randomUUID(), home, "Купить лампочку"));
+    later(Duration.ofSeconds(100));
+    // The push fails as it commits, after the assignment was announced and recorded: the recording
+    // rolls back with it, so the Batch stays quiet and is sent on time, without the assignment.
+    failingCommits.failAssignments = true;
+    push(boris, assign(tap, annaId())).andExpect(status().isInternalServerError());
+    failingCommits.failAssignments = false;
+    later(Duration.ofSeconds(20));
+
+    assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE);
+    assertThat(payload(0).get("addedCount").asInt()).isEqualTo(1);
+    assertThat(payload(0).get("assignedCount").asInt()).isZero();
+  }
+
+  /**
+   * Stands for a server fault that rolls a push back as it commits (a lost connection, a failed
+   * constraint): when on, every push that assigns an Item fails.
+   */
+  @TestConfiguration(proxyBeanMethods = false)
+  static class FailingCommits {
+
+    volatile boolean failAssignments;
+
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    void onItemAssigned(ItemAssigned event) {
+      if (failAssignments) {
+        throw new IllegalStateException("The push fails as it commits");
+      }
+    }
   }
 
   // --- helpers ---

@@ -31,7 +31,6 @@ method.not_allowed   wrong HTTP method: a client bug
 sync.table_unknown   push to an unknown table: a client bug
 keys.p256dh          not a code: a field name in validation.failed (the browser's subscription keys)
 keys.auth            not a code: a field name in validation.failed (the browser's subscription keys)
-notifications.scheduler.enabled  not a code: the property that switches the scheduler step's schedule off in tests
 "
 
 # Codes only the client produces (no server literal). Same format.
@@ -43,9 +42,12 @@ codes_of() { awk 'NF { print $1 }' <<<"$1" | sort -u; }
 
 server_codes() {
   {
-    # Dotted literals, minus file names ("index.html").
-    grep -rhoE '"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+"' "$main" --include='*.java' |
-      tr -d '"' | grep -vE '\.(html|js|css|json|sql|txt|png|svg|ico)$' || true
+    # Dotted literals, minus file names ("index.html") and minus the Spring property names in
+    # @ConditionalOnProperty(...) and @ConfigurationProperties(...), even when wrapped over lines.
+    find "$main" -name '*.java' -exec perl -0777 -ne '
+      s/\@(?:ConditionalOnProperty|ConfigurationProperties)\s*\((?:[^()"]|"[^"]*")*\)//g;
+      print "$1\n" while /"([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+)"/g' {} + |
+      grep -vE '\.(html|js|css|json|sql|txt|png|svg|ico)$' || true
     # Field codes, dotted or not, declared in FieldErrors.
     find "$main" -name FieldErrors.java -exec \
       sed -nE 's/.*static final String [A-Z_]+ = "([a-z_.]+)";.*/\1/p' {} + || true

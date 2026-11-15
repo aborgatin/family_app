@@ -83,6 +83,17 @@ class More { ApiException c() { return new ApiException(HttpStatus.FORBIDDEN, "l
 EOF
 expect fail "a server code with no client message" "$tree"
 
+tree="$(new_tree property-names)"
+cat >"$tree/backend/src/main/java/app/SchedulerConfig.java" <<'EOF'
+@ConditionalOnProperty(name = "app.scheduler.enabled", matchIfMissing = true)
+@ConditionalOnProperty(
+    name = "app.reminders.enabled",
+    havingValue = "true")
+@ConfigurationProperties("app.push")
+class SchedulerConfig {}
+EOF
+expect pass "Spring property names in annotations are not codes" "$tree"
+
 tree="$(new_tree unmapped-field)"
 cat >"$tree/backend/src/main/java/app/FieldErrors.java" <<'EOF'
 class FieldErrors {
