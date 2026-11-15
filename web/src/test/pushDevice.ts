@@ -20,7 +20,11 @@ export interface SubscriptionJson {
 
 /** A subscription's JSON with this endpoint and made-up keys. */
 export function subscriptionJson(endpoint: string): SubscriptionJson {
-  return { endpoint, expirationTime: null, keys: { p256dh: `p256dh-of-${endpoint}`, auth: 'auth' } };
+  return {
+    endpoint,
+    expirationTime: null,
+    keys: { p256dh: `p256dh-of-${endpoint}`, auth: 'auth' },
+  };
 }
 
 interface FakePushDeviceOptions {
@@ -79,13 +83,16 @@ export function fakePushDevice({
     subscribe: (options: PushSubscriptionOptionsInit) => {
       device.subscribes.push(options);
       if (current !== 'granted') return Promise.reject(new DOMException('', 'NotAllowedError'));
-      held ??= subscriptionJson(`https://push.example/${device.subscribes.length}`);
+      held ??= subscriptionJson(`https://push.example/${String(device.subscribes.length)}`);
       return Promise.resolve(asSubscription(held));
     },
   };
 
   Object.defineProperty(window, 'Notification', { configurable: true, value: FakeNotification });
-  Object.defineProperty(window, 'PushManager', { configurable: true, value: function PushManager() {} });
+  Object.defineProperty(window, 'PushManager', {
+    configurable: true,
+    value: function PushManager() {},
+  });
   Object.defineProperty(navigator, 'serviceWorker', {
     configurable: true,
     value: { ready: Promise.resolve({ pushManager }) },

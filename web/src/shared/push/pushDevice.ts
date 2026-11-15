@@ -77,6 +77,7 @@ async function currentOrNewSubscription(): Promise<PushSubscription> {
   const current = await pushManager.getSubscription();
   if (current !== null) return current;
   return pushManager.subscribe({
+    // eslint-disable-next-line no-restricted-syntax -- the Push API's own option name
     userVisibleOnly: true,
     applicationServerKey: base64UrlBytes(await fetchVapidPublicKey()),
   });

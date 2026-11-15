@@ -4,12 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { anna, boris, invitesHandler, membersHandler, sessionHandler } from '@/test/fixtures';
 import { network } from '@/test/network';
-import {
-  fakePushDevice,
-  pushServer,
-  subscriptionJson,
-  VAPID_PUBLIC_KEY,
-} from '@/test/pushDevice';
+import { fakePushDevice, pushServer, subscriptionJson, VAPID_PUBLIC_KEY } from '@/test/pushDevice';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -51,7 +46,7 @@ const VAPID_KEY_BYTES = new Uint8Array([4, 1, 2]);
 
 /** `PATCH /api/members/me` that answers only when `release()` is called. */
 function heldProfileSave() {
-  let release = () => undefined as void;
+  let release: (() => void) | undefined;
   server.use(
     http.patch('/api/members/me', async ({ request }) => {
       const body = (await request.json()) as object;
@@ -61,7 +56,11 @@ function heldProfileSave() {
       return HttpResponse.json({ ...anna, ...body });
     }),
   );
-  return { release: () => release() };
+  return {
+    release: () => {
+      release?.();
+    },
+  };
 }
 
 async function section() {
@@ -175,7 +174,9 @@ describe('Turning it on, on a device that can receive push', () => {
     ]);
     const notifications = await section();
     expect(within(notifications).getByRole('switch', { name: 'Уведомления' })).toBeChecked();
-    expect(within(notifications).queryByRole('button', { name: ENABLE_HERE })).not.toBeInTheDocument();
+    expect(
+      within(notifications).queryByRole('button', { name: ENABLE_HERE }),
+    ).not.toBeInTheDocument();
     expect(within(notifications).queryByText(DENIED)).not.toBeInTheDocument();
   });
 
@@ -246,7 +247,9 @@ describe('A device that can’t receive push yet', () => {
     await waitFor(() => {
       expect(push.posted).toEqual([subscriptionJson('https://push.example/1')]);
     });
-    expect(within(notifications).queryByRole('button', { name: ENABLE_HERE })).not.toBeInTheDocument();
+    expect(
+      within(notifications).queryByRole('button', { name: ENABLE_HERE }),
+    ).not.toBeInTheDocument();
   });
 
   it('doesn’t offer this device while the switch is off', async () => {
@@ -264,7 +267,10 @@ describe('A device that can’t receive push yet', () => {
 describe('Turning it off', () => {
   it('keeps this device’s subscription', async () => {
     loggedInAs(annaWith(true));
-    const device = fakePushDevice({ permission: 'granted', subscribedAt: 'https://push.example/a' });
+    const device = fakePushDevice({
+      permission: 'granted',
+      subscribedAt: 'https://push.example/a',
+    });
     const push = pushServer();
     const received = profileSaves();
     const user = userEvent.setup();
@@ -289,7 +295,10 @@ async function settle() {
 describe('At launch', () => {
   it('sends the subscription this device holds, while permission is granted and the switch is on', async () => {
     loggedInAs(annaWith(true));
-    const device = fakePushDevice({ permission: 'granted', subscribedAt: 'https://push.example/a' });
+    const device = fakePushDevice({
+      permission: 'granted',
+      subscribedAt: 'https://push.example/a',
+    });
     const push = pushServer();
 
     renderApp('/');
@@ -366,7 +375,7 @@ describe('At launch', () => {
     fakePushDevice({ permission: 'granted' });
     const push = pushServer();
     // The key comes only once Settings is open, so it opens while the device subscribes.
-    let giveKey = () => undefined as void;
+    let giveKey: (() => void) | undefined;
     server.use(
       http.get('/api/push/vapid-public-key', async () => {
         await new Promise<void>((resolve) => {
@@ -378,7 +387,7 @@ describe('At launch', () => {
 
     renderApp('/settings');
     await section();
-    giveKey();
+    giveKey?.();
     await waitFor(() => {
       expect(push.posted).toHaveLength(1);
     });
