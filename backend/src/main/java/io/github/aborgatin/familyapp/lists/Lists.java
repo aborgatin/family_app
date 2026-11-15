@@ -17,6 +17,9 @@ public interface Lists {
   /** The List, or empty when it is unknown or deleted. */
   Optional<ListSummary> find(UUID listId);
 
+  /** Whether the List existed and was deleted (a deleted List stays deleted). */
+  boolean deleted(UUID listId);
+
   /**
    * Whether the List exists and this Member sees it (every Shared List, their own Private ones).
    */

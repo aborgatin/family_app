@@ -2,6 +2,7 @@ package io.github.aborgatin.familyapp.notifications.mute;
 
 import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.error.FieldErrors;
+import io.github.aborgatin.familyapp.lists.ListUnshared;
 import io.github.aborgatin.familyapp.lists.Lists;
 import io.github.aborgatin.familyapp.lists.Visibility;
 import io.github.aborgatin.familyapp.sync.Operation;
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -56,6 +58,10 @@ class MuteService implements SyncableTable {
     FieldErrors errors = new FieldErrors();
     UUID listId = errors.requiredUuid("listId", operation.text("listId"));
     errors.throwIfAny();
+    if (lists.deleted(listId)) {
+      // The List was deleted meanwhile, and its Mutes with it: delete wins.
+      return Outcome.IGNORED;
+    }
     if (!lists.visibleTo(listId, operation.memberId())) {
       throw new ApiException(
           HttpStatus.NOT_FOUND, "list.not_found", Map.of("listId", listId.toString()));
@@ -66,6 +72,16 @@ class MuteService implements SyncableTable {
     }
     mutes.saveAndFlush(new Mute(operation.id(), listId, operation.memberId()));
     return Outcome.APPLIED;
+  }
+
+  /**
+   * A Shared list deleted or made Private takes its Mutes, everyone's, in the push operation that
+   * does it (which holds the Family lock): their Members pull tombstones. Shared again, nobody is
+   * Muted until they Mute again.
+   */
+  @EventListener
+  void onListUnshared(ListUnshared event) {
+    mutes.markDeletedOfList(event.listId());
   }
 
   private Outcome delete(Mute mute) {

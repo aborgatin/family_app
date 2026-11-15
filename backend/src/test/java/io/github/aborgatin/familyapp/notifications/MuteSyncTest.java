@@ -163,4 +163,44 @@ class MuteSyncTest {
     assertThat(SyncRequests.fields(anna, TABLE, annasMute)).containsEntry("listId", home.toString());
     assertThat(SyncRequests.fields(boris, TABLE, annasMute)).isNull();
   }
+
+  @Test
+  void aDeletedListTakesItsMutesAndMutingItLaterIsIgnored() throws Exception {
+    UUID annasMute = UUID.randomUUID();
+    UUID borisMute = UUID.randomUUID();
+    pushApplied(anna, mute(annasMute, home));
+    pushApplied(boris, mute(borisMute, home));
+    long annaMuted = SyncRequests.version(SyncRequests.pull(anna, 0));
+    long borisMuted = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    pushApplied(anna, SyncRequests.delete("list", home));
+
+    assertThat(SyncRequests.change(anna, annaMuted, TABLE, annasMute))
+        .containsEntry("deleted", true);
+    assertThat(SyncRequests.change(boris, borisMuted, TABLE, borisMute))
+        .containsEntry("deleted", true);
+    SyncRequests.push(boris, mute(UUID.randomUUID(), home))
+        .andExpect(jsonPath("$.results[*].status", contains("ignored")));
+  }
+
+  @Test
+  void aListMadePrivateTakesItsMutes() throws Exception {
+    UUID annasMute = UUID.randomUUID();
+    UUID borisMute = UUID.randomUUID();
+    pushApplied(anna, mute(annasMute, home));
+    pushApplied(boris, mute(borisMute, home));
+    long annaMuted = SyncRequests.version(SyncRequests.pull(anna, 0));
+    long borisMuted = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    pushApplied(anna, SyncRequests.upsert("list", home, "{\"visibility\":\"PRIVATE\"}"));
+
+    assertThat(SyncRequests.change(anna, annaMuted, TABLE, annasMute))
+        .containsEntry("deleted", true);
+    assertThat(SyncRequests.change(boris, borisMuted, TABLE, borisMute))
+        .containsEntry("deleted", true);
+
+    // Shared again: nobody is Muted until they Mute again.
+    pushApplied(anna, SyncRequests.upsert("list", home, "{\"visibility\":\"SHARED\"}"));
+    assertThat(SyncRequests.fields(boris, TABLE, borisMute)).isNull();
+  }
 }

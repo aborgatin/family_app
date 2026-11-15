@@ -5,6 +5,7 @@ import io.github.aborgatin.familyapp.error.FieldErrors;
 import io.github.aborgatin.familyapp.family.ChildDeleted;
 import io.github.aborgatin.familyapp.family.Children;
 import io.github.aborgatin.familyapp.lists.ListKind;
+import io.github.aborgatin.familyapp.lists.ListUnshared;
 import io.github.aborgatin.familyapp.lists.Visibility;
 import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
@@ -34,6 +36,7 @@ class ListService implements SyncableTable {
   private final CategoryRepository categories;
   private final ItemHistoryRepository history;
   private final Children children;
+  private final ApplicationEventPublisher events;
 
   ListService(
       ListRepository lists,
@@ -41,8 +44,10 @@ class ListService implements SyncableTable {
       CategoryRepository categories,
       ItemHistoryRepository history,
       Children children,
+      ApplicationEventPublisher events,
       Clock clock) {
     this.clock = clock;
+    this.events = events;
     this.lists = lists;
     this.items = items;
     this.categories = categories;
@@ -133,6 +138,9 @@ class ListService implements SyncableTable {
       items.bumpVersionsInList(list.id());
       categories.bumpVersionsInList(list.id());
       history.bumpVersionsInList(list.id());
+      if (list.visibility() == Visibility.PRIVATE) {
+        events.publishEvent(new ListUnshared(list.id()));
+      }
     }
     return Outcome.APPLIED;
   }
@@ -217,13 +225,19 @@ class ListService implements SyncableTable {
     lists.findByChildIdAndDeletedFalse(event.childId()).forEach(this::deleteWithContent);
   }
 
-  /** Soft-deletes the List, its Items, its Categories and its Item history (S2). */
+  /**
+   * Soft-deletes the List, its Items, its Categories and its Item history (S2); a Shared one is
+   * {@link ListUnshared} too.
+   */
   private void deleteWithContent(ListEntity list) {
     list.markDeleted();
     lists.saveAndFlush(list);
     items.markDeletedInList(list.id());
     categories.markDeletedInList(list.id());
     history.markDeletedInList(list.id());
+    if (list.visibility() == Visibility.SHARED) {
+      events.publishEvent(new ListUnshared(list.id()));
+    }
   }
 
   private static ApiException ownerOnly() {

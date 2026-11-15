@@ -42,6 +42,11 @@ class ListQueries implements Lists {
   }
 
   @Override
+  public boolean deleted(UUID listId) {
+    return lists.findById(listId).filter(ListEntity::deleted).isPresent();
+  }
+
+  @Override
   public boolean visibleTo(UUID listId, UUID memberId) {
     return liveList(listId).filter(list -> list.visibleTo(memberId)).isPresent();
   }
