@@ -69,9 +69,6 @@ function reminderBody(payload: ReminderPayload, now: Date): string {
   return t('push.reminder', { list: payload.listName, due });
 }
 
-/** Up to this many added Items are named in quotes; more are counted, naming the first ones. */
-const NAMED_ITEMS = 3;
-
 /**
  * «Даша добавила «Молоко»», «… 7 товаров: Молоко, Хлеб, Сыр…», «… 3 задачи, 1 — вам»; with no
  * additions, «Даша назначила вам «Купить подарок»» or «… 2 задачи».
@@ -89,11 +86,13 @@ function notificationBody(payload: NotificationPayload): string {
     return t('push.assigned', { actor, items, context });
   }
 
-  const names = payload.itemNames.slice(0, NAMED_ITEMS);
+  // The server decides how many Items are named (the first three): when it named them all, they
+  // are quoted; otherwise they are counted, naming the ones sent.
+  const names = payload.itemNames;
   let items: string;
   if (payload.assignedCount > 0) {
     items = t('push.toYou', { items: counted(payload.addedCount), count: payload.assignedCount });
-  } else if (payload.addedCount <= NAMED_ITEMS) {
+  } else if (names.length === payload.addedCount) {
     items = names.map((name) => t('push.quoted', { name })).join(', ');
   } else {
     items = t('push.names', { items: counted(payload.addedCount), names: names.join(', ') });

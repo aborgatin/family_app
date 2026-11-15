@@ -47,11 +47,8 @@ describe('a Notification', () => {
     expect(show(three, NOW).body).toBe('Даша добавила «Молоко», «Хлеб», «Сыр»');
   });
 
-  it('counts four or more Items added and names the first three', () => {
-    const seven = notification({
-      itemNames: ['Молоко', 'Хлеб', 'Сыр', 'Масло', 'Яйца', 'Чай', 'Соль'],
-      addedCount: 7,
-    });
+  it('counts four or more Items added and names the ones sent (the first three)', () => {
+    const seven = notification({ itemNames: ['Молоко', 'Хлеб', 'Сыр'], addedCount: 7 });
 
     expect(show(seven, NOW).body).toBe('Даша добавила 7 товаров: Молоко, Хлеб, Сыр…');
   });
