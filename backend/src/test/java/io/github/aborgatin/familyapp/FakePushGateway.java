@@ -1,5 +1,8 @@
 package io.github.aborgatin.familyapp;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.aborgatin.familyapp.notifications.PushGateway;
 import io.github.aborgatin.familyapp.notifications.PushResult;
 import io.github.aborgatin.familyapp.notifications.PushSubscription;
@@ -27,6 +30,20 @@ public final class FakePushGateway implements PushGateway {
 
     public String endpoint() {
       return subscription.endpoint();
+    }
+
+    /** The payload, parsed. */
+    public JsonNode payloadJson() {
+      return json(payload);
+    }
+  }
+
+  /** Parses JSON, as a test compares a payload or a part of one. */
+  public static JsonNode json(String text) {
+    try {
+      return new ObjectMapper().readTree(text);
+    } catch (JsonProcessingException e) {
+      throw new IllegalArgumentException("Not JSON: " + text, e);
     }
   }
 

@@ -2,6 +2,7 @@ package io.github.aborgatin.familyapp.notifications.schedule;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
@@ -20,9 +21,16 @@ public class StepRuns {
     this.jdbc = jdbc;
   }
 
-  /** Records that a step ran at {@code at}, in the caller's transaction. */
+  /**
+   * Records that a step ran at {@code at}, in the caller's transaction, and returns when the
+   * previous one ran (empty before the first run). The row stays locked until the caller commits,
+   * so two steps never share a window.
+   */
   @Transactional(propagation = Propagation.MANDATORY)
-  public void ranAt(Instant at) {
+  public Optional<Instant> replaceLastRun(Instant at) {
+    Timestamp previous =
+        jdbc.queryForObject("SELECT last_run_at FROM scheduler_step FOR UPDATE", Timestamp.class);
     jdbc.update("UPDATE scheduler_step SET last_run_at = ?", Timestamp.from(at));
+    return Optional.ofNullable(previous).map(Timestamp::toInstant);
   }
 }
