@@ -54,6 +54,13 @@ class MemberWritesTakeTheFamilyLockTest {
   }
 
   @Test
+  void turningTheNotificationsSwitchWaitsForTheFamilyLock() throws Exception {
+    waitsForTheFamilyLock(
+            () -> anna.patchJson("/api/members/me", "{\"notificationsEnabled\":true}"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
   void aPasswordChangeWaitsForTheFamilyLock() throws Exception {
     waitsForTheFamilyLock(
             () ->

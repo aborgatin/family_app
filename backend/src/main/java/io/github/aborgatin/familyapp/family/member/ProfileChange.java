@@ -6,14 +6,18 @@ import org.springframework.lang.Nullable;
 
 /**
  * A change to a Member's own profile, {@code PATCH /api/members/me}: {@code {displayName?,
- * grammaticalGender?}}. Only the fields sent are changed; a field sent as {@code null} or blank is
- * {@code required}. A {@code null} component here means "not sent, leave as is".
+ * grammaticalGender?, notificationsEnabled?}}. Only the fields sent are changed; a field sent as
+ * {@code null} or blank is {@code required}. A {@code null} component here means "not sent, leave
+ * as is".
  */
 public record ProfileChange(
-    @Nullable String displayName, @Nullable GrammaticalGender grammaticalGender) {
+    @Nullable String displayName,
+    @Nullable GrammaticalGender grammaticalGender,
+    @Nullable Boolean notificationsEnabled) {
 
   private static final String DISPLAY_NAME = "displayName";
   private static final String GRAMMATICAL_GENDER = "grammaticalGender";
+  private static final String NOTIFICATIONS_ENABLED = "notificationsEnabled";
 
   /**
    * Validates the request body (a JSON object read as a map, so an absent field can be told apart
@@ -23,6 +27,7 @@ public record ProfileChange(
     FieldErrors errors = new FieldErrors();
     String displayName = null;
     GrammaticalGender gender = null;
+    Boolean notificationsEnabled = null;
     if (body.containsKey(DISPLAY_NAME) && isText(DISPLAY_NAME, body, errors)) {
       displayName =
           RegistrationRequest.checkDisplayName(
@@ -35,8 +40,18 @@ public record ProfileChange(
               (String) body.get(GRAMMATICAL_GENDER),
               GrammaticalGender.values());
     }
+    if (body.containsKey(NOTIFICATIONS_ENABLED)) {
+      Object value = body.get(NOTIFICATIONS_ENABLED);
+      if (value == null) {
+        errors.add(NOTIFICATIONS_ENABLED, FieldErrors.REQUIRED);
+      } else if (value instanceof Boolean enabled) {
+        notificationsEnabled = enabled;
+      } else {
+        errors.add(NOTIFICATIONS_ENABLED, FieldErrors.VALUE_INVALID);
+      }
+    }
     errors.throwIfAny();
-    return new ProfileChange(displayName, gender);
+    return new ProfileChange(displayName, gender, notificationsEnabled);
   }
 
   /** A string or null; any other JSON type (number, object, …) is {@code value.invalid}. */

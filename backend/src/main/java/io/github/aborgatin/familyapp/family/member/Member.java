@@ -40,7 +40,7 @@ public class Member implements SyncedRecord {
   private GrammaticalGender grammaticalGender;
 
   @Column(nullable = false)
-  private boolean notificationsEnabled = true;
+  private boolean notificationsEnabled;
 
   @Generated(event = {EventType.INSERT, EventType.UPDATE})
   @Column(insertable = false, updatable = false)
@@ -78,6 +78,10 @@ public class Member implements SyncedRecord {
     this.grammaticalGender = grammaticalGender;
   }
 
+  void switchNotifications(boolean enabled) {
+    this.notificationsEnabled = enabled;
+  }
+
   @Override
   public UUID id() {
     return id;
@@ -97,6 +101,11 @@ public class Member implements SyncedRecord {
 
   public GrammaticalGender grammaticalGender() {
     return grammaticalGender;
+  }
+
+  /** The Notifications switch: whether this Member gets push messages at all (spec #104). */
+  public boolean notificationsEnabled() {
+    return notificationsEnabled;
   }
 
   /** Replaces the password; the caller has validated and hashed it. */
