@@ -47,11 +47,6 @@ class ListQueries implements Lists {
   }
 
   @Override
-  public boolean visibleTo(UUID listId, UUID memberId) {
-    return liveList(listId).filter(list -> list.visibleTo(memberId)).isPresent();
-  }
-
-  @Override
   public Map<UUID, ItemSummary> items(Collection<UUID> itemIds) {
     return items.findAllById(itemIds).stream()
         .filter(item -> !item.deleted())

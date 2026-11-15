@@ -21,11 +21,6 @@ public interface Lists {
   boolean deleted(UUID listId);
 
   /**
-   * Whether the List exists and this Member sees it (every Shared List, their own Private ones).
-   */
-  boolean visibleTo(UUID listId, UUID memberId);
-
-  /**
    * Those of these Items that still exist, open or Done, by id; unknown and deleted ones left out.
    */
   Map<UUID, ItemSummary> items(Collection<UUID> itemIds);

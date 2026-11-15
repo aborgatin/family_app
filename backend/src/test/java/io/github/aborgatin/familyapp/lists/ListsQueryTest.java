@@ -76,19 +76,10 @@ class ListsQueryTest {
   }
 
   @Test
-  void aDeletedListIsNotFoundNorVisible() throws Exception {
+  void aDeletedListIsNotFound() throws Exception {
     SyncRequests.pushApplied(anna, SyncRequests.delete("list", home));
 
     assertThat(lists.find(home)).isEmpty();
-    assertThat(lists.visibleTo(home, annaId)).isFalse();
-  }
-
-  @Test
-  void aSharedListIsVisibleToEveryoneAPrivateOneToItsOwner() {
-    assertThat(lists.visibleTo(home, borisId)).isTrue();
-    assertThat(lists.visibleTo(mine, annaId)).isTrue();
-    assertThat(lists.visibleTo(mine, borisId)).isFalse();
-    assertThat(lists.visibleTo(UUID.randomUUID(), annaId)).isFalse();
   }
 
   @Test
