@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FakePushGateway;
 import io.github.aborgatin.familyapp.FreshInstallation;
@@ -21,7 +20,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -36,8 +34,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * Reminders (spec #104 "Reminders by a scheduler step"; ticket #110): a todo item's Due date
- * reminds the right Member when its moment comes, at its time or at {@code REMINDER_MORNING_TIME} on
- * the day without one (08:30 here, not the default 09:00, so the setting is seen to be read).
+ * reminds the right Member when its moment comes, at its time or at {@code REMINDER_MORNING_TIME}
+ * on the day without one (08:30 here, not the default 09:00, so the setting is seen to be read).
  * Members act through the sync push; the scheduler step runs as the schedule would, every minute;
  * pushes are observed on the fake gateway.
  */
@@ -87,9 +85,9 @@ class RemindersTest {
     runEveryMinuteUntil(at(today, "18:00"));
     assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
     for (FakePushGateway.Push sent : reminders()) {
-      assertThat(json(sent.payload()))
+      assertThat(sent.payloadJson())
           .isEqualTo(
-              json(
+              FakePushGateway.json(
                   """
               {"type":"reminder","itemName":"Починить кран","listName":"Дом",\
               "dueDate":"%s","dueTime":"18:00","url":"/lists/%s/items/%s"}"""
@@ -108,8 +106,9 @@ class RemindersTest {
 
     runEveryMinuteUntil(at(today, "08:30"));
     assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
-    assertThat(payload(reminders().get(0)).get("dueDate").asText()).isEqualTo(today.toString());
-    assertThat(payload(reminders().get(0)).get("dueTime").isNull()).isTrue();
+    assertThat(reminders().get(0).payloadJson().get("dueDate").asText())
+        .isEqualTo(today.toString());
+    assertThat(reminders().get(0).payloadJson().get("dueTime").isNull()).isTrue();
   }
 
   @Test
@@ -139,7 +138,7 @@ class RemindersTest {
     stepAt(at(today, "10:00"));
 
     assertThat(endpoints(reminders())).containsExactly(BORIS_PHONE);
-    assertThat(payload(reminders().get(0)).get("listName").asText()).isEqualTo("Моё");
+    assertThat(reminders().get(0).payloadJson().get("listName").asText()).isEqualTo("Моё");
   }
 
   @Test
@@ -161,19 +160,21 @@ class RemindersTest {
 
     runEveryMinuteUntil(at(today, "12:00"));
     assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
-    assertThat(payload(reminders().get(0)).get("itemName").asText()).isEqualTo("Починить кран");
+    assertThat(reminders().get(0).payloadJson().get("itemName").asText())
+        .isEqualTo("Починить кран");
 
     // Moved after it reminded: it reminds again at the new moment.
     gateway.reset();
     pushApplied(anna, SyncRequests.upsert("item", tap, "{\"dueTime\":\"14:00\"}"));
     runEveryMinuteUntil(at(today, "13:00"));
     assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
-    assertThat(payload(reminders().get(0)).get("itemName").asText()).isEqualTo("Купить подарок");
+    assertThat(reminders().get(0).payloadJson().get("itemName").asText())
+        .isEqualTo("Купить подарок");
 
     gateway.reset();
     runEveryMinuteUntil(at(today, "14:00"));
     assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
-    assertThat(payload(reminders().get(0)).get("dueTime").asText()).isEqualTo("14:00");
+    assertThat(reminders().get(0).payloadJson().get("dueTime").asText()).isEqualTo("14:00");
 
     gateway.reset();
     runEveryMinuteUntil(at(today, "16:00"));
@@ -225,7 +226,7 @@ class RemindersTest {
     stepAt(at(tomorrow, "10:00"));
 
     assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
-    JsonNode copy = payload(reminders().get(0));
+    JsonNode copy = reminders().get(0).payloadJson();
     assertThat(copy.get("itemName").asText()).isEqualTo("Вынести мусор");
     assertThat(copy.get("dueDate").asText()).isEqualTo(tomorrow.toString());
     assertThat(copy.get("url").asText())
@@ -246,7 +247,7 @@ class RemindersTest {
 
     assertThat(
             reminders().stream()
-                .map(sent -> payload(sent).get("itemName").asText())
+                .map(sent -> sent.payloadJson().get("itemName").asText())
                 .distinct()
                 .toList())
         .containsExactlyInAnyOrder("Меньше суток назад", "Сегодня утром");
@@ -292,7 +293,7 @@ class RemindersTest {
     due(home, "После первого шага", today, "07:30");
     stepAt(at(today, "07:30"));
     assertThat(reminders())
-        .extracting(sent -> payload(sent).get("itemName").asText())
+        .extracting(sent -> sent.payloadJson().get("itemName").asText())
         .containsOnly("После первого шага");
   }
 
@@ -304,23 +305,11 @@ class RemindersTest {
     step.run();
   }
 
-  static JsonNode payload(FakePushGateway.Push sent) {
-    try {
-      return json(sent.payload());
-    } catch (Exception e) {
-      throw new IllegalStateException(e);
-    }
-  }
-
   /** The Reminders pushed so far (the Notifications about Anna's additions left out). */
-  List<FakePushGateway.Push> reminders() throws Exception {
-    List<FakePushGateway.Push> reminders = new ArrayList<>();
-    for (FakePushGateway.Push sent : gateway.pushes()) {
-      if (json(sent.payload()).get("type").asText().equals("reminder")) {
-        reminders.add(sent);
-      }
-    }
-    return reminders;
+  List<FakePushGateway.Push> reminders() {
+    return gateway.pushes().stream()
+        .filter(sent -> sent.payloadJson().get("type").asText().equals("reminder"))
+        .toList();
   }
 
   static List<String> endpoints(List<FakePushGateway.Push> pushes) {
@@ -351,9 +340,5 @@ class RemindersTest {
 
   Instant at(LocalDate day, String time) {
     return LocalDateTime.of(day, LocalTime.parse(time)).atZone(clock.getZone()).toInstant();
-  }
-
-  static JsonNode json(String text) throws Exception {
-    return new ObjectMapper().readTree(text);
   }
 }

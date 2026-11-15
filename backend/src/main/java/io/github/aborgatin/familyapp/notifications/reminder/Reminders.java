@@ -1,16 +1,18 @@
 package io.github.aborgatin.familyapp.notifications.reminder;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.aborgatin.familyapp.lists.DueItem;
 import io.github.aborgatin.familyapp.lists.ListSummary;
 import io.github.aborgatin.familyapp.lists.Lists;
 import io.github.aborgatin.familyapp.notifications.push.NotificationsProperties;
+import io.github.aborgatin.familyapp.notifications.push.PushPayloads;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.lang.Nullable;
@@ -37,42 +39,41 @@ public class Reminders {
 
   /** The push payload of a Reminder, as the service worker reads it ({@code pushPayload.ts}). */
   record ReminderPayload(
-      String type,
-      String itemName,
-      String listName,
-      String dueDate,
-      @Nullable String dueTime,
-      String url) {}
+      String itemName, String listName, String dueDate, @Nullable String dueTime, String url) {
+
+    @JsonProperty
+    String type() {
+      return "reminder";
+    }
+  }
 
   private final Lists lists;
   private final NotificationsProperties properties;
-  private final ObjectMapper json;
+  private final PushPayloads payloads;
 
-  Reminders(Lists lists, NotificationsProperties properties, ObjectMapper json) {
+  Reminders(Lists lists, NotificationsProperties properties, PushPayloads payloads) {
     this.lists = lists;
     this.properties = properties;
-    this.json = json;
+    this.payloads = payloads;
   }
 
   /**
    * The Reminders whose moment came after the previous step (at most {@link #CATCH_UP} before
    * {@code now}) and at or before {@code now}, one per recipient and item, in the caller's
-   * transaction. Nothing before the first step ever ran.
+   * transaction.
    */
   @Transactional(propagation = Propagation.MANDATORY)
-  public List<Reminder> due(Optional<Instant> previousStep, Instant now) {
-    if (previousStep.isEmpty()) {
-      return List.of();
-    }
+  public List<Reminder> due(Instant previousStep, Instant now) {
     Instant oldest = now.minus(CATCH_UP);
-    Instant after = previousStep.get().isBefore(oldest) ? oldest : previousStep.get();
+    Instant after = previousStep.isBefore(oldest) ? oldest : previousStep;
+    Map<UUID, Optional<ListSummary>> listsById = new HashMap<>();
     List<Reminder> reminders = new ArrayList<>();
     for (DueItem item : lists.dueBetween(after, now, properties.reminderMorningTime())) {
-      Optional<ListSummary> list = lists.find(item.listId());
+      Optional<ListSummary> list = listsById.computeIfAbsent(item.listId(), lists::find);
       if (list.isEmpty()) {
         continue;
       }
-      String payload = write(payload(item, list.get()));
+      String payload = payloads.write(payload(item, list.get()));
       for (UUID recipient : recipients(item, list.get())) {
         reminders.add(new Reminder(recipient, payload));
       }
@@ -87,19 +88,10 @@ public class Reminders {
 
   private static ReminderPayload payload(DueItem item, ListSummary list) {
     return new ReminderPayload(
-        "reminder",
         item.name(),
         list.name(),
         item.dueDate().toString(),
         item.dueTime() == null ? null : item.dueTime().format(HOURS_MINUTES),
         "/lists/" + list.id() + "/items/" + item.itemId());
-  }
-
-  private String write(ReminderPayload payload) {
-    try {
-      return json.writeValueAsString(payload);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("A Reminder payload is always JSON", e);
-    }
   }
 }

@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.notifications;
 
+import static io.github.aborgatin.familyapp.FakePushGateway.json;
 import static io.github.aborgatin.familyapp.ListOperations.add;
 import static io.github.aborgatin.familyapp.ListOperations.list;
 import static io.github.aborgatin.familyapp.SyncRequests.push;
@@ -9,7 +10,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FakePushGateway;
 import io.github.aborgatin.familyapp.FreshInstallation;
@@ -92,7 +92,7 @@ class BatchesTest {
     assertThat(gateway.pushes()).hasSize(1);
     FakePushGateway.Push sent = gateway.pushes().get(0);
     assertThat(sent.endpoint()).isEqualTo(ANNA_PHONE);
-    assertThat(json(sent.payload()))
+    assertThat(sent.payloadJson())
         .isEqualTo(
             json(
                 """
@@ -443,12 +443,8 @@ class BatchesTest {
   }
 
   /** The payload of the {@code n}th push. */
-  JsonNode payload(int n) throws Exception {
-    return json(gateway.pushes().get(n).payload());
-  }
-
-  static JsonNode json(String text) throws Exception {
-    return new ObjectMapper().readTree(text);
+  JsonNode payload(int n) {
+    return gateway.pushes().get(n).payloadJson();
   }
 
   /** Moves the clock on and runs the scheduler step, as the schedule would. */

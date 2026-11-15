@@ -27,7 +27,7 @@ public class StepRuns {
    * so two steps never share a window.
    */
   @Transactional(propagation = Propagation.MANDATORY)
-  public Optional<Instant> ranAt(Instant at) {
+  public Optional<Instant> replaceLastRun(Instant at) {
     Timestamp previous =
         jdbc.queryForObject("SELECT last_run_at FROM scheduler_step FOR UPDATE", Timestamp.class);
     jdbc.update("UPDATE scheduler_step SET last_run_at = ?", Timestamp.from(at));

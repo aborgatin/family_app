@@ -50,16 +50,19 @@ public class SchedulerStep {
 
   /**
    * Runs one step: in one transaction, records this run's time, takes the due Batches out of the
-   * database and finds the Reminders due since the previous run; then sends, one push per recipient
-   * and Batch or Reminder, outside it.
+   * database and finds the Reminders due since the previous run (none before the first run ever, so
+   * a new database or an upgrade sends no old ones); then sends, one push per recipient and Batch
+   * or Reminder, outside it.
    */
   public void run() {
     Instant now = clock.instant();
     Due due =
         transaction.execute(
             status -> {
-              Optional<Instant> previous = runs.ranAt(now);
-              return new Due(batches.takeDue(now), reminders.due(previous, now));
+              Optional<Instant> previous = runs.replaceLastRun(now);
+              return new Due(
+                  batches.takeDue(now),
+                  previous.map(after -> reminders.due(after, now)).orElse(List.of()));
             });
     for (Batches.Notification notification : due.notifications()) {
       pushes.sendTo(notification.recipientId(), notification.payload(), TTL, Urgency.NORMAL);

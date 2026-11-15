@@ -496,7 +496,9 @@ comes with a later ticket.
   pushes. The payload is the `notification` of the contract in `web/src/serviceWorker/pushPayload.ts`
   (frontend.md "PWA"): `actorName`, `actorGrammaticalGender` (`family.MemberSummary`),
   `listName`, `listKind`, `itemNames` (the first three), `addedCount`, `assignedCount`,
-  `assignedItemName` (when exactly one), `url` `/lists/:id`. Tested by
+  `assignedItemName` (when exactly one), `url` `/lists/:id`. Each payload is a record whose
+  constant `type` is a `@JsonProperty` method; `notifications.push.PushPayloads` writes it as JSON
+  for both Notifications and Reminders. Tested by
   `notifications.BatchesTest`, `BatchesSurviveRestartTest` and `SchedulerScheduleTest`.
 
 - **Reminders** (`notifications.reminder.Reminders`): a step sends a Reminder for each open todo
@@ -860,7 +862,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.
   - `FakePushGateway`: `@Import(FakePushGateway.Config.class)` puts it in place of the real
     gateway (`@Primary`). `pushes()` (subscription, payload, TTL, urgency), `endpoints()`,
-    `answer(endpoint, GONE | FAILED)`, `reset()` (call it in `@BeforeEach`: the context is shared).
+    `answer(endpoint, GONE | FAILED)`, `reset()` (call it in `@BeforeEach`: the context is shared);
+    `Push.payloadJson()` and the static `json(text)` parse a payload, or its expected value, to
+    compare.
     See `notifications.PushSubscriptionsTest`.
   - `ListOperations`: the Lists' operations most `lists.*SyncTest`s push, statically imported:
     `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`.

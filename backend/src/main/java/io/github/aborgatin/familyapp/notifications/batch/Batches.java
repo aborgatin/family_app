@@ -1,7 +1,6 @@
 package io.github.aborgatin.familyapp.notifications.batch;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.aborgatin.familyapp.family.MemberSummary;
 import io.github.aborgatin.familyapp.family.Members;
 import io.github.aborgatin.familyapp.lists.ItemSummary;
@@ -9,6 +8,7 @@ import io.github.aborgatin.familyapp.lists.ListKind;
 import io.github.aborgatin.familyapp.lists.ListSummary;
 import io.github.aborgatin.familyapp.lists.Lists;
 import io.github.aborgatin.familyapp.lists.Visibility;
+import io.github.aborgatin.familyapp.notifications.push.PushPayloads;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +38,6 @@ public class Batches {
    * The push payload of a Notification, as the service worker reads it ({@code pushPayload.ts}).
    */
   record NotificationPayload(
-      String type,
       String actorName,
       String actorGrammaticalGender,
       String listName,
@@ -47,18 +46,24 @@ public class Batches {
       int addedCount,
       int assignedCount,
       @Nullable String assignedItemName,
-      String url) {}
+      String url) {
+
+    @JsonProperty
+    String type() {
+      return "notification";
+    }
+  }
 
   private final PendingBatches batches;
   private final Lists lists;
   private final Members members;
-  private final ObjectMapper json;
+  private final PushPayloads payloads;
 
-  Batches(PendingBatches batches, Lists lists, Members members, ObjectMapper json) {
+  Batches(PendingBatches batches, Lists lists, Members members, PushPayloads payloads) {
     this.batches = batches;
     this.lists = lists;
     this.members = members;
-    this.json = json;
+    this.payloads = payloads;
   }
 
   /**
@@ -105,7 +110,6 @@ public class Batches {
       }
       NotificationPayload payload =
           new NotificationPayload(
-              "notification",
               actor.get().displayName(),
               actor.get().grammaticalGender(),
               list.name(),
@@ -115,16 +119,8 @@ public class Batches {
               assigned.size(),
               assigned.size() == 1 ? assigned.get(0) : null,
               "/lists/" + list.id());
-      notifications.add(new Notification(recipient, write(payload)));
+      notifications.add(new Notification(recipient, payloads.write(payload)));
     }
     return notifications;
-  }
-
-  private String write(NotificationPayload payload) {
-    try {
-      return json.writeValueAsString(payload);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("A Notification payload is always JSON", e);
-    }
   }
 }
