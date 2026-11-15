@@ -20,8 +20,9 @@ import org.springframework.lang.Nullable;
  *
  * <p>It also reads the values requests share, each the one way to read it: an enum by its exact
  * name ({@link #choice}, {@link #requiredChoice}), an id ({@link #uuid}, {@link #requiredUuid}), a
- * {@code YYYY-MM-DD} day ({@link #date}), anything else with a parser ({@link #parsed}). Each
- * returns {@code null} for a missing value or a failure it added.
+ * {@code YYYY-MM-DD} day ({@link #date}), a JSON boolean ({@link #requiredBoolean}), anything else
+ * with a parser ({@link #parsed}, {@link #requiredParsed}). Each returns {@code null} for a missing
+ * value or a failure it added.
  */
 public final class FieldErrors {
 
@@ -109,6 +110,29 @@ public final class FieldErrors {
       add(field, VALUE_INVALID);
       return null;
     }
+  }
+
+  /** {@link #parsed}, and {@code required} when {@code value} is missing or blank. */
+  @Nullable
+  public <T> T requiredParsed(String field, @Nullable String value, Function<String, T> parse) {
+    return required(field, value) ? parsed(field, value, parse) : null;
+  }
+
+  /**
+   * A JSON {@code true} or {@code false} read from a body map: {@code required} when {@code null},
+   * {@code value.invalid} for any other JSON type.
+   */
+  @Nullable
+  public Boolean requiredBoolean(String field, @Nullable Object value) {
+    if (value == null) {
+      add(field, REQUIRED);
+      return null;
+    }
+    if (value instanceof Boolean bool) {
+      return bool;
+    }
+    add(field, VALUE_INVALID);
+    return null;
   }
 
   /** Whether {@code value} is there and not blank; adds {@code required} when it isn't. */

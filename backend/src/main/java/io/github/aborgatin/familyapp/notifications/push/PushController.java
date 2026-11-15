@@ -2,6 +2,7 @@ package io.github.aborgatin.familyapp.notifications.push;
 
 import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.family.Members;
+import io.github.aborgatin.familyapp.family.Sessions;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.util.UUID;
@@ -25,12 +26,17 @@ import org.springframework.web.bind.annotation.RestController;
 class PushController {
 
   private final Members members;
+  private final Sessions sessions;
   private final PushSubscriptions subscriptions;
   private final String vapidPublicKey;
 
   PushController(
-      Members members, PushSubscriptions subscriptions, NotificationsProperties properties) {
+      Members members,
+      Sessions sessions,
+      PushSubscriptions subscriptions,
+      NotificationsProperties properties) {
     this.members = members;
+    this.sessions = sessions;
     this.subscriptions = subscriptions;
     this.vapidPublicKey = properties.vapid().publicKey();
   }
@@ -51,7 +57,8 @@ class PushController {
     var subscription = body.validate();
     UUID memberId = members.current().id();
     HttpSession session = request.getSession(false);
-    if (session == null || !subscriptions.upsert(subscription, memberId, session.getId())) {
+    String sessionKey = session == null ? null : sessions.keyOf(session.getId()).orElse(null);
+    if (sessionKey == null || !subscriptions.upsert(subscription, memberId, sessionKey)) {
       throw new ApiException(HttpStatus.UNAUTHORIZED, "auth.required");
     }
   }

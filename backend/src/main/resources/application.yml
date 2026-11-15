@@ -20,7 +20,7 @@ spring:
 
 # Push messages (spec #104). The VAPID key pair and subject are required: an empty value stops the
 # app at startup with a message naming the variable (NotificationsProperties). Generate a pair
-# with `generate-vapid-keys` (deployment.md "Environment variables").
+# with `generate-vapid-keys` (deployment.md "Push keys (VAPID)").
 notifications:
   vapid:
     public-key: ${VAPID_PUBLIC_KEY:}

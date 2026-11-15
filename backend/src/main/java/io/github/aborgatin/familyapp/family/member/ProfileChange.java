@@ -41,14 +41,8 @@ public record ProfileChange(
               GrammaticalGender.values());
     }
     if (body.containsKey(NOTIFICATIONS_ENABLED)) {
-      Object value = body.get(NOTIFICATIONS_ENABLED);
-      if (value == null) {
-        errors.add(NOTIFICATIONS_ENABLED, FieldErrors.REQUIRED);
-      } else if (value instanceof Boolean enabled) {
-        notificationsEnabled = enabled;
-      } else {
-        errors.add(NOTIFICATIONS_ENABLED, FieldErrors.VALUE_INVALID);
-      }
+      notificationsEnabled =
+          errors.requiredBoolean(NOTIFICATIONS_ENABLED, body.get(NOTIFICATIONS_ENABLED));
     }
     errors.throwIfAny();
     return new ProfileChange(displayName, gender, notificationsEnabled);

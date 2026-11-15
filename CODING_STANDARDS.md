@@ -144,7 +144,9 @@ or Item checks that a Private list is accessed only by its Owner. Hiding it in t
 enforcement. Missing check = finding, even if no current screen exposes the path.
 
 **A2 — No secrets in git.** Credentials, VAPID keys and tokens come from environment/`.env`;
-`.env.example` holds placeholders only.
+`.env.example` holds placeholders only. The one exception is a fixed key pair for local runs and
+tests only, marked as non-secret where it is committed (`scripts/lib/dev-vapid-keys.env`,
+`backend/src/test/resources/config/application.yml`) and never used by an installation.
 
 ## Tests
 

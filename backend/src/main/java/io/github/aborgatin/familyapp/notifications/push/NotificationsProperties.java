@@ -17,7 +17,7 @@ public record NotificationsProperties(Vapid vapid, LocalTime reminderMorningTime
 
   static final String HOW_TO_GENERATE =
       " Generate a key pair with `docker run --rm ghcr.io/aborgatin/family_app generate-vapid-keys`"
-          + " (deployment.md \"Environment variables\").";
+          + " (deployment.md \"Push keys (VAPID)\").";
 
   public NotificationsProperties {
     if (vapid == null) {

@@ -3,6 +3,7 @@ package io.github.aborgatin.familyapp.command;
 import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import org.springframework.boot.Banner;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -21,13 +22,14 @@ public final class Commands {
   static final int EXIT_FAILED = 1;
   static final int EXIT_USAGE = 2;
 
+  private static final Set<String> NAMES =
+      Set.of(PasswordResetCommand.NAME, GenerateVapidKeysCommand.NAME);
+
   private Commands() {}
 
   /** Whether these program arguments name a command rather than starting the web app. */
   public static boolean isCommand(String[] args) {
-    return args.length > 0
-        && (args[0].equals(PasswordResetCommand.NAME)
-            || args[0].equals(GenerateVapidKeysCommand.NAME));
+    return args.length > 0 && NAMES.contains(args[0]);
   }
 
   /** Runs the command the arguments name and returns the process exit code. */

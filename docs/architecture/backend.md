@@ -69,7 +69,7 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 
 | Module    | Public API (root package)                                                                              | Internal                                                                                  |
 | --------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
+| `family`  | `Members`, `MemberSummary`, `PasswordResets`, `Sessions`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | none                                                                                                   | `lists.list`                                                                              |
 | `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `Urgency`                            | `notifications.push`                                                                      |
@@ -426,12 +426,14 @@ push subscriptions and the push gateway. Batches, Reminders and Mute come with l
   that the two keys are one pair. `WebPushGatewayTest` drives it against a stand-in push service on
   a local port. Tests replace it with `FakePushGateway` (see Testing).
 - **Subscriptions** (`notifications.push.PushSubscriptions`, `JdbcTemplate` on
-  `push_subscription`): a row per endpoint with its keys, its Member and the Spring Session row
+  `push_subscription`): a row per endpoint with its keys, its Member and the key of the session
   that registered it (`session_primary_id`, a foreign key to `spring_session` with
   `ON DELETE CASCADE`). So logout, the expired-session cleanup and a password reset ending every
-  session delete it with no code of their own. A row counts for sending only while its session is
-  unexpired by the app's `Clock` and still logged in as its Member (`principal_name`): logging in
-  as the other Member on the same device keeps Spring Session's row.
+  session delete it with no code of their own. Sessions are `family`'s: `notifications` reads
+  them only through `family.Sessions` (`keyOf(sessionId)`, `liveKeysOf(memberId)`), never by SQL
+  (M2); the foreign key is the one schema link. A row counts for sending only while its session is
+  unexpired by the app's `Clock` and still logged in as its Member: logging in as the other Member
+  on the same device keeps the session's key.
 - **`PushController`** (`/api/push`, `@ConditionalOnWebApplication`): `GET /vapid-public-key`;
   `POST /subscriptions` upserts by endpoint (`INSERT … ON CONFLICT`) for `Members.current()` and
   this request's session, so posting again is a no-op and posting an endpoint the other Member
@@ -522,7 +524,8 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
   to read the values requests share, each adding its failure and returning `null`: an enum by its
   exact name (`choice`: `null` is none, other text `value.invalid`; `requiredChoice`: missing or
   blank is `required`), a UUID (`uuid` / `requiredUuid`, the same way), a `YYYY-MM-DD` day
-  (`date`), and anything else through a parser (`parsed(field, value, parse)`).
+  (`date`), a JSON boolean from a body map (`requiredBoolean`), and anything else through a parser
+  (`parsed(field, value, parse)` / `requiredParsed`).
 - `error.internal.ApiExceptionHandler` (`@RestControllerAdvice`) is the single mapping for MVC:
   `ApiException` as is; unreadable JSON and a path value of the wrong type (e.g. a non-UUID id) →
   `400 request.invalid`; Spring's own `ErrorResponse` exceptions → `not_found`,
