@@ -71,14 +71,15 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 | --------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `family`  | `Members`, `MemberSummary`, `PasswordResets`, `Sessions`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
-| `lists`   | none                                                                                                   | `lists.list`                                                                              |
-| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `Urgency`                            | `notifications.push`                                                                      |
+| `lists`   | `Lists` (with `ListSummary`, `ItemSummary`, `DueItem`), `ItemAdded`, `ItemAssigned`, `ListKind`, `Visibility` | `lists.list`                                                                              |
+| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `Urgency`, `SchedulerStep`           | `notifications.push`, `notifications.batch`, `notifications.schedule`                     |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
-`sync → error`, `command → family`, `notifications → family`, `notifications → error`. (`lists` reaches Members through `Operation.memberId()`, and
+`sync → error`, `command → family`, `notifications → family`, `notifications → lists`,
+`notifications → error`. (`lists` reaches Members through `Operation.memberId()`, and
 `family` for the `FirstMemberRegistered` and `ChildDeleted` events, for `Children` (Child
 lists, #90) and for `Members.byId` (an Item's Assignee must be a Member, #85); the spec also
 allows `FamilyLock` when a ticket needs it.) The Version
@@ -293,6 +294,25 @@ a create leaves it out) → `ListDetails`; `ListService`, the `list`
   (`null` for an ordinary List), `createdAt`, `doneHiddenAt` (`null` until hidden); a tombstone for a deleted List and for another Member's Private List
   (`ListEntity.visibleTo(memberId)`).
 
+**Public API** (spec #104 "Events from lists", #109), for `notifications`:
+
+- Events, published inside the push operation (`ItemService`, after the Item is saved), so a
+  synchronous listener writes in its transaction and a rejected operation's savepoint rolls it
+  back: `ItemAdded(listId, itemId, byMemberId)` for every created Item; `ItemAssigned(itemId,
+  assigneeId, byMemberId)` when an operation leaves an Item with a new Assignee (a create carrying
+  one too), not for removing one nor for the one it already has (a repeated push stays silent,
+  S3). The acting Member may be the Assignee; listeners decide. The next occurrence of a
+  repeating Item (`ItemService.save`) publishes neither.
+- `Lists` (a bean, `lists.list.ListQueries`; read-only, as of the caller's transaction, deleted
+  rows left out): `find(listId)` → `ListSummary` (name, `ListKind`, `Visibility`, Owner, `seenBy`:
+  the Owner of a Private List, every Member (`family.Members.all`) for a Shared one, Child lists
+  included); `visibleTo(listId, memberId)`; `items(itemIds)` → the Items that still exist, open or
+  Done, as `ItemSummary` (List, name, Assignee) by id; `dueBetween(after, until, morningTime)` →
+  the open todo items whose due moment (the Due date at its time, or at `morningTime` without
+  one, in the JVM's zone) is after `after` and at or before `until`, oldest first, as `DueItem`
+  (List, Assignee, day, time). `ListKind` and `Visibility` are the module's public enums.
+  Tested by `lists.ListsQueryTest`.
+
 `ShoppingListDefaults` listens for `family.FirstMemberRegistered` and creates the Default Shopping
 lists with server-made ids: Супермаркет (Shared, Owner the new Member, `unnamedCategoryPosition` 0
 so the untitled add field comes first, then Categories «Еда» position 1 and «Бытовая химия» 2) and
@@ -410,7 +430,8 @@ Item history is in the same package: `ItemHistoryEntity` (`list_id`, `normalized
 ### `notifications`
 
 Push messages (spec #104). Ticket #107 built the module's base: the Notifications switch's effect,
-push subscriptions and the push gateway. Batches, Reminders and Mute come with later tickets.
+push subscriptions and the push gateway. #109 added Batches and the scheduler step; Reminders and
+Mute come with later tickets.
 
 - **`Pushes.sendTo(memberId, payload, ttl, urgency)`** (public) is the one way out: if the
   Member's Notifications switch is on (`family.Members.notificationsEnabled`), it sends the payload
@@ -444,6 +465,35 @@ push subscriptions and the push gateway. Batches, Reminders and Mute come with l
   bytes (`required`, `value.invalid`). `expirationTime` is ignored.
 - **`NotificationsProperties`** (`notifications.push`): the VAPID settings and
   `reminderMorningTime` (see Configuration).
+- **Recording a Batch** (`notifications.batch.BatchRecorder`, `@EventListener`, synchronous): each
+  `lists.ItemAdded` and `ItemAssigned` goes into the pending Batch of (actor, List) in the push
+  operation's transaction, so a rejected or rolled-back operation records nothing.
+  `PendingBatches` (`JdbcTemplate`, V17) upserts the `pending_batch` row (first and last change
+  times; a new change moves only the last) and the `pending_batch_item` row: an Item keeps its
+  first place, `added` only turns on, a later Assignee replaces an earlier one. Assigning yourself
+  is never recorded (it neither adds to a Batch nor delays it). The assigned Item's List comes
+  from `Lists.items`.
+- **The scheduler step** (`SchedulerStep.run()`, public): one transaction stores the run's time
+  (`notifications.schedule.StepRuns`, the single `scheduler_step` row; the Reminders start their
+  window there) and takes the due Batches out of the database (`PendingBatches.takeDue`, `FOR
+  UPDATE SKIP LOCKED`, then deleted; due when the last change is `QUIET` = 2 minutes old or the
+  first `LONGEST` = 10 minutes old, constants); `Batches` turns them into messages; after the
+  commit each goes out through `Pushes.sendTo` with TTL 24 h and urgency `NORMAL`. A crash
+  between the commit and the sending loses those Notifications rather than sending them twice.
+  `notifications.schedule.SchedulerConfig` runs it at second 0 of every minute (`@Scheduled(cron
+  = "0 * * * * *")`), in the web app only (`@ConditionalOnWebApplication`, so no operator
+  command runs it) and unless `notifications.scheduler.enabled` is `false` (the tests' setting).
+- **Sending a Batch** (`notifications.batch.Batches`), everything decided at send time: nothing
+  when the List is gone or Private (a Child list is Shared). Recipients are `ListSummary.seenBy`
+  but the actor; `Pushes.sendTo` leaves out those whose switch is off. Additions are the added
+  Items that still exist (open or Done), in the order added; a recipient's assignments are the
+  Items recorded as assigned to them that still exist and still have them as Assignee. A recipient
+  with neither gets nothing. One push per recipient and Batch; several due Batches are separate
+  pushes. The payload is the `notification` of the contract in `web/src/serviceWorker/pushPayload.ts`
+  (frontend.md "PWA"): `actorName`, `actorGrammaticalGender` (`family.MemberSummary`),
+  `listName`, `listKind`, `itemNames` (the first three), `addedCount`, `assignedCount`,
+  `assignedItemName` (when exactly one), `url` `/lists/:id`. Tested by
+  `notifications.BatchesTest`, `BatchesSurviveRestartTest` and `SchedulerScheduleTest`.
 
 ### `command`
 
@@ -677,6 +727,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V14__item_repeat.sql`          | `item.repeat` (`VARCHAR(16)`): a todo item's Repeat, nullable, no backfill                         |
 | `V15__list_done_hidden_at.sql`  | `list.done_hidden_at`, `list.done_hidden_press`: Hide done on a Todo list, nullable                |
 | `V16__push_subscription.sql`    | `member.notifications_enabled` default `FALSE` (existing Members set off); `push_subscription` (→ `member`, → `spring_session` cascading) |
+| `V17__pending_batch.sql`        | `pending_batch` (key actor → `member`, List → `list`; first and last change), `pending_batch_item` (→ `pending_batch` cascading, → `item`, Assignee → `member`; `position` identity for the order), `scheduler_step` (one row, `last_run_at` `NULL` until the first step) |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -690,7 +741,8 @@ Migrations are in `backend/src/main/resources/db/migration`:
   strings are allowed there (I1, "seed data"). Default rows get Versions from the trigger like any
   write.
 - Hibernate only validates the schema (`ddl-auto: validate`); the schema comes from Flyway alone.
-- Server-only tables (`family`, `password_reset`, `invite`, Spring Session) have no sync columns
+- Server-only tables (`family`, `password_reset`, `invite`, Spring Session, `push_subscription`,
+  `pending_batch`, `pending_batch_item`, `scheduler_step`) have no sync columns
   and may be hard-deleted. `token_hash` columns are `BYTEA` with a 32-byte check.
 
 ## Adding a syncable table
@@ -797,8 +849,13 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   (T1)**: no HTTP answer can tell a request blocked on the Family lock from a slow one, so the
   ordering guarantee is proven by watching the database. Use `LockWaits` for any new such test.
 - **Restart tests**: `HttpDevice` (real port, cookies survive restarts) with
-  `HttpDevice.startApp(postgres)` against a test-owned static container; see
-  `SessionSurvivesRestartTest` and `ChildFieldDefaultsTest`.
+  `HttpDevice.startApp(postgres, testConfigurations…)` against a test-owned static container (pass
+  `FakePushGateway.Config.class`, `TestClock.Config.class` and get their beans from the context);
+  see `SessionSurvivesRestartTest`, `ChildFieldDefaultsTest` and
+  `notifications.BatchesSurviveRestartTest`.
+- **The scheduler step** never runs by itself in tests (`notifications.scheduler.enabled: false`
+  in the test `application.yml`): a test sets the `TestClock` and calls `SchedulerStep.run()`, as
+  `notifications.BatchesTest` does (`later(duration)`).
 - **Real-port tests**: `HttpDevice` (public) also works in a `RANDOM_PORT` `@SpringBootTest` via
   `new HttpDevice().at(context)`; `openLines(path)` streams a long response line
   by line. `sync.LiveUpdatesTest` reads `/api/sync/events` that way (heartbeat set to `200ms`).

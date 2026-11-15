@@ -31,6 +31,7 @@ method.not_allowed   wrong HTTP method: a client bug
 sync.table_unknown   push to an unknown table: a client bug
 keys.p256dh          not a code: a field name in validation.failed (the browser's subscription keys)
 keys.auth            not a code: a field name in validation.failed (the browser's subscription keys)
+notifications.scheduler.enabled  not a code: the property that switches the scheduler step's schedule off in tests
 "
 
 # Codes only the client produces (no server literal). Same format.

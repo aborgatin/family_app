@@ -92,7 +92,21 @@ class MembersApiTest {
 
   @Test
   void aMemberIsFoundById() {
-    assertThat(members.byId(annaId)).contains(new MemberSummary(annaId, "Анна"));
+    assertThat(members.byId(annaId)).contains(new MemberSummary(annaId, "Анна", "FEMININE"));
+  }
+
+  @Test
+  void everyMemberIsListedButRemovedOnes() {
+    FreshInstallation.addMember(jdbc, "boris@example.com", "boris-pass", "Борис", "MASCULINE");
+    UUID borisId =
+        jdbc.queryForObject("SELECT id FROM member WHERE email = 'boris@example.com'", UUID.class);
+    FreshInstallation.addMember(jdbc, "vera@example.com", "vera-pass", "Вера", "FEMININE");
+    jdbc.update("UPDATE member SET deleted = TRUE WHERE email = 'vera@example.com'");
+
+    assertThat(members.all())
+        .containsExactlyInAnyOrder(
+            new MemberSummary(annaId, "Анна", "FEMININE"),
+            new MemberSummary(borisId, "Борис", "MASCULINE"));
   }
 
   @Test

@@ -3,6 +3,7 @@ package io.github.aborgatin.familyapp.family;
 import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.family.member.Member;
 import io.github.aborgatin.familyapp.family.member.MemberRepository;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -13,8 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Members for other modules (spec #5, Modules): the current Member of an authenticated request, and
- * Member lookup by id. Removed Members are never returned.
+ * Members for other modules (spec #5, Modules): the current Member of an authenticated request,
+ * Member lookup by id, and every Member. Removed Members are never returned.
  */
 @Service
 public class Members {
@@ -47,6 +48,14 @@ public class Members {
     return members.findByIdAndDeletedFalse(id).map(Members::summary);
   }
 
+  /** Every Member, removed ones left out. */
+  @Transactional(readOnly = true)
+  public List<MemberSummary> all() {
+    return members.findByDeletedFalseOrderByDisplayNameAscEmailAsc().stream()
+        .map(Members::summary)
+        .toList();
+  }
+
   /**
    * Whether the Member's Notifications switch is on (spec #104); {@code false} for an unknown or
    * removed Member.
@@ -57,7 +66,7 @@ public class Members {
   }
 
   static MemberSummary summary(Member member) {
-    return new MemberSummary(member.id(), member.displayName());
+    return new MemberSummary(member.id(), member.displayName(), member.grammaticalGender().name());
   }
 
   private static ApiException authRequired() {

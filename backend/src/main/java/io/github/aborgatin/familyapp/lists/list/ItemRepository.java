@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.lists.list;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,6 +16,18 @@ interface ItemRepository extends Repository<ItemEntity, UUID> {
 
   /** The Item with this id, deleted or not, so an operation can tell "deleted" from "new". */
   Optional<ItemEntity> findById(UUID id);
+
+  /** The Items with these ids, deleted or not. */
+  List<ItemEntity> findAllById(Iterable<UUID> ids);
+
+  /**
+   * The open Items, not deleted, with a Due date from {@code from} to {@code to}, both included.
+   * Only todo items have one.
+   */
+  @Query(
+      "SELECT i FROM ItemEntity i WHERE i.deleted = FALSE AND i.done = FALSE"
+          + " AND i.dueDate BETWEEN :from AND :to")
+  List<ItemEntity> findOpenDueBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
   /** Every Item written after this Version, deleted ones included (the sync pull). */
   List<ItemEntity> findByVersionGreaterThan(long version);
