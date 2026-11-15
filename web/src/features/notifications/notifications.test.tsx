@@ -173,4 +173,105 @@ describe('Turning it on, on a device that can receive push', () => {
     expect(within(notifications).queryByRole('button', { name: ENABLE_HERE })).not.toBeInTheDocument();
     expect(within(notifications).queryByText(DENIED)).not.toBeInTheDocument();
   });
+
+  it('keeps the switch on when permission is refused, and says how to allow it', async () => {
+    loggedInAs(anna);
+    fakePushDevice({ permission: 'default', answer: 'denied' });
+    const push = pushServer();
+    const received = profileSaves();
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    await user.click(await notificationsSwitch());
+
+    expect(await within(await section()).findByText(DENIED)).toBeInTheDocument();
+    expect(await notificationsSwitch()).toBeChecked();
+    expect(received).toEqual([{ notificationsEnabled: true }]);
+    expect(push.posted).toEqual([]);
+    expect(screen.queryByRole('button', { name: ENABLE_HERE })).not.toBeInTheDocument();
+  });
+
+  it('says so when the server can’t be told, and offers this device again', async () => {
+    loggedInAs(anna);
+    const device = fakePushDevice({ permission: 'default', answer: 'granted' });
+    const push = pushServer();
+    push.failPosts();
+    profileSaves();
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    await user.click(await notificationsSwitch());
+
+    const notifications = await section();
+    expect(await within(notifications).findByRole('alert')).toHaveTextContent(
+      'Что-то пошло не так. Попробуйте ещё раз.',
+    );
+    push.failing = false;
+    await user.click(within(notifications).getByRole('button', { name: ENABLE_HERE }));
+
+    await waitFor(() => {
+      expect(push.posted).toEqual([device.subscription()]);
+    });
+    expect(within(notifications).queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('A device that can’t receive push yet', () => {
+  it('says how to allow push when permission was refused, whether the switch is on or off', async () => {
+    loggedInAs(anna);
+    fakePushDevice({ permission: 'denied' });
+
+    renderApp('/settings');
+
+    expect(await within(await section()).findByText(DENIED)).toBeInTheDocument();
+    expect(screen.queryByText(UNAVAILABLE)).not.toBeInTheDocument();
+  });
+
+  it('offers «Включить на этом устройстве» when the switch is on and permission wasn’t asked here', async () => {
+    loggedInAs(annaWith(true));
+    const device = fakePushDevice({ permission: 'default', answer: 'granted' });
+    const push = pushServer();
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    const notifications = await section();
+    await user.click(await within(notifications).findByRole('button', { name: ENABLE_HERE }));
+
+    expect(device.requests).toBe(1);
+    await waitFor(() => {
+      expect(push.posted).toEqual([subscriptionJson('https://push.example/1')]);
+    });
+    expect(within(notifications).queryByRole('button', { name: ENABLE_HERE })).not.toBeInTheDocument();
+  });
+
+  it('doesn’t offer this device while the switch is off', async () => {
+    loggedInAs(anna);
+    fakePushDevice({ permission: 'default' });
+
+    renderApp('/settings');
+    await section();
+
+    expect(screen.queryByRole('button', { name: ENABLE_HERE })).not.toBeInTheDocument();
+    expect(screen.queryByText(UNAVAILABLE)).not.toBeInTheDocument();
+  });
+});
+
+describe('Turning it off', () => {
+  it('keeps this device’s subscription', async () => {
+    loggedInAs(annaWith(true));
+    const device = fakePushDevice({ permission: 'granted', subscribedAt: 'https://push.example/a' });
+    const push = pushServer();
+    const received = profileSaves();
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    await user.click(await notificationsSwitch());
+
+    await waitFor(() => {
+      expect(received).toEqual([{ notificationsEnabled: false }]);
+    });
+    expect(push.deleted).toEqual([]);
+    expect(device.unsubscribes).toBe(0);
+    expect(device.subscription()).toEqual(subscriptionJson('https://push.example/a'));
+  });
 });

@@ -4,8 +4,10 @@ import { useSession } from '@/features/auth';
 import {
   autoSaveMessages,
   GroupedSection,
+  ListRow,
   SwitchRow,
   useAutoSaveChoice,
+  useFooterLines,
   type SectionMessage,
 } from '@/shared/ui';
 import { switchNotifications } from './notificationsApi';
@@ -36,8 +38,9 @@ export function NotificationsSection() {
   );
   const toggle = useAutoSaveChoice({ name: SWITCH, saved: enabled, save });
 
+  const lines = useFooterLines();
   const failures = autoSaveMessages([toggle.failure]);
-  const messages: SectionMessage[] = [
+  const messages: (SectionMessage | false)[] = [
     ...(failures.length > 0
       ? failures
       : [{ text: t('settings.notifications.about'), row: SWITCH }]),
@@ -47,10 +50,16 @@ export function NotificationsSection() {
   } else if (device.state === 'denied') {
     messages.push({ text: t('settings.notifications.denied') });
   }
+  messages.push(lines.failure(device.failure));
+  // On, but not on this device: permission not asked here yet, or no subscription.
+  const offerThisDevice = toggle.control.value && device.state === 'notSubscribed';
 
   return (
     <GroupedSection header={t('settings.notifications.title')} messages={messages}>
       <SwitchRow label={t('settings.notifications.switch')} {...toggle.control} />
+      {offerThisDevice && (
+        <ListRow title={t('settings.notifications.enableHere')} accent onClick={enable} />
+      )}
     </GroupedSection>
   );
 }

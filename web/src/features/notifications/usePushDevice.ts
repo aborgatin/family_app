@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { asApiError, type ApiError } from '@/shared/api';
+import { asApiError, errorMessage, type ErrorMessage } from '@/shared/api';
 import { readPushState, subscribeThisDevice, type PushState } from '@/shared/push';
 
 /**
@@ -9,7 +9,7 @@ import { readPushState, subscribeThisDevice, type PushState } from '@/shared/pus
  */
 export function usePushDevice() {
   const [state, setState] = useState<PushState>();
-  const [failure, setFailure] = useState<ApiError>();
+  const [failure, setFailure] = useState<ErrorMessage>();
 
   useEffect(() => {
     let active = true;
@@ -25,7 +25,7 @@ export function usePushDevice() {
     setFailure(undefined);
     subscribeThisDevice().then(setState, (error: unknown) => {
       setState('notSubscribed');
-      setFailure(asApiError(error));
+      setFailure(errorMessage(asApiError(error)));
     });
   }, []);
 
