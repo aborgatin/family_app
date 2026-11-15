@@ -19,8 +19,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,11 +36,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * Reminders (spec #104 "Reminders by a scheduler step"; ticket #110): a todo item's Due date
- * reminds the right Member when its moment comes, at its time or at 09:00 on the day without one.
+ * reminds the right Member when its moment comes, at its time or at {@code REMINDER_MORNING_TIME} on
+ * the day without one (08:30 here, not the default 09:00, so the setting is seen to be read).
  * Members act through the sync push; the scheduler step runs as the schedule would, every minute;
  * pushes are observed on the fake gateway.
  */
-@SpringBootTest
+@SpringBootTest(properties = "REMINDER_MORNING_TIME=08:30")
 @AutoConfigureMockMvc
 @Import({PostgresTestcontainer.class, TestClock.Config.class, FakePushGateway.Config.class})
 class RemindersTest {
@@ -96,13 +100,13 @@ class RemindersTest {
   }
 
   @Test
-  void aDueDateWithoutATimeRemindsAtNineInTheMorning() throws Exception {
+  void aDueDateWithoutATimeRemindsAtTheConfiguredMorningTime() throws Exception {
     due(home, "Позвонить маме", today, null);
 
-    runEveryMinuteUntil(at(today, "08:59"));
+    runEveryMinuteUntil(at(today, "08:29"));
     assertThat(reminders()).isEmpty();
 
-    runEveryMinuteUntil(at(today, "09:00"));
+    runEveryMinuteUntil(at(today, "08:30"));
     assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
     assertThat(payload(reminders().get(0)).get("dueDate").asText()).isEqualTo(today.toString());
     assertThat(payload(reminders().get(0)).get("dueTime").isNull()).isTrue();
@@ -190,7 +194,7 @@ class RemindersTest {
   @Test
   void aDueDateSetToAMomentAlreadyPastGetsNoReminder() throws Exception {
     stepAt(at(today, "10:00"));
-    due(home, "Сегодня утром", today, null); // 09:00
+    due(home, "Сегодня утром", today, null); // 08:30
     due(home, "В восемь", today, "08:00");
     due(home, "Вчера", today.minusDays(1), "18:00");
     UUID later = due(home, "Позже", today, "11:00");
@@ -247,6 +251,49 @@ class RemindersTest {
                 .toList())
         .containsExactlyInAnyOrder("Меньше суток назад", "Сегодня утром");
     assertThat(reminders()).hasSize(4);
+  }
+
+  @Test
+  void dueMomentsAreInTheInstallationsTimeZone() throws Exception {
+    // TZ sets the JVM's default zone (deployment.md); one far from any test machine's.
+    ZoneId kiritimati = ZoneId.of("Pacific/Kiritimati");
+    TimeZone installation = TimeZone.getDefault();
+    TimeZone.setDefault(TimeZone.getTimeZone(kiritimati));
+    try {
+      LocalDateTime threeHoursOn =
+          LocalDateTime.ofInstant(clock.instant().plus(Duration.ofHours(3)), kiritimati);
+      due(
+          home,
+          "Починить кран",
+          threeHoursOn.toLocalDate(),
+          threeHoursOn.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm")));
+      Instant moment = threeHoursOn.atZone(kiritimati).toInstant();
+
+      stepAt(moment.minus(Duration.ofMinutes(1)));
+      assertThat(reminders()).isEmpty();
+      stepAt(moment);
+
+      assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
+    } finally {
+      TimeZone.setDefault(installation);
+    }
+  }
+
+  @Test
+  void noRemindersAreSentBeforeTheFirstStepEverRan() throws Exception {
+    // A new database, or the first start after V17: no step has run yet.
+    FreshInstallation.neverRanTheSchedulerStep(jdbc);
+    due(home, "Ещё до первого шага", today, "06:30");
+
+    stepAt(at(today, "07:01"));
+    assertThat(reminders()).isEmpty();
+
+    // From then on the window starts at the first step.
+    due(home, "После первого шага", today, "07:30");
+    stepAt(at(today, "07:30"));
+    assertThat(reminders())
+        .extracting(sent -> payload(sent).get("itemName").asText())
+        .containsOnly("После первого шага");
   }
 
   // --- helpers ---

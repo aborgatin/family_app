@@ -514,7 +514,8 @@ comes with a later ticket.
   whose switch is off. Mute does not apply. The payload is the `reminder` of the contract in
   `web/src/serviceWorker/pushPayload.ts`: `itemName`, `listName`, `dueDate` (`YYYY-MM-DD`),
   `dueTime` (`HH:mm` or `null`), `url` `/lists/:id/items/:itemId`. Tested by
-  `notifications.RemindersTest`.
+  `notifications.RemindersTest`, which runs with `REMINDER_MORNING_TIME=08:30` (so the setting is
+  seen to be read) and switches the JVM's default zone for one test (so `TZ` is).
 
 ### `command`
 
@@ -850,7 +851,8 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
     (both cascading: Invites, resets, Lists, Items, Categories, Item history and Child field values) but keeps `child_field` Defaults; `removeChildFields(jdbc)` (with their values);
-    `addMember(jdbc, email, password, name, gender)`.
+    `addMember(jdbc, email, password, name, gender)`; `neverRanTheSchedulerStep(jdbc)` (the
+    scheduler step's last run time back to `NULL`, as on a new database).
   - `SyncRequests`: `upsert(table, id, fieldsJson)`, `delete(table, id)`, `push(device, ops…)`,
     `pull(device, since)`, `change(device, since, table, id)` (the pulled change or `null`),
     `fields(device, table, id)` (as a first pull returns them), `version(result)`,

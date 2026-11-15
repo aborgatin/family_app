@@ -26,6 +26,14 @@ public final class FreshInstallation {
   }
 
   /**
+   * Puts the scheduler step back to never having run, as on a new database ({@code V17}), so its
+   * first run can be tested; other tests leave its last run time wherever the previous one put it.
+   */
+  public static void neverRanTheSchedulerStep(JdbcTemplate jdbc) {
+    jdbc.update("UPDATE scheduler_step SET last_run_at = NULL");
+  }
+
+  /**
    * Removes every Child field, the Defaults included, so a test can set up exactly the fields it
    * needs. (The Defaults themselves are checked on a really fresh database by {@code
    * ChildFieldDefaultsTest}.)
