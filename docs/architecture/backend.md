@@ -457,8 +457,9 @@ database or settings, being how the operator gets them (see
 
 Because commands start without a web server, every web-only bean must be
 `@ConditionalOnWebApplication`: `SecurityConfig`, `SessionLogin`, `SlidingSessionCookieFilter`,
-`WebBundleConfig` and every controller are. A new controller or web component without it breaks the
-command; `PasswordResetCommandTest` catches that.
+`WebBundleConfig` and every controller are. A web component without it breaks the command, and
+`PasswordResetCommandTest` catches that; a controller without it still starts there, so
+`WebOnlyBeansTest` (ArchUnit) checks every controller carries it.
 
 ### `webapp`
 

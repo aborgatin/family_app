@@ -21,7 +21,9 @@ main="$root/backend/src/main"
 maps=("$root/web/src/shared/api/errorMessages.ts" "$root/web/src/shared/sync/saveRejection.ts")
 
 # Codes the server sends that rightly show the generic message: a client bug or a server fault the
-# Member can do nothing about. One per line: code, then the reason.
+# Member can do nothing about; also dotted literals in backend/src/main that are not codes at all
+# (field names such as `keys.auth`), which the literal scan below cannot tell apart. One per line:
+# code, then the reason.
 SERVER_ONLY="
 internal.error       server fault: the generic message is all the Member can use
 request.invalid      malformed request: a client bug, not something the Member can fix
