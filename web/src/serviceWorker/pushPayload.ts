@@ -37,3 +37,38 @@ export interface ReminderPayload {
 }
 
 export type PushPayload = NotificationPayload | ReminderPayload;
+
+/** The payload in the push data (JSON text), or `undefined` when it isn't one this worker reads. */
+export function parsePushPayload(data: string | undefined): PushPayload | undefined {
+  if (data === undefined) return undefined;
+  let value: unknown;
+  try {
+    value = JSON.parse(data);
+  } catch {
+    return undefined;
+  }
+  if (typeof value !== 'object' || value === null) return undefined;
+  const fields = value as Record<string, unknown>;
+  const isString = (key: string) => typeof fields[key] === 'string';
+  const isStringOrNull = (key: string) => fields[key] === null || isString(key);
+  const isCount = (key: string) => Number.isInteger(fields[key]) && (fields[key] as number) >= 0;
+
+  if (!isString('url')) return undefined;
+  if (fields.type === 'notification') {
+    const readable =
+      ['actorName', 'listName'].every(isString) &&
+      ['addedCount', 'assignedCount'].every(isCount) &&
+      isStringOrNull('assignedItemName') &&
+      [null, 'MASCULINE', 'FEMININE'].includes(fields.actorGrammaticalGender as string | null) &&
+      ['SHOPPING', 'TODO', 'WISH'].includes(fields.listKind as string) &&
+      Array.isArray(fields.itemNames) &&
+      fields.itemNames.every((name) => typeof name === 'string');
+    return readable ? (fields as unknown as NotificationPayload) : undefined;
+  }
+  if (fields.type === 'reminder') {
+    const readable =
+      ['itemName', 'listName', 'dueDate'].every(isString) && isStringOrNull('dueTime');
+    return readable ? (fields as unknown as ReminderPayload) : undefined;
+  }
+  return undefined;
+}

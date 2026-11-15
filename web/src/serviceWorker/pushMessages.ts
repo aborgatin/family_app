@@ -1,7 +1,12 @@
 import { createInstance } from 'i18next';
 import { dayParts, localDay } from '@/shared/dates';
 import ru from '@/shared/i18n/locales/ru.json';
-import type { NotificationPayload, PushPayload, ReminderPayload } from './pushPayload';
+import {
+  parsePushPayload,
+  type NotificationPayload,
+  type PushPayload,
+  type ReminderPayload,
+} from './pushPayload';
 
 // The text a push shows, built from the payload's codes and parameters with the app's ru i18n
 // file and its plurals and gendered verbs (spec #104 "UI and Copy"). Pure: no worker globals, so
@@ -23,6 +28,16 @@ export interface PushMessage {
   title: string;
   body: string;
   url: string;
+}
+
+/**
+ * What to show for a push's data (JSON text), at the device's `now`. Data that can't be read still
+ * gives a notification, «Семья» opening `/`: iOS revokes the subscription of a worker that shows
+ * none.
+ */
+export function readPushMessage(data: string | undefined, now: Date): PushMessage {
+  const payload = parsePushPayload(data);
+  return payload === undefined ? { title: t('app.name'), body: '', url: '/' } : pushMessage(payload, now);
 }
 
 /** The title, body and URL of the notification shown for `payload`, at the device's `now`. */

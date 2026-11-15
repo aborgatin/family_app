@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NotificationPayload, ReminderPayload } from './pushPayload';
-import { pushMessage } from './pushMessages';
+import { pushMessage, readPushMessage } from './pushMessages';
 
 // The text a push shows, built by the service worker from the payload's codes and parameters with
 // the ru i18n file (spec #104 "UI and Copy").
@@ -160,5 +160,45 @@ describe('a Reminder', () => {
     const twoDaysOn = new Date(2026, 10, 17, 9, 0);
 
     expect(pushMessage(reminder({}), twoDaysOn).body).toBe('Дом · 15 нояб. в 18:00');
+  });
+});
+
+describe('the push data as it arrives', () => {
+  const GENERIC = { title: 'Семья', body: '', url: '/' };
+
+  it('is read as its payload', () => {
+    const data = JSON.stringify({
+      type: 'reminder',
+      itemName: 'Оплатить свет',
+      listName: 'Дом',
+      dueDate: '2026-11-15',
+      dueTime: null,
+      url: '/lists/l2/items/i9',
+    });
+
+    expect(readPushMessage(data, NOW)).toEqual({
+      title: 'Оплатить свет',
+      body: 'Дом · сегодня',
+      url: '/lists/l2/items/i9',
+    });
+  });
+
+  it('is read as its payload, a Notification too', () => {
+    const data = JSON.stringify(
+      notification({ itemNames: ['Молоко'], addedCount: 1, actorGrammaticalGender: null }),
+    );
+
+    expect(readPushMessage(data, NOW).body).toBe('Даша добавил(а) «Молоко»');
+  });
+
+  it.each([
+    ['no data', undefined],
+    ['not JSON', 'Молоко'],
+    ['JSON that is not an object', '42'],
+    ['an unknown type', JSON.stringify({ type: 'birthday', url: '/' })],
+    ['a Notification missing its fields', JSON.stringify({ type: 'notification', url: '/' })],
+    ['a Reminder missing its fields', JSON.stringify({ type: 'reminder', itemName: 'Чай' })],
+  ])('that can’t be read (%s) still shows a «Семья» notification opening /', (_, data) => {
+    expect(readPushMessage(data, NOW)).toEqual(GENERIC);
   });
 });
