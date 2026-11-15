@@ -72,7 +72,7 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 | `family`  | `Members`, `MemberSummary`, `PasswordResets`, `Sessions`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | `Lists` (with `ListSummary`, `ItemSummary`, `DueItem`), `ItemAdded`, `ItemAssigned`, `ListKind`, `Visibility` | `lists.list`                                                                              |
-| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `Urgency`, `SchedulerStep`           | `notifications.push`, `notifications.batch`, `notifications.schedule`                     |
+| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `Urgency`, `SchedulerStep`           | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule` |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
@@ -430,8 +430,8 @@ Item history is in the same package: `ItemHistoryEntity` (`list_id`, `normalized
 ### `notifications`
 
 Push messages (spec #104). Ticket #107 built the module's base: the Notifications switch's effect,
-push subscriptions and the push gateway. #109 added Batches and the scheduler step; Reminders and
-Mute come with later tickets.
+push subscriptions and the push gateway. #109 added Batches and the scheduler step, #110 Reminders; Mute
+comes with a later ticket.
 
 - **`Pushes.sendTo(memberId, payload, ttl, urgency)`** (public) is the one way out: if the
   Member's Notifications switch is on (`family.Members.notificationsEnabled`), it sends the payload
@@ -476,12 +476,14 @@ Mute come with later tickets.
   (Lists, Items and Members are soft-deleted, so they never block a delete): `notifications`
   reads those tables only through `lists.Lists` and `family.Members`, never by SQL (M2).
 - **The scheduler step** (`SchedulerStep.run()`, public): one transaction stores the run's time
-  (`notifications.schedule.StepRuns`, the single `scheduler_step` row; the Reminders start their
-  window there) and takes the due Batches out of the database (`PendingBatches.takeDue`, `FOR
+  (`notifications.schedule.StepRuns`, the single `scheduler_step` row, locked `FOR UPDATE`; it
+  hands back the previous run's time, where the Reminders' window starts), finds the due Reminders
+  and takes the due Batches out of the database (`PendingBatches.takeDue`, `FOR
   UPDATE SKIP LOCKED`, then deleted; due when the last change is `QUIET` = 2 minutes old or the
   first `LONGEST` = 10 minutes old, constants); `Batches` turns them into Notifications; after the
-  commit each goes out through `Pushes.sendTo` with TTL 24 h and urgency `NORMAL`. A crash
-  between the commit and the sending loses those Notifications rather than sending them twice.
+  commit each goes out through `Pushes.sendTo` with TTL 24 h, urgency `NORMAL` for Notifications
+  and `HIGH` for Reminders. A crash between the commit and the sending loses those pushes rather
+  than sending them twice.
   `notifications.schedule.SchedulerConfig` runs it at second 0 of every minute (`@Scheduled(cron
   = "0 * * * * *")`), in the web app only (`@ConditionalOnWebApplication`, so no operator
   command runs it) and unless `notifications.scheduler.enabled` is `false` (the tests' setting).
@@ -496,6 +498,23 @@ Mute come with later tickets.
   `listName`, `listKind`, `itemNames` (the first three), `addedCount`, `assignedCount`,
   `assignedItemName` (when exactly one), `url` `/lists/:id`. Tested by
   `notifications.BatchesTest`, `BatchesSurviveRestartTest` and `SchedulerScheduleTest`.
+
+- **Reminders** (`notifications.reminder.Reminders`): a step sends a Reminder for each open todo
+  item whose due moment is after the previous step and at or before now (`lists.Lists.dueBetween`:
+  the Due date at its time, or at `REMINDER_MORNING_TIME` without one, in the installation's
+  `TZ`). After downtime the window starts at the stored time, but never more than `CATCH_UP` = 24
+  hours back; older Reminders are dropped. Before the first step ever ran (`last_run_at` null, a
+  fresh database or the first start after V17) the window is empty, so an upgrade does not send a
+  day's worth of old Reminders. There are no per-Item jobs and nothing records what was sent:
+  each due moment falls into exactly one window, so a Due date reminds once, a Due date moved to a
+  later moment reminds again then, one set to a moment already past never reminds, an item Done
+  before its moment is not open, and the Repeat copy reminds at its own Due date. Recipients: the
+  Assignee alone, otherwise `ListSummary.seenBy` (the Owner of a Private list, every Member for a
+  Shared or Child one; a Private list's Items have no Assignee); `Pushes.sendTo` leaves out those
+  whose switch is off. Mute does not apply. The payload is the `reminder` of the contract in
+  `web/src/serviceWorker/pushPayload.ts`: `itemName`, `listName`, `dueDate` (`YYYY-MM-DD`),
+  `dueTime` (`HH:mm` or `null`), `url` `/lists/:id/items/:itemId`. Tested by
+  `notifications.RemindersTest`.
 
 ### `command`
 
