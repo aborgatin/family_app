@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { NotificationPayload } from './pushPayload';
+import type { NotificationPayload, ReminderPayload } from './pushPayload';
 import { pushMessage } from './pushMessages';
 
 // The text a push shows, built by the service worker from the payload's codes and parameters with
@@ -115,5 +115,50 @@ describe('a Notification', () => {
 
     expect(pushMessage(boris, NOW).body).toBe('Боря назначил вам 2 задачи');
     expect(pushMessage(unset, NOW).body).toBe('Саша назначил(а) вам 5 задач');
+  });
+});
+
+describe('a Reminder', () => {
+  function reminder(fields: Partial<ReminderPayload>): ReminderPayload {
+    return {
+      type: 'reminder',
+      itemName: 'Оплатить свет',
+      listName: 'Дом',
+      dueDate: '2026-11-15',
+      dueTime: '18:00',
+      url: '/lists/l2/items/i9',
+      ...fields,
+    };
+  }
+
+  it('says when the Item is due today, under the Item name', () => {
+    expect(pushMessage(reminder({}), NOW)).toEqual({
+      title: 'Оплатить свет',
+      body: 'Дом · сегодня в 18:00',
+      url: '/lists/l2/items/i9',
+    });
+  });
+
+  it('says only the day without a time', () => {
+    expect(pushMessage(reminder({ dueTime: null }), NOW).body).toBe('Дом · сегодня');
+  });
+
+  it('says «вчера» when it comes late, after midnight', () => {
+    const justAfterMidnight = new Date(2026, 10, 16, 0, 30);
+
+    expect(pushMessage(reminder({}), justAfterMidnight).body).toBe('Дом · вчера в 18:00');
+    expect(pushMessage(reminder({ dueTime: null }), justAfterMidnight).body).toBe('Дом · вчера');
+  });
+
+  it('still says «сегодня» when it comes late the same day', () => {
+    const later = new Date(2026, 10, 15, 21, 0);
+
+    expect(pushMessage(reminder({}), later).body).toBe('Дом · сегодня в 18:00');
+  });
+
+  it('names the day when the Due date is further back (a device clock ahead)', () => {
+    const twoDaysOn = new Date(2026, 10, 17, 9, 0);
+
+    expect(pushMessage(reminder({}), twoDaysOn).body).toBe('Дом · 15 нояб. в 18:00');
   });
 });

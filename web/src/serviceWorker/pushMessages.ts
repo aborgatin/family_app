@@ -1,6 +1,7 @@
 import { createInstance } from 'i18next';
+import { dayParts, localDay } from '@/shared/dates';
 import ru from '@/shared/i18n/locales/ru.json';
-import type { NotificationPayload, PushPayload } from './pushPayload';
+import type { NotificationPayload, PushPayload, ReminderPayload } from './pushPayload';
 
 // The text a push shows, built from the payload's codes and parameters with the app's ru i18n
 // file and its plurals and gendered verbs (spec #104 "UI and Copy"). Pure: no worker globals, so
@@ -26,11 +27,32 @@ export interface PushMessage {
 
 /** The title, body and URL of the notification shown for `payload`, at the device's `now`. */
 export function pushMessage(payload: PushPayload, now: Date): PushMessage {
-  void now;
   if (payload.type === 'notification') {
     return { title: payload.listName, body: notificationBody(payload), url: payload.url };
   }
-  return { title: payload.itemName, body: '', url: payload.url };
+  return { title: payload.itemName, body: reminderBody(payload, now), url: payload.url };
+}
+
+/**
+ * «Дом · сегодня в 18:00», «Дом · сегодня» without a time; a Reminder that comes late (after the
+ * server was down) says «вчера» once the device's day has moved on.
+ */
+function reminderBody(payload: ReminderPayload, now: Date): string {
+  const { year, month, day } = dayParts(payload.dueDate);
+  // Whole calendar days back from the device's today.
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const daysAgo = Math.round((today - Date.UTC(year, month - 1, day)) / 86_400_000);
+  const dayText =
+    daysAgo === 0
+      ? t('push.today')
+      : daysAgo === 1
+        ? t('push.yesterday')
+        : new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'short' }).format(
+            localDay(payload.dueDate),
+          );
+  const due =
+    payload.dueTime === null ? dayText : t('push.dayAndTime', { day: dayText, time: payload.dueTime });
+  return t('push.reminder', { list: payload.listName, due });
 }
 
 /** Up to this many added Items are named in quotes; more are counted, naming the first ones. */
