@@ -28,7 +28,7 @@ export function Page({ title, back, actions, children }: PageProps) {
       <header
         ref={bar}
         className={
-          'sticky top-0 z-10 border-b pt-safe-0 transition-colors duration-200 ' +
+          'sticky top-0 z-10 border-b pt-bar transition-colors duration-200 ' +
           (underBar ? 'border-separator bg-bar backdrop-blur-xl' : 'border-transparent')
         }
       >
