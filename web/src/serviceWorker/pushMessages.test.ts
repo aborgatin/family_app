@@ -1,0 +1,79 @@
+import { describe, expect, it } from 'vitest';
+import type { NotificationPayload } from './pushPayload';
+import { pushMessage } from './pushMessages';
+
+// The text a push shows, built by the service worker from the payload's codes and parameters with
+// the ru i18n file (spec #104 "UI and Copy").
+
+const NOW = new Date(2026, 10, 15, 12, 0);
+
+function notification(fields: Partial<NotificationPayload>): NotificationPayload {
+  return {
+    type: 'notification',
+    actorName: 'Даша',
+    actorGrammaticalGender: 'FEMININE',
+    listName: 'Продукты',
+    listKind: 'SHOPPING',
+    itemNames: [],
+    addedCount: 0,
+    assignedCount: 0,
+    assignedItemName: null,
+    url: '/lists/l1',
+    ...fields,
+  };
+}
+
+describe('a Notification', () => {
+  it('names the one Item added, under the List name', () => {
+    const message = pushMessage(notification({ itemNames: ['Молоко'], addedCount: 1 }), NOW);
+
+    expect(message).toEqual({
+      title: 'Продукты',
+      body: 'Даша добавила «Молоко»',
+      url: '/lists/l1',
+    });
+  });
+
+  it('names two or three Items added', () => {
+    const two = notification({ itemNames: ['Молоко', 'Хлеб'], addedCount: 2 });
+    const three = notification({ itemNames: ['Молоко', 'Хлеб', 'Сыр'], addedCount: 3 });
+
+    expect(pushMessage(two, NOW).body).toBe('Даша добавила «Молоко», «Хлеб»');
+    expect(pushMessage(three, NOW).body).toBe('Даша добавила «Молоко», «Хлеб», «Сыр»');
+  });
+
+  it('counts four or more Items added and names the first three', () => {
+    const seven = notification({
+      itemNames: ['Молоко', 'Хлеб', 'Сыр', 'Масло', 'Яйца', 'Чай', 'Соль'],
+      addedCount: 7,
+    });
+
+    expect(pushMessage(seven, NOW).body).toBe('Даша добавила 7 товаров: Молоко, Хлеб, Сыр…');
+  });
+
+  // Every plural form of each List kind's noun: 21 (one), 4 (few), 5 (many).
+  it.each([
+    ['SHOPPING', 21, '21 товар'],
+    ['SHOPPING', 4, '4 товара'],
+    ['SHOPPING', 5, '5 товаров'],
+    ['TODO', 21, '21 задачу'],
+    ['TODO', 4, '4 задачи'],
+    ['TODO', 5, '5 задач'],
+    ['WISH', 21, '21 желание'],
+    ['WISH', 4, '4 желания'],
+    ['WISH', 5, '5 желаний'],
+  ] as const)('counts the Items of a %s list: %i', (listKind, addedCount, counted) => {
+    const payload = notification({ listKind, itemNames: ['А', 'Б', 'В'], addedCount });
+
+    expect(pushMessage(payload, NOW).body).toBe(`Даша добавила ${counted}: А, Б, В…`);
+  });
+
+  it('follows the actor’s Grammatical gender, neutral when it isn’t set', () => {
+    const added = { itemNames: ['Молоко'], addedCount: 1 };
+    const boris = notification({ ...added, actorName: 'Боря', actorGrammaticalGender: 'MASCULINE' });
+    const unset = notification({ ...added, actorName: 'Саша', actorGrammaticalGender: null });
+
+    expect(pushMessage(boris, NOW).body).toBe('Боря добавил «Молоко»');
+    expect(pushMessage(unset, NOW).body).toBe('Саша добавил(а) «Молоко»');
+  });
+});

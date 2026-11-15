@@ -297,6 +297,27 @@
     "masculine": "Мужской",
     "feminine": "Женский"
   },
+  "push": {
+    "quoted": "«{{name}}»",
+    "added": "{{actor}} добавил(а) {{items}}",
+    "added_masculine": "{{actor}} добавил {{items}}",
+    "added_feminine": "{{actor}} добавила {{items}}",
+    "names": "{{items}}: {{names}}…",
+    "count": {
+      "SHOPPING_one": "{{count}} товар",
+      "SHOPPING_few": "{{count}} товара",
+      "SHOPPING_many": "{{count}} товаров",
+      "SHOPPING_other": "{{count}} товара",
+      "TODO_one": "{{count}} задачу",
+      "TODO_few": "{{count}} задачи",
+      "TODO_many": "{{count}} задач",
+      "TODO_other": "{{count}} задачи",
+      "WISH_one": "{{count}} желание",
+      "WISH_few": "{{count}} желания",
+      "WISH_many": "{{count}} желаний",
+      "WISH_other": "{{count}} желания"
+    }
+  },
   "errors": {
     "generic": "Что-то пошло не так. Попробуйте ещё раз.",
     "networkUnavailable": "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.",
