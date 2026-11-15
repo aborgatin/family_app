@@ -7,6 +7,7 @@ import {
   noChildFields,
   noLists,
   onlyChildren,
+  pushDevice,
   rejectPushes,
   rowActions,
   section,
@@ -934,6 +935,42 @@ export default {
         { click: 'role=dialog >> role=button[name="Удалить"]' },
         { waitFor: 'text=Активных приглашений нет' },
         toSection('Приглашения', -150),
+      ],
+    },
+    // «Уведомления» by this device's state (pushDevice fakes the Push API; switchOn the session).
+    {
+      name: 'settings-notifications-unavailable',
+      path: '/settings',
+      fullPage: false,
+      initScript: pushDevice({ permission: 'none' }),
+      steps: [{ waitFor: 'text=/добавьте приложение на экран/' }, toSection('Уведомления', -150)],
+    },
+    {
+      name: 'settings-notifications-denied',
+      path: '/settings',
+      fullPage: false,
+      initScript: pushDevice({ permission: 'denied', switchOn: true }),
+      steps: [{ waitFor: 'text=/Уведомления запрещены/' }, toSection('Уведомления', -150)],
+    },
+    {
+      name: 'settings-notifications-not-subscribed',
+      path: '/settings',
+      fullPage: false,
+      initScript: pushDevice({ permission: 'default', switchOn: true }),
+      steps: [
+        { waitFor: 'role=button[name="Включить на этом устройстве"]' },
+        toSection('Уведомления', -150),
+      ],
+    },
+    {
+      name: 'settings-notifications-on',
+      path: '/settings',
+      fullPage: false,
+      initScript: pushDevice({ permission: 'granted', subscribed: true, switchOn: true }),
+      steps: [
+        { waitFor: 'role=switch[name="Уведомления"][checked]' },
+        { wait: 300 },
+        toSection('Уведомления', -150),
       ],
     },
     {

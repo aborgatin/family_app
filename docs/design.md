@@ -17,7 +17,7 @@ step with the headings).
 - [Theme](#theme): «Авто», light and dark, the stored choice and the theme script
 - [Rules every component follows](#rules-every-component-follows): touch vs pointer, narrow vs wide, keyboard and focus, motion, text and names
 - [Saving and deleting](#saving-and-deleting): auto-save, spinners, rejected changes, delete with undo or confirmation
-- [Components](#components): one `###` per `shared/ui` component: AppShell, Page, Button, Link, Icon, EmptyState, StatusScreen, OfflineIndicator, CenteredPage, Form, GroupedSection, ColorChoice, DateRow, Sheet, Swatch, Sections, InputRow, TextAreaRow, SegmentedControl, SelectRow, ListRow, LoadingRow, EditableRow, AddRow, SuggestionRows, DoneToggle, SortableList, SwipeToDelete, MenuChip, RowContextMenu, Avatar, ConfirmRow, ActionSheet, TileGrid and Tile, Toast, Spinner
+- [Components](#components): one `###` per `shared/ui` component: AppShell, Page, Button, Link, Icon, EmptyState, StatusScreen, OfflineIndicator, CenteredPage, Form, GroupedSection, ColorChoice, DateRow, Sheet, Swatch, Sections, InputRow, TextAreaRow, SegmentedControl, SwitchRow, SelectRow, ListRow, LoadingRow, EditableRow, AddRow, SuggestionRows, DoneToggle, SortableList, SwipeToDelete, MenuChip, RowContextMenu, Avatar, ConfirmRow, ActionSheet, TileGrid and Tile, Toast, Spinner
 
 ## Tokens
 
@@ -390,6 +390,17 @@ Auto-saved (`useAutoSaveChoice()`): each choice saves at once, so arrow keys sav
 and gives the segments the whole row, for a choice whose options say it all (Visibility
 «Личный» / «Общий» in «Новый список», named «Видимость»); not for auto-saved rows yet, since the
 spinner sits with the label.
+
+### SwitchRow
+
+An on/off setting as a row of a `GroupedSection`, as an iOS switch (#108): `label` at the left,
+the switch at the right; off is the `fill` track, on the `accent` track, with a white thumb
+(`on-accent`) in both themes. Built from a checkbox with `role="switch"` named by the label: Tab
+reaches it, Space flips it, a tap anywhere on the row flips it. Touch: the iOS 51×31 track in a
+44px row. Fine pointer: a smaller 38×22 track. Its `name` links it to footer messages like an
+`InputRow`. Auto-saved with `useAutoSaveChoice()` (spread `control`): a flip saves at once, `busy`
+shows the `Spinner` before the switch, and a failed save flips it back. Settings «Уведомления» is
+the first.
 
 ### SelectRow
 
