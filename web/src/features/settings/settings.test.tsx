@@ -25,9 +25,12 @@ describe('Settings', () => {
     renderApp('/settings');
 
     await screen.findByRole('region', { name: 'Взрослые' });
+    // Regions, not headings: «Уведомления» is untitled (its switch says it) but still named.
     const names = screen
-      .getAllByRole('heading', { level: 2 })
-      .map((heading) => heading.textContent);
+      .getAllByRole('region')
+      .map(
+        (region) => region.getAttribute('aria-label') ?? region.querySelector('h2')?.textContent,
+      );
     expect(names).toEqual([
       'Взрослые',
       'Приглашения',

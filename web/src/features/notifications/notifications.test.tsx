@@ -89,6 +89,20 @@ describe('The «Уведомления» section', () => {
     expect(toggle).toHaveAccessibleDescription(expect.stringContaining(ABOUT));
   });
 
+  it('shows no header, since the switch already says «Уведомления», and comes before «Оформление»', async () => {
+    loggedInAs(anna);
+
+    renderApp('/settings');
+
+    const notifications = await section();
+    expect(within(notifications).getByRole('switch', { name: 'Уведомления' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Уведомления' })).not.toBeInTheDocument();
+    const appearance = screen.getByRole('region', { name: 'Оформление' });
+    expect(notifications.compareDocumentPosition(appearance)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
   it('is off until the Member turns it on', async () => {
     loggedInAs(anna);
 

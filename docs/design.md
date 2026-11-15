@@ -280,7 +280,8 @@ text `Button` after the line («Повторить»). A `header` also names the
 
 **Untitled group**: with no `header`, the group is just the gap above its cell (the Unnamed
 category on a Shopping list); `label` names it for assistive technology only, so it is still a
-region («Без категории»). **Header being typed**: `headerField` (`{label, value, onChange,
+region («Без категории»). Also for a group whose first row already says its title (Settings
+«Уведомления», whose first row is the switch «Уведомления»). **Header being typed**: `headerField` (`{label, value, onChange,
 onCommit, onCancel}`) puts a text field in the header's place and look, focused when it appears,
 with `label` as its placeholder and the group's name: for a group the Member has just asked for
 (a new Category, «Название категории»). Enter or leaving it commits, Esc cancels; the screen

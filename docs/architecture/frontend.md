@@ -663,7 +663,7 @@ row per Member: initial, name, email, «(вы)» on the own one; not tappable; t
 взрослого…»), «Приглашения» (an edit-mode list, see Invites above), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
 Members list; then the «Изменить пароль» chevron row), «Дети» (below), «Поля профиля» (below),
-«Уведомления» (below), «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, a `ConfirmRow`;
+«Уведомления» (untitled, below), «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, a `ConfirmRow`;
 after logging out the guard shows `/login`). Logout sends the Outbox first; when that fails
 (other than `401`) a second `ActionSheet` warns «Нет соединения с сервером. Несохранённые
 изменения будут потеряны» with a red «Выйти» (log out, wipe) and «Отменить» (keep everything). A
@@ -679,7 +679,8 @@ lists («Приглашения», «Дети», «Поля профиля») ke
 failure in `useEditableList()`.
 
 «Уведомления» (`NotificationsSection`, `features/notifications`, spec #104) is the Notifications
-switch and this device. The `SwitchRow` «Уведомления» shows the session's
+switch and this device, an untitled group (`label`, no `header`): its first row already says
+«Уведомления». The `SwitchRow` «Уведомления» shows the session's
 `member.notificationsEnabled` and saves at once (`useAutoSaveChoice`, `PATCH /api/members/me`
 with only `notificationsEnabled`, online only; `memberChanged` updates the session); its hint is
 «Списки, которые меняет другой взрослый, и напоминания о сроках задач.», replaced by the

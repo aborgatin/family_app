@@ -17,8 +17,8 @@ import { usePushDevice } from './usePushDevice';
 const SWITCH_ROW = 'notificationsEnabled';
 
 /**
- * Settings «Уведомления»: the Member's Notifications switch (saved at once, online only, S4
- * exception), and below it what this device can do about push.
+ * Settings «Уведомления», untitled since its switch says so: the Member's Notifications switch
+ * (saved at once, online only, S4 exception), and below it what this device can do about push.
  */
 export function NotificationsSection() {
   const { t } = useTranslation();
@@ -53,7 +53,7 @@ export function NotificationsSection() {
   const offerThisDevice = toggle.control.value && device.state === 'notSubscribed';
 
   return (
-    <GroupedSection header={t('settings.notifications.title')} messages={messages}>
+    <GroupedSection label={t('settings.notifications.title')} messages={messages}>
       <SwitchRow label={t('settings.notifications.switch')} {...toggle.control} />
       {offerThisDevice && (
         <ListRow title={t('settings.notifications.enableHere')} accent onClick={enable} />
