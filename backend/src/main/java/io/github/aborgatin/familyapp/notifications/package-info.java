@@ -1,0 +1,11 @@
+/**
+ * The {@code notifications} module (spec #104): push subscriptions, the Notifications switch's
+ * effect and the push gateway. Types in this package are the module's public API ({@link Pushes},
+ * and the {@link PushGateway} seam tests replace with a fake); sub-packages are internal
+ * (CODING_STANDARDS M1). Dependencies: {@code notifications → family} (Members, the switch, the
+ * session), {@code notifications → error}.
+ */
+@ApplicationModule(displayName = "Notifications")
+package io.github.aborgatin.familyapp.notifications;
+
+import org.springframework.modulith.ApplicationModule;

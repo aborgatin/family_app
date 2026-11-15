@@ -47,6 +47,15 @@ public class Members {
     return members.findByIdAndDeletedFalse(id).map(Members::summary);
   }
 
+  /**
+   * Whether the Member's Notifications switch is on (spec #104); {@code false} for an unknown or
+   * removed Member.
+   */
+  @Transactional(readOnly = true)
+  public boolean notificationsEnabled(UUID id) {
+    return members.findByIdAndDeletedFalse(id).map(Member::notificationsEnabled).orElse(false);
+  }
+
   static MemberSummary summary(Member member) {
     return new MemberSummary(member.id(), member.displayName());
   }
