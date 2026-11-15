@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { useFamilyMembers, type FamilyMember } from '@/features/members';
+import { shortDay } from '@/shared/dates';
 import {
   autoSaveMessages,
   ConfirmRow,
@@ -19,7 +20,7 @@ import {
   useAutoSaveText,
 } from '@/shared/ui';
 import { assignable, assigneeOf } from './assignees';
-import { dueDayText, shortDay } from './dueDates';
+import { dueDayText } from './dueDates';
 import { ListMissing, useRouteList } from './ListMissing';
 import { listPath } from './listPaths';
 import { KIND_TEXTS, type Item, type List, type Repeat } from './listTypes';

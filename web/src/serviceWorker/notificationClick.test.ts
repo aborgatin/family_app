@@ -12,8 +12,8 @@ import {
 
 const ORIGIN = 'https://family.example';
 
-function appWindow(id: string, path: string, focused = false): AppWindow {
-  return { id, url: `${ORIGIN}${path}`, focused };
+function appWindow(path: string, focused = false): AppWindow {
+  return { url: `${ORIGIN}${path}`, focused };
 }
 
 describe('a tap on a push', () => {
@@ -24,27 +24,29 @@ describe('a tap on a push', () => {
   });
 
   it('focuses the open app window and takes it to the screen', () => {
-    const windows = [appWindow('w1', '/settings')];
+    const windows = [appWindow('/settings')];
 
     expect(notificationClickTarget({ url: '/lists/l1/items/i9' }, windows, ORIGIN)).toEqual({
-      focus: 'w1',
+      focus: windows[0],
       navigateTo: `${ORIGIN}/lists/l1/items/i9`,
     });
   });
 
   it('prefers the focused window among several', () => {
-    const windows = [appWindow('w1', '/'), appWindow('w2', '/settings', true)];
+    const windows = [appWindow('/'), appWindow('/settings', true)];
 
     expect(notificationClickTarget({ url: '/lists/l1' }, windows, ORIGIN)).toEqual({
-      focus: 'w2',
+      focus: windows[1],
       navigateTo: `${ORIGIN}/lists/l1`,
     });
   });
 
   it('only focuses a window already on the screen', () => {
-    const windows = [appWindow('w1', '/lists/l1')];
+    const windows = [appWindow('/lists/l1')];
 
-    expect(notificationClickTarget({ url: '/lists/l1' }, windows, ORIGIN)).toEqual({ focus: 'w1' });
+    expect(notificationClickTarget({ url: '/lists/l1' }, windows, ORIGIN)).toEqual({
+      focus: windows[0],
+    });
   });
 
   it.each([
@@ -64,9 +66,8 @@ describe('opening the screen of a tapped push', () => {
     events: string[];
   }
 
-  function fakeWindow(id: string, path: string, canNavigate = true): FakeWindow {
+  function fakeWindow(path: string, canNavigate = true): FakeWindow {
     const window: FakeWindow = {
-      id,
       url: `${ORIGIN}${path}`,
       focused: false,
       events: [],
@@ -106,7 +107,7 @@ describe('opening the screen of a tapped push', () => {
   });
 
   it('takes the open window to the screen, then focuses it', async () => {
-    const window = fakeWindow('w1', '/settings');
+    const window = fakeWindow('/settings');
     const { clients, opened } = fakeClients([window]);
 
     await openScreen(clients, { url: '/lists/l1' }, ORIGIN);
@@ -116,7 +117,7 @@ describe('opening the screen of a tapped push', () => {
   });
 
   it('only focuses a window already on the screen', async () => {
-    const window = fakeWindow('w1', '/lists/l1');
+    const window = fakeWindow('/lists/l1');
     const { clients, opened } = fakeClients([window]);
 
     await openScreen(clients, { url: '/lists/l1' }, ORIGIN);
@@ -126,11 +127,12 @@ describe('opening the screen of a tapped push', () => {
   });
 
   it('opens a new window there when the open one can’t be navigated', async () => {
-    const window = fakeWindow('w1', '/settings', false);
+    const window = fakeWindow('/settings', false);
     const { clients, opened } = fakeClients([window]);
 
     await openScreen(clients, { url: '/lists/l1' }, ORIGIN);
 
+    expect(window.events).toEqual([]);
     expect(opened).toEqual([`${ORIGIN}/lists/l1`]);
   });
 });

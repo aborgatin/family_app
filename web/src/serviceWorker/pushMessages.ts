@@ -1,5 +1,5 @@
 import { createInstance } from 'i18next';
-import { dayParts, localDay } from '@/shared/dates';
+import { daysFromToday, localDay, shortDay } from '@/shared/dates';
 import ru from '@/shared/i18n/locales/ru.json';
 import {
   parsePushPayload,
@@ -43,7 +43,7 @@ export function readPushMessage(data: string | undefined, now: Date): PushMessag
 }
 
 /** The title, body and URL of the notification shown for `payload`, at the device's `now`. */
-export function pushMessage(payload: PushPayload, now: Date): PushMessage {
+function pushMessage(payload: PushPayload, now: Date): PushMessage {
   if (payload.type === 'notification') {
     return { title: payload.listName, body: notificationBody(payload), url: payload.url };
   }
@@ -55,18 +55,13 @@ export function pushMessage(payload: PushPayload, now: Date): PushMessage {
  * server was down) says «вчера» once the device's day has moved on.
  */
 function reminderBody(payload: ReminderPayload, now: Date): string {
-  const { year, month, day } = dayParts(payload.dueDate);
-  // Whole calendar days back from the device's today.
-  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  const daysAgo = Math.round((today - Date.UTC(year, month - 1, day)) / 86_400_000);
+  const days = daysFromToday(payload.dueDate, now);
   const dayText =
-    daysAgo === 0
+    days === 0
       ? t('push.today')
-      : daysAgo === 1
+      : days === -1
         ? t('push.yesterday')
-        : new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'short' }).format(
-            localDay(payload.dueDate),
-          );
+        : shortDay(localDay(payload.dueDate), now);
   const due =
     payload.dueTime === null
       ? dayText

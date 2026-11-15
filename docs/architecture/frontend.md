@@ -86,7 +86,8 @@ web/src/
     sync/               local store (Dexie), sync engine, useRows / useSyncedRows / upsertRow /
                         deleteRow, useSaveRejection, startSync / stopSync / onSessionEnded
     palette/            Child color palette (childColors.json)
-    dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests)
+    dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests),
+                        daysFromToday(day, now), shortDay(date, now) («15 нояб.»)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
@@ -794,14 +795,15 @@ a Vite native-config-loader warning).
   Item or count them. The count nouns are `push.count.<kind>_<plural>` in the accusative
   (товар / задачу / желание); the verbs follow the actor's Grammatical gender as i18n `context`,
   with «добавил(а)» / «назначил(а)» as the neutral form. A Reminder reads «Дом · сегодня в 18:00»
-  (or without the time), «вчера» once the device's day has moved on, and the short date further
-  back.
+  (or without the time), «вчера» once the device's day has moved on, and the short date
+  further back (`shortDay`, with the year when it is another one, as on Item rows).
 - **Tap** (`notificationclick`): `notificationClickTarget(data, windows, origin)` picks the
   focused open app window, else the first, and the payload's URL (anything that isn't a path in
   this app becomes `/`). `openScreen(clients, data, origin)` carries it out against the worker's
-  `clients` (tests pass fake windows). It navigates that window there (first, so a refused focus can't
-  stop it) and focuses it; with no window open, or one it can't navigate (not yet controlled), it
-  opens a new window at the URL. A window already on the screen is only focused.
+  `clients` (tests pass fake windows). It navigates that window there (first, so a refused focus
+  can't stop it) and focuses it; with no window open, or one it can't navigate (not yet
+  controlled), it only opens a new window at the URL. A window already on the screen is only
+  focused.
 - **Updates**: `registerType: 'autoUpdate'`, and the worker calls `skipWaiting()` and
   `clientsClaim()` itself (the plugin doesn't add them to an `injectManifest` worker). A new worker
   installs in the background and takes over, but the open page is never reloaded; the next launch

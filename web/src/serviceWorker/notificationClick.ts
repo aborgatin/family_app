@@ -3,28 +3,27 @@
 
 /** An open app window, as the worker's `clients.matchAll({ type: 'window' })` sees it. */
 export interface AppWindow {
-  id: string;
   url: string;
   focused: boolean;
 }
 
 /** Focus that window (and take it to `navigateTo`, unless it is already there), or open one. */
-export type ClickTarget = { focus: string; navigateTo?: string } | { open: string };
+export type ClickTarget<W extends AppWindow> = { focus: W; navigateTo?: string } | { open: string };
 
 /**
  * Where a tap on a notification with `data` (its payload's `{ url }`) goes: the focused open app
  * window, else the first, taken to the payload's screen; or a new window there when none is open.
  * A missing URL, or one that isn't a path in this app, goes to `/`.
  */
-export function notificationClickTarget(
+export function notificationClickTarget<W extends AppWindow>(
   data: unknown,
-  windows: AppWindow[],
+  windows: readonly W[],
   origin: string,
-): ClickTarget {
+): ClickTarget<W> {
   const url = new URL(screenPath(data), origin).href;
   const window = windows.find((w) => w.focused) ?? windows[0];
   if (window === undefined) return { open: url };
-  return window.url === url ? { focus: window.id } : { focus: window.id, navigateTo: url };
+  return window.url === url ? { focus: window } : { focus: window, navigateTo: url };
 }
 
 /** The payload's path, or `/` when it has none or it leads off this app. */
@@ -59,20 +58,17 @@ export async function openScreen(
   origin: string,
 ): Promise<void> {
   const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-  const target = notificationClickTarget(data, [...windows], origin);
+  const target = notificationClickTarget(data, windows, origin);
   if ('open' in target) {
     await clients.openWindow(target.open);
     return;
   }
-  const window = windows.find((w) => w.id === target.focus);
-  if (window === undefined) return;
   if (target.navigateTo === undefined) {
-    await window.focus();
+    await target.focus.focus();
     return;
   }
   // Navigate first, so the screen changes even if focusing is refused. navigate() fails for a
   // window this worker doesn't control yet: open the screen in a new window instead.
-  const navigated = await window.navigate(target.navigateTo).catch(() => null);
-  await (navigated ?? window).focus();
-  if (navigated === null) await clients.openWindow(target.navigateTo);
+  const navigated = await target.focus.navigate(target.navigateTo).catch(() => null);
+  await (navigated === null ? clients.openWindow(target.navigateTo) : navigated.focus());
 }

@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { NotificationPayload, ReminderPayload } from './pushPayload';
-import { pushMessage, readPushMessage } from './pushMessages';
+import { readPushMessage } from './pushMessages';
 
 // The text a push shows, built by the service worker from the payload's codes and parameters with
 // the ru i18n file (spec #104 "UI and Copy").
 
 const NOW = new Date(2026, 10, 15, 12, 0);
+
+/** What the worker shows for a push carrying `payload`, at `now`. */
+function show(payload: NotificationPayload | ReminderPayload, now: Date) {
+  return readPushMessage(JSON.stringify(payload), now);
+}
 
 function notification(fields: Partial<NotificationPayload>): NotificationPayload {
   return {
@@ -25,7 +30,7 @@ function notification(fields: Partial<NotificationPayload>): NotificationPayload
 
 describe('a Notification', () => {
   it('names the one Item added, under the List name', () => {
-    const message = pushMessage(notification({ itemNames: ['Молоко'], addedCount: 1 }), NOW);
+    const message = show(notification({ itemNames: ['Молоко'], addedCount: 1 }), NOW);
 
     expect(message).toEqual({
       title: 'Продукты',
@@ -38,8 +43,8 @@ describe('a Notification', () => {
     const two = notification({ itemNames: ['Молоко', 'Хлеб'], addedCount: 2 });
     const three = notification({ itemNames: ['Молоко', 'Хлеб', 'Сыр'], addedCount: 3 });
 
-    expect(pushMessage(two, NOW).body).toBe('Даша добавила «Молоко», «Хлеб»');
-    expect(pushMessage(three, NOW).body).toBe('Даша добавила «Молоко», «Хлеб», «Сыр»');
+    expect(show(two, NOW).body).toBe('Даша добавила «Молоко», «Хлеб»');
+    expect(show(three, NOW).body).toBe('Даша добавила «Молоко», «Хлеб», «Сыр»');
   });
 
   it('counts four or more Items added and names the first three', () => {
@@ -48,7 +53,7 @@ describe('a Notification', () => {
       addedCount: 7,
     });
 
-    expect(pushMessage(seven, NOW).body).toBe('Даша добавила 7 товаров: Молоко, Хлеб, Сыр…');
+    expect(show(seven, NOW).body).toBe('Даша добавила 7 товаров: Молоко, Хлеб, Сыр…');
   });
 
   // Every plural form of each List kind's noun: 21 (one), 4 (few), 5 (many).
@@ -65,7 +70,7 @@ describe('a Notification', () => {
   ] as const)('counts the Items of a %s list: %i', (listKind, addedCount, counted) => {
     const payload = notification({ listKind, itemNames: ['А', 'Б', 'В'], addedCount });
 
-    expect(pushMessage(payload, NOW).body).toBe(`Даша добавила ${counted}: А, Б, В…`);
+    expect(show(payload, NOW).body).toBe(`Даша добавила ${counted}: А, Б, В…`);
   });
 
   it('follows the actor’s Grammatical gender, neutral when it isn’t set', () => {
@@ -77,8 +82,8 @@ describe('a Notification', () => {
     });
     const unset = notification({ ...added, actorName: 'Саша', actorGrammaticalGender: null });
 
-    expect(pushMessage(boris, NOW).body).toBe('Боря добавил «Молоко»');
-    expect(pushMessage(unset, NOW).body).toBe('Саша добавил(а) «Молоко»');
+    expect(show(boris, NOW).body).toBe('Боря добавил «Молоко»');
+    expect(show(unset, NOW).body).toBe('Саша добавил(а) «Молоко»');
   });
 
   it('counts the Items added and how many of them are the recipient’s', () => {
@@ -90,7 +95,7 @@ describe('a Notification', () => {
       assignedItemName: 'Купить подарок',
     });
 
-    expect(pushMessage(payload, NOW).body).toBe('Даша добавила 3 задачи, 1 — вам');
+    expect(show(payload, NOW).body).toBe('Даша добавила 3 задачи, 1 — вам');
   });
 
   it('names the one Item assigned to the recipient', () => {
@@ -100,7 +105,7 @@ describe('a Notification', () => {
       assignedItemName: 'Купить подарок',
     });
 
-    expect(pushMessage(payload, NOW).body).toBe('Даша назначила вам «Купить подарок»');
+    expect(show(payload, NOW).body).toBe('Даша назначила вам «Купить подарок»');
   });
 
   it('counts several Items assigned to the recipient', () => {
@@ -117,8 +122,8 @@ describe('a Notification', () => {
       assignedCount: 5,
     });
 
-    expect(pushMessage(boris, NOW).body).toBe('Боря назначил вам 2 задачи');
-    expect(pushMessage(unset, NOW).body).toBe('Саша назначил(а) вам 5 задач');
+    expect(show(boris, NOW).body).toBe('Боря назначил вам 2 задачи');
+    expect(show(unset, NOW).body).toBe('Саша назначил(а) вам 5 задач');
   });
 });
 
@@ -136,7 +141,7 @@ describe('a Reminder', () => {
   }
 
   it('says when the Item is due today, under the Item name', () => {
-    expect(pushMessage(reminder({}), NOW)).toEqual({
+    expect(show(reminder({}), NOW)).toEqual({
       title: 'Оплатить свет',
       body: 'Дом · сегодня в 18:00',
       url: '/lists/l2/items/i9',
@@ -144,26 +149,34 @@ describe('a Reminder', () => {
   });
 
   it('says only the day without a time', () => {
-    expect(pushMessage(reminder({ dueTime: null }), NOW).body).toBe('Дом · сегодня');
+    expect(show(reminder({ dueTime: null }), NOW).body).toBe('Дом · сегодня');
   });
 
   it('says «вчера» when it comes late, after midnight', () => {
     const justAfterMidnight = new Date(2026, 10, 16, 0, 30);
 
-    expect(pushMessage(reminder({}), justAfterMidnight).body).toBe('Дом · вчера в 18:00');
-    expect(pushMessage(reminder({ dueTime: null }), justAfterMidnight).body).toBe('Дом · вчера');
+    expect(show(reminder({}), justAfterMidnight).body).toBe('Дом · вчера в 18:00');
+    expect(show(reminder({ dueTime: null }), justAfterMidnight).body).toBe('Дом · вчера');
   });
 
   it('still says «сегодня» when it comes late the same day', () => {
     const later = new Date(2026, 10, 15, 21, 0);
 
-    expect(pushMessage(reminder({}), later).body).toBe('Дом · сегодня в 18:00');
+    expect(show(reminder({}), later).body).toBe('Дом · сегодня в 18:00');
   });
 
   it('names the day when the Due date is further back (a device clock ahead)', () => {
     const twoDaysOn = new Date(2026, 10, 17, 9, 0);
 
-    expect(pushMessage(reminder({}), twoDaysOn).body).toBe('Дом · 15 нояб. в 18:00');
+    expect(show(reminder({}), twoDaysOn).body).toBe('Дом · 15 нояб. в 18:00');
+  });
+
+  it('names the year of a Due date in another year, as the app does', () => {
+    const newYear = new Date(2027, 0, 2, 9, 0);
+
+    expect(show(reminder({ dueDate: '2026-12-31' }), newYear).body).toBe(
+      'Дом · 31 дек. 2026 г. в 18:00',
+    );
   });
 });
 

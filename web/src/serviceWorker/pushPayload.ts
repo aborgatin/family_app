@@ -2,15 +2,19 @@
 // parameters, never texts, and the service worker builds the Russian text from the ru i18n file.
 // The backend's payload must keep this shape; frontend.md "PWA" documents it.
 
+/** The List kinds and Grammatical genders a payload names, as the backend writes them. */
+const LIST_KINDS = ['SHOPPING', 'TODO', 'WISH'] as const;
+const GRAMMATICAL_GENDERS = ['MASCULINE', 'FEMININE'] as const;
+
 /** A Notification: one Batch of changes by one Member to one List, for one recipient. */
 export interface NotificationPayload {
   type: 'notification';
   /** The acting Member's name. */
   actorName: string;
   /** The acting Member's Grammatical gender; `null` when not set (the neutral wording). */
-  actorGrammaticalGender: 'MASCULINE' | 'FEMININE' | null;
+  actorGrammaticalGender: (typeof GRAMMATICAL_GENDERS)[number] | null;
   listName: string;
-  listKind: 'SHOPPING' | 'TODO' | 'WISH';
+  listKind: (typeof LIST_KINDS)[number];
   /** The added Items' names, in the order added (at least the first three). */
   itemNames: string[];
   /** How many Items were added, in all. */
@@ -47,28 +51,37 @@ export function parsePushPayload(data: string | undefined): PushPayload | undefi
   } catch {
     return undefined;
   }
-  if (typeof value !== 'object' || value === null) return undefined;
-  const fields = value as Record<string, unknown>;
-  const isString = (key: string) => typeof fields[key] === 'string';
-  const isStringOrNull = (key: string) => fields[key] === null || isString(key);
-  const isCount = (key: string) => Number.isInteger(fields[key]) && (fields[key] as number) >= 0;
+  return isNotification(value) || isReminder(value) ? value : undefined;
+}
 
-  if (!isString('url')) return undefined;
-  if (fields.type === 'notification') {
-    const readable =
-      ['actorName', 'listName'].every(isString) &&
-      ['addedCount', 'assignedCount'].every(isCount) &&
-      isStringOrNull('assignedItemName') &&
-      [null, 'MASCULINE', 'FEMININE'].includes(fields.actorGrammaticalGender as string | null) &&
-      ['SHOPPING', 'TODO', 'WISH'].includes(fields.listKind as string) &&
-      Array.isArray(fields.itemNames) &&
-      fields.itemNames.every((name) => typeof name === 'string');
-    return readable ? (fields as unknown as NotificationPayload) : undefined;
-  }
-  if (fields.type === 'reminder') {
-    const readable =
-      ['itemName', 'listName', 'dueDate'].every(isString) && isStringOrNull('dueTime');
-    return readable ? (fields as unknown as ReminderPayload) : undefined;
-  }
-  return undefined;
+type Fields = Record<string, unknown>;
+
+const isFields = (value: unknown): value is Fields => typeof value === 'object' && value !== null;
+const isString = (value: unknown) => typeof value === 'string';
+const isStringOrNull = (value: unknown) => value === null || isString(value);
+const isCount = (value: unknown) => Number.isInteger(value) && (value as number) >= 0;
+const isOneOf = (choices: readonly unknown[], value: unknown) => choices.includes(value);
+
+function isNotification(value: unknown): value is NotificationPayload {
+  return (
+    isFields(value) &&
+    value.type === 'notification' &&
+    [value.url, value.actorName, value.listName].every(isString) &&
+    [value.addedCount, value.assignedCount].every(isCount) &&
+    isStringOrNull(value.assignedItemName) &&
+    (value.actorGrammaticalGender === null ||
+      isOneOf(GRAMMATICAL_GENDERS, value.actorGrammaticalGender)) &&
+    isOneOf(LIST_KINDS, value.listKind) &&
+    Array.isArray(value.itemNames) &&
+    value.itemNames.every(isString)
+  );
+}
+
+function isReminder(value: unknown): value is ReminderPayload {
+  return (
+    isFields(value) &&
+    value.type === 'reminder' &&
+    [value.url, value.itemName, value.listName, value.dueDate].every(isString) &&
+    isStringOrNull(value.dueTime)
+  );
 }
