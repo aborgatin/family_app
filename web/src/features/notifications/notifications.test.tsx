@@ -387,3 +387,65 @@ describe('At launch', () => {
     expect(screen.queryByRole('button', { name: ENABLE_HERE })).not.toBeInTheDocument();
   });
 });
+
+describe('Logging out', () => {
+  /** `POST /api/auth/logout` answering 204; `requests` gets `logout` in order with the push ones. */
+  function logoutAnswers(requests: string[]) {
+    server.use(
+      http.post('/api/auth/logout', () => {
+        requests.push('logout');
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+  }
+
+  async function logOut(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+    const sheet = await screen.findByRole('dialog', {
+      name: 'Выйти из аккаунта на этом устройстве?',
+    });
+    await user.click(within(sheet).getByRole('button', { name: 'Выйти' }));
+  }
+
+  it('tells the server to forget this device’s subscription first', async () => {
+    loggedInAs(anna);
+    fakePushDevice({ permission: 'granted', subscribedAt: 'https://push.example/a' });
+    const push = pushServer();
+    const requests: string[] = [];
+    server.use(
+      http.delete('/api/push/subscriptions', async ({ request }) => {
+        requests.push('forget');
+        push.deleted.push(await request.json());
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    logoutAnswers(requests);
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    await logOut(user);
+
+    expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
+    expect(push.deleted).toEqual([{ endpoint: 'https://push.example/a' }]);
+    expect(requests).toEqual(['forget', 'logout']);
+  });
+
+  it('still logs out when the server can’t be told', async () => {
+    loggedInAs(anna);
+    fakePushDevice({ permission: 'granted', subscribedAt: 'https://push.example/a' });
+    server.use(
+      http.delete('/api/push/subscriptions', () =>
+        HttpResponse.json({ code: 'unknown' }, { status: 500 }),
+      ),
+    );
+    const requests: string[] = [];
+    logoutAnswers(requests);
+    const user = userEvent.setup();
+
+    renderApp('/settings');
+    await logOut(user);
+
+    expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
+    expect(requests).toEqual(['logout']);
+  });
+});

@@ -1,4 +1,4 @@
-import { fetchVapidPublicKey, sendSubscription } from './pushApi';
+import { deleteSubscription, fetchVapidPublicKey, sendSubscription } from './pushApi';
 
 /*
  * This device and push (spec #104, "Subscriptions" and "Client re-sync"): whether it can receive
@@ -80,6 +80,23 @@ async function currentOrNewSubscription(): Promise<PushSubscription> {
     userVisibleOnly: true,
     applicationServerKey: base64UrlBytes(await fetchVapidPublicKey()),
   });
+}
+
+/**
+ * At logout, while the session lasts: tells the server to forget this device's subscription, so
+ * the next person on the device gets none of the Member's pushes. Resolves either way: when the
+ * server can't be told, ending the session deletes the subscription there too. The device keeps
+ * its subscription; the next login sends it again.
+ */
+export async function forgetSubscription(): Promise<void> {
+  if (!pushAvailable() || Notification.permission !== 'granted') return;
+  try {
+    const { pushManager } = await navigator.serviceWorker.ready;
+    const subscription = await pushManager.getSubscription();
+    if (subscription !== null) await deleteSubscription(subscription.endpoint);
+  } catch {
+    // The session's end deletes it on the server.
+  }
 }
 
 /** The bytes of a base64url string (with or without padding). */

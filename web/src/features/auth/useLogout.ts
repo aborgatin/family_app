@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { asApiError, errorMessage, type ErrorMessage, NETWORK_UNAVAILABLE } from '@/shared/api';
+import { forgetSubscription } from '@/shared/push';
 import { flushOutbox, stopSyncAndWipe } from '@/shared/sync';
 import { logout, markLogoutPending } from './logoutApi';
 import { useSession } from './session';
@@ -33,6 +34,8 @@ export function useLogout() {
         return;
       }
     }
+    // While the session lasts: the server forgets this device's push subscription.
+    await forgetSubscription();
     try {
       await logout();
     } catch (failure: unknown) {
