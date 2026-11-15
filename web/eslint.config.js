@@ -349,6 +349,18 @@ export default defineConfig([
     UI_LIBRARIES,
   ]),
   ...layerBlocks('src/app', 'app', [DEEP_FEATURE_IMPORT]),
+  // The service worker (src/serviceWorker) is its own bundle beside the app: it may use shared,
+  // never a feature or app, which would pull React screens into the worker.
+  ...layerBlocks('src/serviceWorker', 'the service worker', [
+    {
+      group: ['@/features', '@/features/**'],
+      message: 'The service worker uses only `@/shared`, never a feature (M3).',
+    },
+    {
+      group: ['@/app', '@/app/**'],
+      message: 'The service worker uses only `@/shared`, never app (M3).',
+    },
+  ]),
 
   {
     files: ['*.{js,ts}'],

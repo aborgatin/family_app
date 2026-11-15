@@ -118,3 +118,18 @@ older.version(1).stores({ list: 'id' });
     expect(await messages(declared, OLDER_STORE, RULE)).toEqual([]);
   });
 });
+
+describe('the service worker imports only shared (M3)', () => {
+  const RULE = 'no-restricted-imports';
+  const WORKER_FILE = 'src/serviceWorker/notificationClick.ts';
+
+  it.each(['@/features/lists', '@/app/routes'])('rejects importing %s', async (from) => {
+    const found = await messages(`export { x } from '${from}';\n`, WORKER_FILE, RULE);
+    expect(found).toHaveLength(1);
+  });
+
+  it('allows @/shared', async () => {
+    const found = await messages(`export { dayParts } from '@/shared/dates';\n`, WORKER_FILE, RULE);
+    expect(found).toEqual([]);
+  });
+});
