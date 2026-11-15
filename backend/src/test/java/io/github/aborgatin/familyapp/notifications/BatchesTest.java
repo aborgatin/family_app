@@ -406,6 +406,55 @@ class BatchesTest {
     assertThat(payload(0).get("assignedCount").asInt()).isZero();
   }
 
+  @Test
+  void aMutedListSendsNoAdditionsButAssignmentsStillArrive() throws Exception {
+    pushApplied(anna, MuteSyncTest.mute(UUID.randomUUID(), home));
+    UUID gift = UUID.randomUUID();
+
+    pushApplied(
+        boris,
+        add(UUID.randomUUID(), home, "Починить кран"),
+        SyncRequests.upsert(
+            "item",
+            gift,
+            "{\"listId\":\"%s\",\"text\":\"Купить подарок\",\"assigneeId\":\"%s\"}"
+                .formatted(home, annaId())));
+    later(Duration.ofMinutes(2));
+
+    assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE);
+    assertThat(payload(0).get("itemNames")).isEqualTo(json("[]"));
+    assertThat(payload(0).get("addedCount").asInt()).isZero();
+    assertThat(payload(0).get("assignedCount").asInt()).isEqualTo(1);
+    assertThat(payload(0).get("assignedItemName").asText()).isEqualTo("Купить подарок");
+  }
+
+  @Test
+  void aBatchPendingWhenTheListIsMutedLosesItsAdditions() throws Exception {
+    pushApplied(boris, add(UUID.randomUUID(), home, "Починить кран"));
+    later(Duration.ofSeconds(60));
+
+    pushApplied(anna, MuteSyncTest.mute(UUID.randomUUID(), home));
+    later(Duration.ofMinutes(2));
+
+    assertThat(gateway.pushes()).isEmpty();
+  }
+
+  @Test
+  void aMuteIsItsMembersOnlyAndUnmutingBringsAdditionsBack() throws Exception {
+    UUID annasMute = UUID.randomUUID();
+    pushApplied(anna, MuteSyncTest.mute(annasMute, home));
+
+    pushApplied(anna, add(UUID.randomUUID(), home, "Полить цветы"));
+    later(Duration.ofMinutes(2));
+    assertThat(gateway.endpoints()).containsExactly(BORIS_PHONE);
+
+    gateway.reset();
+    pushApplied(anna, SyncRequests.delete(MuteSyncTest.TABLE, annasMute));
+    pushApplied(boris, add(UUID.randomUUID(), home, "Починить кран"));
+    later(Duration.ofMinutes(2));
+    assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE);
+  }
+
   /**
    * Stands for a server fault that rolls a push back as it commits (a lost connection, a failed
    * constraint): when on, every push that assigns an Item fails.

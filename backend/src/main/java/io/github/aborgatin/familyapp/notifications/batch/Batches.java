@@ -9,11 +9,13 @@ import io.github.aborgatin.familyapp.lists.ListKind;
 import io.github.aborgatin.familyapp.lists.ListSummary;
 import io.github.aborgatin.familyapp.lists.Lists;
 import io.github.aborgatin.familyapp.lists.Visibility;
+import io.github.aborgatin.familyapp.notifications.mute.Mutes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -52,12 +54,15 @@ public class Batches {
   private final PendingBatches batches;
   private final Lists lists;
   private final Members members;
+  private final Mutes mutes;
   private final ObjectMapper json;
 
-  Batches(PendingBatches batches, Lists lists, Members members, ObjectMapper json) {
+  Batches(
+      PendingBatches batches, Lists lists, Members members, Mutes mutes, ObjectMapper json) {
     this.batches = batches;
     this.lists = lists;
     this.members = members;
+    this.mutes = mutes;
     this.json = json;
   }
 
@@ -88,6 +93,7 @@ public class Batches {
             .filter(entry -> entry.added() && items.containsKey(entry.itemId()))
             .map(entry -> items.get(entry.itemId()).name())
             .toList();
+    Set<UUID> mutedBy = mutes.mutedBy(list.id());
     List<Notification> notifications = new ArrayList<>();
     for (UUID recipient : list.seenBy()) {
       if (recipient.equals(batch.actorId())) {
@@ -100,7 +106,9 @@ public class Batches {
               .filter(item -> item != null && recipient.equals(item.assigneeId()))
               .map(ItemSummary::name)
               .toList();
-      if (added.isEmpty() && assigned.isEmpty()) {
+      // A recipient who Muted the List gets only what is assigned to them.
+      List<String> addedFor = mutedBy.contains(recipient) ? List.of() : added;
+      if (addedFor.isEmpty() && assigned.isEmpty()) {
         continue;
       }
       NotificationPayload payload =
@@ -110,8 +118,8 @@ public class Batches {
               actor.get().grammaticalGender(),
               list.name(),
               list.kind(),
-              added.stream().limit(NAMED_ITEMS).toList(),
-              added.size(),
+              addedFor.stream().limit(NAMED_ITEMS).toList(),
+              addedFor.size(),
               assigned.size(),
               assigned.size() == 1 ? assigned.get(0) : null,
               "/lists/" + list.id());

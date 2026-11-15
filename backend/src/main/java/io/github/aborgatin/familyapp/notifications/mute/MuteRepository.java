@@ -19,6 +19,9 @@ interface MuteRepository extends Repository<Mute, UUID> {
   /** Every Mute written after this Version, deleted ones included (for the pull). */
   List<Mute> findByVersionGreaterThan(long version);
 
+  /** The List's live Mutes, for sending a Batch. */
+  List<Mute> findByListIdAndDeletedFalse(UUID listId);
+
   /**
    * Soft-deletes the List's Mutes (S2): each gets a new Version from the trigger. Clears the
    * persistence context, so later operations of the same push see them deleted.
