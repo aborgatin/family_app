@@ -70,7 +70,11 @@ describe('a Notification', () => {
 
   it('follows the actor’s Grammatical gender, neutral when it isn’t set', () => {
     const added = { itemNames: ['Молоко'], addedCount: 1 };
-    const boris = notification({ ...added, actorName: 'Боря', actorGrammaticalGender: 'MASCULINE' });
+    const boris = notification({
+      ...added,
+      actorName: 'Боря',
+      actorGrammaticalGender: 'MASCULINE',
+    });
     const unset = notification({ ...added, actorName: 'Саша', actorGrammaticalGender: null });
 
     expect(pushMessage(boris, NOW).body).toBe('Боря добавил «Молоко»');

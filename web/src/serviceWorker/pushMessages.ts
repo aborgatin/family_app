@@ -37,7 +37,9 @@ export interface PushMessage {
  */
 export function readPushMessage(data: string | undefined, now: Date): PushMessage {
   const payload = parsePushPayload(data);
-  return payload === undefined ? { title: t('app.name'), body: '', url: '/' } : pushMessage(payload, now);
+  return payload === undefined
+    ? { title: t('app.name'), body: '', url: '/' }
+    : pushMessage(payload, now);
 }
 
 /** The title, body and URL of the notification shown for `payload`, at the device's `now`. */
@@ -66,7 +68,9 @@ function reminderBody(payload: ReminderPayload, now: Date): string {
             localDay(payload.dueDate),
           );
   const due =
-    payload.dueTime === null ? dayText : t('push.dayAndTime', { day: dayText, time: payload.dueTime });
+    payload.dueTime === null
+      ? dayText
+      : t('push.dayAndTime', { day: dayText, time: payload.dueTime });
   return t('push.reminder', { list: payload.listName, due });
 }
 
