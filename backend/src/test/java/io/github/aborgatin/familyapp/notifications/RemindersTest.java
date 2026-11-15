@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.aborgatin.familyapp.Browser;
 import io.github.aborgatin.familyapp.FakePushGateway;
 import io.github.aborgatin.familyapp.FreshInstallation;
+import io.github.aborgatin.familyapp.ListOperations;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
 import io.github.aborgatin.familyapp.SyncRequests;
 import io.github.aborgatin.familyapp.TestClock;
@@ -94,7 +95,175 @@ class RemindersTest {
     }
   }
 
+  @Test
+  void aDueDateWithoutATimeRemindsAtNineInTheMorning() throws Exception {
+    due(home, "Позвонить маме", today, null);
+
+    runEveryMinuteUntil(at(today, "08:59"));
+    assertThat(reminders()).isEmpty();
+
+    runEveryMinuteUntil(at(today, "09:00"));
+    assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
+    assertThat(payload(reminders().get(0)).get("dueDate").asText()).isEqualTo(today.toString());
+    assertThat(payload(reminders().get(0)).get("dueTime").isNull()).isTrue();
+  }
+
+  @Test
+  void anAssignedItemRemindsTheAssigneeAlone() throws Exception {
+    pushApplied(
+        anna,
+        SyncRequests.upsert(
+            "item",
+            UUID.randomUUID(),
+            dueFields(home, "Забрать посылку", today, "10:00")
+                .replace("}", ",\"assigneeId\":\"%s\"}".formatted(SyncRequests.memberId(boris)))));
+
+    stepAt(at(today, "10:00"));
+
+    assertThat(endpoints(reminders())).containsExactly(BORIS_PHONE);
+  }
+
+  @Test
+  void aPrivateListRemindsItsOwnerAlone() throws Exception {
+    UUID mine = UUID.randomUUID();
+    UUID secret = UUID.randomUUID();
+    pushApplied(
+        boris,
+        list(mine, "Моё", "TODO", "PRIVATE"),
+        SyncRequests.upsert("item", secret, dueFields(mine, "Подарок Анне", today, "10:00")));
+
+    stepAt(at(today, "10:00"));
+
+    assertThat(endpoints(reminders())).containsExactly(BORIS_PHONE);
+    assertThat(payload(reminders().get(0)).get("listName").asText()).isEqualTo("Моё");
+  }
+
+  @Test
+  void aMemberWithTheSwitchOffGetsNoReminders() throws Exception {
+    PushSubscriptionsTest.switchNotifications(anna, false);
+    due(home, "Починить кран", today, "10:00");
+
+    stepAt(at(today, "10:00"));
+
+    assertThat(endpoints(reminders())).containsExactly(BORIS_PHONE);
+  }
+
+  @Test
+  void aDueDateRemindsOnceAndAgainWhenMovedToALaterMoment() throws Exception {
+    UUID tap = due(home, "Починить кран", today, "10:00");
+    UUID gift = due(home, "Купить подарок", today, "11:00");
+    // Moved before its moment: it reminds at the new one only.
+    pushApplied(anna, SyncRequests.upsert("item", gift, "{\"dueTime\":\"13:00\"}"));
+
+    runEveryMinuteUntil(at(today, "12:00"));
+    assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
+    assertThat(payload(reminders().get(0)).get("itemName").asText()).isEqualTo("Починить кран");
+
+    // Moved after it reminded: it reminds again at the new moment.
+    gateway.reset();
+    pushApplied(anna, SyncRequests.upsert("item", tap, "{\"dueTime\":\"14:00\"}"));
+    runEveryMinuteUntil(at(today, "13:00"));
+    assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
+    assertThat(payload(reminders().get(0)).get("itemName").asText()).isEqualTo("Купить подарок");
+
+    gateway.reset();
+    runEveryMinuteUntil(at(today, "14:00"));
+    assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
+    assertThat(payload(reminders().get(0)).get("dueTime").asText()).isEqualTo("14:00");
+
+    gateway.reset();
+    runEveryMinuteUntil(at(today, "16:00"));
+    assertThat(reminders()).isEmpty();
+  }
+
+  @Test
+  void anItemDoneBeforeItsMomentGetsNoReminder() throws Exception {
+    UUID tap = due(home, "Починить кран", today, "10:00");
+    stepAt(at(today, "09:30"));
+    pushApplied(boris, ListOperations.done(tap, true));
+
+    stepAt(at(today, "10:00"));
+
+    assertThat(reminders()).isEmpty();
+  }
+
+  @Test
+  void aDueDateSetToAMomentAlreadyPastGetsNoReminder() throws Exception {
+    stepAt(at(today, "10:00"));
+    due(home, "Сегодня утром", today, null); // 09:00
+    due(home, "В восемь", today, "08:00");
+    due(home, "Вчера", today.minusDays(1), "18:00");
+    UUID later = due(home, "Позже", today, "11:00");
+    pushApplied(anna, SyncRequests.upsert("item", later, "{\"dueTime\":\"09:30\"}"));
+
+    runEveryMinuteUntil(at(today, "23:59"));
+
+    assertThat(reminders()).isEmpty();
+  }
+
+  @Test
+  void theNextOccurrenceOfARepeatingItemRemindsAtItsOwnDueDate() throws Exception {
+    UUID trash = UUID.randomUUID();
+    pushApplied(
+        anna,
+        SyncRequests.upsert(
+            "item",
+            trash,
+            dueFields(home, "Вынести мусор", today, "10:00")
+                .replace("}", ",\"repeat\":\"DAILY\"}")));
+    stepAt(at(today, "10:00"));
+    pushApplied(anna, ListOperations.done(trash, true));
+    gateway.reset();
+
+    LocalDate tomorrow = today.plusDays(1);
+    stepAt(at(tomorrow, "09:59"));
+    assertThat(reminders()).isEmpty();
+    stepAt(at(tomorrow, "10:00"));
+
+    assertThat(endpoints(reminders())).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
+    JsonNode copy = payload(reminders().get(0));
+    assertThat(copy.get("itemName").asText()).isEqualTo("Вынести мусор");
+    assertThat(copy.get("dueDate").asText()).isEqualTo(tomorrow.toString());
+    assertThat(copy.get("url").asText())
+        .startsWith("/lists/%s/items/".formatted(home))
+        .doesNotContain(trash.toString());
+  }
+
+  @Test
+  void afterDowntimeRemindersOfTheLast24HoursAreSentAndOlderOnesDropped() throws Exception {
+    due(home, "Больше суток назад", today, "10:00");
+    UUID done = due(home, "Уже сделано", today, "13:00");
+    due(home, "Меньше суток назад", today, "14:00");
+    due(home, "Сегодня утром", today.plusDays(1), null);
+    pushApplied(boris, ListOperations.done(done, true));
+
+    // The server is down from 07:00 until 11:30 the next day.
+    stepAt(at(today.plusDays(1), "11:30"));
+
+    assertThat(
+            reminders().stream()
+                .map(sent -> payload(sent).get("itemName").asText())
+                .distinct()
+                .toList())
+        .containsExactlyInAnyOrder("Меньше суток назад", "Сегодня утром");
+    assertThat(reminders()).hasSize(4);
+  }
+
   // --- helpers ---
+
+  /** Moves the clock to {@code at} and runs the step once, as the first run after a pause. */
+  void stepAt(Instant at) {
+    clock.set(at);
+    step.run();
+  }
+
+  static JsonNode payload(FakePushGateway.Push sent) {
+    try {
+      return json(sent.payload());
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
+    }
+  }
 
   /** The Reminders pushed so far (the Notifications about Anna's additions left out). */
   List<FakePushGateway.Push> reminders() throws Exception {
