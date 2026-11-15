@@ -27,6 +27,8 @@ internal.error       server fault: the generic message is all the Member can use
 request.invalid      malformed request: a client bug, not something the Member can fix
 method.not_allowed   wrong HTTP method: a client bug
 sync.table_unknown   push to an unknown table: a client bug
+keys.p256dh          not a code: a field name in validation.failed (the browser's subscription keys)
+keys.auth            not a code: a field name in validation.failed (the browser's subscription keys)
 "
 
 # Codes only the client produces (no server literal). Same format.

@@ -12,7 +12,7 @@ step with the headings).
 
 - [Stack](#stack): Spring Boot, Java 21, Error Prone, Spotless, what the build copies from the web app
 - [Configuration](#configuration): the environment variables `application.yml` reads and their defaults
-- [Modules](#modules): the Modulith modules (`family`, `sync`, `lists`, `command`, `webapp`), their public API and internals
+- [Modules](#modules): the Modulith modules (`family`, `sync`, `lists`, `notifications`, `command`, `webapp`), their public API and internals
 - [API conventions](#api-conventions): JSON shape, timestamps and dates, which resources are REST and which go through sync
 - [Errors](#errors): `ApiException`, `FieldErrors`, the error-code catalogue (I1, I3)
 - [Security, sessions, CSRF](#security-sessions-csrf): the security chains, public endpoints, sessions, CSRF, login limits
@@ -47,6 +47,15 @@ step with the headings).
 | `PASSWORD_RESET_TTL`                                                | `1h`              | `PasswordResets`                                          |
 | `DOMAIN`                                                            | `localhost`       | links `https://<DOMAIN>/invite/…` and `/reset-password/…` |
 | `LOGIN_LIMIT_PER_EMAIL`, `LOGIN_LIMIT_PER_IP`, `LOGIN_LIMIT_WINDOW` | `10`, `20`, `15m` | `LoginLimits`                                             |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`                             | none (required)   | Web Push key pair, P-256 in base64url (`WebPushGateway`)  |
+| `VAPID_SUBJECT`                                                     | none (required)   | `mailto:` contact sent to the push services               |
+| `REMINDER_MORNING_TIME`                                             | `09:00`           | when a Due date without a time is due, in `TZ`            |
+
+The `notifications.*` keys bind to `notifications.push.NotificationsProperties`. A missing or
+blank VAPID variable, a subject that is not `mailto:`, or keys that are not one P-256 pair stop the
+app at startup with a message naming the variable (`NotificationsConfigurationTest`). Tests get a
+test-only pair from `src/test/resources/config/application.yml` (loaded on top of the main
+`application.yml`); local runs and the image tests from `scripts/lib/dev-vapid-keys.env`.
 
 Durations use Spring's format (`180d`, `15m`, `1h`). `spring.jpa.hibernate.ddl-auto` is `validate`
 and `open-in-view` is off. A new setting needs a line in `deploy/.env.example` and in the `app`
@@ -63,12 +72,13 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 | `family`  | `Members`, `MemberSummary`, `PasswordResets`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | none                                                                                                   | `lists.list`                                                                              |
+| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `Urgency`                            | `notifications.push`                                                                      |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
-`sync → error`, `command → family`. (`lists` reaches Members through `Operation.memberId()`, and
+`sync → error`, `command → family`, `notifications → family`, `notifications → error`. (`lists` reaches Members through `Operation.memberId()`, and
 `family` for the `FirstMemberRegistered` and `ChildDeleted` events, for `Children` (Child
 lists, #90) and for `Members.byId` (an Item's Assignee must be a Member, #85); the spec also
 allows `FamilyLock` when a ticket needs it.) The Version
@@ -397,13 +407,53 @@ Item history is in the same package: `ItemHistoryEntity` (`list_id`, `normalized
 - `changesSince`: `listId`, `name`, `lastUsedAt`; a tombstone for a deleted row and for one whose
   List the Member may not see.
 
+### `notifications`
+
+Push messages (spec #104). Ticket #107 built the module's base: the Notifications switch's effect,
+push subscriptions and the push gateway. Batches, Reminders and Mute come with later tickets.
+
+- **`Pushes.sendTo(memberId, payload, ttl, urgency)`** (public) is the one way out: if the
+  Member's Notifications switch is on (`family.Members.notificationsEnabled`), it sends the payload
+  to each of their live subscriptions, one push each, outside any transaction. `GONE` deletes the
+  subscription; `FAILED` is logged and not retried. Turning the switch off keeps the
+  subscriptions. Callers decide recipients and payloads.
+- **`PushGateway`** (public, the test seam): `send(subscription, payload, ttl, urgency)` →
+  `DELIVERED | GONE | FAILED`, never throws. The real one, `notifications.push.WebPushGateway`, has
+  `nl.martijndwars:web-push` build the request (VAPID `Authorization`, payload encrypted as
+  `aes128gcm`, the encoding Safari accepts; `TTL`, `Urgency` headers) and sends it with the JDK's
+  `HttpClient` (30 s timeouts), so neither of the library's HTTP clients is on the classpath. 404
+  and 410 are `GONE`; any other non-2xx, a timeout or an error is `FAILED`. Its constructor checks
+  that the two keys are one pair. `WebPushGatewayTest` drives it against a stand-in push service on
+  a local port. Tests replace it with `FakePushGateway` (see Testing).
+- **Subscriptions** (`notifications.push.PushSubscriptions`, `JdbcTemplate` on
+  `push_subscription`): a row per endpoint with its keys, its Member and the Spring Session row
+  that registered it (`session_primary_id`, a foreign key to `spring_session` with
+  `ON DELETE CASCADE`). So logout, the expired-session cleanup and a password reset ending every
+  session delete it with no code of their own. A row counts for sending only while its session is
+  unexpired by the app's `Clock` and still logged in as its Member (`principal_name`): logging in
+  as the other Member on the same device keeps Spring Session's row.
+- **`PushController`** (`/api/push`, `@ConditionalOnWebApplication`): `GET /vapid-public-key`;
+  `POST /subscriptions` upserts by endpoint (`INSERT … ON CONFLICT`) for `Members.current()` and
+  this request's session, so posting again is a no-op and posting an endpoint the other Member
+  registered moves it; `DELETE /subscriptions` deletes the caller's own row with that endpoint
+  (another Member's or an unknown one: no-op). `SubscriptionRequest` validates the body:
+  `endpoint` an `https` URL with a host, at most 2048 characters (`required`, `too_long`,
+  `value.invalid`); `keys.p256dh` base64url of a 65-byte uncompressed point and `keys.auth` of 16
+  bytes (`required`, `value.invalid`). `expirationTime` is ignored.
+- **`NotificationsProperties`** (`notifications.push`): the VAPID settings and
+  `reminderMorningTime` (see Configuration).
+
 ### `command`
 
 Operator commands run from the same image. `FamilyAppApplication.main` checks
 `Commands.isCommand(args)`; if so, `Commands.run` starts the context with
 `WebApplicationType.NONE` (no port, so it can run next to the live app), runs the command and exits
-with its code (0 ok, 1 failed, 2 usage). The only command is `reset-password <email>`
-(`PasswordResetCommand`); see [`deployment.md`](deployment.md#password-reset).
+with its code (0 ok, 1 failed, 2 usage). Commands: `reset-password <email>`
+(`PasswordResetCommand`; see [`deployment.md`](deployment.md#password-reset)) and
+`generate-vapid-keys` (`GenerateVapidKeysCommand`), which prints a fresh P-256 pair as
+`VAPID_PUBLIC_KEY=` / `VAPID_PRIVATE_KEY=` lines and runs before any context starts: it needs no
+database or settings, being how the operator gets them (see
+[`deployment.md`](deployment.md#push-keys-vapid)).
 
 Because commands start without a web server, every web-only bean must be
 `@ConditionalOnWebApplication`: `SecurityConfig`, `SessionLogin`, `SlidingSessionCookieFilter`,
@@ -444,7 +494,10 @@ there):
 | `GET/POST /api/invites`, `DELETE /api/invites/{id}`            | list active / create (response has `url`) / revoke                                 |
 | `GET /api/invites/by-token/{token}` (public)                   | `{expiresAt}` or the Invite's state error                                          |
 | `POST /api/invites/by-token/{token}/accept` (public)           | `201 Member`, logs in                                                              |
-| `GET /api/members`, `PATCH /api/members/me`                    | list (by display name, then email) / change own `displayName`, `grammaticalGender` |
+| `GET /api/members`, `PATCH /api/members/me`                    | list (by display name, then email) / change own `displayName`, `grammaticalGender`, `notificationsEnabled` |
+| `GET /api/push/vapid-public-key`                               | `{publicKey}`: the key the browser subscribes with                                 |
+| `POST /api/push/subscriptions`                                 | `204`; body `{endpoint, keys: {p256dh, auth}}`: this device, this Member and session |
+| `DELETE /api/push/subscriptions`                               | `204`; body `{endpoint}`: the caller's own; unknown is a no-op                     |
 | `POST /api/members/me/password`                                | `204`; other sessions stay                                                         |
 | `POST /api/sync/push`                                          | `{operations}` → `{results, version}`; see [`sync.md`](sync.md)                    |
 | `GET /api/sync/pull?since=N`                                   | `{changes, version}`; see [`sync.md`](sync.md)                                     |
@@ -618,6 +671,8 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V12__item_due_date.sql`        | `item.due_date` (`DATE`), `item.due_time` (`TIME`): a todo item's Due date, nullable, no backfill  |
 | `V13__item_assignee.sql`        | `item.assignee_id` (→ `member`): a todo item's Assignee, nullable, no backfill                     |
 | `V14__item_repeat.sql`          | `item.repeat` (`VARCHAR(16)`): a todo item's Repeat, nullable, no backfill                         |
+| `V15__list_done_hidden_at.sql`  | `list.done_hidden_at`, `list.done_hidden_press`: Hide done on a Todo list, nullable                |
+| `V16__push_subscription.sql`    | `member.notifications_enabled` default `FALSE` (existing Members set off); `push_subscription` (→ `member`, → `spring_session` cascading) |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -707,13 +762,14 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   | `HttpDevice` | a real port: restarts, SSE streams |
   | `LockWaits` | proving a request waits on the Family lock |
   | `TestClock` | a test whose answer depends on today or now: fix the server's clock |
+  | `FakePushGateway` | a test that checks push messages: records each push, answers `GONE`/`FAILED` on request |
 
 - Shared helpers, public, in the root test package `src/test/java/io/github/aborgatin/familyapp/`
   (every module's tests import them):
   - `Browser`: one device on MockMvc. Keeps cookies, sends `X-XSRF-TOKEN` on writes, and has its own
     client IP (`new Browser(mvc)`; `new Browser(mvc, ip)` to share one; `Browser.newDeviceIp()`).
     Methods: `openApp()` (`GET /api/auth/session`), `get`, `post(path)` (no body), `postJson`,
-    `putJson`, `patchJson`, `delete`. Login-limit counters live for the whole cached context, so
+    `putJson`, `patchJson`, `delete`, `deleteJson`. Login-limit counters live for the whole cached context, so
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
     (both cascading: Invites, resets, Lists, Items, Categories, Item history and Child field values) but keeps `child_field` Defaults; `removeChildFields(jdbc)` (with their values);
@@ -723,6 +779,10 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `fields(device, table, id)` (as a first pull returns them), `version(result)`,
     `memberId(device)` (the logged-in Member's id), and the two devices most sync tests start
     from: `bootstrapAnna(mvc)`, `loginBoris(mvc, jdbc)`.
+  - `FakePushGateway`: `@Import(FakePushGateway.Config.class)` puts it in place of the real
+    gateway (`@Primary`). `pushes()` (subscription, payload, TTL, urgency), `endpoints()`,
+    `answer(endpoint, GONE | FAILED)`, `reset()` (call it in `@BeforeEach`: the context is shared).
+    See `notifications.PushSubscriptionsTest`.
   - `ListOperations`: the Lists' operations most `lists.*SyncTest`s push, statically imported:
     `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`.
     A helper one test class needs stays in it; one a second class needs moves here.

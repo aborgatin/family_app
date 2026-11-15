@@ -17,6 +17,7 @@ step with the headings).
 - [Environment variables](#environment-variables): every `deploy/.env` setting and what reads it
 - [Deploy and rollback](#deploy-and-rollback): pulling a new image, rolling back to a tag
 - [Password reset](#password-reset): the operator's one-time reset link
+- [Push keys (VAPID)](#push-keys-vapid): generating the key pair push messages need, once per installation
 - [Backups](#backups): `deploy/backup.sh`, the B2 and R2 targets, encryption, pruning, cron
 - [Restore](#restore): `deploy/restore.sh`, listing and restoring a dump
 - [Server set-up checklist](#server-set-up-checklist): first-time set-up of the server, in order
@@ -157,6 +158,9 @@ the backup scripts (`ENV_FILE` overrides the path; process environment wins over
 | `INVITE_TTL`                                                        | `7d`                                       | app                                                                    |
 | `PASSWORD_RESET_TTL`                                                | `1h`                                       | app                                                                    |
 | `LOGIN_LIMIT_PER_EMAIL`, `LOGIN_LIMIT_PER_IP`, `LOGIN_LIMIT_WINDOW` | `10`, `20`, `15m`                          | app: failed-login limits (in memory)                                   |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`                             | required; see [Push keys](#push-keys-vapid) | app: signs and encrypts push messages                                  |
+| `VAPID_SUBJECT`                                                     | `mailto:you@example.com` (required)        | app: the contact push services may use                                 |
+| `REMINDER_MORNING_TIME`                                             | `09:00`                                    | app: when a Due date without a time is due, in `TZ`                    |
 | `TZ`                                                                | `Europe/Berlin`                            | all containers; the host must use the same zone for cron               |
 | `BACKUP_REMOTES`                                                    | `"b2:<bucket> r2:<bucket>"` (required)     | `backup.sh`, `restore.sh`: rclone targets, space-separated             |
 | `BACKUP_PASSPHRASE`                                                 | required                                   | backup scripts: encrypts the dumps (rclone crypt)                      |
@@ -198,6 +202,25 @@ It starts the app without the web server (safe next to the running app), creates
 stderr, exit 1. Wrong arguments: usage, exit 2. The link works once, for `PASSWORD_RESET_TTL`;
 creating a new one invalidates the Member's older unused links. Completing it sets the new password
 and logs the Member out on every device, then logs them in on the current one.
+
+## Push keys (VAPID)
+
+Push messages (Notifications and Reminders) are signed with the installation's VAPID key pair. The
+app does not start without `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and a `mailto:` `VAPID_SUBJECT`
+(the message names the missing one), and Compose refuses to start without them in `.env`. Generate
+the pair once, before the first deploy that needs it, with the image itself:
+
+```sh
+docker run --rm ghcr.io/aborgatin/family_app:latest generate-vapid-keys
+```
+
+It prints `VAPID_PUBLIC_KEY=…` and `VAPID_PRIVATE_KEY=…` (P-256, base64url) and exits 0; it starts
+nothing and needs no database or `.env`, so it is run with `docker run`, not `docker compose`
+(Compose would refuse the `.env` without the keys). Paste the two lines into `.env` and set
+`VAPID_SUBJECT=mailto:<your email>`. Keep the pair: browsers subscribe with the public key, so a new
+pair silently stops every existing subscription until each device subscribes again. The private
+key is a secret, like `POSTGRES_PASSWORD`. Local runs and the image tests use the fixed, non-secret
+pair in `scripts/lib/dev-vapid-keys.env`, never in production.
 
 ## Backups
 
@@ -276,7 +299,8 @@ the other arguments (`deploy/restore.sh --from r2:family-backups --scratch resto
 4. GHCR: after the first image push, make the package public, or `docker login ghcr.io` with a
    read-only token on the server.
 5. Copy `deploy/` to the server; create `.env` from `.env.example` with real values (strong
-   `POSTGRES_PASSWORD`, `DOMAIN`, `ACME_EMAIL`).
+   `POSTGRES_PASSWORD`, `DOMAIN`, `ACME_EMAIL`, the VAPID pair from
+   [Push keys](#push-keys-vapid) and `VAPID_SUBJECT`).
 6. Backup targets: a Backblaze B2 bucket (EU Central) with an application key for that bucket only,
    and a Cloudflare R2 bucket with an API token for that bucket only. Fill `rclone.conf` from
    `rclone.conf.example` (`chmod 600`), set `BACKUP_REMOTES` and `BACKUP_PASSPHRASE`, run
