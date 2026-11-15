@@ -7,7 +7,7 @@ import {
   type PrecacheEntry,
 } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
-import { notificationClickTarget } from './notificationClick';
+import { openScreen } from './notificationClick';
 import { readPushMessage } from './pushMessages';
 
 // The app's service worker (frontend.md "PWA"), built by vite-plugin-pwa's injectManifest into
@@ -54,30 +54,5 @@ function pushText(data: PushMessageData | null): string | undefined {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(openScreen(event.notification.data));
+  event.waitUntil(openScreen(self.clients, event.notification.data, self.location.origin));
 });
-
-/** Focuses an open app window and takes it to the notification's screen, or opens one there. */
-async function openScreen(data: unknown): Promise<void> {
-  const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  const target = notificationClickTarget(
-    data,
-    windows.map(({ id, url, focused }) => ({ id, url, focused })),
-    self.location.origin,
-  );
-  if ('open' in target) {
-    await self.clients.openWindow(target.open);
-    return;
-  }
-  const window = windows.find((w) => w.id === target.focus);
-  if (window === undefined) return;
-  if (target.navigateTo === undefined) {
-    await window.focus();
-    return;
-  }
-  // Navigate first, so the screen changes even if focusing is refused. navigate() fails for a
-  // window this worker doesn't control yet: open the screen in a new window instead.
-  const navigated = await window.navigate(target.navigateTo).catch(() => null);
-  await (navigated ?? window).focus();
-  if (navigated === null) await self.clients.openWindow(target.navigateTo);
-}

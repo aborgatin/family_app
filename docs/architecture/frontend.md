@@ -798,7 +798,8 @@ a Vite native-config-loader warning).
   back.
 - **Tap** (`notificationclick`): `notificationClickTarget(data, windows, origin)` picks the
   focused open app window, else the first, and the payload's URL (anything that isn't a path in
-  this app becomes `/`). The worker navigates that window there (first, so a refused focus can't
+  this app becomes `/`). `openScreen(clients, data, origin)` carries it out against the worker's
+  `clients` (tests pass fake windows). It navigates that window there (first, so a refused focus can't
   stop it) and focuses it; with no window open, or one it can't navigate (not yet controlled), it
   opens a new window at the URL. A window already on the screen is only focused.
 - **Updates**: `registerType: 'autoUpdate'`, and the worker calls `skipWaiting()` and
