@@ -76,4 +76,44 @@ describe('a Notification', () => {
     expect(pushMessage(boris, NOW).body).toBe('Боря добавил «Молоко»');
     expect(pushMessage(unset, NOW).body).toBe('Саша добавил(а) «Молоко»');
   });
+
+  it('counts the Items added and how many of them are the recipient’s', () => {
+    const payload = notification({
+      listKind: 'TODO',
+      itemNames: ['Позвонить', 'Купить подарок', 'Забрать посылку'],
+      addedCount: 3,
+      assignedCount: 1,
+      assignedItemName: 'Купить подарок',
+    });
+
+    expect(pushMessage(payload, NOW).body).toBe('Даша добавила 3 задачи, 1 — вам');
+  });
+
+  it('names the one Item assigned to the recipient', () => {
+    const payload = notification({
+      listKind: 'TODO',
+      assignedCount: 1,
+      assignedItemName: 'Купить подарок',
+    });
+
+    expect(pushMessage(payload, NOW).body).toBe('Даша назначила вам «Купить подарок»');
+  });
+
+  it('counts several Items assigned to the recipient', () => {
+    const boris = notification({
+      actorName: 'Боря',
+      actorGrammaticalGender: 'MASCULINE',
+      listKind: 'TODO',
+      assignedCount: 2,
+    });
+    const unset = notification({
+      actorName: 'Саша',
+      actorGrammaticalGender: null,
+      listKind: 'TODO',
+      assignedCount: 5,
+    });
+
+    expect(pushMessage(boris, NOW).body).toBe('Боря назначил вам 2 задачи');
+    expect(pushMessage(unset, NOW).body).toBe('Саша назначил(а) вам 5 задач');
+  });
 });

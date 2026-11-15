@@ -303,6 +303,10 @@
     "added_masculine": "{{actor}} добавил {{items}}",
     "added_feminine": "{{actor}} добавила {{items}}",
     "names": "{{items}}: {{names}}…",
+    "toYou": "{{items}}, {{count}} — вам",
+    "assigned": "{{actor}} назначил(а) вам {{items}}",
+    "assigned_masculine": "{{actor}} назначил вам {{items}}",
+    "assigned_feminine": "{{actor}} назначила вам {{items}}",
     "count": {
       "SHOPPING_one": "{{count}} товар",
       "SHOPPING_few": "{{count}} товара",

@@ -36,18 +36,31 @@ export function pushMessage(payload: PushPayload, now: Date): PushMessage {
 /** Up to this many added Items are named in quotes; more are counted, naming the first ones. */
 const NAMED_ITEMS = 3;
 
+/**
+ * «Даша добавила «Молоко»», «… 7 товаров: Молоко, Хлеб, Сыр…», «… 3 задачи, 1 — вам»; with no
+ * additions, «Даша назначила вам «Купить подарок»» or «… 2 задачи».
+ */
 function notificationBody(payload: NotificationPayload): string {
+  const actor = payload.actorName;
+  const context = payload.actorGrammaticalGender?.toLowerCase();
+  const counted = (count: number) => t(`push.count.${payload.listKind}`, { count });
+
+  if (payload.addedCount === 0) {
+    const items =
+      payload.assignedCount === 1 && payload.assignedItemName !== null
+        ? t('push.quoted', { name: payload.assignedItemName })
+        : counted(payload.assignedCount);
+    return t('push.assigned', { actor, items, context });
+  }
+
   const names = payload.itemNames.slice(0, NAMED_ITEMS);
-  const items =
-    payload.addedCount <= NAMED_ITEMS
-      ? names.map((name) => t('push.quoted', { name })).join(', ')
-      : t('push.names', {
-          items: t(`push.count.${payload.listKind}`, { count: payload.addedCount }),
-          names: names.join(', '),
-        });
-  return t('push.added', {
-    actor: payload.actorName,
-    items,
-    context: payload.actorGrammaticalGender?.toLowerCase(),
-  });
+  let items: string;
+  if (payload.assignedCount > 0) {
+    items = t('push.toYou', { items: counted(payload.addedCount), count: payload.assignedCount });
+  } else if (payload.addedCount <= NAMED_ITEMS) {
+    items = names.map((name) => t('push.quoted', { name })).join(', ');
+  } else {
+    items = t('push.names', { items: counted(payload.addedCount), names: names.join(', ') });
+  }
+  return t('push.added', { actor, items, context });
 }
