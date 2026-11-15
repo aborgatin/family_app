@@ -4,7 +4,12 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { anna, boris, invitesHandler, membersHandler, sessionHandler } from '@/test/fixtures';
 import { network } from '@/test/network';
-import { fakePushDevice, pushServer, subscriptionJson } from '@/test/pushDevice';
+import {
+  fakePushDevice,
+  pushServer,
+  subscriptionJson,
+  VAPID_PUBLIC_KEY,
+} from '@/test/pushDevice';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -273,5 +278,112 @@ describe('Turning it off', () => {
     expect(push.deleted).toEqual([]);
     expect(device.unsubscribes).toBe(0);
     expect(device.subscription()).toEqual(subscriptionJson('https://push.example/a'));
+  });
+});
+
+/** Lets requests started by the last render finish (a launch that should send nothing). */
+async function settle() {
+  await new Promise((resolve) => setTimeout(resolve, 50));
+}
+
+describe('At launch', () => {
+  it('sends the subscription this device holds, while permission is granted and the switch is on', async () => {
+    loggedInAs(annaWith(true));
+    const device = fakePushDevice({ permission: 'granted', subscribedAt: 'https://push.example/a' });
+    const push = pushServer();
+
+    renderApp('/');
+
+    await waitFor(() => {
+      expect(push.posted).toEqual([subscriptionJson('https://push.example/a')]);
+    });
+    expect(device.requests).toBe(0);
+    expect(device.subscribes).toEqual([]);
+  });
+
+  it('subscribes again when iOS dropped the subscription, and sends the new one', async () => {
+    loggedInAs(annaWith(true));
+    const device = fakePushDevice({ permission: 'granted' });
+    const push = pushServer();
+
+    renderApp('/');
+
+    await waitFor(() => {
+      expect(push.posted).toEqual([subscriptionJson('https://push.example/1')]);
+    });
+    expect(device.subscribes).toEqual([
+      { userVisibleOnly: true, applicationServerKey: VAPID_KEY_BYTES },
+    ]);
+  });
+
+  it('sends nothing while the switch is off', async () => {
+    loggedInAs(anna);
+    fakePushDevice({ permission: 'granted', subscribedAt: 'https://push.example/a' });
+    const push = pushServer();
+
+    renderApp('/');
+    await screen.findByRole('heading', { name: 'Семья', level: 1 });
+    await settle();
+
+    expect(push.posted).toEqual([]);
+  });
+
+  it('neither asks nor sends while permission wasn’t given here', async () => {
+    loggedInAs(annaWith(true));
+    const device = fakePushDevice({ permission: 'default' });
+    const push = pushServer();
+
+    renderApp('/');
+    await screen.findByRole('heading', { name: 'Семья', level: 1 });
+    await settle();
+
+    expect(device.requests).toBe(0);
+    expect(push.posted).toEqual([]);
+  });
+
+  it('fails silently and tries again at the next launch', async () => {
+    loggedInAs(annaWith(true));
+    fakePushDevice({ permission: 'granted', subscribedAt: 'https://push.example/a' });
+    const push = pushServer();
+    push.failPosts();
+
+    const first = renderApp('/');
+    await screen.findByRole('heading', { name: 'Семья', level: 1 });
+    await settle();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    first.unmount();
+
+    push.failing = false;
+    renderApp('/');
+
+    await waitFor(() => {
+      expect(push.posted).toEqual([subscriptionJson('https://push.example/a')]);
+    });
+  });
+
+  it('opens Settings with this device subscribed, not offering it again', async () => {
+    loggedInAs(annaWith(true));
+    fakePushDevice({ permission: 'granted' });
+    const push = pushServer();
+    // The key comes only once Settings is open, so it opens while the device subscribes.
+    let giveKey = () => undefined as void;
+    server.use(
+      http.get('/api/push/vapid-public-key', async () => {
+        await new Promise<void>((resolve) => {
+          giveKey = resolve;
+        });
+        return HttpResponse.json({ publicKey: VAPID_PUBLIC_KEY });
+      }),
+    );
+
+    renderApp('/settings');
+    await section();
+    giveKey();
+    await waitFor(() => {
+      expect(push.posted).toHaveLength(1);
+    });
+    await settle();
+
+    expect(screen.queryByRole('button', { name: ENABLE_HERE })).not.toBeInTheDocument();
   });
 });

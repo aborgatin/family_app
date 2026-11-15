@@ -20,9 +20,34 @@ export function pushAvailable(): boolean {
   return 'Notification' in window && 'PushManager' in window && 'serviceWorker' in navigator;
 }
 
-/** This device's push state now. */
+/** The launch re-sync under way, if any (`resyncSubscription`). */
+let resyncing: Promise<void> | undefined;
+
+/**
+ * At launch, with the Notifications switch on: when permission is granted, sends the server this
+ * device's subscription, subscribing again first if iOS dropped it. Idempotent on the server. A
+ * failure is silent; the next launch tries again.
+ */
+export function resyncSubscription(): Promise<void> {
+  if (!pushAvailable() || Notification.permission !== 'granted') return Promise.resolve();
+  const run = (async () => {
+    try {
+      await sendSubscription((await currentOrNewSubscription()).toJSON());
+    } catch {
+      // Silent: the next launch sends it again.
+    }
+  })();
+  resyncing = run;
+  void run.finally(() => {
+    if (resyncing === run) resyncing = undefined;
+  });
+  return run;
+}
+
+/** This device's push state now (after a launch re-sync under way, which may subscribe). */
 export async function readPushState(): Promise<PushState> {
   if (!pushAvailable()) return 'unavailable';
+  await resyncing;
   const permission = Notification.permission;
   if (permission === 'denied') return 'denied';
   if (permission !== 'granted') return 'notSubscribed';
