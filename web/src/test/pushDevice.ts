@@ -39,7 +39,8 @@ interface FakePushDeviceOptions {
 let installed = false;
 
 /**
- * Installs a device that supports push. `requests` counts permission prompts, `subscribes` the
+ * Installs a device that supports push. `requests` counts permission prompts (`subscribe()` before
+ * permission was asked prompts too, as in Chrome), `subscribes` the
  * `pushManager.subscribe()` calls with their options, `unsubscribes` the subscription's own
  * `unsubscribe()` calls; `subscription()` is the subscription the device holds now.
  */
@@ -82,6 +83,11 @@ export function fakePushDevice({
     getSubscription: () => Promise.resolve(held === undefined ? null : asSubscription(held)),
     subscribe: (options: PushSubscriptionOptionsInit) => {
       device.subscribes.push(options);
+      // As in Chrome: subscribing before permission was asked asks for it.
+      if (current === 'default') {
+        device.requests += 1;
+        current = answer;
+      }
       if (current !== 'granted') return Promise.reject(new DOMException('', 'NotAllowedError'));
       held ??= subscriptionJson(`https://push.example/${String(device.subscribes.length)}`);
       return Promise.resolve(asSubscription(held));
