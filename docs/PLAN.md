@@ -36,7 +36,7 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 4. **Wish lists** for adults too — plain shared lists, no special "reserved/hidden" logic.
 5. **Settings (admin) screen**, available to any adult: members, children, child fields. Categories and their order are edited on each shopping list. Fresh install is seeded with sensible defaults ([ADR-0005](adr/0005-configuration-vs-code.md)).
 6. **Notifications**
-   - Global on/off per member; mute per list (mutes notifications, not reminders).
+   - Global on/off per member; mute per list (mutes notifications about added items, not reminders or items assigned to you).
    - Never notify about own changes.
    - Batching: "Даша добавила 7 товаров в Супермаркет" instead of 7 pushes.
    - Reminders (todo due dates) always fire unless notifications are globally off.
@@ -161,6 +161,7 @@ Secrets only in the server's `.env`, never in git.
 - [ ] Child field values stored as a timeline of entries; the Child profile shows the latest entry, edited in place, and the birthday ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)).
 
 **M5 — Notifications**
+- [ ] Spec [#104](https://github.com/aborgatin/family_app/issues/104).
 - [ ] Web Push subscription (iOS 16.4+ installed PWA), global toggle, per-list mute.
 - [ ] Change notifications with batching (skip own changes); due-date reminder scheduler.
 

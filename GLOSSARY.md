@@ -160,19 +160,19 @@ _Avoid_: Seed, fixtures, presets
 ## Notifications
 
 **Notification** — «Уведомление»:
-A push message telling a Member about another Member's change to a Shared list; never sent for one's own changes.
+A push message telling a Member about another Member's change to a Shared list: Items added to it, or a todo item assigned to them. Never sent for one's own changes; always sent as a Batch.
 _Avoid_: Alert, push, message, reminder
 
 **Reminder** — «Напоминание»:
-A push message telling a Member that a todo item's Due date has arrived.
+A push message telling a Member that a todo item's Due date has arrived: at its time, or in the morning of the day when it has none. It goes to the Assignee, or, without one, to everyone who sees the List (the Owner of a private list, both Members on a Shared one). One per Due date; an item Done before then gets none.
 _Avoid_: Notification, alert, due notification
 
 **Batch** — —:
-Several changes by one Member to one List combined into a single Notification ("Даша добавила 7 товаров в Супермаркет").
+Several changes by one Member to one List combined into a single Notification ("Даша добавила 7 товаров в Супермаркет"), sent once that Member has paused; Items no longer there by then are left out.
 _Avoid_: Digest, summary, bundle
 
 **Mute** — «Без уведомлений»:
-A Member's choice to get no Notifications for one List; Reminders still arrive.
+A Member's choice to get no Notifications about Items added to one List; Reminders and Items assigned to them still arrive.
 _Avoid_: Unsubscribe, silence, snooze
 
 **Notifications switch** — «Уведомления»:
