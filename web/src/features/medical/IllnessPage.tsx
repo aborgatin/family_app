@@ -11,7 +11,9 @@ import {
   ListRow,
   Page,
   Sections,
+  SegmentedControl,
   TextAreaRow,
+  useAutoSaveChoice,
   useAutoSaveText,
 } from '@/shared/ui';
 import { useCardRoute } from './cardRoute';
@@ -30,10 +32,12 @@ interface IllnessPageProps {
 }
 
 /**
- * An Illness screen (`…/medical/illnesses/:illnessId`), back to its card: titled with the Illness's
- * name, «с 2 декабря 2026», «Приём лекарства» and «Температура» (their sheets, into this Illness), then its
- * events, newest first, under a header per day. An Illness that is unknown, or is deleted while the
- * screen is open, says so. Data only through `useMedicalCard(person)`.
+ * An Illness or Condition screen (`…/medical/illnesses/:illnessId`), back to its card: titled with
+ * its name, «с 2 декабря 2026» (an Illness only), «Приём лекарства», «Температура» and «Заметка»
+ * (their sheets, into this one), then its events, newest first, under a header per day, and the
+ * actions «Тип: Болезнь / Диагноз/наблюдение», «Завершить» or «Возобновить», and «Удалить». An Ended
+ * one stays fully editable. One that is unknown, or is deleted while the screen is open, says so.
+ * Data only through `useMedicalCard(person)`.
  */
 export function IllnessPage({ homePath }: IllnessPageProps) {
   const route = useCardRoute(homePath);
@@ -46,9 +50,9 @@ function IllnessScreen({ person }: { person: Person }) {
   const { illnessId } = useParams();
   const card = useMedicalCard(person);
   const navigate = useNavigate();
-  const { illnesses, eventsOf, rename, describe, removeIllness } = card;
+  const { all, eventsOf, rename, describe, removeIllness, changeKind, end } = card;
   const { nameOf } = useMedicines();
-  const illness = illnesses?.find(({ id }) => id === illnessId);
+  const illness = all?.find(({ id }) => id === illnessId);
   const back = { to: cardPath(person), title: t('medical.title') };
   // The event whose sheet is open.
   const [openedId, setOpenedId] = useState<string>();
@@ -56,7 +60,7 @@ function IllnessScreen({ person }: { person: Person }) {
   if (illness === undefined) {
     return (
       <Page title={t('medical.illness')} back={back}>
-        {illnesses === undefined ? (
+        {all === undefined ? (
           <EmptyState role="status">{t('common.loading')}</EmptyState>
         ) : (
           <EmptyState role="alert">{t('medical.illnessNotFound')}</EmptyState>
@@ -73,7 +77,7 @@ function IllnessScreen({ person }: { person: Person }) {
     <Page title={illness.name} back={back}>
       <Sections>
         <IllnessFields key={illness.id} illness={illness} rename={rename} describe={describe} />
-        {first !== undefined && (
+        {first !== undefined && illness.kind === 'ILLNESS' && (
           <GroupedSection>
             <ListRow title={t('medical.since', { date: longDay(localDay(first), 'always') })} />
           </GroupedSection>
@@ -103,23 +107,23 @@ function IllnessScreen({ person }: { person: Person }) {
               ))}
           </GroupedSection>
         ))}
-        <GroupedSection>
-          <ConfirmRow
-            title={t('ui.delete')}
-            confirm={{
-              title: t('medical.confirmDeleteIllness', { name: illness.name }),
-              ...(events.length > 0 && {
-                message: t('medical.deleteIllnessEvents', { count: events.length }),
-              }),
-              action: t('ui.delete'),
-            }}
-            onConfirm={() => {
-              // Leave first: the Illness is gone from the local store as soon as it is deleted.
-              void navigate(back.to, { replace: true });
-              void removeIllness(illness);
-            }}
-          />
-        </GroupedSection>
+        <IllnessActions
+          illness={illness}
+          changeKind={changeKind}
+          end={end}
+          confirmDelete={{
+            title: t('medical.confirmDeleteIllness', { name: illness.name }),
+            ...(events.length > 0 && {
+              message: t('medical.deleteIllnessEvents', { count: events.length }),
+            }),
+            action: t('ui.delete'),
+          }}
+          onDelete={() => {
+            // Leave first: the Illness is gone from the local store as soon as it is deleted.
+            void navigate(back.to, { replace: true });
+            void removeIllness(illness);
+          }}
+        />
       </Sections>
       {opened !== undefined && (
         <EditEventSheet
@@ -132,6 +136,59 @@ function IllnessScreen({ person }: { person: Person }) {
         />
       )}
     </Page>
+  );
+}
+
+interface IllnessActionsProps {
+  illness: Illness;
+  changeKind: (illness: Illness, kind: Illness['kind']) => Promise<Illness['kind']>;
+  end: (illness: Illness, ended: boolean) => Promise<unknown>;
+  confirmDelete: { title: string; message?: string; action: string };
+  onDelete: () => void;
+}
+
+/**
+ * «Тип»: «Болезнь» / «Диагноз/наблюдение» (auto-saved on tap, the segments the whole row so the
+ * long one fits a phone), then «Завершить» or «Возобновить», and «Удалить» (after asking).
+ */
+function IllnessActions({
+  illness,
+  changeKind,
+  end,
+  confirmDelete,
+  onDelete,
+}: IllnessActionsProps) {
+  const { t } = useTranslation();
+  const kind = useAutoSaveChoice({
+    name: 'kind',
+    saved: illness.kind,
+    save: useCallback(
+      (value: Illness['kind']) => changeKind(illness, value),
+      [illness, changeKind],
+    ),
+  });
+  return (
+    <>
+      <GroupedSection header={t('medical.kind')} messages={autoSaveMessages([kind.failure])}>
+        <SegmentedControl
+          label={t('medical.kind')}
+          labelHidden
+          options={[
+            { value: 'ILLNESS', label: t('medical.illness') },
+            { value: 'CONDITION', label: t('medical.condition') },
+          ]}
+          {...kind.control}
+        />
+      </GroupedSection>
+      <GroupedSection>
+        <ListRow
+          title={illness.ended === true ? t('medical.resume') : t('medical.end')}
+          accent
+          onClick={() => void end(illness, illness.ended !== true)}
+        />
+        <ConfirmRow title={t('ui.delete')} confirm={confirmDelete} onConfirm={onDelete} />
+      </GroupedSection>
+    </>
   );
 }
 

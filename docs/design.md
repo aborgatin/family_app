@@ -194,7 +194,8 @@ Does something. `variant`: `plain` (accent text, default), `destructive` (red te
 (filled, full width, for the one confirm action of an auth form). Text, an icon before text
 (`icon`), or an icon alone with a translated `label`. `type="submit"` inside a form.
 `size="small"`: footnote-sized, for a section footer («Повторить»); it keeps its touch target
-without pushing the lines apart. Touch: 44px target; primary is 50px tall. Fine pointer: 28px (primary 36px). Hover dims it; disabled is 40%
+without pushing the lines apart. `expanded` marks a button that shows or hides something
+(`aria-expanded`). Touch: 44px target; primary is 50px tall. Fine pointer: 28px (primary 36px). Hover dims it; disabled is 40%
 opacity.
 
 ### Link
@@ -301,7 +302,9 @@ named by `label` (the Unnamed category's Items).
 `action` (`{label, onClick}`) puts one more small text `Button` at the right of the header,
 before «Изменить»: «Очистить» on a Shopping list's «Куплено», which asks with an `ActionSheet`
 first, and «Скрыть» on a Todo list's «Выполнено» while it has Items, which acts at once (it
-deletes nothing: the Items move to «Выполненные ранее»).
+deletes nothing: the Items move to «Выполненные ранее»). With `expanded` it shows or hides the
+group's rows (`aria-expanded`): «Показать» / «Скрыть» on a Medical card's collapsed «Завершённые»,
+which shows only its header until opened.
 `after` puts rows on the same cell after the list but outside it (an accent «Добавить …» row):
 they stay when the list is empty, and the «Изменить» button is left out then (pass no `edit`).
 
@@ -520,7 +523,7 @@ layer (`data-highlighted`); unset, the tint fades out over 0.7 s. The caller uns
 Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
 `sortable`, Items with `input`, `secondary` (the Description), `details` («Подробнее»), on a Todo list a `caption` (the Due date, the repeat mark and the Assignee), on a Shopping list with named Categories a
 `chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`, with `textTo`),
-Invites plain.
+Invites plain, a Medical card's Conditions for reordering only (`to`, `subtitle`, `sortable`).
 
 `muted` (on `ListRow` and `EditableRow`) shows the title in `secondary-label`: something set
 aside, like a Done Item.
@@ -580,7 +583,8 @@ pointer: 28×28 around 20px. Same on narrow and wide windows. Used by the List s
 
 ### SortableList
 
-The rows of an edit-mode list that can be reordered (Child fields), on dnd-kit (used nowhere else):
+The rows of an edit-mode list that can be reordered (Child fields, Categories, a Medical card's
+Conditions, which can't be deleted there: no ⊖), on dnd-kit (used nowhere else):
 `items` in order, `itemId`, `itemTitle` (names the handle «Переместить «<title>»» and the
 announcements), `onMove(item, to)` with the index after the move, and a render function that gets
 each item and its `sortable` for an `EditableRow`. Goes inside a `GroupedSection` with `edit`,

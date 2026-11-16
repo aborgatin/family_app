@@ -421,7 +421,8 @@ export const SEED = {
   /**
    * Illnesses on Маша's Medical card, each with its Temperatures (`[daysAgo, time or null, °C]`)
    * and Medicine doses (`[daysAgo, time or null, Medicine, amount, °C or null]`). «ОРВИ» had one
-   * yesterday, so a new Temperature or dose joins it.
+   * yesterday, so a new Temperature or dose joins it. `kind` CONDITION with a `position` makes a
+   * Condition; `ended` an Ended one (ticket #132).
    */
   illnesses: {
     Маша: [
@@ -441,6 +442,23 @@ export const SEED = {
         noteEvents: [[1, null, 'Сходили к доктору']],
       },
       { name: 'Отит', temperatures: [[400, '09:30', 37.6]] },
+      {
+        name: 'Зрение',
+        kind: 'CONDITION',
+        position: 1,
+        temperatures: [],
+        noteEvents: [[60, '10:00', 'Окулист: −0,5, очки не нужны']],
+      },
+      { name: 'Зубы', kind: 'CONDITION', position: 2, temperatures: [] },
+      { name: 'Ангина', ended: true, temperatures: [[30, '21:00', 39.1], [28, '09:00', 37.2]] },
+      {
+        name: 'Аденоиды',
+        kind: 'CONDITION',
+        position: 3,
+        ended: true,
+        temperatures: [],
+        noteEvents: [[200, null, 'ЛОР: удалять не нужно']],
+      },
     ],
   },
 };
@@ -579,15 +597,27 @@ async function pushIllnesses(page, childIds) {
     fields: { name },
   }));
   const operations = medicines.concat(Object.entries(SEED.illnesses).flatMap(([child, illnesses]) =>
-    illnesses.flatMap(({ name, description = null, temperatures, doses = [], noteEvents = [] }) => {
+    illnesses.flatMap(({
+      name,
+      description = null,
+      kind = 'ILLNESS',
+      position = null,
+      ended = false,
+      temperatures,
+      doses = [],
+      noteEvents = [],
+    }) => {
       const illnessId = crypto.randomUUID();
       return [
         {
           table: 'illness',
           id: illnessId,
           op: 'upsert',
-          fields: { childId: childIds[child], kind: 'ILLNESS', name, description },
+          fields: { childId: childIds[child], kind, name, description, position },
         },
+        ...(ended
+          ? [{ table: 'illness', id: illnessId, op: 'upsert', fields: { ended: true } }]
+          : []),
         ...temperatures.map(([daysAgo, time, temperature]) => ({
           table: 'illness_event',
           id: crypto.randomUUID(),

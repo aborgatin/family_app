@@ -90,6 +90,21 @@ class Illness implements SyncedRecord {
     this.description = description;
   }
 
+  /** Switches it between an Illness and a Condition. */
+  void changeKind(Kind kind) {
+    this.kind = kind;
+  }
+
+  /** Ends it («Завершить»), or resumes it («Возобновить») with {@code false}. */
+  void end(boolean ended) {
+    this.ended = ended;
+  }
+
+  /** Its place among the card's Conditions. */
+  void moveTo(@Nullable Double position) {
+    this.position = position;
+  }
+
   /** Soft delete (S2): the row stays and its Version advances. */
   void markDeleted() {
     this.deleted = true;

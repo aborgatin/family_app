@@ -466,7 +466,18 @@
     "deleteIllnessEvents_other": "Вместе с ней удалятся {{count}} события.",
     "noteEvent": "Заметка",
     "confirmDeleteEvent": "Удалить событие?",
-    "moveTo": "Перенести в…"
+    "moveTo": "Перенести в…",
+    "conditions": "Диагнозы/наблюдения",
+    "addCondition": "+ Добавить",
+    "condition": "Диагноз/наблюдение",
+    "conditionPlaceholder": "Например: Астма, Зрение, Зубы",
+    "lastEvent": "последнее: {{date}}",
+    "ended": "Завершённые",
+    "showEnded": "Показать",
+    "hideEnded": "Скрыть",
+    "kind": "Тип",
+    "end": "Завершить",
+    "resume": "Возобновить"
   },
   "medicines": {
     "title": "Лекарства",

@@ -75,7 +75,7 @@ the time), so Items added on one device and not yet pulled back keep the order t
 
 **Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move is one upsert carrying
 only the moved field's `position` (midpoint between its new neighbours, computed by the client in
-`positionAfterMove`), so a reorder is a single-record change. The client sorts by position, ties
+`positionAfterMove` from `@/shared/ui`, which Categories and Conditions use too), so a reorder is a single-record change. The client sorts by position, ties
 by id (`useChildFields`); the pull sends rows in Version order. Children have no manual order (birthday, then name, then id).
 `category.position` works the same way; the Unnamed category is not a row, and its place is the
 List's `unnamedCategoryPosition` (0 for a new List), ordered with the Categories' positions (on a
@@ -266,7 +266,10 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `medicineId`; `temperature` is 34.0–43.0 with at most one decimal (`value.invalid` otherwise);
   an event for a deleted Illness is `ignored`. **Editing** (#131): an upsert of a known `illness`
   changes the `name` (trimmed, required) and `description` (blank is none) it carries; its person
-  never changes. An upsert of a known `illness_event` changes the fields it carries, checked as a
+  never changes. It also changes `kind` (`ILLNESS` ⇄ `CONDITION`; another value is
+  `value.invalid`), `ended` (a boolean, «Завершить» / «Возобновить»; `null` is `required`) and
+  `position` (a number or `null`; the client sends one with a switch to CONDITION and with a
+  reorder of Conditions, #132). Ending touches neither the events nor who sees the row. An upsert of a known `illness_event` changes the fields it carries, checked as a
   new event's are against the result (clearing a Temperature's `temperature` is `required`); its
   `kind` never changes (`value.invalid`). A new `illnessId` **moves** the event: the Illness must
   be on the same card (any other card, one the Member sees included, or an unknown Illness, is

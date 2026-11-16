@@ -62,6 +62,14 @@ export function illnessesInOrder(
   return [...illnesses].sort((a, b) => moment(b) - moment(a) || byId(a, b));
 }
 
+/** Conditions by `position` (one without, last), ties by id. */
+export function conditionsInOrder(conditions: readonly Illness[]): Illness[] {
+  const position = (condition: Illness) => condition.position ?? Number.POSITIVE_INFINITY;
+  return [...conditions].sort((a, b) =>
+    position(a) === position(b) ? byId(a, b) : position(a) - position(b),
+  );
+}
+
 /** Events by date, newest first; within a day, timed ones (latest first) before untimed ones. */
 export function eventsInOrder(events: readonly IllnessEvent[]): IllnessEvent[] {
   return [...events].sort((a, b) => {
@@ -97,6 +105,15 @@ export function lastAmount(
     }
   }
   return latest?.event.amount ?? undefined;
+}
+
+/** The day of the latest event: its date; `undefined` without events. */
+export function lastDay(events: readonly IllnessEvent[]): string | undefined {
+  let last: string | undefined;
+  for (const { date } of events) {
+    if (last === undefined || date > last) last = date;
+  }
+  return last;
 }
 
 /** The first day of the Illness: its earliest event's date; `undefined` without events. */

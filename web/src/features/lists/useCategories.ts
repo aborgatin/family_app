@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { deleteRow, upsertRow, useRows } from '@/shared/sync';
+import { positionAfterMove } from '@/shared/ui';
 import type { Category, Item, List } from './listTypes';
 
 /**
@@ -117,25 +118,6 @@ export function itemsByCategory(
         : item.categoryId === category.id,
     ),
   }));
-}
-
-/**
- * The position of the entry at `from` moved to index `to` (counted after the move), given every
- * entry's position in order: the midpoint between its new neighbours, or one past the end
- * neighbour. `undefined` when it doesn't move.
- */
-function positionAfterMove(
-  positions: readonly number[],
-  from: number,
-  to: number,
-): number | undefined {
-  if (from === -1 || to === from || to < 0 || to >= positions.length) return undefined;
-  const others = positions.filter((_, index) => index !== from);
-  const before = others[to - 1];
-  const after = others[to];
-  if (before === undefined) return (after as number) - 1;
-  if (after === undefined) return before + 1;
-  return (before + after) / 2;
 }
 
 /** By position, ties by id. */

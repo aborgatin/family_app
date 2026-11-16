@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { deleteRow, upsertRow, upsertRows, useRows, type SyncedTable } from '@/shared/sync';
-import { illnessesInOrder, lastAmount } from './illnessRules';
+import { positionAfterMove } from '@/shared/ui';
+import { conditionsInOrder, illnessesInOrder, lastAmount } from './illnessRules';
 import { isOn, type Illness, type IllnessEvent, type Person } from './medicalTypes';
 
 /** When an event happened, and its Description, as every event sheet saves them. */
@@ -54,8 +55,10 @@ interface Write {
  * One person's Medical card on the local store: the only data access of this feature. It reads
  * the local store and writes through the Outbox (S4), so it works the same offline.
  *
- * - `illnesses`: the card's Illnesses (kind ILLNESS) in order (`illnessesInOrder`), `undefined`
- *   until the first local read;
+ * - `all`: every Illness and Condition on the card, Ended ones too; `conditions`: those of kind
+ *   CONDITION that aren't Ended, by position (`conditionsInOrder`); `illnesses`: those of kind
+ *   ILLNESS that aren't Ended (`illnessesInOrder`); `ended`: the Ended ones of both kinds, by
+ *   latest event. Each `undefined` until the first local read;
  * - `eventsOf(illnessId)`: the Illness's events, unordered;
  * - `lastAmountOf(medicineId)`: the amount to prefill for a dose of it (`lastAmount` over every
  *   event on the card); `undefined` the first time;
@@ -66,7 +69,11 @@ interface Write {
  *   written and sent (`upsertRows`);
  * - `rename(illness, name)`, `describe(illness, description)` (both trimmed, a blank Description
  *   is none): resolve with the value as saved; `removeIllness(illness)`: deletes it with its events;
- *   `removeEvent(event)`.
+ *   `removeEvent(event)`;
+ * - `addCondition(id, name)`: a Condition (name trimmed), last; `moveCondition(condition, to)`: to index `to` of
+ *   `conditions`, writing only its position; `changeKind(illness, kind)` (resolves with the kind): one
+ *   turned into a Condition goes last; `end(illness, ended)`: «Завершить» (`true`) or «Возобновить» (`false`).
+ *   None of them touches the events.
  */
 export function useMedicalCard(person: Person) {
   const illnessRows = useRows('illness') as Illness[] | undefined;
@@ -87,17 +94,35 @@ export function useMedicalCard(person: Person) {
     [eventsByIllness],
   );
 
-  const illnesses = useMemo(
-    () =>
-      illnessRows === undefined || eventRows === undefined
-        ? undefined
-        : illnessesInOrder(
-            illnessRows.filter((illness) => illness.kind === 'ILLNESS' && isOn(person, illness)),
-            eventsOf,
-            new Date(),
-          ),
-    [illnessRows, eventRows, eventsOf, person],
-  );
+  const sections = useMemo(() => {
+    if (illnessRows === undefined || eventRows === undefined) return undefined;
+    const onCard = illnessRows.filter((illness) => isOn(person, illness));
+    const current = onCard.filter((illness) => illness.ended !== true);
+    const now = new Date();
+    return {
+      all: onCard,
+      conditions: conditionsInOrder(current.filter(({ kind }) => kind === 'CONDITION')),
+      illnesses: illnessesInOrder(
+        current.filter(({ kind }) => kind === 'ILLNESS'),
+        eventsOf,
+        now,
+      ),
+      ended: illnessesInOrder(
+        onCard.filter((illness) => illness.ended === true),
+        eventsOf,
+        now,
+      ),
+    };
+  }, [illnessRows, eventRows, eventsOf, person]);
+  const conditions = sections?.conditions;
+
+  /** One past the last Condition's position (a Condition goes last); 1 for the first. */
+  const nextPosition = useCallback(() => {
+    const positions = (sections?.all ?? [])
+      .filter(({ kind }) => kind === 'CONDITION')
+      .map(({ position }) => position ?? 0);
+    return positions.length === 0 ? 1 : Math.max(...positions) + 1;
+  }, [sections]);
 
   const cardEvents = useMemo(
     () =>
@@ -189,8 +214,57 @@ export function useMedicalCard(person: Person) {
 
   const removeIllness = useCallback((illness: Illness) => deleteRow('illness', illness.id), []);
 
+  const addCondition = useCallback(
+    (id: string, name: string) =>
+      upsertRow('illness', id, {
+        ...person,
+        kind: 'CONDITION',
+        name: name.trim(),
+        position: nextPosition(),
+      }),
+    [person, nextPosition],
+  );
+
+  const moveCondition = useCallback(
+    async (condition: Illness, to: number) => {
+      const order = conditions ?? [];
+      const position = positionAfterMove(
+        order.map((row, index) => row.position ?? index),
+        order.indexOf(condition),
+        to,
+      );
+      if (position === undefined) return;
+      await upsertRow('illness', condition.id, { position });
+    },
+    [conditions],
+  );
+
+  const changeKind = useCallback(
+    async (illness: Illness, kind: Illness['kind']) => {
+      await upsertRow(
+        'illness',
+        illness.id,
+        kind === 'CONDITION' ? { kind, position: nextPosition() } : { kind },
+      );
+      return kind;
+    },
+    [nextPosition],
+  );
+
+  const end = useCallback(
+    (illness: Illness, ended: boolean) => upsertRow('illness', illness.id, { ended }),
+    [],
+  );
+
   return {
-    illnesses,
+    all: sections?.all,
+    illnesses: sections?.illnesses,
+    conditions,
+    ended: sections?.ended,
+    addCondition,
+    moveCondition,
+    changeKind,
+    end,
     eventsOf,
     lastAmountOf,
     saveTemperature,

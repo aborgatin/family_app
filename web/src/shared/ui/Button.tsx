@@ -14,6 +14,8 @@ type ButtonProps = ControlContent & {
   size?: ControlSize;
   type?: 'button' | 'submit';
   disabled?: boolean;
+  /** Shows or hides something (`aria-expanded`): whether it is shown. */
+  expanded?: boolean;
   onClick?: () => void;
 };
 
@@ -23,6 +25,7 @@ export function Button({
   size = 'regular',
   type = 'button',
   disabled,
+  expanded,
   onClick,
   ...content
 }: ButtonProps) {
@@ -30,6 +33,7 @@ export function Button({
     <button
       type={type}
       disabled={disabled}
+      aria-expanded={expanded}
       onClick={onClick}
       aria-label={content.label}
       className={controlClasses(variant, size)}

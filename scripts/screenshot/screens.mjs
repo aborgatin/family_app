@@ -1466,13 +1466,87 @@ export default {
       ],
     },
     {
-      // Маша's card from her Child page: «ОРВИ» (this year) and «Отит» (last year).
+      // Маша's card from her Child page: «Зрение» and «Зубы», «ОРВИ» (this year) and «Отит» (last
+      // year), and the collapsed «Завершённые».
       name: "medical-card-child",
       path: "/",
       steps: [
         { click: childCard("Маша") },
         { click: 'role=link[name="Медкарта"]' },
         { waitFor: `${section("Болезни")} >> role=link[name=/Отит/]` },
+      ],
+    },
+    {
+      // Маша's card with «Диагнозы/наблюдения» («Зрение», «Зубы»), «Болезни» and «Завершённые»
+      // opened: an Ended Illness and an Ended Condition, by latest event (ticket #132).
+      name: "medical-card-ended",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Завершённые")} >> role=button[name="Показать"]` },
+        { waitFor: `${section("Завершённые")} >> role=link[name=/Аденоиды/]` },
+      ],
+    },
+    {
+      // «Изменить» on «Диагнозы/наблюдения»: the drag handles.
+      name: "medical-conditions-editing",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Диагнозы/наблюдения")} >> role=button[name="Изменить"]` },
+        { waitFor: 'role=button[name="Переместить «Зубы»"]' },
+      ],
+    },
+    {
+      // «+ Добавить»: the new Condition's sheet, with its placeholder.
+      name: "medical-condition-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=button[name="+ Добавить"]' },
+        { waitFor: 'role=dialog[name="Диагноз/наблюдение"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Готово» with no name: refused, nothing saved.
+      name: "medical-condition-sheet-required",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=button[name="+ Добавить"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "role=dialog >> text=Заполните это поле" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A Condition's screen: no start date; «Тип» on «Диагноз/наблюдение», «Завершить».
+      name: "medical-condition",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Диагнозы/наблюдения")} >> role=link[name=/Зрение/]` },
+        { waitFor: 'role=button[name="Завершить"]' },
+      ],
+    },
+    {
+      // An Ended Illness: still editable, with «Возобновить».
+      name: "medical-illness-ended",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Завершённые")} >> role=button[name="Показать"]` },
+        { click: `${section("Завершённые")} >> role=link[name=/Ангина/]` },
+        { waitFor: 'role=button[name="Возобновить"]' },
       ],
     },
     {

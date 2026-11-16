@@ -31,6 +31,20 @@ export function illnessRow(
   };
 }
 
+/** A Condition («Диагноз/наблюдение») on the card of `person`, at `position` among them. */
+export function conditionRow(
+  person: { memberId: string } | { childId: string },
+  name: string,
+  position: number,
+) {
+  return { ...illnessRow(person, name), kind: 'CONDITION', position };
+}
+
+/** An Illness or Condition marked Ended. */
+export function ended<T extends { ended: boolean }>(row: T): T {
+  return { ...row, ended: true };
+}
+
 function eventRow(
   illness: { id: string },
   date: string,

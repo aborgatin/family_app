@@ -11,7 +11,7 @@ interface EditEventSheetProps {
   /** The card's `useMedicalCard`, which saves and deletes the event. */
   card: Pick<
     ReturnType<typeof useMedicalCard>,
-    'illnesses' | 'lastAmountOf' | 'saveTemperature' | 'saveDose' | 'saveNoteEvent' | 'removeEvent'
+    'all' | 'lastAmountOf' | 'saveTemperature' | 'saveDose' | 'saveNoteEvent' | 'removeEvent'
   >;
   onClose: () => void;
 }
@@ -24,7 +24,7 @@ export function EditEventSheet({ event, card, onClose }: EditEventSheetProps) {
   const { load, nameOf } = useMedicines();
   const editing: EventEditing = {
     event,
-    illnesses: card.illnesses ?? [],
+    illnesses: card.all ?? [],
     remove: () => card.removeEvent(event),
   };
   switch (event.kind) {

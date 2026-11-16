@@ -1,11 +1,25 @@
+import type { TFunction } from 'i18next';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { localDay, longDay } from '@/shared/dates';
-import { EmptyState, GroupedSection, ListRow, Page, Sections, type PageBack } from '@/shared/ui';
+import {
+  EditableRow,
+  EmptyState,
+  GroupedSection,
+  ListRow,
+  Page,
+  Sections,
+  SortableList,
+  useEditableList,
+  useFooterLines,
+  type PageBack,
+} from '@/shared/ui';
 import { useCardRoute, type CardRoute } from './cardRoute';
-import { firstDay } from './illnessRules';
+import { firstDay, lastDay } from './illnessRules';
 import { cardPath, illnessPath } from './medicalPaths';
 import type { Illness, IllnessEvent, Person } from './medicalTypes';
 import { LogSection } from './LogSection';
+import { NewConditionSheet } from './NewConditionSheet';
 import { useMedicalCard } from './useMedicalCard';
 
 interface MedicalCardPageProps {
@@ -16,7 +30,10 @@ interface MedicalCardPageProps {
 /**
  * A Medical card («Медкарта»): the Member's own (`/medical`, back to Home) or a Child's
  * (`/children/:id/medical`, back to the Child page). «Добавить приём лекарства» opens the dose
- * sheet, «Записать температуру» the Temperature sheet; «Болезни» lists the card's Illnesses, newest first, each opening its Illness screen.
+ * sheet, «Записать температуру» the Temperature sheet. Then «Диагнозы/наблюдения» (the Conditions
+ * that aren't Ended, by their place: «+ Добавить» adds one last, «Изменить» reorders them),
+ * «Болезни» (the Illnesses that aren't Ended, newest first) and, while there are any, the collapsed
+ * «Завершённые» (both kinds, by latest event). Each row opens its Illness or Condition screen.
  * Data only through `useMedicalCard(person)`.
  */
 export function MedicalCardPage({ homePath }: MedicalCardPageProps) {
@@ -41,23 +58,68 @@ export function CardMissing({ route }: { route: CardRoute }) {
 
 function Card({ person, back }: { person: Person; back: PageBack }) {
   const { t } = useTranslation();
+  const lines = useFooterLines();
   const card = useMedicalCard(person);
-  const { illnesses, eventsOf } = card;
+  const { illnesses, conditions, ended, eventsOf, addCondition, moveCondition } = card;
+  const list = useEditableList();
+  // The id of the Condition being added, made once when its sheet opens (S3).
+  const [addingId, setAddingId] = useState<string>();
+  const [showingEnded, setShowingEnded] = useState(false);
+  // What «Добавить к» offers: the Illnesses and Conditions that aren't Ended.
+  const current = useMemo(
+    () =>
+      illnesses === undefined || conditions === undefined
+        ? undefined
+        : [...conditions, ...illnesses],
+    [conditions, illnesses],
+  );
 
   return (
     <Page title={t('medical.title')} back={back}>
       <Sections>
         <LogSection
           card={card}
-          target={illnesses === undefined ? undefined : { addTo: { illnesses, eventsOf } }}
+          target={current === undefined ? undefined : { addTo: { illnesses: current, eventsOf } }}
           titles={{ dose: t('medical.logDose'), temperature: t('medical.logTemperature') }}
         />
+        <GroupedSection
+          header={t('medical.conditions')}
+          {...(conditions !== undefined && conditions.length > 0 && { edit: list.edit })}
+          messages={[lines.failure(list.error)]}
+          after={
+            <ListRow
+              accent
+              title={t('medical.addCondition')}
+              onClick={() => {
+                setAddingId(crypto.randomUUID());
+              }}
+            />
+          }
+        >
+          {conditions !== undefined && conditions.length > 0 && (
+            <SortableList
+              items={conditions}
+              itemId={(condition) => condition.id}
+              itemTitle={(condition) => condition.name}
+              onMove={(condition, to) => list.attempt(() => moveCondition(condition, to))}
+            >
+              {(condition, sortable) => (
+                <EditableRow
+                  title={condition.name}
+                  subtitle={conditionSummary(t, eventsOf(condition.id))}
+                  to={illnessPath(person, condition.id)}
+                  sortable={sortable}
+                />
+              )}
+            </SortableList>
+          )}
+        </GroupedSection>
         <GroupedSection
           header={t('medical.illnesses')}
           messages={[illnesses?.length === 0 && { text: t('medical.noIllnesses') }]}
         >
           {illnesses?.map((illness) => (
-            <IllnessRow
+            <CardRow
               key={illness.id}
               person={person}
               illness={illness}
@@ -65,13 +127,56 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
             />
           ))}
         </GroupedSection>
+        {ended !== undefined && ended.length > 0 && (
+          <GroupedSection
+            header={t('medical.ended')}
+            action={{
+              label: showingEnded ? t('medical.hideEnded') : t('medical.showEnded'),
+              expanded: showingEnded,
+              onClick: () => {
+                setShowingEnded(!showingEnded);
+              },
+            }}
+          >
+            {showingEnded &&
+              ended.map((illness) => (
+                <CardRow
+                  key={illness.id}
+                  person={person}
+                  illness={illness}
+                  events={eventsOf(illness.id)}
+                />
+              ))}
+          </GroupedSection>
+        )}
       </Sections>
+      {addingId !== undefined && (
+        <NewConditionSheet
+          key={addingId}
+          id={addingId}
+          add={addCondition}
+          onClose={() => {
+            setAddingId(undefined);
+          }}
+        />
+      )}
     </Page>
   );
 }
 
-/** An Illness on the card: its name, then «с 2 декабря · 4 события». */
-function IllnessRow({
+/** A Condition's line under its name: «последнее: 3 марта» (the year when not this one). */
+function conditionSummary(t: TFunction, events: readonly IllnessEvent[]): string {
+  const last = lastDay(events);
+  return last === undefined
+    ? t('medical.noEvents')
+    : t('medical.lastEvent', { date: longDay(localDay(last), new Date()) });
+}
+
+/**
+ * An Illness or Condition on the card: its name, then «с 2 декабря · 4 события» for an Illness,
+ * «последнее: 3 марта» for a Condition, or «Нет событий».
+ */
+function CardRow({
   person,
   illness,
   events,
@@ -82,12 +187,16 @@ function IllnessRow({
 }) {
   const { t } = useTranslation();
   const first = firstDay(events);
-  const subtitle =
-    first === undefined
-      ? t('medical.noEvents')
-      : t('medical.illnessSummary', {
-          since: t('medical.since', { date: longDay(localDay(first), new Date()) }),
-          events: t('medical.events', { count: events.length }),
-        });
+  let subtitle: string;
+  if (illness.kind === 'CONDITION') {
+    subtitle = conditionSummary(t, events);
+  } else if (first === undefined) {
+    subtitle = t('medical.noEvents');
+  } else {
+    subtitle = t('medical.illnessSummary', {
+      since: t('medical.since', { date: longDay(localDay(first), new Date()) }),
+      events: t('medical.events', { count: events.length }),
+    });
+  }
   return <ListRow title={illness.name} subtitle={subtitle} to={illnessPath(person, illness.id)} />;
 }

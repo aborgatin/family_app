@@ -77,6 +77,56 @@ class IllnessEditingSyncTest {
   }
 
   @Test
+  void anIllnessBecomesAConditionIsEndedResumedAndMoved() throws Exception {
+    UUID vision = UUID.randomUUID();
+    pushApplied(
+        anna,
+        SyncRequests.upsert(
+            ILLNESS,
+            vision,
+            "{\"childId\":\"%s\",\"kind\":\"CONDITION\",\"name\":\"Зрение\",\"position\":1}"
+                .formatted(masha)));
+    assertThat(SyncRequests.fields(boris, ILLNESS, vision))
+        .containsEntry("kind", "CONDITION")
+        .containsEntry("position", 1.0)
+        .containsEntry("ended", false);
+
+    pushApplied(
+        boris,
+        SyncRequests.upsert(ILLNESS, orvi, "{\"kind\":\"CONDITION\",\"position\":0.5}"),
+        SyncRequests.upsert(ILLNESS, vision, "{\"ended\":true}"));
+    assertThat(SyncRequests.fields(anna, ILLNESS, orvi))
+        .containsEntry("kind", "CONDITION")
+        .containsEntry("position", 0.5)
+        .containsEntry("name", "ОРВИ")
+        .containsEntry("ended", false);
+    assertThat(SyncRequests.fields(anna, ILLNESS, vision))
+        .containsEntry("ended", true)
+        .containsEntry("kind", "CONDITION")
+        .containsEntry("position", 1.0);
+
+    pushApplied(
+        anna,
+        SyncRequests.upsert(ILLNESS, orvi, "{\"kind\":\"ILLNESS\"}"),
+        SyncRequests.upsert(ILLNESS, vision, "{\"ended\":false}"));
+    assertThat(SyncRequests.fields(boris, ILLNESS, orvi)).containsEntry("kind", "ILLNESS");
+    assertThat(SyncRequests.fields(boris, ILLNESS, vision)).containsEntry("ended", false);
+
+    SyncRequests.push(
+            anna,
+            SyncRequests.upsert(ILLNESS, orvi, "{\"kind\":\"TOPIC\"}"),
+            SyncRequests.upsert(ILLNESS, orvi, "{\"ended\":null}"),
+            SyncRequests.upsert(ILLNESS, orvi, "{\"position\":\"top\"}"))
+        .andExpect(
+            jsonPath("$.results[0].params.errors[?(@.field=='kind')].code").value("value.invalid"))
+        .andExpect(
+            jsonPath("$.results[1].params.errors[?(@.field=='ended')].code").value("required"))
+        .andExpect(
+            jsonPath("$.results[2].params.errors[?(@.field=='position')].code")
+                .value("value.invalid"));
+  }
+
+  @Test
   void anEditChangesOnlyTheFieldsItCarries() throws Exception {
     UUID event = UUID.randomUUID();
     UUID note = UUID.randomUUID();
