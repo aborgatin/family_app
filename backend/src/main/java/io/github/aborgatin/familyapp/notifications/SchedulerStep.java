@@ -65,8 +65,10 @@ public class SchedulerStep {
               Optional<Instant> previous = runs.replaceLastRun(now);
               List<PushMessage> messages = new ArrayList<>(batches.takeDue(now));
               previous.ifPresent(after -> messages.addAll(reminders.due(after, now)));
-              List<PushMessage> news = announcements.takeNew(now);
-              previous.ifPresent(after -> messages.addAll(news));
+              List<PushMessage> announcementPushes = announcements.takeNew(now);
+              if (previous.isPresent()) {
+                messages.addAll(announcementPushes);
+              }
               return messages;
             });
     for (PushMessage message : due) {

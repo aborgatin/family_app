@@ -535,7 +535,7 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   reason on existing ones. A row is never deleted: a second step, a restart or a rollback and
   redeploy never sends an entry again, and a failed push still counts as sent. The payload is the
   `announcement` of the contract in `web/src/serviceWorker/pushPayload.ts`: `title`, `body` as
-  written, `url` (`PushPayloads.HOME_URL`, `/`, when the entry has none), the one payload with
+  written, `url` (`Announcements.HOME_URL`, `/`, when the entry has none), the one payload with
   texts (frontend.md "PWA"). Tested by `notifications.AnnouncementsTest`, which starts a second app
   on its database for the restart.
 

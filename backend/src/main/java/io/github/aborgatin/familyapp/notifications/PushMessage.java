@@ -10,7 +10,10 @@ import java.util.UUID;
  */
 public record PushMessage(UUID recipientId, String payload, Urgency urgency, Duration ttl) {
 
-  /** The TTL of a Notification or a Reminder: news a day old is no longer worth showing. */
+  /**
+   * The TTL of a Notification or a Reminder: a change or a due date a day old is no longer worth
+   * showing.
+   */
   static final Duration TTL_DAY = Duration.ofHours(24);
 
   /** The TTL of an Announcement: a phone off for a few days still gets it. */

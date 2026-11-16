@@ -22,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class Announcements {
 
+  /** Home, {@code /}: the screen an Announcement without a {@code url} opens. */
+  private static final String HOME_URL = "/";
+
   /**
    * The push payload of an Announcement, as the service worker reads it ({@code pushPayload.ts}).
    */
@@ -68,6 +71,6 @@ public class Announcements {
 
   private static AnnouncementPayload payload(Announcement entry) {
     return new AnnouncementPayload(
-        entry.title(), entry.body(), entry.url() == null ? PushPayloads.HOME_URL : entry.url());
+        entry.title(), entry.body(), entry.url() == null ? HOME_URL : entry.url());
   }
 }

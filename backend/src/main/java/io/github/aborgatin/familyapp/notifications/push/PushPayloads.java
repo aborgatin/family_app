@@ -13,9 +13,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class PushPayloads {
 
-  /** Home, {@code /}: the screen an Announcement without a {@code url} opens. */
-  public static final String HOME_URL = "/";
-
   private final ObjectMapper json;
 
   PushPayloads(ObjectMapper json) {

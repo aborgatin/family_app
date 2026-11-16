@@ -2,6 +2,8 @@ package io.github.aborgatin.familyapp.notifications;
 
 import static io.github.aborgatin.familyapp.SyncRequests.pushApplied;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.aborgatin.familyapp.Browser;
@@ -148,6 +150,20 @@ class AnnouncementsTest {
   }
 
   @Test
+  void aChildInTheFamilyGetsNothingOnlyMembersDo() throws Exception {
+    SyncRequests.push(
+            anna,
+            SyncRequests.upsert(
+                "child", UUID.randomUUID(), "{\"name\":\"Маша\",\"color\":\"coral\"}"))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+    announce("Новое", "Только взрослым", "/");
+
+    nextStep();
+
+    assertThat(gateway.endpoints()).containsExactlyInAnyOrder(ANNA_PHONE, BORIS_PHONE);
+  }
+
+  @Test
   void muteHasNoEffect() throws Exception {
     UUID home = UUID.randomUUID();
     pushApplied(anna, ListOperations.list(home, "Дом", "TODO", "SHARED"));
@@ -205,7 +221,7 @@ class AnnouncementsTest {
     nextStep();
 
     assertThat(gateway.pushes())
-        .extracting(AnnouncementsTest::kindOf)
+        .extracting(AnnouncementsTest::typeOrAnnouncementTitle)
         .containsExactly(
             "notification",
             "notification",
@@ -226,7 +242,7 @@ class AnnouncementsTest {
     nextStep();
 
     assertThat(gateway.pushes())
-        .extracting(sent -> kindOf(sent) + " " + sent.ttl() + " " + sent.urgency())
+        .extracting(sent -> typeOrAnnouncementTitle(sent) + " " + sent.ttl() + " " + sent.urgency())
         .containsExactly(
             "notification PT24H NORMAL",
             "notification PT24H NORMAL",
@@ -239,7 +255,7 @@ class AnnouncementsTest {
   // --- helpers ---
 
   /** The payload's type, or an Announcement's title. */
-  static String kindOf(FakePushGateway.Push sent) {
+  static String typeOrAnnouncementTitle(FakePushGateway.Push sent) {
     String type = sent.payloadJson().get("type").asText();
     return type.equals("announcement") ? sent.payloadJson().get("title").asText() : type;
   }
