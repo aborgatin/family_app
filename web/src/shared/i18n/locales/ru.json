@@ -457,7 +457,16 @@
     "asLastTime": "как в прошлый раз",
     "noTemperature": "—",
     "doseValue": "{{medicine}} — {{amount}}",
-    "eventSeparator": " · "
+    "eventSeparator": " · ",
+    "name": "Название",
+    "confirmDeleteIllness": "Удалить «{{name}}»?",
+    "deleteIllnessEvents_one": "Вместе с ней удалится {{count}} событие.",
+    "deleteIllnessEvents_few": "Вместе с ней удалятся {{count}} события.",
+    "deleteIllnessEvents_many": "Вместе с ней удалятся {{count}} событий.",
+    "deleteIllnessEvents_other": "Вместе с ней удалятся {{count}} события.",
+    "note": "Заметка",
+    "confirmDeleteEvent": "Удалить событие?",
+    "moveTo": "Перенести в…"
   },
   "medicines": {
     "title": "Лекарства",

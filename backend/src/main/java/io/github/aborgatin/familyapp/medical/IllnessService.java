@@ -39,8 +39,9 @@ class IllnessService implements SyncableTable {
   /**
    * An upsert of an unknown id creates an Illness or Condition on the card of the person it carries
    * (exactly one of {@code memberId} and {@code childId}), with {@code kind} and {@code name}
-   * required. An upsert of a known one changes nothing yet. A delete deletes it with its events.
-   * Delete wins. Another Member's card, and a row on it, is {@code medical.not_found}.
+   * required. An upsert of a known one changes the {@code name} (required) and {@code description}
+   * it carries; its person never changes. A delete deletes it with its events. Delete wins. Another
+   * Member's card, and a row on it, is {@code medical.not_found}.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -53,7 +54,7 @@ class IllnessService implements SyncableTable {
 
   private Outcome upsert(Operation operation, Optional<Illness> existing) {
     if (existing.isPresent()) {
-      return Outcome.APPLIED;
+      return edit(operation, existing.get());
     }
     FieldErrors errors = new FieldErrors();
     UUID memberId = errors.uuid("memberId", operation.text("memberId"));
@@ -91,6 +92,21 @@ class IllnessService implements SyncableTable {
       illness.markDeleted();
       illnesses.saveAndFlush(illness);
       return Outcome.IGNORED;
+    }
+    illnesses.saveAndFlush(illness);
+    return Outcome.APPLIED;
+  }
+
+  private Outcome edit(Operation operation, Illness illness) {
+    if (operation.has("name")) {
+      String name = operation.trimmedText("name");
+      if (name == null) {
+        new FieldErrors().add("name", FieldErrors.REQUIRED).throwIfAny();
+      }
+      illness.rename(name);
+    }
+    if (operation.has("description")) {
+      illness.describe(operation.trimmedText("description"));
     }
     illnesses.saveAndFlush(illness);
     return Outcome.APPLIED;

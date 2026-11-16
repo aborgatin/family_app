@@ -71,19 +71,22 @@ const GLOSSARY_AVOID = [
   { word: 'recurrence', use: 'Repeat' },
   { word: 'completed', use: 'Done' },
   { word: 'author', use: 'Creator (or Owner)' },
-  { word: 'note', use: 'Description' },
+  // «Note event» (an Illness event, GLOSSARY) is a term of its own.
+  { word: 'note', use: 'Description', unlessBefore: 'Event' },
 ];
 
 /** A regex matching `word` as one word of an identifier: camelCase, PascalCase or SNAKE_CASE. */
-function identifierWord({ word, unlessAfter }) {
+function identifierWord({ word, unlessAfter, unlessBefore }) {
   const lower = unlessAfter ? `(?<!${unlessAfter})` : '';
   const upper = unlessAfter ? `(?<!${unlessAfter.toUpperCase()}_)` : '';
+  const next = unlessBefore ? `(?!${unlessBefore})` : '';
+  const upperNext = unlessBefore ? `(?!_${unlessBefore.toUpperCase()})` : '';
   const cap = word[0].toUpperCase() + word.slice(1);
-  const end = '(?:e?s)?(?=[A-Z0-9_]|$)';
+  const end = `(?:e?s)?${next}(?=[A-Z0-9_]|$)`;
   return [
     `(?:^|_)${word}${end}`,
     `(?:^|(?<=[a-z0-9_]))${lower}${cap}${end}`,
-    `(?:^|_)${upper}${word.toUpperCase()}(?:E?S)?(?=_|$)`,
+    `(?:^|_)${upper}${word.toUpperCase()}(?:E?S)?${upperNext}(?=_|$)`,
   ].join('|');
 }
 

@@ -140,14 +140,16 @@ class DoseNotificationTest {
   }
 
   @Test
-  void anEditOfADoseSendsNothing() throws Exception {
+  void anEditOrAMoveOfADoseSendsNothing() throws Exception {
     UUID given = UUID.randomUUID();
+    UUID flu = UUID.randomUUID();
     pushApplied(boris, dose(given, cold, ibuprofen, "5 мл", null));
+    pushApplied(anna, illnessOf("childId", masha, flu, "Грипп"));
     sentBefore();
     gateway.reset();
 
     pushApplied(boris, dose(given, cold, ibuprofen, "7,5 мл", null));
-    pushApplied(anna, dose(given, cold, ibuprofen, "7,5 мл", null));
+    pushApplied(anna, dose(given, flu, ibuprofen, "7,5 мл", null));
 
     assertThat(sentBefore()).isEmpty();
   }

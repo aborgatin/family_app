@@ -1526,7 +1526,8 @@ export default {
       ],
     },
     {
-      // «ОРВИ»: its first day, «Температура», the events by day, newest first.
+      // «ОРВИ»: its name and Description, its first day, «Температура», «Заметка», the events by
+      // day, newest first (the untimed ones last), and «Удалить».
       name: "medical-illness",
       path: "/",
       steps: [
@@ -1605,6 +1606,108 @@ export default {
         { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
         { click: 'role=button[name="Приём лекарства"]' },
         { waitFor: 'role=dialog >> role=textbox[name="Количество"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Название» emptied on the Illness screen: refused, nothing saved.
+      name: "medical-illness-name-required",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { fill: 'role=textbox[name="Название"]', value: "" },
+        { press: "Enter" },
+        { waitFor: "text=Заполните это поле" },
+      ],
+    },
+    {
+      // «Удалить» on «ОРВИ» asks, with the number of its events.
+      name: "medical-illness-delete-confirm",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Удалить"]' },
+        { waitFor: 'role=dialog[name="Удалить «ОРВИ»?"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // The Note sheet: «Название», «Дата» today, «Время» empty, «Описание».
+      name: "medical-note-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Заметка"]' },
+        { waitFor: 'role=dialog[name="Заметка"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Готово» on an empty Note: «Название» is required.
+      name: "medical-note-sheet-required",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Заметка"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "role=dialog >> text=Заполните это поле" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A dose tapped on «ОРВИ»: its sheet filled with its values, «Перенести в…» and «Удалить».
+      name: "medical-event-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: "role=button[name=/Ибупрофен 20 мг.мл — 5 мл/]" },
+        { waitFor: 'role=dialog >> role=button[name="Перенести в…"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Перенести в…»: Маша's other Illnesses that aren't Ended, and «Новая болезнь».
+      name: "medical-event-move",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Сходили к доктору"]' },
+        { click: 'role=dialog >> role=button[name="Перенести в…"]' },
+        { waitFor: 'role=dialog[name="Перенести в…"] >> role=button[name="Новая болезнь"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // An Illness whose only event was deleted stays, empty, until it is deleted itself.
+      name: "medical-illness-empty",
+      path: "/",
+      isolate: true,
+      steps: [
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=button[name="Записать температуру"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { click: `${section("Болезни")} >> role=link[name=/Болезнь/]` },
+        { click: "role=button[name=/37,0 °C/]" },
+        { click: 'role=dialog >> role=button[name="Удалить"]' },
+        { click: 'role=dialog[name="Удалить событие?"] >> role=button[name="Удалить"]' },
+        { waitFor: 'role=button[name="Заметка"]' },
         { wait: 400 },
       ],
     },

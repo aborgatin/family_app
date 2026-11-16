@@ -30,6 +30,8 @@ export interface IllnessEvent {
   /** A Medicine dose's Medicine and how much was given («5 мл»). */
   medicineId?: string | null;
   amount?: string | null;
+  /** A Note's title («Сходили к доктору»). */
+  title?: string | null;
   description?: string | null;
   /** The Version the pull brought it with; absent on one made here until the pull brings it. */
   version?: number;

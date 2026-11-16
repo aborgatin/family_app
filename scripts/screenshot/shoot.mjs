@@ -427,6 +427,7 @@ export const SEED = {
     Маша: [
       {
         name: 'ОРВИ',
+        description: 'Лечим дома, педиатр — в пятницу',
         temperatures: [
           [2, '20:00', 38.5],
           [1, '08:00', 37.8],
@@ -437,6 +438,7 @@ export const SEED = {
           [2, '20:00', 'Ибупрофен 20 мг/мл', '5 мл', 38.5],
           [1, '22:00', 'Парацетамол 120 мг/5 мл', '1 таблетка', null],
         ],
+        notes: [[1, null, 'Сходили к доктору']],
       },
       { name: 'Отит', temperatures: [[400, '09:30', 37.6]] },
     ],
@@ -566,7 +568,7 @@ async function pushChildFieldValues(page) {
 
 /**
  * `SEED.medicines`, then the Illnesses of `SEED.illnesses` on the Children's Medical cards, each
- * with its events.
+ * with its Description and events (Temperatures, doses, Notes).
  */
 async function pushIllnesses(page, childIds) {
   const medicineIds = Object.fromEntries(SEED.medicines.map((name) => [name, crypto.randomUUID()]));
@@ -577,10 +579,15 @@ async function pushIllnesses(page, childIds) {
     fields: { name },
   }));
   const operations = medicines.concat(Object.entries(SEED.illnesses).flatMap(([child, illnesses]) =>
-    illnesses.flatMap(({ name, temperatures, doses = [] }) => {
+    illnesses.flatMap(({ name, description = null, temperatures, doses = [], notes = [] }) => {
       const illnessId = crypto.randomUUID();
       return [
-        { table: 'illness', id: illnessId, op: 'upsert', fields: { childId: childIds[child], kind: 'ILLNESS', name } },
+        {
+          table: 'illness',
+          id: illnessId,
+          op: 'upsert',
+          fields: { childId: childIds[child], kind: 'ILLNESS', name, description },
+        },
         ...temperatures.map(([daysAgo, time, temperature]) => ({
           table: 'illness_event',
           id: crypto.randomUUID(),
@@ -600,6 +607,12 @@ async function pushIllnesses(page, childIds) {
             amount,
             temperature,
           },
+        })),
+        ...notes.map(([daysAgo, time, title]) => ({
+          table: 'illness_event',
+          id: crypto.randomUUID(),
+          op: 'upsert',
+          fields: { illnessId, kind: 'NOTE', date: dayFromToday(-daysAgo), time, title },
         })),
       ];
     }),

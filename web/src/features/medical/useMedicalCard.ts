@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { upsertRows, useRows, type SyncedTable } from '@/shared/sync';
+import { deleteRow, upsertRow, upsertRows, useRows, type SyncedTable } from '@/shared/sync';
 import { illnessesInOrder, lastAmount } from './illnessRules';
 import { isOn, type Illness, type IllnessEvent, type Person } from './medicalTypes';
 
@@ -16,6 +16,12 @@ export interface EventTiming {
 export interface TemperatureDetails extends EventTiming {
   /** °C, one decimal place. */
   temperature: number;
+}
+
+/** A Note as the sheet saves it. */
+export interface NoteEventDetails extends EventTiming {
+  /** «Сходили к доктору». */
+  title: string;
 }
 
 /** The Medicine of a dose: one of the list, or a new one typed in the picker. */
@@ -50,9 +56,13 @@ interface Write {
  * - `eventsOf(illnessId)`: the Illness's events, unordered;
  * - `lastAmountOf(medicineId)`: the amount to prefill for a dose of it (`lastAmount` over every
  *   event on the card); `undefined` the first time;
- * - `logTemperature(target, details)`, `logDose(target, details)`: add the event to an Illness,
+ * - `logTemperature(target, details)`, `logDose(target, details)`, `logNoteEvent(target, details)`: add the event to an Illness,
  *   or create the Illness and the event in one Outbox batch; a dose of a Medicine typed in the
- *   picker adds the Medicine first, in the same batch.
+ *   picker adds the Medicine first, in the same batch. Given an `eventId`, they change that
+ *   event instead: only the fields that differ are written and sent (`upsertRows`);
+ * - `rename(illness, name)` (trimmed by the caller), `describe(illness, description)` (blank is
+ *   none): resolve with the value as saved; `removeIllness(illness)`: deletes it with its events;
+ *   `removeEvent(event)`.
  */
 export function useMedicalCard(person: Person) {
   const illnessRows = useRows('illness') as Illness[] | undefined;
@@ -100,7 +110,12 @@ export function useMedicalCard(person: Person) {
 
   /** Writes the event, after the rows it needs first, in one Outbox batch. */
   const log = useCallback(
-    async (target: IllnessChoice, event: Record<string, unknown>, first: readonly Write[] = []) => {
+    async (
+      target: IllnessChoice,
+      event: Record<string, unknown>,
+      first: readonly Write[] = [],
+      eventId: string = crypto.randomUUID(),
+    ) => {
       const writes = [...first];
       let illnessId: string;
       if ('illnessId' in target) {
@@ -115,7 +130,7 @@ export function useMedicalCard(person: Person) {
       }
       writes.push({
         table: 'illness_event',
-        id: crypto.randomUUID(),
+        id: eventId,
         fields: { illnessId, ...event },
       });
       await upsertRows(writes);
@@ -124,23 +139,66 @@ export function useMedicalCard(person: Person) {
   );
 
   const logTemperature = useCallback(
-    (target: IllnessChoice, details: TemperatureDetails) =>
-      log(target, { kind: 'TEMPERATURE', ...details }),
+    (target: IllnessChoice, details: TemperatureDetails, eventId?: string) =>
+      log(target, { kind: 'TEMPERATURE', ...details }, [], eventId),
+    [log],
+  );
+
+  const logNoteEvent = useCallback(
+    (target: IllnessChoice, details: NoteEventDetails, eventId?: string) =>
+      log(target, { kind: 'NOTE', ...details }, [], eventId),
     [log],
   );
 
   const logDose = useCallback(
-    (target: IllnessChoice, { medicine, ...details }: DoseDetails) => {
+    (target: IllnessChoice, { medicine, ...details }: DoseDetails, eventId?: string) => {
       if ('medicineId' in medicine) {
-        return log(target, { kind: 'MEDICINE_DOSE', medicineId: medicine.medicineId, ...details });
+        return log(
+          target,
+          { kind: 'MEDICINE_DOSE', medicineId: medicine.medicineId, ...details },
+          [],
+          eventId,
+        );
       }
       const medicineId = crypto.randomUUID();
-      return log(target, { kind: 'MEDICINE_DOSE', medicineId, ...details }, [
-        { table: 'medicine', id: medicineId, fields: { name: medicine.newMedicineName } },
-      ]);
+      return log(
+        target,
+        { kind: 'MEDICINE_DOSE', medicineId, ...details },
+        [{ table: 'medicine', id: medicineId, fields: { name: medicine.newMedicineName } }],
+        eventId,
+      );
     },
     [log],
   );
 
-  return { illnesses, eventsOf, lastAmountOf, logTemperature, logDose };
+  const removeEvent = useCallback(
+    (event: IllnessEvent) => deleteRow('illness_event', event.id),
+    [],
+  );
+
+  const rename = useCallback(async (illness: Illness, name: string) => {
+    await upsertRow('illness', illness.id, { name });
+    return name;
+  }, []);
+
+  const describe = useCallback(async (illness: Illness, description: string) => {
+    const text = description.trim();
+    await upsertRow('illness', illness.id, { description: text === '' ? null : text });
+    return text;
+  }, []);
+
+  const removeIllness = useCallback((illness: Illness) => deleteRow('illness', illness.id), []);
+
+  return {
+    illnesses,
+    eventsOf,
+    lastAmountOf,
+    logTemperature,
+    logDose,
+    logNoteEvent,
+    rename,
+    describe,
+    removeIllness,
+    removeEvent,
+  };
 }

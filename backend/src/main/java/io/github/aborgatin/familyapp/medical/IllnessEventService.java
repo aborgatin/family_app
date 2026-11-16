@@ -44,11 +44,11 @@ class IllnessEventService implements SyncableTable {
 
   /**
    * An upsert of an unknown id adds an event to the Illness it carries ({@code illnessId}, {@code
-   * kind} and {@code date} required). An upsert of a known one changes nothing yet. A delete
-   * deletes it. Delete wins: an event for a deleted Illness is ignored. An Illness that never
-   * existed, or is on another Member's card, and an event on such a card, is {@code
-   * medical.not_found}; so is a dose of a Medicine that never existed (a deleted one is fine). A
-   * new dose on a Child's card publishes {@link MedicineDoseLogged}.
+   * kind} and {@code date} required). An upsert of a known one edits or moves it. A delete deletes
+   * it. Delete wins: an event for a deleted Illness is ignored. An Illness that never existed, or
+   * is on another Member's card, and an event on such a card, is {@code medical.not_found}; so is a
+   * dose of a Medicine that never existed (a deleted one is fine). A new dose on a Child's card
+   * publishes {@link MedicineDoseLogged}; an edit or a move publishes nothing.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -68,17 +68,105 @@ class IllnessEventService implements SyncableTable {
 
   private Outcome upsert(Operation operation, Optional<IllnessEvent> existing) {
     if (existing.isPresent()) {
-      return Outcome.APPLIED;
+      return edit(operation, existing.get());
     }
     FieldErrors errors = new FieldErrors();
     UUID illnessId = errors.requiredUuid("illnessId", operation.text("illnessId"));
+    IllnessEvent.Details details = details(operation, null, errors);
+    errors.throwIfAny();
+    Illness illness =
+        illnesses
+            .findById(illnessId)
+            .filter(found -> found.person().visibleTo(operation.memberId()))
+            .orElseThrow(() -> Person.notFound("illnessId", illnessId));
+    if (illness.deleted()) {
+      return Outcome.IGNORED;
+    }
+    UUID medicineId = details.medicineId();
+    if (medicineId != null && !medicines.exists(medicineId)) {
+      throw Medicine.notFound(medicineId);
+    }
+    events.saveAndFlush(new IllnessEvent(operation.id(), illnessId, details));
+    UUID childId = illness.person().childId();
+    if (details.kind() == IllnessEvent.Kind.MEDICINE_DOSE && childId != null) {
+      publisher.publishEvent(new MedicineDoseLogged(childId, illnessId, operation.memberId()));
+    }
+    return Outcome.APPLIED;
+  }
+
+  /**
+   * Changes the fields the upsert carries, checked as a new event's are; its {@code kind} never
+   * changes. A new {@code illnessId} moves it to that Illness, which must be on the same card
+   * ({@code medical.not_found} else); a move to a deleted one is ignored (delete wins).
+   */
+  private Outcome edit(Operation operation, IllnessEvent event) {
+    FieldErrors errors = new FieldErrors();
+    UUID illnessId =
+        operation.has("illnessId")
+            ? errors.requiredUuid("illnessId", operation.text("illnessId"))
+            : event.illnessId();
+    IllnessEvent.Details details = details(operation, event.details(), errors);
+    errors.throwIfAny();
+    if (!illnessId.equals(event.illnessId())) {
+      Person person = illnesses.findById(event.illnessId()).orElseThrow().person();
+      Illness target =
+          illnesses
+              .findById(illnessId)
+              .filter(found -> found.person().equals(person))
+              .orElseThrow(() -> Person.notFound("illnessId", illnessId));
+      if (target.deleted()) {
+        return Outcome.IGNORED;
+      }
+    }
+    UUID medicineId = details.medicineId();
+    if (medicineId != null
+        && !medicineId.equals(event.details().medicineId())
+        && !medicines.exists(medicineId)) {
+      throw Medicine.notFound(medicineId);
+    }
+    event.change(illnessId, details);
+    events.saveAndFlush(event);
+    return Outcome.APPLIED;
+  }
+
+  /**
+   * The event's fields: those the operation carries, the {@code current} ones for the rest (a new
+   * event, {@code current} {@code null}, carries all), with what its kind records required.
+   */
+  private static IllnessEvent.Details details(
+      Operation operation, @Nullable IllnessEvent.Details current, FieldErrors errors) {
+    boolean isNew = current == null;
     IllnessEvent.Kind kind =
-        errors.requiredChoice("kind", operation.text("kind"), IllnessEvent.Kind.values());
-    LocalDate date = errors.requiredParsed("date", operation.text("date"), LocalDate::parse);
-    LocalTime time = errors.time("time", operation.text("time"));
-    BigDecimal temperature = temperature(errors, operation.number("temperature"));
-    UUID medicineId = errors.uuid("medicineId", operation.text("medicineId"));
-    String title = operation.trimmedText("title");
+        isNew || operation.has("kind")
+            ? errors.requiredChoice("kind", operation.text("kind"), IllnessEvent.Kind.values())
+            : current.kind();
+    if (!isNew && kind != null && kind != current.kind()) {
+      errors.add("kind", FieldErrors.VALUE_INVALID);
+    }
+    LocalDate date =
+        isNew || operation.has("date")
+            ? errors.requiredParsed("date", operation.text("date"), LocalDate::parse)
+            : current.date();
+    LocalTime time =
+        isNew || operation.has("time")
+            ? errors.time("time", operation.text("time"))
+            : current.time();
+    BigDecimal temperature =
+        isNew || operation.has("temperature")
+            ? temperature(errors, operation.number("temperature"))
+            : current.temperature();
+    UUID medicineId =
+        isNew || operation.has("medicineId")
+            ? errors.uuid("medicineId", operation.text("medicineId"))
+            : current.medicineId();
+    String amount =
+        isNew || operation.has("amount") ? operation.trimmedText("amount") : current.amount();
+    String title =
+        isNew || operation.has("title") ? operation.trimmedText("title") : current.title();
+    String description =
+        isNew || operation.has("description")
+            ? operation.trimmedText("description")
+            : current.description();
     if (kind == IllnessEvent.Kind.TEMPERATURE
         && temperature == null
         && !errors.has("temperature")) {
@@ -92,36 +180,8 @@ class IllnessEventService implements SyncableTable {
         && !errors.has("medicineId")) {
       errors.add("medicineId", FieldErrors.REQUIRED);
     }
-    errors.throwIfAny();
-    Illness illness =
-        illnesses
-            .findById(illnessId)
-            .filter(found -> found.person().visibleTo(operation.memberId()))
-            .orElseThrow(() -> Person.notFound("illnessId", illnessId));
-    if (illness.deleted()) {
-      return Outcome.IGNORED;
-    }
-    if (medicineId != null && !medicines.exists(medicineId)) {
-      throw Medicine.notFound(medicineId);
-    }
-    events.saveAndFlush(
-        new IllnessEvent(
-            operation.id(),
-            illnessId,
-            new IllnessEvent.Details(
-                kind,
-                date,
-                time,
-                medicineId,
-                operation.trimmedText("amount"),
-                temperature,
-                title,
-                operation.trimmedText("description"))));
-    UUID childId = illness.person().childId();
-    if (kind == IllnessEvent.Kind.MEDICINE_DOSE && childId != null) {
-      publisher.publishEvent(new MedicineDoseLogged(childId, illnessId, operation.memberId()));
-    }
-    return Outcome.APPLIED;
+    return new IllnessEvent.Details(
+        kind, date, time, medicineId, amount, temperature, title, description);
   }
 
   private Outcome delete(IllnessEvent event) {

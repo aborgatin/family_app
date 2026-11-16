@@ -840,7 +840,7 @@ the delete warning, the store upgrade to version 6),
 
 ## Medical cards
 
-Spec #128, tickets #129, #130. A Medical card is every Member's and every Child's; its rows name their
+Spec #128, tickets #129, #130, #131. A Medical card is every Member's and every Child's; its rows name their
 person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards the Member may see
 (their own and the Children's); the client still filters by person (`isOn`).
 
@@ -856,18 +856,35 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   only when it isn't this year; «Нет событий» for an empty one), opening the Illness screen;
   «Болезней пока нет» with none. Later tickets add sections here.
 - **Illness screen** (`IllnessPage`, `…/illnesses/:illnessId`, back «Медкарта»): titled with the
-  name; «с 2 декабря 2026» (the first event's date, its own section), «Приём лекарства» and
-  «Температура» (in «Записать»: the sheets, into this Illness, without «Добавить к»), then a
+  name; «Название» (`InputRow`, required) and «Описание» (`TextAreaRow`), auto-saved like an
+  Item's (#131); «с 2 декабря 2026» (the first event's date, its own section), «Приём лекарства»,
+  «Температура» and «Заметка» (in «Записать»: the sheets, into this Illness, without «Добавить
+  к»), then a
   `GroupedSection` per day («2 декабря», the year only when not this year), events newest first,
   the parts there are joined by « · » (`medical.eventSeparator`; the row wraps, `wrapTitle`): «22:00 · 38,5 °C», a dose
   «22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» (`medical.doseValue`; the Medicine's name from
-  `useMedicines().nameOf`, a deleted one's too), untimed «38,5 °C», the Description under it. An unknown or deleted Illness: «Такой болезни нет: возможно, её удалили.».
+  `useMedicines().nameOf`, a deleted one's too), untimed «38,5 °C», a Note its title («Сходили к
+  доктору», «21:00 · …» when timed), the Description under it. Each row is a button opening the
+  event's sheet (`EditEventSheet`). Last, «Удалить» (`ConfirmRow`) asks «Удалить «ОРВИ»?» with
+  «Вместе с ней удалятся 6 событий.» (`medical.deleteIllnessEvents_*`; no message without events),
+  goes back to the card and deletes the Illness (its events go with it). An Illness left without
+  events stays. An unknown or deleted Illness: «Такой болезни нет: возможно, её удалили.».
 - **Event sheets** (`EventSheet`, a `Sheet` titled by the kind): the kind's own rows first, in
   their own group (so a hint such as «как в прошлый раз» sits under them), then a group of
   «Дата» and «Время» (`DateRow`s) defaulting to when the sheet opened, the time may be cleared;
   «Описание» (`TextAreaRow`). From the card, «Добавить к» preselects `illnessToJoin` or «Новая
   болезнь»; «Другая…» shows a second `SelectRow` «Болезнь» with the person's other Illnesses that
   aren't Ended. «Готово» checks the kind's rows (`check`), then saves through `useMedicalCard`.
+- **Editing an event** (`EditEventSheet`, #131): the sheet of its kind with `editing` (an
+  `EventEditing`: the event, the person's Illnesses, `remove`): every row filled with its values
+  (a dose: its Medicine's name, a deleted one's too, kept while the name is left as it is; its
+  amount, no «как в прошлый раз»), no «Добавить к». «Готово» saves through the same `log…` with
+  the event's id, so only the changed fields are sent. «Перенести в…» (an accent `ListRow`) opens
+  an `ActionSheet` of the person's other Illnesses that aren't Ended and «Новая болезнь» (named
+  after the event's date); a choice checks and saves the sheet into that Illness (a new one in
+  the same Outbox batch). «Удалить» asks «Удалить событие?», then deletes it.
+- **Note sheet** (`NoteEventSheet`, «Заметка», #131; identifiers say «Note event», since the lint guard reads a bare «note» as Description): «Название» (required), then `EventSheet`'s rows
+  with «Время» empty (`untimed`).
 - **Temperature wheel** (`TemperatureRow`): «Температура» as a `SelectRow` (a native `<select>`:
   the iPhone's wheel, the Mac's menu) from 34,0 to 43,0 °C in 0,1 steps. `optional` adds «—»
   (`medical.noTemperature`, value `''`) right before 37,0, selected at first, so the wheel shows
@@ -902,7 +919,8 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   change it. The new Illness's name is «Болезнь » + the event's
   date as «2 декабря 2026» (`medical.newIllnessName`, `longDay` from `@/shared/dates`).
 - **Data**: `useMedicalCard(person)` → `{illnesses, eventsOf(illnessId), lastAmountOf(medicineId),
-  logTemperature(target, details), logDose(target, details)}` on `useRows('illness')` and
+  logTemperature(target, details, eventId?), logDose(…), logNoteEvent(…), rename(illness, name),
+  describe(illness, description), removeIllness(illness), removeEvent(event)}` on `useRows('illness')` and
   `useRows('illness_event')`; `illnesses` is `undefined` until both are read; `lastAmountOf` looks
   at every event on the card (any Illness or Condition). `logTemperature` / `logDose` add the
   event to `{illnessId}`, or, for `{newIllnessName}` (an `IllnessChoice`), create the Illness
@@ -914,7 +932,7 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
 - Store: `illness` depends on `child` (`childId`), `illness_event` on `illness` (`illnessId`), in
   `DEPENDENT_TABLES` and in the fake sync server's `CASCADES`.
 - Tests: `features/medical/medicalCard.test.tsx`, `medicines.test.tsx` (Settings, the store
-  upgrade to version 10), `medicineDoses.test.tsx`.
+  upgrade to version 10), `medicineDoses.test.tsx`, `illnessEditing.test.tsx` (#131).
 
 ## PWA
 
