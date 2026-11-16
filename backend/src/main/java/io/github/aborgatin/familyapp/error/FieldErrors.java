@@ -32,6 +32,7 @@ public final class FieldErrors {
   public static final String TOO_LONG = "too_long";
   public static final String VALUE_INVALID = "value.invalid";
   public static final String COLOR_INVALID = "color.invalid";
+  public static final String AVATAR_INVALID = "avatar.invalid";
 
   private final List<Map<String, Object>> errors = new ArrayList<>();
 

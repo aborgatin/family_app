@@ -312,9 +312,10 @@ export const SEED = {
   member: { email: 'anna@example.com', password: 'password123', displayName: 'Анна', grammaticalGender: 'FEMININE' },
   secondMember: { email: 'boris@example.com', password: 'password123', displayName: 'Борис', grammaticalGender: 'MASCULINE' },
   children: [
-    { name: 'Маша', color: 'coral', birthday: '2019-04-12' },
-    { name: 'Петя', color: 'blue', birthday: null },
-    { name: 'Соня', color: 'green', birthday: '2022-09-01' },
+    // Петя has no Child avatar: his initial shows.
+    { name: 'Маша', color: 'coral', birthday: '2019-04-12', avatar: 'long' },
+    { name: 'Петя', color: 'blue', birthday: null, avatar: null },
+    { name: 'Соня', color: 'green', birthday: '2022-09-01', avatar: 'top-knot' },
   ],
   // Lists by Member: Борис's Private one never reaches Анна, whom every route is logged in as.
   // `isDefault`: one of the Default Shopping lists the bootstrap created; the seed fills it instead

@@ -3,7 +3,7 @@ import { useSession, type Member } from '@/features/auth';
 import { errorMessage } from '@/shared/api';
 import type { ReactNode } from 'react';
 import {
-  Avatar,
+  Initials,
   GroupedSection,
   ListRow,
   LoadingRow,
@@ -74,7 +74,7 @@ function MembersSection({ load, retry, myId, inviteRows, inviteMessages }: Membe
         load.value.map((member) => (
           <ListRow
             key={member.id}
-            leading={<Avatar name={member.displayName} />}
+            leading={<Initials name={member.displayName} />}
             title={
               member.id === myId
                 ? t('members.me', { name: member.displayName })

@@ -84,6 +84,37 @@ class ChildrenSyncTest {
   }
 
   @Test
+  void aChildAvatarIsOptionalSetAndClearedAndKeptByUpsertsWithoutIt() throws Exception {
+    UUID masha = addMasha();
+    assertThat(SyncRequests.fields(boris, "child", masha)).containsEntry("avatar", null);
+
+    SyncRequests.push(anna, SyncRequests.upsert("child", masha, "{\"avatar\":\"top-knot\"}"))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+    // An older client that doesn't know the Child avatar sends no avatar: it stays.
+    SyncRequests.push(boris, SyncRequests.upsert("child", masha, "{\"name\":\"Мария\"}"));
+    assertThat(SyncRequests.fields(boris, "child", masha))
+        .containsEntry("name", "Мария")
+        .containsEntry("avatar", "top-knot");
+
+    SyncRequests.push(anna, SyncRequests.upsert("child", masha, "{\"avatar\":null}"))
+        .andExpect(jsonPath("$.results[*].status", contains("applied")));
+    assertThat(SyncRequests.fields(boris, "child", masha)).containsEntry("avatar", null);
+  }
+
+  @Test
+  void anAvatarOutsideTheSetIsRejected() throws Exception {
+    UUID masha = addMasha();
+
+    SyncRequests.push(anna, SyncRequests.upsert("child", masha, "{\"avatar\":\"dragon\"}"))
+        .andExpect(jsonPath("$.results[0].status").value("rejected"))
+        .andExpect(
+            jsonPath("$.results[0].params.errors[?(@.field=='avatar')].code")
+                .value("avatar.invalid"));
+
+    assertThat(SyncRequests.fields(boris, "child", masha)).containsEntry("avatar", null);
+  }
+
+  @Test
   void theSameFieldChangedOnTwoDevicesKeepsTheChangeTheServerReceivedLater() throws Exception {
     UUID masha = addMasha();
 

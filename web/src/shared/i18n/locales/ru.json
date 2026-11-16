@@ -289,6 +289,8 @@
     "newTitle": "Новый ребёнок",
     "name": "Имя",
     "color": "Цвет",
+    "avatar": "Аватар",
+    "noAvatar": "Без аватара",
     "birthday": "День рождения",
     "birthdayWithAge": "{{date}} · {{age}}",
     "birthdayMissing": "Не указан",
@@ -307,6 +309,13 @@
     "confirmDelete": "Удалить „{{name}}“?",
     "deleteTakesAll": "Списки и профиль ребёнка тоже будут удалены.",
     "notFound": "Такого ребёнка нет: возможно, его удалили."
+  },
+  "childAvatars": {
+    "long": "Длинные волосы",
+    "short": "Каре",
+    "ponytail": "Хвост",
+    "top-knot": "Хвост на макушке",
+    "boy": "Мальчик"
   },
   "childColors": {
     "coral": "Коралловый",
@@ -382,6 +391,7 @@
       "tooLong": "Слишком длинно",
       "valueInvalid": "Недопустимое значение",
       "colorInvalid": "Выберите цвет из списка",
+      "avatarInvalid": "Выберите аватар из списка",
       "invalid": "Проверьте это поле"
     }
   },

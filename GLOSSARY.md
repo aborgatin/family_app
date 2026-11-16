@@ -123,6 +123,10 @@ _Avoid_: Recurrence, recurring, schedule, cycle
 The color a Child is shown in, picked from the fixed Child color palette. The palette is code (one list shared by the API and the web app), not Family data.
 _Avoid_: Theme, tag color, label
 
+**Child avatar** — «Аватар»:
+The drawing a Child is shown with, picked from the fixed Avatar set (a few girls' hairstyles and a boy), drawn in their Child color. The set is code, like the Child color palette, not Family data. Optional: a Child without one is shown by their initial.
+_Avoid_: Picture, icon, figure, photo, sex
+
 **Child page** — «Страница ребёнка»:
 The page for one Child, holding their Child profile and their Child lists. It starts with no lists; Members create, rename and delete them there as they do any List.
 _Avoid_: Child dashboard, kid page

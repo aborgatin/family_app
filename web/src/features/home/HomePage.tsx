@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { ChildrenTiles } from '@/features/children';
+import { ChildrenCards } from '@/features/children';
 import { ListsSection } from '@/features/lists';
 import { SETTINGS_PATH } from '@/features/settings';
 import { Link, Page, Sections } from '@/shared/ui';
@@ -13,7 +13,7 @@ export function HomePage() {
       actions={<Link to={SETTINGS_PATH} icon="settings" label={t('settings.title')} />}
     >
       <Sections>
-        <ChildrenTiles />
+        <ChildrenCards />
         <ListsSection />
       </Sections>
     </Page>

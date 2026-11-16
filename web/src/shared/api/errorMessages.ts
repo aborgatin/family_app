@@ -34,6 +34,7 @@ const FIELD_ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   too_long: 'errors.field.tooLong',
   'value.invalid': 'errors.field.valueInvalid',
   'color.invalid': 'errors.field.colorInvalid',
+  'avatar.invalid': 'errors.field.avatarInvalid',
 };
 
 export function errorMessageKey(code: string): MessageKey {
