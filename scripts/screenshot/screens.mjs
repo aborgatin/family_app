@@ -15,7 +15,7 @@ import {
 } from "./helpers.mjs";
 
 const INVITE = 'role=button[name="Пригласить взрослого…"]';
-/** The tile of the Child with this name in «Дети» on Home. */
+/** The card of the Child with this name in «Дети» on Home. */
 const childTile = (name) =>
   `role=region[name="Дети"] >> role=link[name=/${name}/]`;
 const ITEM = 'role=textbox[name="Товар «Молоко 3,2%»"]';
@@ -1277,7 +1277,7 @@ export default {
       fullPage: false,
       steps: [
         { click: "role=link[name=/Маша/]" },
-        { waitFor: 'role=radiogroup[name="Цвет"]' },
+        { waitFor: 'role=radiogroup[name="Аватар"]' },
         { fill: 'role=textbox[name="Имя"]', value: "Мария" },
         { press: "Enter" },
         { wait: 300 },
@@ -1415,7 +1415,7 @@ export default {
       path: "/settings",
       steps: [
         { click: "role=link[name=/Маша/]" },
-        { waitFor: 'role=radiogroup[name="Цвет"]' },
+        { waitFor: 'role=radiogroup[name="Аватар"]' },
       ],
     },
     {
@@ -1437,6 +1437,7 @@ export default {
         { click: 'role=button[name="Добавить ребёнка"]' },
         { fill: 'role=dialog >> role=textbox[name="Имя"]', value: "Ваня" },
         { click: 'role=dialog >> role=radio[name="Оранжевый"]' },
+        { click: 'role=dialog >> role=radio[name="Мальчик"]' },
         { wait: 400 },
       ],
     },

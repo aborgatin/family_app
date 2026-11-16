@@ -7,11 +7,11 @@ import {
   type FieldMessages,
 } from '@/shared/api';
 import { GroupedSection, Sheet, useFooterLines } from '@/shared/ui';
-import { ChildRows } from './ChildRows';
+import { ChildRows, NO_AVATAR } from './ChildRows';
 import type { ChildDetails } from './childTypes';
 
-type Field = 'name' | 'color' | 'birthday';
-const FIELDS: readonly Field[] = ['name', 'color', 'birthday'];
+type Field = 'name' | 'color' | 'avatar' | 'birthday';
+const FIELDS: readonly Field[] = ['name', 'color', 'avatar', 'birthday'];
 
 interface NewChildSheetProps {
   /** The new Child's id, made once when the sheet opened, so a retried save repeats the same PUT. */
@@ -31,6 +31,7 @@ export function NewChildSheet({ id, save, onClose }: NewChildSheetProps) {
   const lines = useFooterLines();
   const [name, setName] = useState('');
   const [color, setColor] = useState<string>();
+  const [avatar, setAvatar] = useState(NO_AVATAR);
   const [birthday, setBirthday] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldMessages<Field>>({});
   const [formError, setFormError] = useState<ErrorMessage>();
@@ -46,10 +47,15 @@ export function NewChildSheet({ id, save, onClose }: NewChildSheetProps) {
 
     setSaving(true);
     try {
-      await save(id, { name: name.trim(), color, birthday: birthday === '' ? null : birthday });
+      await save(id, {
+        name: name.trim(),
+        color,
+        birthday: birthday === '' ? null : birthday,
+        avatar: avatar === NO_AVATAR ? null : avatar,
+      });
       onClose();
     } catch (error: unknown) {
-      const { fieldMessages, formMessage } = failureMessages(error, FIELDS, ['color']);
+      const { fieldMessages, formMessage } = failureMessages(error, FIELDS, ['color', 'avatar']);
       setFieldErrors(fieldMessages);
       setFormError(formMessage);
       setSaving(false);
@@ -70,6 +76,8 @@ export function NewChildSheet({ id, save, onClose }: NewChildSheetProps) {
         <ChildRows
           name={{ name: 'name', value: name, onChange: setName }}
           color={{ name: 'color', value: color, onChange: setColor }}
+          avatar={{ name: 'avatar', value: avatar, onChange: setAvatar }}
+          childName={name}
           birthday={{ name: 'birthday', value: birthday, onChange: setBirthday }}
         />
       </GroupedSection>

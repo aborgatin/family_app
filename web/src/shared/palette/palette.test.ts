@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import ru from '@/shared/i18n/locales/ru.json';
-import { CHILD_COLORS } from '.';
+import { CHILD_AVATARS, CHILD_COLORS } from '.';
 
 describe('Child color palette', () => {
   it('names every color in Russian, and names no color it does not have', () => {
@@ -12,5 +12,15 @@ describe('Child color palette', () => {
     for (const color of CHILD_COLORS) {
       expect(color.hex).toMatch(/^#[0-9a-f]{6}$/);
     }
+  });
+});
+
+describe('Avatar set', () => {
+  it('names every Child avatar in Russian, and names none it does not have', () => {
+    expect(Object.keys(ru.childAvatars).sort()).toEqual(CHILD_AVATARS.map((a) => a.code).sort());
+  });
+
+  it('has distinct codes', () => {
+    expect(new Set(CHILD_AVATARS.map((a) => a.code)).size).toBe(CHILD_AVATARS.length);
   });
 });

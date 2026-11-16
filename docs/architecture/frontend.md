@@ -76,7 +76,7 @@ web/src/
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage;
                         useFamilyMembers() (the Members on the local store, by id)
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(), useChild(id),
-                        ChildrenTiles («Дети» on Home), ChildPage (the Child page, CHILD_PATH)
+                        ChildrenCards («Дети» on Home), ChildPicture, ChildPage (the Child page, CHILD_PATH)
     notifications/      NotificationsSection (Settings «Уведомления»: the switch, saved with
                         `updateProfile` from `features/members`; this device), usePushDevice
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
@@ -89,7 +89,7 @@ web/src/
                         deleteRow, useSaveRejection, startSync / stopSync / onSessionEnded
     push/               this device and push: readPushState, subscribeThisDevice,
                         resyncSubscription (launch), forgetSubscription (logout), pushApi
-    palette/            Child color palette (childColors.json)
+    palette/            Child color palette (childColors.json), Avatar set (childAvatars.json)
     dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests),
                         daysFromToday(day, now), shortDay(date, now) («15 нояб.»)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
@@ -98,8 +98,8 @@ web/src/
                         InputRow, TextAreaRow (+ LinkedText, not exported), DateRow,
                         SegmentedControl, SwitchRow, SelectRow, ColorChoice, Swatch, ListRow,
                         LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
-                        RowContextMenu, Avatar, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
-                        TileGrid + Tile,
+                        RowContextMenu, Initials, ChildAvatar, PictureChoice, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
+                        CardGrid + Card,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
   serviceWorker/        the service worker, its own bundle (see PWA): sw.ts (entry), pushPayload
                         (the payload contract), pushMessages (payload → text), notificationClick
@@ -602,6 +602,11 @@ footer asks to copy by hand. `navigator.share` is not used. `InvitesSection` («
 edit mode, a swipe or right-click, always after the `ActionSheet`. Confirmations are never
 `window.confirm`.
 
+Avatar set: `web/src/shared/palette/childAvatars.json` (`[{code}]`), the same way: `CHILD_AVATARS`
+and `childAvatar(code)` (the code, or `undefined` for none or a code this build doesn't know), names
+under `childAvatars.<code>`; the figures are drawn by `ChildAvatar` in `shared/ui`. A Child row pulled
+before ticket #124 has no `avatar`, which means none (no store upgrade).
+
 Child color palette: `web/src/shared/palette/childColors.json` (`[{code, hex}]`) is the single
 definition. `@/shared/palette` exports `CHILD_COLORS` and `childColor(code)`; the backend validates
 against the same file (see [`backend.md`](backend.md#stack)). Each code's Russian name is
@@ -728,8 +733,8 @@ button go to Settings without saving. On success it navigates to Settings with
 current password empties that field). `app/routes.tsx` passes `SETTINGS_PATH` in as
 `settingsPath`, since `settings` already imports `members`.
 
-«Дети» (`ChildrenSettings`) is an edit-mode list of `EditableRow`s: the Child's colour
-(`Swatch`), name, age on the right («7 лет», «5 месяцев» under a year, «меньше месяца» under one, nothing without a birthday
+«Дети» (`ChildrenSettings`) is an edit-mode list of `EditableRow`s: the Child's `ChildPicture`
+(`row` size), name, age on the right («7 лет», «5 месяцев» under a year, «меньше месяца» under one, nothing without a birthday
 or before it; `i18n` plurals `children.age.years_*` / `months_*`, computed from the device's
 date) and a chevron to `/settings/children/:id` (`childSettingsPath(id)`). Edit mode deletes only
 (Children have no order); a swipe and right-click delete too; each asks first, «Удалить „Маша“?»
@@ -758,7 +763,8 @@ The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_
 `settingsPath` as for the password screen) is a `Page` titled with the Child's name, back to
 «Настройки». It loads through `useChild(id)` like the list (so a deep link works) and shows
 `ChildRows`: Имя (`InputRow`, `useAutoSaveText`; empty is refused without a request), Цвет
-(`ColorChoice`, `useAutoSaveChoice`), День рождения (`DateRow`, `useAutoSaveText` with `''` for
+(`ColorChoice`, `useAutoSaveChoice`), Аватар (`PictureChoice`, `useAutoSaveChoice`: «Без аватара»
+— `NO_AVATAR`, saved as `null` — then the Avatar set, each drawn in the chosen colour), День рождения (`DateRow`, `useAutoSaveText` with `''` for
 none). Each change saves only that field through `useChildren().save` (local store + Outbox), so
 it shows at once offline too; after a rejection («Не удалось сохранить» app-wide) the rows show
 the server's value again. Then a red «Удалить ребёнка» `ConfirmRow`: the `ActionSheet`
@@ -767,10 +773,11 @@ the server's value again. Then a red «Удалить ребёнка» `ConfirmR
 
 ## Home «Дети» and the Child page
 
-Home (`HomePage`) is `Sections` of `ChildrenTiles` and `ListsSection`. `ChildrenTiles`
-(`features/children`, ticket #89) reads `useChildren()` and shows «Дети» as a `TileGrid` above
-«Списки»: a `Tile` per Child in the Children order (oldest first), filled with the Child color
-(`childColor(code)?.hex`; grey for an unknown code), the name and under it the age as in Settings
+Home (`HomePage`) is `Sections` of `ChildrenCards` and `ListsSection`. `ChildrenCards`
+(`features/children`, tickets #89, #124) reads `useChildren()` and shows «Дети» as a `CardGrid` above
+«Списки»: a `Card` per Child in the Children order (oldest first), led by their `ChildPicture` (the
+`ChildAvatar` from the stored codes: `childColor(code)?.hex`, grey for an unknown colour;
+`childAvatar(code)`, the initial for none or an unknown one), the name and under it the age as in Settings
 (`useAge()`; the name only without a birthday or before it), each a link to the Child page. While
 the Children load, and with none, it renders nothing, so Home has no «Дети» header at all.
 

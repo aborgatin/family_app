@@ -23,15 +23,22 @@ class ChildColorPalette {
   private final Set<String> codes;
 
   ChildColorPalette(ObjectMapper json) {
-    try (InputStream in = ChildColorPalette.class.getResourceAsStream(RESOURCE)) {
+    this.codes = codes(json, RESOURCE);
+  }
+
+  /**
+   * The {@code code}s of a JSON array of objects on the classpath (the palette, the Avatar set).
+   */
+  static Set<String> codes(ObjectMapper json, String resource) {
+    try (InputStream in = ChildColorPalette.class.getResourceAsStream(resource)) {
       if (in == null) {
-        throw new IllegalStateException("Missing classpath resource " + RESOURCE);
+        throw new IllegalStateException("Missing classpath resource " + resource);
       }
       Set<String> loaded = new HashSet<>();
-      for (JsonNode color : json.readTree(in)) {
-        loaded.add(color.get("code").asText());
+      for (JsonNode entry : json.readTree(in)) {
+        loaded.add(entry.get("code").asText());
       }
-      this.codes = Set.copyOf(loaded);
+      return Set.copyOf(loaded);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

@@ -9,6 +9,11 @@ export interface Child {
   color: string;
   /** `YYYY-MM-DD`, or `null` when unknown. */
   birthday: string | null;
+  /**
+   * A code from the Avatar set, or `null` for none. Missing in a row pulled before the Child avatar
+   * existed (ticket #124), which means none.
+   */
+  avatar?: string | null;
 }
 
 /** What a Member edits. */
@@ -16,4 +21,5 @@ export interface ChildDetails {
   name: string;
   color: string;
   birthday: string | null;
+  avatar: string | null;
 }

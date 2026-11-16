@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { childColor } from '@/shared/palette';
+import { ChildPicture } from './ChildPicture';
 import {
   EditableRow,
   GroupedSection,
   ListRow,
   LoadingRow,
-  Swatch,
   useEditableList,
   useFooterLines,
 } from '@/shared/ui';
@@ -71,7 +70,14 @@ export function ChildrenSettings() {
           <EditableRow
             key={child.id}
             to={childSettingsPath(child.id)}
-            leading={<Swatch color={childColor(child.color)?.hex ?? 'transparent'} />}
+            leading={
+              <ChildPicture
+                name={child.name}
+                color={child.color}
+                avatar={child.avatar}
+                size="row"
+              />
+            }
             title={child.name}
             value={child.birthday === null ? undefined : age(child.birthday)}
             busy={list.deleting === child.id}

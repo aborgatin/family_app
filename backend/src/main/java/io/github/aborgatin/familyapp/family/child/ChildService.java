@@ -22,16 +22,19 @@ class ChildService implements SyncableTable {
 
   private final ChildRepository children;
   private final ChildColorPalette palette;
+  private final ChildAvatarSet avatars;
   private final Family family;
   private final ApplicationEventPublisher events;
 
   ChildService(
       ChildRepository children,
       ChildColorPalette palette,
+      ChildAvatarSet avatars,
       Family family,
       ApplicationEventPublisher events) {
     this.children = children;
     this.palette = palette;
+    this.avatars = avatars;
     this.family = family;
     this.events = events;
   }
@@ -53,7 +56,7 @@ class ChildService implements SyncableTable {
   }
 
   private Outcome upsert(Operation operation, Optional<Child> existing) {
-    ChildDetails details = changed(operation, existing).validate(palette);
+    ChildDetails details = changed(operation, existing).validate(palette, avatars);
     Child child =
         existing
             .map(
@@ -71,10 +74,12 @@ class ChildService implements SyncableTable {
     String name = existing.map(Child::name).orElse(null);
     String color = existing.map(Child::color).orElse(null);
     String birthday = existing.map(Child::birthday).map(java.time.LocalDate::toString).orElse(null);
+    String avatar = existing.map(Child::avatar).orElse(null);
     return new ChildRequest(
         operation.has("name") ? operation.text("name") : name,
         operation.has("color") ? operation.text("color") : color,
-        operation.has("birthday") ? operation.text("birthday") : birthday);
+        operation.has("birthday") ? operation.text("birthday") : birthday,
+        operation.has("avatar") ? operation.text("avatar") : avatar);
   }
 
   private Outcome delete(Child child) {
@@ -94,6 +99,7 @@ class ChildService implements SyncableTable {
           fields.put("name", child.name());
           fields.put("color", child.color());
           fields.put("birthday", child.birthday());
+          fields.put("avatar", child.avatar());
         });
   }
 }

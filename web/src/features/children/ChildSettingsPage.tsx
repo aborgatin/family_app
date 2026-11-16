@@ -13,7 +13,7 @@ import {
   useAutoSaveText,
   useFooterLines,
 } from '@/shared/ui';
-import { ChildRows } from './ChildRows';
+import { ChildRows, NO_AVATAR } from './ChildRows';
 import type { Child, ChildDetails } from './childTypes';
 import { useChild } from './useChildren';
 
@@ -104,6 +104,17 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
       [id, save],
     ),
   });
+  const avatar = useAutoSaveChoice({
+    name: 'avatar',
+    saved: child.avatar ?? NO_AVATAR,
+    save: useCallback(
+      async (value: string) => {
+        await save(id, { avatar: value === NO_AVATAR ? null : value });
+        return value;
+      },
+      [id, save],
+    ),
+  });
   const birthday = useAutoSaveText({
     name: 'birthday',
     saved: child.birthday ?? '',
@@ -133,8 +144,16 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
 
   return (
     <Sections>
-      <GroupedSection messages={autoSaveMessages([name.failure, color.failure, birthday.failure])}>
-        <ChildRows name={name.input} color={color.control} birthday={birthday.input} />
+      <GroupedSection
+        messages={autoSaveMessages([name.failure, color.failure, avatar.failure, birthday.failure])}
+      >
+        <ChildRows
+          name={name.input}
+          color={color.control}
+          avatar={avatar.control}
+          childName={child.name}
+          birthday={birthday.input}
+        />
       </GroupedSection>
       <GroupedSection messages={[lines.failure(deleteError)]}>
         <ConfirmRow

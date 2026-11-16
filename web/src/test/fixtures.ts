@@ -67,6 +67,8 @@ export const masha = {
   name: 'Маша',
   color: 'coral',
   birthday: '2019-04-12' as string | null,
+  /** A code from the Avatar set, or `null` (the initial shows). */
+  avatar: null as string | null,
 };
 
 /** A second Child, without a birthday. */
@@ -75,6 +77,7 @@ export const petya: typeof masha = {
   name: 'Петя',
   color: 'blue',
   birthday: null,
+  avatar: null,
 };
 
 /** `GET /api/auth/session` answering with the given state; counts how often it was asked. */

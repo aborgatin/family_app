@@ -27,7 +27,7 @@ export interface RowContentProps {
    */
   wrapSubtitle?: boolean;
   /**
-   * Before the text: an `Avatar`, a colour dot. Centred in a slot as wide as an `Avatar`, so the
+   * Before the text: an `Initials`, a colour dot. Centred in a slot as wide as an `Initials`, so the
    * texts and the hairlines between rows line up.
    */
   leading?: ReactNode;

@@ -48,6 +48,26 @@ const THEMES = {
   dark: new Map([...light, ...tokens(":root[data-theme='dark'] {")]),
 };
 
+/** `--child-tint-amount` (a fraction) in the first block after `opener`. */
+function tintAmount(opener: string): number {
+  const start = css.indexOf(opener, css.indexOf('@layer base'));
+  const found = /--child-tint-amount:\s*(\d+)%;/.exec(css.slice(start));
+  if (!found?.[1]) throw new Error(`no --child-tint-amount after ${opener}`);
+  return Number(found[1]) / 100;
+}
+
+/** `color-mix(in srgb, a amount, b)` as #rrggbb. */
+function mix(a: string, b: string, amount: number): string {
+  const channel = (hex: string, i: number) => parseInt(hex.slice(i, i + 2), 16);
+  return (
+    '#' +
+    [1, 3, 5]
+      .map((i) => Math.round(channel(a, i) * amount + channel(b, i) * (1 - amount)))
+      .map((c) => c.toString(16).padStart(2, '0'))
+      .join('')
+  );
+}
+
 function luminance(hex: string): number {
   const [r = 0, g = 0, b = 0] = [1, 3, 5].map((i) => {
     const c = parseInt(hex.slice(i, i + 2), 16) / 255;
@@ -70,14 +90,15 @@ describe.each(Object.entries(THEMES))('%s theme', (_, colors) => {
     expect(contrast(fg ?? '', bg ?? '')).toBeGreaterThanOrEqual(4.5);
   });
 
-  // A `Tile` is filled with a Child color, the same in both themes, and its text is
-  // `on-child-color`: it must read on every colour of the palette.
+  // A ChildAvatar without a figure shows the initial in `label` on the `child-tint` of the Child
+  // color: the colour mixed into `cell` by `--child-tint-amount`, which must read on every colour.
   it.each(CHILD_COLORS.map((color) => [color.code, color.hex]))(
-    'on-child-color on the Child color %s meets 4.5:1',
+    'label on the child-tint of %s meets 4.5:1',
     (_code, hex) => {
-      const fg = colors.get('on-child-color');
-      expect(fg, '--color-on-child-color as #rrggbb').toBeDefined();
-      expect(contrast(fg ?? '', hex)).toBeGreaterThanOrEqual(4.5);
+      const fg = colors.get('label');
+      const cell = colors.get('cell');
+      const amount = tintAmount(colors === THEMES.dark ? "[data-theme='dark']" : ':root {');
+      expect(contrast(fg ?? '', mix(hex, cell ?? '', amount))).toBeGreaterThanOrEqual(4.5);
     },
   );
 });

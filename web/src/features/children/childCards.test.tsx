@@ -17,6 +17,7 @@ const sonya: typeof masha = {
   name: 'Соня',
   color: 'green',
   birthday: '2025-11-08',
+  avatar: null,
 };
 
 /** The tiles, once Home shows this many. */
@@ -67,15 +68,16 @@ describe('«Дети» on Home', () => {
     expect(headers.map((header) => header.textContent)).toEqual(['Дети', 'Списки']);
   });
 
-  it('fills a tile with the Child color', async () => {
-    syncServer.seed('child', [masha]);
+  it('shows the Child’s Аватар in the Child color, or the initial without one', async () => {
+    syncServer.seed('child', [{ ...masha, avatar: 'long' }, petya]);
 
     renderApp('/');
 
-    const [tile] = await tiles(1);
-    expect(within(tile as HTMLElement).getByRole('link')).toHaveStyle({
-      backgroundColor: '#e07a5f',
-    });
+    const [first, second] = (await tiles(2)) as [HTMLElement, HTMLElement];
+    const figure = first.querySelector('[data-avatar="long"]');
+    expect(figure).not.toBeNull();
+    expect(figure?.closest('[aria-hidden="true"]')).toHaveStyle({ '--child-color': '#e07a5f' });
+    expect(second.querySelector('[data-initial="П"]')).toHaveStyle({ '--child-color': '#457b9d' });
   });
 
   it('is not shown while there are no Children', async () => {
@@ -118,7 +120,7 @@ describe('«Дети» on Home', () => {
     syncServer.change('child', masha.id, { name: 'Мария', color: 'teal' });
     await announce();
     const renamed = await screen.findByRole('link', { name: /^Мария/ });
-    expect(renamed).toHaveStyle({ backgroundColor: '#2a9d8f' });
+    expect(renamed.querySelector('[data-initial="М"]')).toHaveStyle({ '--child-color': '#2a9d8f' });
 
     syncServer.change('child', masha.id, 'deleted');
     await announce();
