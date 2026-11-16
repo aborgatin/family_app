@@ -1,6 +1,8 @@
 // The push payload contract (spec #104 "Payload: codes, not texts"): the server sends codes and
 // parameters, never texts, and the service worker builds the Russian text from the ru i18n file.
-// The backend's payload must keep this shape; frontend.md "PWA" documents it.
+// The one deliberate exception is an Announcement (spec #120): hand-written text with nothing to
+// compose, sent as finished text so any worker that knows the type shows it as written.
+// The backend's payload must keep this shape (`PushPayloads`); frontend.md "PWA" documents it.
 
 /** The List kinds and Grammatical genders a payload names, as the backend writes them. */
 const LIST_KINDS = ['SHOPPING', 'TODO', 'WISH'] as const;
@@ -43,7 +45,19 @@ export interface ReminderPayload {
   url: string;
 }
 
-export type PushPayload = NotificationPayload | ReminderPayload;
+/**
+ * An Announcement («Что нового», spec #120): an entry of the server's catalog, its title and body
+ * shown exactly as written (the exception to "codes, not texts").
+ */
+export interface AnnouncementPayload {
+  type: 'announcement';
+  title: string;
+  body: string;
+  /** The screen a tap opens; the server sends `/` when the entry names none. */
+  url: string;
+}
+
+export type PushPayload = NotificationPayload | ReminderPayload | AnnouncementPayload;
 
 /** The payload in the push data (JSON text), or `undefined` when it isn't one this worker reads. */
 export function parsePushPayload(data: string | undefined): PushPayload | undefined {
@@ -54,7 +68,7 @@ export function parsePushPayload(data: string | undefined): PushPayload | undefi
   } catch {
     return undefined;
   }
-  return isNotification(value) || isReminder(value) ? value : undefined;
+  return isNotification(value) || isReminder(value) || isAnnouncement(value) ? value : undefined;
 }
 
 type Fields = Record<string, unknown>;
@@ -86,5 +100,13 @@ function isReminder(value: unknown): value is ReminderPayload {
     value.type === 'reminder' &&
     [value.url, value.itemName, value.listName, value.dueDate].every(isString) &&
     isStringOrNull(value.dueTime)
+  );
+}
+
+function isAnnouncement(value: unknown): value is AnnouncementPayload {
+  return (
+    isFields(value) &&
+    value.type === 'announcement' &&
+    [value.title, value.body, value.url].every(isString)
   );
 }

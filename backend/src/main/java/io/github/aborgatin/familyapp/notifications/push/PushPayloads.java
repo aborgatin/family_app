@@ -6,11 +6,15 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
- * Writes a push payload (a Notification's or a Reminder's record) as the JSON the service worker
- * reads ({@code web/src/serviceWorker/pushPayload.ts}), and builds the screen URLs a tap opens.
+ * Writes a push payload (a Notification's, a Reminder's or an Announcement's record) as the JSON
+ * the service worker reads ({@code web/src/serviceWorker/pushPayload.ts}), and builds the screen
+ * URLs a tap opens.
  */
 @Component
 public class PushPayloads {
+
+  /** Home, {@code /}: the screen an Announcement without a {@code url} opens. */
+  public static final String HOME_URL = "/";
 
   private final ObjectMapper json;
 
