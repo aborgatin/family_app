@@ -17,6 +17,8 @@ public final class FreshInstallation {
     jdbc.execute("TRUNCATE spring_session CASCADE");
     // CASCADE: Lists (Child lists) and Child field values refer to their Child.
     jdbc.execute("TRUNCATE child CASCADE");
+    // CASCADE: Medicine doses name their Medicine.
+    jdbc.execute("TRUNCATE medicine CASCADE");
     removeMembersOnly(jdbc);
   }
 

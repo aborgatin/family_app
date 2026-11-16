@@ -416,9 +416,12 @@ export const SEED = {
       ['Последний визит к врачу', '2026-10-03'],
     ],
   },
+  /** The Family's Medicines (ticket #130). */
+  medicines: ['Ибупрофен 20 мг/мл', 'Парацетамол 120 мг/5 мл'],
   /**
-   * Illnesses on Маша's Medical card, each with its Temperatures (`[daysAgo, time or null, °C]`).
-   * «ОРВИ» had one yesterday, so a new Temperature joins it.
+   * Illnesses on Маша's Medical card, each with its Temperatures (`[daysAgo, time or null, °C]`)
+   * and Medicine doses (`[daysAgo, time or null, Medicine, amount, °C or null]`). «ОРВИ» had one
+   * yesterday, so a new Temperature or dose joins it.
    */
   illnesses: {
     Маша: [
@@ -429,6 +432,10 @@ export const SEED = {
           [1, '08:00', 37.8],
           [1, '22:00', 38.2],
           [1, null, 37.4],
+        ],
+        doses: [
+          [2, '20:00', 'Ибупрофен 20 мг/мл', '5 мл', 38.5],
+          [1, '22:00', 'Парацетамол 120 мг/5 мл', '1 таблетка', null],
         ],
       },
       { name: 'Отит', temperatures: [[400, '09:30', 37.6]] },
@@ -557,10 +564,20 @@ async function pushChildFieldValues(page) {
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed values: ${JSON.stringify(pushed.results)}`);
 }
 
-/** The Illnesses of `SEED.illnesses` on the Children's Medical cards, each with its events. */
+/**
+ * `SEED.medicines`, then the Illnesses of `SEED.illnesses` on the Children's Medical cards, each
+ * with its events.
+ */
 async function pushIllnesses(page, childIds) {
-  const operations = Object.entries(SEED.illnesses).flatMap(([child, illnesses]) =>
-    illnesses.flatMap(({ name, temperatures }) => {
+  const medicineIds = Object.fromEntries(SEED.medicines.map((name) => [name, crypto.randomUUID()]));
+  const medicines = SEED.medicines.map((name) => ({
+    table: 'medicine',
+    id: medicineIds[name],
+    op: 'upsert',
+    fields: { name },
+  }));
+  const operations = medicines.concat(Object.entries(SEED.illnesses).flatMap(([child, illnesses]) =>
+    illnesses.flatMap(({ name, temperatures, doses = [] }) => {
       const illnessId = crypto.randomUUID();
       return [
         { table: 'illness', id: illnessId, op: 'upsert', fields: { childId: childIds[child], kind: 'ILLNESS', name } },
@@ -570,9 +587,23 @@ async function pushIllnesses(page, childIds) {
           op: 'upsert',
           fields: { illnessId, kind: 'TEMPERATURE', date: dayFromToday(-daysAgo), time, temperature },
         })),
+        ...doses.map(([daysAgo, time, medicine, amount, temperature]) => ({
+          table: 'illness_event',
+          id: crypto.randomUUID(),
+          op: 'upsert',
+          fields: {
+            illnessId,
+            kind: 'MEDICINE_DOSE',
+            date: dayFromToday(-daysAgo),
+            time,
+            medicineId: medicineIds[medicine],
+            amount,
+            temperature,
+          },
+        })),
       ];
     }),
-  );
+  ));
   const pushed = await api(page, 'POST', '/api/sync/push', { operations });
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed illnesses: ${JSON.stringify(pushed.results)}`);
 }

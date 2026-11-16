@@ -23,6 +23,7 @@ export const SYNCED_TABLES = [
   'mute',
   'illness',
   'illness_event',
+  'medicine',
 ] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 
@@ -80,6 +81,14 @@ export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTabl
   ];
 
 /**
+ * Tables whose rows stay when deleted, marked `deleted: true`, because other rows still show them:
+ * a deleted Medicine keeps its name on past doses. The server pulls such a row with its fields and
+ * `deleted`, never as a tombstone; deleting it here, or the server ignoring a change to it, marks
+ * the local row the same way until the pull brings the server's copy.
+ */
+const KEPT_WHEN_DELETED: readonly SyncedTable[] = ['medicine'];
+
+/**
  * The store's schema, one entry per Dexie version (the first is version 1), each with the tables
  * it adds or re-indexes. A new table or index is a new entry at the end; an entry never changes,
  * so a device's older store upgrades on open. The store-upgrade tests build an older store from
@@ -103,6 +112,8 @@ export const STORE_SCHEMA: readonly Readonly<Record<string, string>>[] = [
   // Medical cards (spec #128): Illnesses, dependent on their Child (none for a Member's card),
   // and their Illness events, dependent on their Illness.
   { illness: 'id, childId', illness_event: 'id, illnessId' },
+  // The Family's Medicines (ticket #130), which Medicine doses name.
+  { medicine: 'id' },
 ];
 
 interface Meta {
@@ -198,10 +209,18 @@ export async function ownerCopy(): Promise<unknown> {
 
 /**
  * Removes local rows of `table` that are gone on the server, and the rows that depend on them
- * (`DEPENDENT_TABLES`). Needs a surrounding transaction over the synced tables.
+ * (`DEPENDENT_TABLES`); rows of a `KEPT_WHEN_DELETED` table stay, marked `deleted: true`. Needs a
+ * surrounding transaction over the synced tables.
  */
 export async function removeLocally(table: SyncedTable, ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return;
+  if (KEPT_WHEN_DELETED.includes(table)) {
+    for (const id of ids) {
+      const row = await localStore.rows(table).get(id);
+      if (row !== undefined) await localStore.rows(table).put({ ...row, deleted: true });
+    }
+    return;
+  }
   await localStore.rows(table).bulkDelete([...ids]);
   for (const dependent of DEPENDENT_TABLES.filter(({ parent }) => parent === table)) {
     const rows = await localStore.rows(dependent.table).where(dependent.key).anyOf(ids).toArray();
@@ -215,10 +234,16 @@ export async function removeLocally(table: SyncedTable, ids: readonly string[]):
 /** Applies an operation to the local rows (not the Outbox): what the server will do with it. */
 export async function applyLocally(operation: Operation): Promise<void> {
   const rows = localStore.rows(operation.table);
-  if (operation.op === 'delete') {
+  if (operation.op === 'delete' && !KEPT_WHEN_DELETED.includes(operation.table)) {
     await rows.delete(operation.id);
     return;
   }
   const existing = await rows.get(operation.id);
+  if (operation.op === 'delete') {
+    // Kept, marked deleted (as `removeLocally` does, inline: Dexie loses the transaction across
+    // one more level of async calls).
+    if (existing !== undefined) await rows.put({ ...existing, deleted: true });
+    return;
+  }
   await rows.put({ ...existing, ...operation.fields, ...operation.local, id: operation.id });
 }

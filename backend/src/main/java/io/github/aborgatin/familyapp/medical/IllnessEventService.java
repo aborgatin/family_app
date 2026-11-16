@@ -22,10 +22,13 @@ class IllnessEventService implements SyncableTable {
 
   private final IllnessEventRepository events;
   private final IllnessRepository illnesses;
+  private final MedicineService medicines;
 
-  IllnessEventService(IllnessEventRepository events, IllnessRepository illnesses) {
+  IllnessEventService(
+      IllnessEventRepository events, IllnessRepository illnesses, MedicineService medicines) {
     this.events = events;
     this.illnesses = illnesses;
+    this.medicines = medicines;
   }
 
   @Override
@@ -38,7 +41,7 @@ class IllnessEventService implements SyncableTable {
    * kind} and {@code date} required). An upsert of a known one changes nothing yet. A delete
    * deletes it. Delete wins: an event for a deleted Illness is ignored. An Illness that never
    * existed, or is on another Member's card, and an event on such a card, is {@code
-   * medical.not_found}.
+   * medical.not_found}; so is a dose of a Medicine that never existed (a deleted one is fine).
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -90,6 +93,9 @@ class IllnessEventService implements SyncableTable {
             .orElseThrow(() -> Person.notFound("illnessId", illnessId));
     if (illness.deleted()) {
       return Outcome.IGNORED;
+    }
+    if (medicineId != null && !medicines.exists(medicineId)) {
+      throw Person.notFound("medicineId", medicineId);
     }
     events.saveAndFlush(
         new IllnessEvent(

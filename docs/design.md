@@ -364,6 +364,8 @@ Touch: 44px row, the caret is the only focus sign, as on iOS. Fine pointer: 36px
 focused field gets the accent outline. Enter submits the surrounding `Form`, unless the row
 auto-saves: with `onCommit` (from `useAutoSaveText()`), leaving the field or Enter saves, Esc
 (`onRevert`) puts the saved value back, and `busy` shows the `Spinner` at the right of the row.
+`placeholder` shows an example of what to type in `tertiary-label` while the field is empty
+(«Ибупрофен 20 мг/мл», «например, 5 мл»); the label stays the field's name.
 
 ### TextAreaRow
 
@@ -421,7 +423,9 @@ choice. `disabled` dims the label and the pill to 40%. Touch: the pill is 32px t
 row. Fine pointer: tighter, like a `DateRow`'s pill; the focused pill gets the accent outline.
 A todo item's «Повтор» (#86, disabled without a «Срок») and «Ответственный» are two. The
 **temperature wheel** of the Temperature sheet (#129) is one too: 91 options from «34,0 °C» to
-«43,0 °C», so the iPhone shows its wheel and the Mac a menu; «Добавить к» there is another.
+«43,0 °C», so the iPhone shows its wheel and the Mac a menu; «Добавить к» there is another. On
+a Medicine dose (#130) the wheel is optional: «—» sits right before «37,0 °C» and is chosen at
+first, so the wheel shows «—» until turned and then goes on from 37,0.
 
 ### ListRow
 
@@ -439,7 +443,8 @@ Touch: at least 44px tall, grey while pressed. Fine pointer: 36px, hover tint. K
 Enter / Space activate them.
 
 `wrapSubtitle` shows the whole subtitle, wrapped, instead of cutting it with «…» (a link to copy
-by hand). A `Button` can go in `value` (the «Скопировать» of a link that wasn't copied).
+by hand). `wrapTitle` does the same for the title, wrapping between words: an Illness event's
+line, whose parts all count («22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» on a phone). A `Button` can go in `value` (the «Скопировать» of a link that wasn't copied).
 
 ### LoadingRow
 
@@ -550,7 +555,9 @@ suggestions hide while the line has the focus, and picking one adds just the nam
 ### SuggestionRows
 
 Up to 5 plain rows directly under the focused `AddRow` (it places them; a List's autocomplete
-from the Item history): each a name in `label`, a hairline above every row as in any group.
+from the Item history), or every choice under an `InputRow` that is a picker with search (the
+dose sheet's «Лекарство», #130: the matching Medicines and «+ <typed text>», shown until one is
+picked): each a name in `label`, a hairline above every row as in any group.
 Tapping or clicking a row picks it; pressing it with the mouse doesn't take the focus from the
 field. With `onRemove` (`AddRow` `onRemoveSuggestion`), each row ends with a × (`clear` icon,
 `tertiary-label`, darker on hover; 44px target on touch, 36px with a mouse) named «Удалить

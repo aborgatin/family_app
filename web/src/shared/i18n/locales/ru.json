@@ -22,7 +22,8 @@
       "itemAssigneeNotFound": "Не удалось сохранить: такого взрослого больше нет",
       "itemRepeatWithoutDueDate": "Не удалось сохранить: повтор указывается только вместе со сроком",
       "mutePrivateList": "Не удалось сохранить: в личном списке уведомлений нет",
-      "medicalNotFound": "Не удалось сохранить: такой записи в медкарте нет, возможно, её удалили"
+      "medicalNotFound": "Не удалось сохранить: такой записи в медкарте нет, возможно, её удалили",
+      "medicineDuplicate": "Не удалось сохранить: такое лекарство уже есть"
     }
   },
   "offline": {
@@ -394,7 +395,8 @@
       "colorInvalid": "Выберите цвет из списка",
       "avatarInvalid": "Выберите аватар из списка",
       "invalid": "Проверьте это поле"
-    }
+    },
+    "medicineDuplicate": "Такое лекарство уже есть"
   },
   "ui": {
     "saving": "Сохраняем…",
@@ -422,6 +424,7 @@
   "medical": {
     "title": "Медкарта",
     "log": "Записать",
+    "logDose": "Добавить приём лекарства",
     "logTemperature": "Записать температуру",
     "illnesses": "Болезни",
     "noIllnesses": "Болезней пока нет",
@@ -436,13 +439,31 @@
     "since": "с {{date}}",
     "temperature": "Температура",
     "temperatureValue": "{{value}} °C",
-    "eventSummary": "{{time}} · {{temperature}}",
     "date": "Дата",
     "time": "Время",
     "description": "Описание",
     "addTo": "Добавить к",
     "newIllness": "Новая болезнь",
     "otherIllness": "Другая…",
-    "newIllnessName": "Болезнь {{date}}"
+    "newIllnessName": "Болезнь {{date}}",
+    "dose": "Приём лекарства",
+    "medicine": "Лекарство",
+    "addMedicine": "+ {{name}}",
+    "amount": "Количество",
+    "amountPlaceholder": "например, 5 мл",
+    "asLastTime": "как в прошлый раз",
+    "noTemperature": "—",
+    "doseValue": "{{medicine}} — {{amount}}",
+    "eventSeparator": " · "
+  },
+  "medicines": {
+    "title": "Лекарства",
+    "empty": "Лекарств пока нет",
+    "add": "Добавить лекарство",
+    "newTitle": "Новое лекарство",
+    "name": "Название",
+    "namePlaceholder": "Ибупрофен 20 мг/мл",
+    "nameOf": "Название лекарства «{{name}}»",
+    "confirmDelete": "Удалить лекарство „{{name}}“?"
   }
 }
