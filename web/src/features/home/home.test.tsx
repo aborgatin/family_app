@@ -12,7 +12,11 @@ describe('Home', () => {
     renderApp('/');
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Семья' })).toBeInTheDocument();
-    expect(await screen.findByRole('region', { name: 'Списки' })).toBeInTheDocument();
+    // A section per List kind, in this order.
+    await screen.findByRole('button', { name: 'Добавить список покупок' });
+    expect(
+      screen.getAllByRole('heading', { level: 2 }).map((header) => header.textContent),
+    ).toEqual(['Покупки', 'TODO', 'Желания']);
   });
 
   it('opens Settings with the gear button in the nav bar', async () => {

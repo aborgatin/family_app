@@ -7,10 +7,13 @@ import {
   GlobeOff,
   House,
   LoaderCircle,
+  Lock,
   Menu,
   Minus,
   Settings,
   TextAlignStart,
+  // eslint-disable-next-line no-restricted-syntax -- lucide's own icon name
+  Users as People,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -27,9 +30,11 @@ const ICONS = {
   expand: ChevronDown,
   home: House,
   minus: Minus,
+  private: Lock,
   offline: GlobeOff,
   reorder: Menu,
   settings: Settings,
+  shared: People,
   spinner: LoaderCircle,
 } satisfies Record<string, LucideIcon>;
 
@@ -44,14 +49,17 @@ interface IconProps {
    * decoration (`aria-hidden`) and whatever contains it carries the name.
    */
   label?: string;
+  /** In the secondary text colour instead of the current one (a List's Visibility on Home). */
+  secondary?: boolean;
 }
 
 /** A line icon in the current text colour. */
-export function Icon({ name, size = 22, label }: IconProps) {
+export function Icon({ name, size = 22, label, secondary = false }: IconProps) {
   const Glyph = ICONS[name];
+  const className = secondary ? 'shrink-0 text-secondary-label' : 'shrink-0';
   return label === undefined ? (
-    <Glyph size={size} strokeWidth={2} aria-hidden="true" focusable="false" className="shrink-0" />
+    <Glyph size={size} strokeWidth={2} aria-hidden="true" focusable="false" className={className} />
   ) : (
-    <Glyph size={size} strokeWidth={2} role="img" aria-label={label} className="shrink-0" />
+    <Glyph size={size} strokeWidth={2} role="img" aria-label={label} className={className} />
   );
 }

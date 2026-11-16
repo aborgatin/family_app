@@ -206,9 +206,9 @@ navigating.
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
 `check` (the chosen colour), `chevron`, `clear` (a circled ×), `description` (left-aligned lines, `AddRow`'s «Добавить описание»), `home`, `minus` (edit mode's ⊖),
-`expand` (a small ⌄ on a `MenuChip`), `offline` (crossed globe), `reorder` (≡, a drag handle), `settings`, `spinner`; a new icon is added to the
+`expand` (a small ⌄ on a `MenuChip`), `offline` (crossed globe), `private` (a lock: a Private List), `reorder` (≡, a drag handle), `settings`, `shared` (two people: a Shared List), `spinner`; a new icon is added to the
 map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
-colour; default size 22px.
+colour, or `secondary-label` with `secondary`; default size 22px.
 
 ### EmptyState
 

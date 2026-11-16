@@ -59,7 +59,9 @@ describe('Password reset', () => {
     expect(app.location()).toBe(LINK);
     await setPassword(user, 'brand-new-secret');
 
-    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Добавить список покупок' }),
+    ).toBeInTheDocument();
     expect(app.location()).toBe('/');
     expect(received).toEqual({
       body: { newPassword: 'brand-new-secret' },

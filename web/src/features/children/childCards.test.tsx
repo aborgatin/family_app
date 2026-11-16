@@ -58,14 +58,19 @@ describe('«Дети» on Home', () => {
     expect(items.map((item) => item.textContent)).toEqual(['Маша7 лет', 'Соня1 год', 'Петя']);
   });
 
-  it('is above «Списки»', async () => {
+  it('is above the Lists', async () => {
     syncServer.seed('child', [masha]);
 
     renderApp('/');
     await cards(1);
 
     const headers = screen.getAllByRole('heading', { level: 2 });
-    expect(headers.map((header) => header.textContent)).toEqual(['Дети', 'Списки']);
+    expect(headers.map((header) => header.textContent)).toEqual([
+      'Дети',
+      'Покупки',
+      'TODO',
+      'Желания',
+    ]);
   });
 
   it('shows the Child’s Аватар in the Child color, or the initial without one', async () => {
@@ -83,7 +88,9 @@ describe('«Дети» on Home', () => {
   it('is not shown while there are no Children', async () => {
     renderApp('/');
 
-    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Добавить список покупок' }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Дети' })).not.toBeInTheDocument();
     expect(screen.queryByText('Дети')).not.toBeInTheDocument();
   });

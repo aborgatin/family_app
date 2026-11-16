@@ -64,7 +64,7 @@ function clearCsrfCookie() {
 }
 
 async function listsSection() {
-  return screen.findByRole('region', { name: 'Списки' });
+  return screen.findByRole('region', { name: 'Покупки' });
 }
 
 async function childrenSection() {
@@ -85,10 +85,9 @@ async function usedOnline() {
 
 async function addList(user: User, name: string) {
   const section = await listsSection();
-  await user.click(await within(section).findByRole('button', { name: 'Добавить список' }));
-  const sheet = screen.getByRole('dialog', { name: 'Новый список' });
+  await user.click(await within(section).findByRole('button', { name: 'Добавить список покупок' }));
+  const sheet = screen.getByRole('dialog', { name: 'Новый список покупок' });
   await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), name);
-  await user.click(within(sheet).getByRole('radio', { name: 'Покупки' }));
   await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
   await within(section).findByText(name);
 }
@@ -201,7 +200,7 @@ describe('Opening the app with no connection', () => {
     await waitFor(() => {
       expect(screen.queryByText('Аптека')).not.toBeInTheDocument();
     });
-    await within(await listsSection()).findByRole('button', { name: 'Добавить список' });
+    await within(await listsSection()).findByRole('button', { name: 'Добавить список покупок' });
     expect(screen.queryByText('Супермаркет')).not.toBeInTheDocument();
     expect(syncServer.operations('list')).toEqual([]);
     // Анна's Version went with her rows: Борис's first pull is a full one.

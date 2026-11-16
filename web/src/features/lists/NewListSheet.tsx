@@ -25,19 +25,25 @@ interface NewListSheetProps {
   onClose: () => void;
   /** Opened on a Child page: the Child the new List is about (a Child list). */
   childId?: string;
+  /**
+   * Opened from a kind's «Добавить …» row on Home: the new List's kind, so there is no Вид to
+   * choose, and the sheet is titled for it («Новый список покупок»).
+   */
+  kind?: ListKind;
 }
 
 /**
  * «Новый список»: Название, Вид (Покупки / TODO / Желания) and Visibility (Личный / Общий,
  * «Общий» unless changed), saved only with «Готово». Visibility is hidden while «Желания» is
  * chosen: a Wish list is always Shared. With `childId` it creates a Child list: Вид is TODO /
- * Желания only and there is no Visibility, since a Child list is always Shared.
+ * Желания only and there is no Visibility, since a Child list is always Shared. With `kind` the
+ * kind is given and Вид is left out.
  */
-export function NewListSheet({ id, save, onClose, childId }: NewListSheetProps) {
+export function NewListSheet({ id, save, onClose, childId, kind: givenKind }: NewListSheetProps) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<ListKind>();
+  const [kind, setKind] = useState<ListKind | undefined>(givenKind);
   const [visibility, setVisibility] = useState<Visibility>('SHARED');
   const [fieldErrors, setFieldErrors] = useState<FieldMessages<Field>>({});
 
@@ -74,7 +80,7 @@ export function NewListSheet({ id, save, onClose, childId }: NewListSheetProps) 
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      title={t('lists.newTitle')}
+      title={t(givenKind === undefined ? 'lists.newTitle' : KIND_TEXTS[givenKind].newTitle)}
       onDone={() => void done()}
     >
       <GroupedSection messages={lines.form({ fields: FIELDS, fieldErrors })}>
@@ -85,13 +91,15 @@ export function NewListSheet({ id, save, onClose, childId }: NewListSheetProps) 
           value={name}
           onChange={setName}
         />
-        <SegmentedControl
-          label={t('lists.kind.label')}
-          name="kind"
-          options={kinds}
-          value={kind}
-          onChange={setKind}
-        />
+        {givenKind === undefined && (
+          <SegmentedControl
+            label={t('lists.kind.label')}
+            name="kind"
+            options={kinds}
+            value={kind}
+            onChange={setKind}
+          />
+        )}
         {choosesVisibility(kind) && (
           <SegmentedControl
             label={t('lists.visibility.label')}

@@ -69,7 +69,9 @@ describe('Invite link', () => {
     await fillIn(user);
     await join(user);
 
-    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Добавить список покупок' }),
+    ).toBeInTheDocument();
     expect(app.location()).toBe('/');
     expect(received).toEqual({
       body: {

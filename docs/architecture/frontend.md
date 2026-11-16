@@ -58,8 +58,8 @@ web/src/
     auth/               session, guard, setup (bootstrap), login, LogoutSection + useLogout, Invite acceptance,
                         password reset; LinkScreen (link-check states); GrammaticalGender (type)
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
-    home/               HomePage: Page «Семья» with «Дети» (cards), then «Списки», gear → Settings; HOME_PATH
-    lists/              ListsSection («Списки» on Home and on the Child page), NewListSheet, ListPage,
+    home/               HomePage: Page «Семья» with «Дети» (cards), then the Lists by kind, gear → Settings; HOME_PATH
+    lists/              ListsSection (by kind on Home, «Списки» on the Child page), NewListSheet, ListPage,
                         ListSettingsPage, useListHome (back to Home, or to the Child page),
                         CategoriesPage («Категории» of a Shopping list), ItemPage (the Item screen),
                         DoneEarlierPage («Выполненные ранее» of a Todo list),
@@ -367,14 +367,22 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   содержимым?», then back to Home). A List that is unknown, or disappears while either screen is
   open (deleted, or made Private by its Owner: the pull's tombstone removes it), shows «Такого
   списка нет: возможно, его удалили.» with the back link to Home (`ListMissing`). Kind texts (segment,
-  Home subtitle, empty state, Items header, «Новый товар», «Товар «…»», the Done label and the
-  Done toggle's name) are in `KIND_TEXTS`. Each Home row's value is the List's count of open
-  Items (`useOpenItemCounts()`, 0 included).
+  Home's «Добавить …» row and «Новый …» sheet title, the Child page's subtitle, empty state, Items
+  header, «Новый товар», «Товар «…»», the Done label and the Done toggle's name) are in
+  `KIND_TEXTS`. **Home** has a `GroupedSection` per kind in `LIST_KINDS` order, headed by the
+  kind's segment text («Покупки», «TODO», «Желания»): that kind's Lists, Shared first, then
+  Private, each by name; each row has a leading `Icon` for its Visibility (`shared`, people;
+  `private`, a lock; `secondary`, labelled «Общий» / «Личный») and no subtitle, and its value is
+  the List's count of open Items (`useOpenItemCounts()`, 0 included). Each section ends with
+  «Добавить список покупок» / «Добавить TODO-список» / «Добавить список желаний», which opens
+  `NewListSheet` with that `kind`: titled «Новый список покупок» / «Новый TODO-список» /
+  «Новый список желаний», with no «Вид». A kind with no Lists still shows its section, with only
+  that row; Home has no «Списков пока нет».
   **Child lists** (#90): a List row may carry `childId` (`null` or absent for an
-  ordinary List). `ListsSection` takes an optional `childId`: without it, it is Home's «Списки» and
-  leaves out every List with a Child; with it, it is «Списки» on that Child's page (the routes
-  pass it to `ChildPage` as `lists`): only that Child's lists, the same rows (kind as subtitle,
-  open Items count), «Списков пока нет» with none, and «Добавить список» opening `NewListSheet`
+  ordinary List). `ListsSection` takes an optional `childId`: without it, it is Home's kind
+  sections and leaves out every List with a Child; with it, it is «Списки» on that Child's page (the routes
+  pass it to `ChildPage` as `lists`): only that Child's lists by name, each row with the kind as
+  subtitle and its open Items count, no Visibility icon (always Shared), «Списков пока нет» with none, and «Добавить список» opening `NewListSheet`
   with `childId`: «Вид» is TODO / Желания only (`CHILD_LIST_KINDS`), there is no Visibility, and
   the create carries `visibility: 'SHARED'` and `childId` (offline too). A Child list opens the
   same `ListPage` and `ListSettingsPage`. `useListHome(list, homePath)` says where a List lives:
@@ -776,7 +784,7 @@ the server's value again. Then a red «Удалить ребёнка» `ConfirmR
 
 Home (`HomePage`) is `Sections` of `ChildrenCards` and `ListsSection`. `ChildrenCards`
 (`features/children`, tickets #89, #124) reads `useChildren()` and shows «Дети» as a `CardGrid` above
-«Списки»: a `Card` per Child in the Children order (oldest first), led by their `ChildAvatarOf` (the
+the Lists: a `Card` per Child in the Children order (oldest first), led by their `ChildAvatarOf` (the
 `ChildAvatar` from the stored codes: `childColor(code)?.hex`, grey for an unknown colour;
 `childAvatar(code)`, the initial for none or an unknown one), the name and under it the age as in Settings
 (`useAge()`; the name only without a birthday or before it), each a link to the Child page. While
@@ -803,7 +811,7 @@ imports `children` for a Child list's back link), described with `useLists()` ab
 works, it follows live updates (a rename, a new birthday), and it opens offline after a restart.
 An unknown id, or a Child deleted while the page is open, shows «Такого ребёнка нет: возможно,
 его удалили.» under the title «Дети», with the back link to Home. Tests:
-`children/childTiles.test.tsx`, `children/childPage.test.tsx`, `children/childLists.test.tsx`
+`children/childCards.test.tsx`, `children/childPage.test.tsx`, `children/childLists.test.tsx`
 (Child lists on the page and off Home, «Новый список» there, a Child list's screen and settings,
 the delete warning, the store upgrade to version 6),
 `child-fields/childFieldValues.test.tsx` (the profile's values, and the store upgrade to version 7).
