@@ -1,5 +1,10 @@
 import { http, HttpResponse } from 'msw';
 
+/** The `n`th id of a test's seeded rows of one kind, `<prefix>-0000-4000-8000-<n, 12 digits>`. */
+export function fixtureId(prefix: string, n: number): string {
+  return `${prefix}-0000-4000-8000-${String(n).padStart(12, '0')}`;
+}
+
 /** A Member as the API returns it (spec #5, API contract). */
 export const anna = {
   id: '6f1c2c1e-0000-4000-8000-000000000001',

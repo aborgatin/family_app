@@ -178,14 +178,15 @@ Shared patterns inside `family`:
   rolls back with the Member: `lists.list.ShoppingListDefaults` creates the Default Shopping lists
   (see `lists` below and "Defaults" under Flyway).
 - **`Children`** (public): `known(id)` (a Child with this id was ever created, deleted or not)
-  and `present(id)` (created and not deleted), for another module's rows that are about a Child.
-  `lists` checks a new Child list's `childId` with it. It reads `child` with `JdbcTemplate`, like
+  and `present(id)` (created and not deleted), for another module's rows that are about a Child,
+  and `notFound(id)`, the `child.not_found` rejection. `lists` checks a new Child list's `childId` with it. It reads `child` with `JdbcTemplate`, like
   `Family`, so the `family.child` types stay internal.
 - **`ChildDeleted(childId)`** (public): `ChildService` publishes it when a delete operation
   soft-deletes a Child, inside that push operation (its savepoint, under `FamilyLock`). Listeners
   are plain synchronous `@EventListener`s that soft-delete what their module keeps about the
   Child, each named `onChildDeleted`: `family.childfield.ChildFieldValueService` deletes the
-  Child field values, `lists.list.ListService` the Child lists (see `lists` below). A
+  Child field values, `lists.list.ListService` the Child lists (see `lists` below),
+  `medical.IllnessService` the Child's Illnesses and their events. A
   listener that throws rejects the delete operation.
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.
@@ -195,7 +196,8 @@ Shared patterns inside `family`:
   `ChildFieldRequest.validate()` and `ChildRequest.validate(palette)` (a bean the check needs is
   passed in) return the normalized values or throw. Services call it before taking `FamilyLock`.
   Shared values are read one way, by `FieldErrors` (see Errors): an enum, a UUID, a
-  `YYYY-MM-DD` day.
+  `YYYY-MM-DD` day, an `HH:MM` time of day (`time`; pulls write it with `TIME_OF_DAY`); and a
+  push operation's optional text by `Operation.trimmedText` (trimmed, blank as `null`).
 
 ### `sync`
 

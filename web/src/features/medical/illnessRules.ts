@@ -1,4 +1,5 @@
-import { localDay } from '@/shared/dates';
+import type { TFunction } from 'i18next';
+import { localMoment } from '@/shared/dates';
 import type { Illness, IllnessEvent } from './medicalTypes';
 
 /*
@@ -10,12 +11,7 @@ const JOIN_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 /** When the event happened: its date at its time, or at 00:00 of the day when it has none. */
 export function eventMoment(event: IllnessEvent): Date {
-  const moment = localDay(event.date);
-  if (event.time !== null && event.time !== undefined) {
-    const [hours = 0, minutes = 0] = event.time.split(':').map(Number);
-    moment.setHours(hours, minutes);
-  }
-  return moment;
+  return localMoment(event.date, event.time ?? '00:00');
 }
 
 /** The moment of the Illness's latest event; `undefined` when it has none. */
@@ -85,7 +81,12 @@ export function firstDay(events: readonly IllnessEvent[]): string | undefined {
   return first;
 }
 
+const ONE_DECIMAL = new Intl.NumberFormat('ru', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
 /** «38,5 °C». */
-export function formatTemperature(temperature: number): string {
-  return `${temperature.toFixed(1).replace('.', ',')} °C`;
+export function formatTemperature(t: TFunction, temperature: number): string {
+  return t('medical.temperatureValue', { value: ONE_DECIMAL.format(temperature) });
 }

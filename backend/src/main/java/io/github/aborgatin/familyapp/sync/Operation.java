@@ -40,6 +40,13 @@ public record Operation(UUID memberId, UUID id, Type type, Map<String, Object> f
     return null;
   }
 
+  /** {@link #text}, trimmed: {@code null} also when it is blank. */
+  @Nullable
+  public String trimmedText(String field) {
+    String text = text(field);
+    return text == null || text.isBlank() ? null : text.trim();
+  }
+
   /**
    * The field as a UUID, or {@code null} when it is absent or {@code null}. Anything else is {@code
    * 400 validation.failed} with {@code value.invalid} for the field.

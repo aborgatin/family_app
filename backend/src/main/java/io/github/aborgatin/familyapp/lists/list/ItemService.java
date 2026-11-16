@@ -228,7 +228,7 @@ class ItemService implements SyncableTable {
         operation.has("dueDate") ? errors.date("dueDate", operation.text("dueDate")) : stored.day();
     LocalTime time = day == null ? null : stored.time();
     if (operation.has("dueTime")) {
-      time = errors.parsed("dueTime", operation.text("dueTime"), DueDate::parseTime);
+      time = errors.time("dueTime", operation.text("dueTime"));
     }
     errors.throwIfAny();
     if (time != null && day == null) {

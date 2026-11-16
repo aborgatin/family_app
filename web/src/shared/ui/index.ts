@@ -1,5 +1,5 @@
 export { AppShell } from './AppShell';
-export { Page } from './Page';
+export { Page, type PageBack } from './Page';
 export { Button } from './Button';
 export { Link } from './Link';
 export { Icon, type IconName } from './Icon';

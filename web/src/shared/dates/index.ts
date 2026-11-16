@@ -13,6 +13,16 @@ export function localDay(day: string): Date {
 }
 
 /**
+ * The moment at `time` (`HH:MM`, wall-clock) on `day` (`YYYY-MM-DD`), in the device's time zone;
+ * `24:00` is the next day's midnight.
+ */
+export function localMoment(day: string, time: string): Date {
+  const { year, month, day: date } = dayParts(day);
+  const [hours = 0, minutes = 0] = time.split(':').map(Number);
+  return new Date(year, month - 1, date, hours, minutes);
+}
+
+/**
  * Whole calendar days from `now`'s day to `day` (`YYYY-MM-DD`): 0 today, 1 tomorrow, -1 yesterday,
  * whatever the clock changes in between.
  */

@@ -12,7 +12,7 @@ import {
 } from '@/shared/ui';
 import { formatTemperature, illnessToJoin } from './illnessRules';
 import type { Illness, IllnessEvent } from './medicalTypes';
-import type { EventTarget, TemperatureDetails } from './useMedicalCard';
+import type { IllnessChoice, TemperatureDetails } from './useMedicalCard';
 
 /** The wheel's values: 34,0 to 43,0 °C in steps of 0,1, as `"38.5"`. */
 const TEMPERATURES = Array.from({ length: 91 }, (_, step) => ((340 + step) / 10).toFixed(1));
@@ -36,7 +36,7 @@ interface TemperatureSheetProps {
   };
   /** The Illness the sheet was opened from. */
   illnessId?: string;
-  save: (target: EventTarget, details: TemperatureDetails) => Promise<unknown>;
+  save: (target: IllnessChoice, details: TemperatureDetails) => Promise<unknown>;
   /** Closes the sheet: after «Отмена», Esc, or once saved. */
   onClose: () => void;
 }
@@ -69,7 +69,7 @@ export function TemperatureSheet({ addTo, illnessId, save, onClose }: Temperatur
   const [fieldErrors, setFieldErrors] = useState<FieldMessages<Field>>({});
   const [saving, setSaving] = useState(false);
 
-  function eventTarget(): EventTarget {
+  function illnessChoice(): IllnessChoice {
     if (illnessId !== undefined) return { illnessId };
     if (target === NEW) {
       return {
@@ -85,7 +85,7 @@ export function TemperatureSheet({ addTo, illnessId, save, onClose }: Temperatur
       return;
     }
     setSaving(true);
-    await save(eventTarget(), {
+    await save(illnessChoice(), {
       temperature: Number(temperature),
       date,
       time: time === '' ? null : time,
@@ -116,7 +116,7 @@ export function TemperatureSheet({ addTo, illnessId, save, onClose }: Temperatur
           name="temperature"
           options={TEMPERATURES.map((value) => ({
             value,
-            label: formatTemperature(Number(value)),
+            label: formatTemperature(t, Number(value)),
           }))}
           value={temperature}
           onChange={setTemperature}

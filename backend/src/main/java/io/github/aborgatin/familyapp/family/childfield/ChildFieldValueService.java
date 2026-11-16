@@ -70,7 +70,7 @@ class ChildFieldValueService implements SyncableTable {
                 operation.text("childId"), operation.text("childFieldId"), operation.text("value"))
             .validate();
     if (!children.known(valid.childId())) {
-      throw notFound("child.not_found", "childId", valid.childId());
+      throw Children.notFound(valid.childId());
     }
     ChildField field =
         childFields

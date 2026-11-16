@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { localDay, longDay } from '@/shared/dates';
-import { EmptyState, GroupedSection, ListRow, Page, Sections } from '@/shared/ui';
+import { EmptyState, GroupedSection, ListRow, Page, Sections, type PageBack } from '@/shared/ui';
 import { useCardRoute, type CardRoute } from './cardRoute';
 import { firstDay } from './illnessRules';
 import { cardPath, illnessPath } from './medicalPaths';
@@ -40,7 +40,7 @@ export function CardMissing({ route }: { route: CardRoute }) {
   );
 }
 
-function Card({ person, back }: { person: Person; back: { to: string; title: string } }) {
+function Card({ person, back }: { person: Person; back: PageBack }) {
   const { t } = useTranslation();
   const { illnesses, eventsOf, logTemperature } = useMedicalCard(person);
   const [logging, setLogging] = useState(false);
@@ -100,7 +100,7 @@ function IllnessRow({
     first === undefined
       ? t('medical.noEvents')
       : t('medical.illnessSummary', {
-          since: longDay(localDay(first), new Date()),
+          since: t('medical.since', { date: longDay(localDay(first), new Date()) }),
           events: t('medical.events', { count: events.length }),
         });
   return <ListRow title={illness.name} subtitle={subtitle} to={illnessPath(person, illness.id)} />;

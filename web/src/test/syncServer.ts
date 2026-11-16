@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { dayParts } from '@/shared/dates';
+import { dayOf, dayParts } from '@/shared/dates';
 import { network } from './network';
 
 /*
@@ -388,8 +388,7 @@ function nextDueDate(dueDate: string, repeat: string, now: Date): string {
   do {
     next = step(next, repeat);
   } while (order(next) <= order(today));
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${String(next.year)}-${pad(next.month)}-${pad(next.day)}`;
+  return dayOf(new Date(next.year, next.month - 1, next.day));
 }
 
 /** One Repeat period on from a day. */

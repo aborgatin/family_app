@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   anna,
   boris,
+  fixtureId,
   invitesHandler,
   masha,
   membersHandler,
@@ -40,7 +41,7 @@ let ids = 0;
 /** A unique id for a seeded row. */
 function nextId() {
   ids += 1;
-  return `5e1d0000-0000-4000-8000-${String(ids).padStart(12, '0')}`;
+  return fixtureId('5e1d0000', ids);
 }
 
 /** An Illness on Anna's card, as the pull returns it. */
@@ -93,9 +94,12 @@ async function illnessRows() {
     .map((row) => row.textContent);
 }
 
-/** Opens the Temperature sheet from the card. */
+/**
+ * Opens the Temperature sheet from the card, once it shows: a Child's card says «Медкарта» while
+ * the Child is still being read, before the button is there.
+ */
 async function openTemperatureSheet(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Записать температуру' }));
+  await user.click(await screen.findByRole('button', { name: 'Записать температуру' }));
   return screen.findByRole('dialog', { name: 'Температура' });
 }
 

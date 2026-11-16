@@ -8,8 +8,6 @@ import io.github.aborgatin.familyapp.sync.SyncableTable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,10 +19,6 @@ import org.springframework.stereotype.Service;
 /** The {@code illness_event} table of the sync push and pull (spec #128, ticket #129). */
 @Service
 class IllnessEventService implements SyncableTable {
-
-  /** {@code time} on the wire: {@code HH:MM}, 24 hours, no seconds. */
-  private static final DateTimeFormatter TIME =
-      DateTimeFormatter.ofPattern("HH:mm").withResolverStyle(ResolverStyle.STRICT);
 
   private final IllnessEventRepository events;
   private final IllnessRepository illnesses;
@@ -71,11 +65,10 @@ class IllnessEventService implements SyncableTable {
     IllnessEvent.Kind kind =
         errors.requiredChoice("kind", operation.text("kind"), IllnessEvent.Kind.values());
     LocalDate date = errors.requiredParsed("date", operation.text("date"), LocalDate::parse);
-    LocalTime time =
-        errors.parsed("time", operation.text("time"), text -> LocalTime.parse(text, TIME));
+    LocalTime time = errors.time("time", operation.text("time"));
     BigDecimal temperature = temperature(errors, operation.number("temperature"));
     UUID medicineId = errors.uuid("medicineId", operation.text("medicineId"));
-    String title = trimmed(operation.text("title"));
+    String title = operation.trimmedText("title");
     if (kind == IllnessEvent.Kind.TEMPERATURE
         && temperature == null
         && !errors.has("temperature")) {
@@ -107,10 +100,10 @@ class IllnessEventService implements SyncableTable {
                 date,
                 time,
                 medicineId,
-                trimmed(operation.text("amount")),
+                operation.trimmedText("amount"),
                 temperature,
                 title,
-                trimmed(operation.text("description")))));
+                operation.trimmedText("description"))));
     return Outcome.APPLIED;
   }
 
@@ -139,11 +132,6 @@ class IllnessEventService implements SyncableTable {
     return temperature.setScale(1);
   }
 
-  @Nullable
-  private static String trimmed(@Nullable String text) {
-    return text == null || text.isBlank() ? null : text.trim();
-  }
-
   /** Only the events on cards the Member sees: the others are left out, not even tombstoned. */
   @Override
   public List<SyncRow> changesSince(long version, UUID memberId) {
@@ -162,7 +150,9 @@ class IllnessEventService implements SyncableTable {
           fields.put("illnessId", event.illnessId());
           fields.put("kind", details.kind().name());
           fields.put("date", details.date().toString());
-          fields.put("time", details.time() == null ? null : TIME.format(details.time()));
+          fields.put(
+              "time",
+              details.time() == null ? null : FieldErrors.TIME_OF_DAY.format(details.time()));
           fields.put("medicineId", details.medicineId());
           fields.put("amount", details.amount());
           fields.put("temperature", details.temperature());

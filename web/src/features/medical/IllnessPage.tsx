@@ -54,10 +54,12 @@ function IllnessScreen({ person }: { person: Person }) {
   return (
     <Page title={illness.name} back={back}>
       <Sections>
-        <GroupedSection label={t('medical.log')}>
-          {first !== undefined && (
+        {first !== undefined && (
+          <GroupedSection>
             <ListRow title={t('medical.since', { date: longDay(localDay(first), 'always') })} />
-          )}
+          </GroupedSection>
+        )}
+        <GroupedSection label={t('medical.log')}>
           <ListRow
             title={t('medical.temperature')}
             accent
@@ -91,11 +93,12 @@ function IllnessScreen({ person }: { person: Person }) {
 
 /** «22:00 · 38,5 °C»; without a time just «38,5 °C». */
 function EventRow({ event }: { event: IllnessEvent }) {
-  const parts = [
-    event.time ?? undefined,
-    event.temperature === null || event.temperature === undefined
-      ? undefined
-      : formatTemperature(event.temperature),
-  ].filter((part) => part !== undefined);
-  return <ListRow title={parts.join(' · ')} subtitle={event.description ?? undefined} />;
+  const { t } = useTranslation();
+  const temperature =
+    event.temperature == null ? undefined : formatTemperature(t, event.temperature);
+  const title =
+    event.time == null || temperature === undefined
+      ? (temperature ?? event.time ?? '')
+      : t('medical.eventSummary', { time: event.time, temperature });
+  return <ListRow title={title} subtitle={event.description ?? undefined} />;
 }

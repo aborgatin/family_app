@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { childPath, useChild } from '@/features/children';
+import type { PageBack } from '@/shared/ui';
 import type { List } from './listTypes';
 
 /**
@@ -7,10 +8,7 @@ import type { List } from './listTypes';
  * is deleted: the Child page for a Child list (titled with the Child's name), Home for every
  * other List (and while the List isn't there).
  */
-export function useListHome(
-  list: List | undefined,
-  homePath: string,
-): { to: string; title: string } {
+export function useListHome(list: List | undefined, homePath: string): PageBack {
   const { t } = useTranslation();
   const childId = list?.childId ?? undefined;
   const { child } = useChild(childId);

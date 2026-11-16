@@ -1,16 +1,9 @@
 import type { TFunction } from 'i18next';
-import { dayParts, daysFromToday, localDay, shortDay } from '@/shared/dates';
+import { daysFromToday, localDay, localMoment, shortDay } from '@/shared/dates';
 import type { Item } from './listTypes';
 
 // How a todo item's Due date reads and when it is overdue, by the device's clock and time zone:
 // the Due date is a wall-clock day and time, the same on every device.
-
-/** The Due date's parts as numbers; the time is the end of the day when there is none. */
-function dueParts(dueDate: string, dueTime: string | null | undefined) {
-  const { year, month, day } = dayParts(dueDate);
-  const [hours, minutes] = dueTime == null ? [24, 0] : dueTime.split(':').map(Number);
-  return { year, month, day, hours: hours ?? 0, minutes: minutes ?? 0 };
-}
 
 /**
  * The day of a Due date (`YYYY-MM-DD`): «Сегодня», «Завтра» or «Вчера» for those days of the
@@ -44,8 +37,8 @@ export function dueDateText(
  */
 export function isOverdue(item: Pick<Item, 'dueDate' | 'dueTime'>, now: Date): boolean {
   if (item.dueDate == null) return false;
-  const { year, month, day, hours, minutes } = dueParts(item.dueDate, item.dueTime);
-  const due = new Date(year, month - 1, day, hours, minutes);
+  // Without a time, the end of the day.
+  const due = localMoment(item.dueDate, item.dueTime ?? '24:00');
   // Date-only: overdue from the next day's midnight on; timed: after its minute has come.
   return item.dueTime == null ? now >= due : now > due;
 }

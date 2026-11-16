@@ -97,7 +97,8 @@ web/src/
     pwa/                startAppUpdates(): a new version without a force-close (see PWA, Updates)
     palette/            Child color palette (childColors.json), Avatar set (childAvatars.json)
     dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests),
-                        daysFromToday(day, now), shortDay(date, now) («15 нояб.»)
+                        daysFromToday(day, now), shortDay(date, now) («15 нояб.»), longDay(date,
+                        year) («2 декабря 2026»), localMoment(day, time), dayOf(date), timeOf(date)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
@@ -849,9 +850,9 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   only when it isn't this year; «Нет событий» for an empty one), opening the Illness screen;
   «Болезней пока нет» with none. Later tickets add sections here.
 - **Illness screen** (`IllnessPage`, `…/illnesses/:illnessId`, back «Медкарта»): titled with the
-  name; «с 2 декабря 2026» (the first event's date), «Температура» (the sheet, into this
-  Illness, without «Добавить к»), then a `GroupedSection` per day («2 декабря», the year only when
-  not this year), events newest first: «22:00 · 38,5 °C», untimed «38,5 °C», the Description under
+  name; «с 2 декабря 2026» (the first event's date, its own section), «Температура» (in
+  «Записать»: the sheet, into this Illness, without «Добавить к»), then a `GroupedSection` per day («2 декабря», the year only when
+  not this year), events newest first: «22:00 · 38,5 °C» (`medical.eventSummary`), untimed «38,5 °C», the Description under
   it. An unknown or deleted Illness: «Такой болезни нет: возможно, её удалили.».
 - **Temperature sheet** (`TemperatureSheet`, a `Sheet` «Температура»): «Температура» is a
   `SelectRow` (a native `<select>`: the iPhone's wheel, the Mac's menu) from 34,0 to 43,0 °C in
@@ -859,16 +860,18 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   time may be cleared; «Описание» (`TextAreaRow`). From the card, «Добавить к» preselects
   `illnessToJoin` or «Новая болезнь»; «Другая…» shows a second `SelectRow` «Болезнь» with the
   person's other Illnesses that aren't Ended. «Готово» saves through `useMedicalCard`.
-- **Rules** (`illnessRules.ts`, pure): `eventMoment` (date at time, 00:00 without one);
+- **Rules** (`illnessRules.ts`, pure): `eventMoment` (date at time, 00:00 without one; `localMoment`
+  from `@/shared/dates`, which `isOverdue` uses too);
   `illnessToJoin` (the not-Ended ILLNESS with the latest event, if that is at or after now − 48 h);
   `illnessesInOrder` (latest event, newest first; an empty one by `createdAt`, or now before the
   pull brings it); `eventsInOrder` (date newest first, timed ones latest first, then untimed);
-  `firstDay`; `formatTemperature` («38,5 °C»). The new Illness's name is «Болезнь » + the event's
+  `firstDay`; `formatTemperature(t, value)` («38,5 °C», `medical.temperatureValue`, the decimal
+  comma from `Intl.NumberFormat('ru')`). The new Illness's name is «Болезнь » + the event's
   date as «2 декабря 2026» (`medical.newIllnessName`, `longDay` from `@/shared/dates`).
 - **Data**: `useMedicalCard(person)` → `{illnesses, eventsOf(illnessId), logTemperature(target,
   details)}` on `useRows('illness')` and `useRows('illness_event')`; `illnesses` is `undefined`
   until both are read. `logTemperature` adds a TEMPERATURE event to `{illnessId}`, or, for
-  `{newIllnessName}`, creates the Illness (`memberId` or `childId`, `kind`, `name`) and the event
+  `{newIllnessName}` (an `IllnessChoice`), creates the Illness (`memberId` or `childId`, `kind`, `name`) and the event
   in one Outbox batch (`upsertRows`). It resolves at once, offline too.
 - Store: `illness` depends on `child` (`childId`), `illness_event` on `illness` (`illnessId`), in
   `DEPENDENT_TABLES` and in the fake sync server's `CASCADES`.
@@ -979,7 +982,7 @@ helper a second test file needs moves here.
 | `FakeEventSource` (`@/test/eventSource`) | live updates: `latest().emit('changed', …)`, a dropped connection |
 | `fakePushDevice({permission, answer, subscribedAt})`, `pushServer()` (`@/test/pushDevice`) | a device that can receive push (jsdom has none: without it every test is a device without push): fake `Notification`, `PushManager`, `serviceWorker.ready`; the server's VAPID key and subscription endpoints, recording `posted` / `deleted` |
 | `upgradeStoreFrom(version, seed)` (`@/test/olderStore`) | a store-upgrade test: an older store with rows or Outbox operations, then the current one opened over it (lint rejects store versions declared anywhere else) |
-| `anna`, `boris`, `masha`, `petya`, `weight`, `height`, `sessionHandler`, `membersHandler`, `invitesHandler` (`@/test/fixtures`) | Members, Children, Child fields and the auth/settings handlers every test needs |
+| `anna`, `boris`, `masha`, `petya`, `weight`, `height`, `sessionHandler`, `membersHandler`, `invitesHandler`, `fixtureId` (`@/test/fixtures`) | Members, Children, Child fields, the auth/settings handlers every test needs, and ids for seeded rows |
 | `dayParts`, `localDay` (`@/shared/dates`, app code) | a `YYYY-MM-DD` day in a test or in code: lint rejects parsing one by hand elsewhere |
 
 Run one file with `../scripts/with-toolchain.sh npx vitest run <file>` from `web/`; a test that
@@ -994,8 +997,9 @@ fails only sometimes, with `scripts/repeat-test.sh <file> [n]`.
 - The sync API is always answered by the fake sync server `syncServer` (`@/test/syncServer`,
   installed in `server.ts`, emptied after each test). It behaves like the real one (Versions,
   per-field Last write wins, delete wins, tombstones; a deleted row takes the rows that belong to
-  it, in `CASCADES`, as the server does: a Child its Child lists and Child field values, a Child
-  field its Child field values, a List its Items, Categories and Item history; a Child field value is stamped with `recordedAt`, never
+  it, in `CASCADES`, as the server does: a Child its Child lists, Child field values and
+  Illnesses, a Child field its Child field values, a List its Items, Categories, Item history and
+  Mutes, an Illness its Illness events; a Child field value is stamped with `recordedAt`, never
   changes once recorded, and is `ignored` for a deleted or unknown Child or Child field; a List
   made Private loses its Items' Assignees; a repeating Item turned Done (created Done or changed), pushed or by `change`,
   loses its Repeat to a new open Item, its next occurrence, counted as the server does from the

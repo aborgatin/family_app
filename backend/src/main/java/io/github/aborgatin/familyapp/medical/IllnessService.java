@@ -1,6 +1,5 @@
 package io.github.aborgatin.familyapp.medical;
 
-import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.error.FieldErrors;
 import io.github.aborgatin.familyapp.family.ChildDeleted;
 import io.github.aborgatin.familyapp.family.Children;
@@ -10,12 +9,9 @@ import io.github.aborgatin.familyapp.sync.SyncRow;
 import io.github.aborgatin.familyapp.sync.SyncableTable;
 import java.time.Clock;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.context.event.EventListener;
-import org.springframework.http.HttpStatus;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 /** The {@code illness} table of the sync push and pull (spec #128, ticket #129). */
@@ -64,7 +60,7 @@ class IllnessService implements SyncableTable {
     UUID childId = errors.uuid("childId", operation.text("childId"));
     Illness.Kind kind =
         errors.requiredChoice("kind", operation.text("kind"), Illness.Kind.values());
-    String name = trimmed(operation.text("name"));
+    String name = operation.trimmedText("name");
     if (name == null) {
       errors.add("name", FieldErrors.REQUIRED);
     }
@@ -78,8 +74,7 @@ class IllnessService implements SyncableTable {
       throw Person.notFound("illnessId", operation.id());
     }
     if (childId != null && !children.known(childId)) {
-      throw new ApiException(
-          HttpStatus.NOT_FOUND, "child.not_found", Map.of("childId", childId.toString()));
+      throw Children.notFound(childId);
     }
     Illness illness =
         new Illness(
@@ -87,7 +82,7 @@ class IllnessService implements SyncableTable {
             new Person(memberId, childId),
             kind,
             name,
-            trimmed(operation.text("description")),
+            operation.trimmedText("description"),
             operation.number("position"),
             clock.instant());
     if (childId != null && !children.present(childId)) {
@@ -116,11 +111,6 @@ class IllnessService implements SyncableTable {
   void onChildDeleted(ChildDeleted event) {
     events.markDeletedOfChild(event.childId());
     illnesses.markDeletedOfChild(event.childId());
-  }
-
-  @Nullable
-  private static String trimmed(@Nullable String text) {
-    return text == null || text.isBlank() ? null : text.trim();
   }
 
   /** Only the rows of the cards the Member sees: the others are left out, not even tombstoned. */

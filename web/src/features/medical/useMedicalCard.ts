@@ -14,8 +14,8 @@ export interface TemperatureDetails {
   description: string | null;
 }
 
-/** Where a new event goes: an existing Illness, or a new one with this name. */
-export type EventTarget = { illnessId: string } | { newIllnessName: string };
+/** The Illness a new event goes to: an existing one, or a new one with this name. */
+export type IllnessChoice = { illnessId: string } | { newIllnessName: string };
 
 const NO_EVENTS: readonly IllnessEvent[] = [];
 
@@ -61,7 +61,7 @@ export function useMedicalCard(person: Person) {
   );
 
   const logTemperature = useCallback(
-    async (target: EventTarget, details: TemperatureDetails) => {
+    async (target: IllnessChoice, details: TemperatureDetails) => {
       const writes: { table: SyncedTable; id: string; fields: Record<string, unknown> }[] = [];
       let illnessId: string;
       if ('illnessId' in target) {

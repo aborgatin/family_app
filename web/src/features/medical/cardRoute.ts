@@ -3,12 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { useSession } from '@/features/auth';
 import { childPath, useChild } from '@/features/children';
+import type { PageBack } from '@/shared/ui';
 import type { Person } from './medicalTypes';
 
 /** What a card's screens need from the route: whose card, and the way back from the card. */
 export type CardRoute =
-  | { status: 'ready'; person: Person; back: { to: string; title: string } }
-  | { status: 'loading' | 'missing'; back: { to: string; title: string } };
+  | { status: 'ready'; person: Person; back: PageBack }
+  | { status: 'loading' | 'missing'; back: PageBack };
 
 /**
  * The card the route names: the Child's (`:id`, back to the Child page) or, without `:id`, the
