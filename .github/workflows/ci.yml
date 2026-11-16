@@ -236,4 +236,5 @@ jobs:
           tags: |
             ${{ env.IMAGE }}:${{ github.sha }}
             ${{ env.IMAGE }}:latest
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
