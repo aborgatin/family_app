@@ -795,6 +795,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V17__pending_batch.sql`        | `pending_batch` (key actor → `member`, List → `list`; first and last change), `pending_batch_item` (→ `pending_batch` cascading, → `item`, Assignee → `member`; `position` identity for the order), `scheduler_step` (one row, `last_run_at` `NULL` until the first step) |
 | `V18__mute.sql`                 | `mute` (syncable; → `list`, Member → `member`; indexed by List): a Member's Mute of a Shared list |
 | `V19__announcement_sent.sql`    | `announcement_sent` (`id` text primary key, `sent_at`): each catalog Announcement the scheduler step has handled |
+| `V20__child_avatar.sql`         | `child.avatar` (nullable code of the Avatar set, checked in Java): a Child's Аватар (#124) |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
