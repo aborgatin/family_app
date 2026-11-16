@@ -82,6 +82,14 @@ class Illness implements SyncedRecord {
     this.createdAt = createdAt;
   }
 
+  void rename(String name) {
+    this.name = name;
+  }
+
+  void describe(@Nullable String description) {
+    this.description = description;
+  }
+
   /** Soft delete (S2): the row stays and its Version advances. */
   void markDeleted() {
     this.deleted = true;

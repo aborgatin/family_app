@@ -45,8 +45,9 @@ Ctrl-C). Then it seeds through the real API:
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.
 - Child lists, on Маша's Child page only (never on Home): «Школа» (TODO, two open Items and one
   Done) and «Желания» (Желания, one Item). Петя and Соня have none.
-- Medical cards: Маша's has «ОРВИ» (four Temperatures two days ago and yesterday, one of them
-  without a time) and «Отит» (one Temperature 400 days ago). Анна's own card is empty.
+- Medical cards: Маша's has «ОРВИ» (a Description; four Temperatures two days ago and yesterday,
+  one of them without a time; two Medicine doses; the Note «Сходили к доктору» yesterday, without
+  a time) and «Отит» (one Temperature 400 days ago). Анна's own card is empty.
 - One active Invite.
 
 Browser context: installed Google Chrome (`SHOOT_CHANNEL` to override), locale `ru-RU`,

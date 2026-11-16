@@ -564,7 +564,7 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
 
 ### `medical`
 
-Medical cards (spec #128, tickets #129, #130): no public API, everything goes through the sync
+Medical cards (spec #128, tickets #129, #130, #131): no public API, everything goes through the sync
 push and pull. A card is not a row: `illness` and `illness_event` rows name their person. The
 Family's Medicines (`medicine`) belong to no card: every Member sees them.
 
@@ -573,12 +573,14 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   the `medical.not_found` rejection.
 - `IllnessService` (the `illness` `SyncableTable`): an operation on a row the pusher can't see is
   `medical.not_found`; creating checks the person (not another Member, a Child that exists) and
-  stamps `createdAt` from the `Clock`; a delete also soft-deletes its events
+  stamps `createdAt` from the `Clock`; an edit renames and describes (#131); a delete also soft-deletes its events
   (`IllnessEventRepository.markDeletedOfIllness`); `onChildDeleted` (`ChildDeleted`) soft-deletes
   the Child's events and Illnesses in two bulk updates; `changesSince` leaves out, without
   tombstones, the rows of cards the Member can't see.
 - `IllnessEventService` (`illness_event`): the event's card is its Illness's; validation by kind
-  (sync.md, Push); `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted ones
+  (sync.md, Push), one `details(operation, current, errors)` for a new event and an edit (the
+  carried fields over the stored ones, #131); a move checks the target Illness has the same
+  `Person`; `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted ones
   included) and leaves out those the Member can't see. A dose's `medicineId` must name a
   Medicine that exists, deleted or not (`MedicineService.exists`), else `medical.not_found`
   (`params.medicineId`, `Medicine.notFound`).

@@ -93,6 +93,18 @@ class IllnessEvent implements SyncedRecord {
     this.description = details.description();
   }
 
+  /** An edit: every field but the kind, which never changes; a new Illness moves it. */
+  void change(UUID illnessId, Details details) {
+    this.illnessId = illnessId;
+    this.date = details.date();
+    this.time = details.time();
+    this.medicineId = details.medicineId();
+    this.amount = details.amount();
+    this.temperature = details.temperature();
+    this.title = details.title();
+    this.description = details.description();
+  }
+
   /** Soft delete (S2): the row stays and its Version advances. */
   void markDeleted() {
     this.deleted = true;

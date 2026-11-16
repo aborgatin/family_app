@@ -2,7 +2,7 @@ import { fixtureId } from './fixtures';
 
 /*
  * Medical card rows as the sync pull returns them (spec #128), for `syncServer.seed`: Illnesses,
- * their Temperatures and Medicine doses, and the Family's Medicines. Each gets a fresh id.
+ * their Temperatures, Medicine doses and Notes, and the Family's Medicines. Each gets a fresh id.
  */
 
 let seeded = 0;
@@ -35,7 +35,13 @@ function eventRow(
   illness: { id: string },
   date: string,
   time: string | null,
-  fields: { kind: string; medicineId?: string; amount?: string; temperature: number | null },
+  fields: {
+    kind: string;
+    medicineId?: string;
+    amount?: string;
+    temperature: number | null;
+    title?: string;
+  },
 ) {
   return {
     id: nextId(),
@@ -44,9 +50,9 @@ function eventRow(
     time,
     medicineId: null as string | null,
     amount: null as string | null,
+    title: null as string | null,
     ...fields,
-    title: null,
-    description: null,
+    description: null as string | null,
   };
 }
 
@@ -75,6 +81,16 @@ export function doseRow(
     amount,
     temperature,
   });
+}
+
+/** A Note event («Сходили к доктору») in an Illness. */
+export function noteRow(
+  illness: { id: string },
+  date: string,
+  time: string | null,
+  title: string,
+) {
+  return eventRow(illness, date, time, { kind: 'NOTE', temperature: null, title });
 }
 
 /** A Medicine of the Family's list. */

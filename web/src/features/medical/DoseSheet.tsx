@@ -16,7 +16,9 @@ interface DoseSheetProps extends EventTarget {
   medicines: readonly Medicine[];
   /** The amount to prefill for a Medicine: the person's latest dose of it; none the first time. */
   lastAmountOf: (medicineId: string) => string | undefined;
-  save: (target: IllnessChoice, details: DoseDetails) => Promise<unknown>;
+  save: (target: IllnessChoice, details: DoseDetails, eventId?: string) => Promise<unknown>;
+  /** Editing a dose: its Medicine's name, a deleted one's too. */
+  medicineName?: string;
 }
 
 /**
@@ -24,19 +26,34 @@ interface DoseSheetProps extends EventTarget {
  * search: the Medicines whose name has the typed text, then «+ <text>» to add it to the list; the
  * name of one typed in any letter case picks it. «Количество» is free text, required, prefilled
  * with the person's latest amount of that Medicine («как в прошлый раз») until the Member types
- * their own. «Температура» is optional (the wheel shows «—»). The rest is `EventSheet`'s.
+ * their own. «Температура» is optional (the wheel shows «—»). Editing a dose, its values fill the
+ * rows (no prefill), and its Medicine stays while its name does, deleted or not. The rest is
+ * `EventSheet`'s.
  */
-export function DoseSheet({ medicines, lastAmountOf, save, ...target }: DoseSheetProps) {
+export function DoseSheet({
+  medicines,
+  lastAmountOf,
+  save,
+  medicineName,
+  ...target
+}: DoseSheetProps) {
   const { t } = useTranslation();
-  const [typed, setTyped] = useState('');
+  const edited = target.editing?.event;
+  const [typed, setTyped] = useState(medicineName ?? '');
   // «+ <text>» was tapped: the typed name is a new Medicine, so the picker closes.
   const [addingTyped, setAddingTyped] = useState(false);
   // What the Member typed in «Количество»; `undefined` while it shows the prefilled amount.
-  const [ownAmount, setOwnAmount] = useState<string>();
-  const [temperature, setTemperature] = useState(NO_TEMPERATURE);
+  const [ownAmount, setOwnAmount] = useState(edited?.amount ?? undefined);
+  const [temperature, setTemperature] = useState(
+    () => edited?.temperature?.toFixed(1) ?? NO_TEMPERATURE,
+  );
 
-  const picked = medicineNamed(medicines, typed);
-  const prefilled = picked === undefined ? undefined : lastAmountOf(picked.id);
+  // The edited dose's own Medicine, while its name is left as it was: a deleted one too.
+  const kept =
+    edited?.medicineId != null && typed === medicineName ? { id: edited.medicineId } : undefined;
+  const picked = medicineNamed(medicines, typed) ?? kept;
+  const prefilled =
+    picked === undefined || edited !== undefined ? undefined : lastAmountOf(picked.id);
   const amount = ownAmount ?? prefilled ?? '';
   const name = typed.trim();
   const addLabel = t('medical.addMedicine', { name });
@@ -70,12 +87,16 @@ export function DoseSheet({ medicines, lastAmountOf, save, ...target }: DoseShee
         ...(prefilled !== undefined && amount === prefilled && { amount: t('medical.asLastTime') }),
       }}
       save={(choice, timing) =>
-        save(choice, {
-          medicine,
-          amount: amount.trim(),
-          temperature: temperature === NO_TEMPERATURE ? null : Number(temperature),
-          ...timing,
-        })
+        save(
+          choice,
+          {
+            medicine,
+            amount: amount.trim(),
+            temperature: temperature === NO_TEMPERATURE ? null : Number(temperature),
+            ...timing,
+          },
+          edited?.id,
+        )
       }
     >
       <InputRow

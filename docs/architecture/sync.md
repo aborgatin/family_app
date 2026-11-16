@@ -264,8 +264,13 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `illnessId`, `kind` (`MEDICINE_DOSE` | `TEMPERATURE` | `NOTE`) and `date` (`YYYY-MM-DD`), with
   `time` (`HH:MM`) optional; a TEMPERATURE needs `temperature`, a NOTE `title`, a dose
   `medicineId`; `temperature` is 34.0–43.0 with at most one decimal (`value.invalid` otherwise);
-  an event for a deleted Illness is `ignored`. An upsert of a known row changes nothing yet
-  (editing comes with #131). **Visibility**: a Member's card is only that Member's: creating a row
+  an event for a deleted Illness is `ignored`. **Editing** (#131): an upsert of a known `illness`
+  changes the `name` (trimmed, required) and `description` (blank is none) it carries; its person
+  never changes. An upsert of a known `illness_event` changes the fields it carries, checked as a
+  new event's are against the result (clearing a Temperature's `temperature` is `required`); its
+  `kind` never changes (`value.invalid`). A new `illnessId` **moves** the event: the Illness must
+  be on the same card (any other card, one the Member sees included, or an unknown Illness, is
+  `medical.not_found`); a move to a deleted one is `ignored`. **Visibility**: a Member's card is only that Member's: creating a row
   on another Member's card, or any operation on a row there, is `medical.not_found`
   (`params.illnessId` / `params.illnessEventId`), and the pull leaves those rows out of the other
   Member's changes entirely, not even as tombstones (like a Mute). A Child's card is every

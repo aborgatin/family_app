@@ -136,8 +136,9 @@ spacing `n`).
   for each of its auto-saved fields (cleared when the row goes). No screen writes its own saving
   state.
 - **Explicit confirm** only for: auth forms (full-width primary button), creating something
-  (a «Новый …» sheet with «Отмена» / «Готово», so a half-filled item is never saved), and the
-  password screen («Готово» in the nav bar).
+  (a «Новый …» sheet with «Отмена» / «Готово», so a half-filled item is never saved), an Illness
+  event's sheet, which edits the event with the same rows it was logged with, and the password
+  screen («Готово» in the nav bar).
 - **Deleting always asks**, with an action sheet («Удалить „Маша“?» / «Удалить» / «Отменить»),
   whether it starts from a swipe, edit mode ⊖, right-click or a «Удалить …» row. A full swipe only
   reveals «Удалить». The one exception: the × on a suggestion (`SuggestionRows`) removes the name
