@@ -240,10 +240,11 @@ and logs the Member out on every device, then logs them in on the current one.
 
 ## Push keys (VAPID)
 
-Push messages (Notifications, Reminders and Announcements) are signed with the installation's VAPID key pair. The
-app does not start without `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and a `mailto:` `VAPID_SUBJECT`
-(the message names the missing one), and Compose refuses to start without them in `.env`. Generate
-the pair once, before the first deploy that needs it, with the image itself:
+Push messages (Notifications, Reminders and Announcements) are signed with the installation's
+VAPID key pair. The app does not start without `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and a
+`mailto:` `VAPID_SUBJECT` (the message names the missing one), and Compose refuses to start without
+them in `.env`. Generate the pair once, before the first deploy that needs it, with the image
+itself:
 
 ```sh
 docker run --rm ghcr.io/aborgatin/family_app:latest generate-vapid-keys

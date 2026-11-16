@@ -485,13 +485,13 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   takes the due Batches out of the database (`PendingBatches.takeDue`, `FOR UPDATE SKIP LOCKED`,
   then deleted; due when the last change is `QUIET` = 2 minutes old or the first `LONGEST` = 10
   minutes old, constants; `Batches` turns them into Notifications) and records the catalog's new
-  Announcements. All come back as `PushMessage`s (recipient,
-  payload, urgency, TTL: each message carries its own, `PushMessage.notification` `NORMAL` 24 h,
-  `reminder` `HIGH` 24 h, `announcement` `NORMAL` 7 days); after the commit each goes out through
-  `Pushes.sendTo` with its TTL and urgency, Notifications first, then Reminders, then
-  Announcements in catalog order. A push that throws (a database call on the way out) is logged
-  and costs only itself; the rest of the step is still sent. A crash between the commit and the sending
-  loses those pushes rather than sending them twice.
+  Announcements. All come back as `PushMessage`s (recipient, payload, urgency, TTL: each message
+  carries its own, `PushMessage.notification` `NORMAL` 24 h, `reminder` `HIGH` 24 h,
+  `announcement` `NORMAL` 7 days); after the commit each goes out through `Pushes.sendTo` with its
+  TTL and urgency, Notifications first, then Reminders, then Announcements in catalog order. A
+  push that throws (a database call on the way out) is logged and costs only itself; the rest of
+  the step is still sent. A crash between the commit and the sending loses those pushes rather
+  than sending them twice.
   `notifications.schedule.SchedulerConfig` runs it at second 0 of every minute (`@Scheduled(cron
   = "0 * * * * *")`), in the web app only (`@ConditionalOnWebApplication`, so no operator
   command runs it) and unless `notifications.scheduler.enabled` is `false` (the tests' setting).
@@ -523,13 +523,14 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   catalog is `AnnouncementCatalog` (public, the test seam): the entries `{id, title, body, url?}`
   in sending order. The real bean, `ResourceAnnouncementCatalog`, reads
   `src/main/resources/announcements.json` once at startup (deployment.md "Adding an Announcement
-  to a release"); tests put a `@Primary` one of their own. `Announcements.takeNew(firstStep, now)`
-  runs in the step's transaction: for each entry it inserts an `announcement_sent` row (V19, `id`
-  primary key, `ON CONFLICT DO NOTHING`), and an entry whose row is new becomes one
-  `PushMessage.announcement` per Member (`family.Members.all()`; Children are not Members).
-  `Pushes.sendTo` leaves out those whose switch is off, and they never get that one, even after
-  turning it on. Mute does not apply. On the first step ever (`StepRuns` has no previous run, the
-  Reminders' marker) every entry is recorded and nothing is sent, so a new installation gets none
+  to a release"); tests put a `@Primary` one of their own. `Announcements.takeNew(now)` runs
+  in the step's transaction: for each entry `SentAnnouncements.recordIfNew` inserts an
+  `announcement_sent` row (V19, `id` primary key, `ON CONFLICT DO NOTHING`), and an entry whose row
+  is new becomes one `PushMessage.announcement` per Member (`family.Members.all()`; Children are not
+  Members). `Pushes.sendTo` leaves out those whose switch is off, and they never get that one, even
+  after turning it on. Mute does not apply. On the first step ever (`StepRuns` has no previous run,
+  the Reminders' marker) `SchedulerStep` drops the pushes `takeNew` returns, so every entry is
+  recorded and nothing is sent, and a new installation gets none
   of the old ones; the release that introduced Announcements shipped an empty catalog for the same
   reason on existing ones. A row is never deleted: a second step, a restart or a rollback and
   redeploy never sends an entry again, and a failed push still counts as sent. The payload is the

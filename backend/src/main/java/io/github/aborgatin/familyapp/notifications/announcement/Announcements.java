@@ -7,20 +7,17 @@ import io.github.aborgatin.familyapp.notifications.Announcement;
 import io.github.aborgatin.familyapp.notifications.AnnouncementCatalog;
 import io.github.aborgatin.familyapp.notifications.PushMessage;
 import io.github.aborgatin.familyapp.notifications.push.PushPayloads;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The Announcements a scheduler step sends (spec #120 "Sending: the scheduler step"): the catalog
- * entries with no {@code announcement_sent} row (V19). Each is recorded in the step's transaction
- * and becomes one push per Member; once recorded it is never sent again, whatever happens to the
- * push.
+ * entries not yet in {@link SentAnnouncements}. Each is recorded in the step's transaction and
+ * becomes one push per Member; once recorded it is never sent again, whatever happens to the push.
  */
 @Service
 public class Announcements {
@@ -37,46 +34,36 @@ public class Announcements {
   }
 
   private final AnnouncementCatalog catalog;
+  private final SentAnnouncements sent;
   private final Members members;
   private final PushPayloads payloads;
-  private final JdbcTemplate jdbc;
 
   Announcements(
-      AnnouncementCatalog catalog, Members members, PushPayloads payloads, JdbcTemplate jdbc) {
+      AnnouncementCatalog catalog, SentAnnouncements sent, Members members, PushPayloads payloads) {
     this.catalog = catalog;
+    this.sent = sent;
     this.members = members;
     this.payloads = payloads;
-    this.jdbc = jdbc;
   }
 
   /**
    * Records every catalog entry not handled yet as handled at {@code now}, in the caller's
-   * transaction, and returns their pushes in catalog order: one per Member and entry. On a fresh
-   * database's first step ({@code firstStep}) they are recorded but nothing is returned, so a new
-   * installation never gets the Announcements of releases before it.
+   * transaction, and returns their pushes in catalog order: one per Member and entry. The step
+   * drops them on a fresh database's first run, so a new installation never gets the Announcements
+   * of releases before it.
    */
   @Transactional(propagation = Propagation.MANDATORY)
-  public List<PushMessage> takeNew(boolean firstStep, Instant now) {
+  public List<PushMessage> takeNew(Instant now) {
     List<PushMessage> messages = new ArrayList<>();
     for (Announcement entry : catalog.entries()) {
-      if (!record(entry, now) || firstStep) {
-        continue;
-      }
-      String payload = payloads.write(payload(entry));
-      for (MemberSummary member : members.all()) {
-        messages.add(PushMessage.announcement(member.id(), payload));
+      if (sent.recordIfNew(entry.id(), now)) {
+        String payload = payloads.write(payload(entry));
+        for (MemberSummary member : members.all()) {
+          messages.add(PushMessage.announcement(member.id(), payload));
+        }
       }
     }
     return messages;
-  }
-
-  /** Records the entry as handled; {@code false} when it already was. */
-  private boolean record(Announcement entry, Instant now) {
-    return jdbc.update(
-            "INSERT INTO announcement_sent (id, sent_at) VALUES (?, ?) ON CONFLICT DO NOTHING",
-            entry.id(),
-            Timestamp.from(now))
-        == 1;
   }
 
   private static AnnouncementPayload payload(Announcement entry) {
