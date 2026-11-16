@@ -274,10 +274,13 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   Medicine that exists, a deleted one included; one that never existed is `medical.not_found`
   (`params.medicineId`).
 - **Medicines** (`medicine`, ticket #130; owned by `medical`): the Family's list, seen by every
-  Member. An upsert creates or renames: `name` (trimmed, required). A name that another Medicine
-  which isn't deleted has, ignoring letter case, is `medicine.duplicate` (409) on create and on
-  rename; the app checks its own list first, so it comes only from the other Member's Medicine of
-  the same name pushed first. A delete soft-deletes the Medicine and nothing else: doses keep
+  Member. An upsert creates or renames: `name` (trimmed, required). A name is unique ignoring
+  letter case among Medicines that aren't deleted; the app checks its own list first, so a clash
+  comes only from the other Member's Medicine of the same name pushed first. A **rename** to a
+  taken name is `medicine.duplicate` (409). A **create** with a taken name (both Members added it
+  offline, maybe inline with a dose at night) is `ignored` and stored as a deleted Medicine with
+  its name, as an Illness for a deleted Child is: the doses pushed with it are applied and keep
+  showing its name, and the picker shows only the first one. A delete soft-deletes the Medicine and nothing else: doses keep
   naming it, and anything later on it is `ignored`. **The pull never tombstones a Medicine**: a
   deleted one comes as a row with its `name` and `deleted: true` (a live one with `deleted:
   false`), in a full pull too, so a past dose shows its name on every device, a new one included.

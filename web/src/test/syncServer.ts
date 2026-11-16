@@ -15,7 +15,7 @@ import { network } from './network';
  * `doneAt` with the server's clock (`now()`), and a List upsert carrying `hideDone` (a press's id)
  * stamps the List's `doneHiddenAt` once per press (only on a Todo list:
  * `list.hide_done_not_todo`; ticket #93), the press not stored itself, and a Medicine's name is
- * unique ignoring case (`medicine.duplicate`) and a deleted one stays a row marked `deleted`; a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
+ * unique ignoring case (`medicine.duplicate`, or kept deleted when new) and a deleted one stays a row marked `deleted`; a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
@@ -278,7 +278,7 @@ class FakeSyncServer {
 
   /**
    * A Medicine (ticket #130): its name unique ignoring case among those not deleted
-   * (`medicine.duplicate`); deleted, it stays a row with its name and `deleted: true`, never a
+   * (`medicine.duplicate` on rename; a new one with a taken name is kept deleted); deleted, it stays a row with its name and `deleted: true`, never a
    * tombstone, and anything more on it is ignored.
    */
   private applyToMedicine(operation: PushedOperation, current: StoredRow | undefined) {
@@ -298,7 +298,14 @@ class FakeSyncServer {
           row.fields.deleted !== true &&
           String(row.fields.name).toLowerCase() === name.trim().toLowerCase(),
       );
-      if (taken) return { status: 'rejected', code: 'medicine.duplicate', params: {} };
+      if (taken && current !== undefined) {
+        return { status: 'rejected', code: 'medicine.duplicate', params: {} };
+      }
+      if (taken) {
+        // Both Members added the name offline: the second is kept deleted, so its doses stay.
+        this.write('medicine', operation.id, { ...operation.fields, deleted: true }, false);
+        return { status: 'ignored' };
+      }
     }
     this.write(
       'medicine',

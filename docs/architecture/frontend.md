@@ -1040,8 +1040,8 @@ fails only sometimes, with `scripts/repeat-test.sh <file> [n]`.
   changes once recorded, and is `ignored` for a deleted or unknown Child or Child field; a List
   made Private loses its Items' Assignees; a repeating Item turned Done (created Done or changed), pushed or by `change`,
   loses its Repeat to a new open Item, its next occurrence, counted as the server does from the
-  device's date, #87; a Medicine's name is unique ignoring case, `medicine.duplicate`, and a
-  deleted one stays a row with `deleted: true`, never a tombstone, #130):
+  device's date, #87; a Medicine's name is unique ignoring case, `medicine.duplicate` on rename
+  while a new one with a taken name is kept deleted and `ignored`, and a deleted one stays a row with `deleted: true`, never a tombstone, #130):
   `seed(table, rows)`, `change(table, id,
 fields | 'deleted')` (the other Member's change), `row(table, id)` (the server's copy),
   `operations(table)` / `pushes` (with `csrf`) / `pulls`, `goOffline()` / `goOnline()` (MSW network

@@ -583,8 +583,10 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   Medicine that exists, deleted or not (`MedicineService.exists`), else `medical.not_found`
   (`params.medicineId`).
 - `MedicineService` (`medicine`, #130): an upsert creates or renames (`name` required, trimmed);
-  a name another Medicine that isn't deleted has, ignoring case, is `medicine.duplicate`
-  (`MedicineRepository.nameTaken`; the partial unique index on `lower(name)` backs it up). A
+  a rename to a name another Medicine that isn't deleted has, ignoring case, is
+  `medicine.duplicate` (`MedicineRepository.nameTaken`; the partial unique index on `lower(name)`
+  backs it up), while a create with such a name is stored deleted and `ignored`, so the doses
+  pushed with it are applied ([sync.md](sync.md#push-the-only-write-path)). A
   delete soft-deletes it only. `changesSince` sends every changed Medicine as a row with `name` and
   `deleted`, **never a tombstone**, so past doses keep its name on every device.
 - Editing rows, Documents and the dose Notification come with later tickets of #128.
@@ -712,7 +714,7 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
 (`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field (a Due date, a Repeat or an Assignee) on an Item of a Shopping
 or Wish list; its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.repeat_without_due_date` (a Repeat without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
-`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute), and for Medical cards `medical.not_found` (404, `params.illnessId` or `params.illnessEventId`: a row on another Member's card, or an Illness that never existed; `params.medicineId`: a dose of a Medicine that never existed) and `medicine.duplicate` (409: a Medicine name the list already has, ignoring case). An operation on a deleted Child, Child field, List,
+`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute), and for Medical cards `medical.not_found` (404, `params.illnessId` or `params.illnessEventId`: a row on another Member's card, or an Illness that never existed; `params.medicineId`: a dose of a Medicine that never existed) and `medicine.duplicate` (409: a Medicine renamed to a name the list already has, ignoring case). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
 (`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a

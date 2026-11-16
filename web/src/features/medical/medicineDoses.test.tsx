@@ -439,4 +439,35 @@ describe('Offline', () => {
     expect(syncServer.row('medicine', added?.id ?? '')).toMatchObject({ name: 'Ибупрофен' });
     expect(syncServer.operations('illness')).toHaveLength(1);
   });
+
+  it('keeps a dose of a Medicine the other Member added under the same name meanwhile', async () => {
+    const user = userEvent.setup();
+    const first = renderApp('/medical');
+    await screen.findByRole('button', { name: 'Добавить приём лекарства' });
+    first.unmount();
+    const offline = renderApp('/medical', { offline: true });
+    await user.click(await screen.findByRole('button', { name: 'Добавить приём лекарства' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Приём лекарства' });
+    await user.type(medicineField(sheet), 'нурофен');
+    await user.type(amountField(sheet), '5 мл');
+    await done(user, sheet);
+    await screen.findByRole('link', { name: /Болезнь 2 декабря 2026/ });
+    offline.unmount();
+    // Boris added «Нурофен» first, from his phone.
+    syncServer.seed('medicine', [medicine('Нурофен')]);
+
+    syncServer.goOnline();
+    await openDoseSheetFromCard(user);
+    await waitFor(() => {
+      expect(syncServer.operations('illness_event')).toHaveLength(1);
+    });
+    const next = screen.getByRole('dialog', { name: 'Приём лекарства' });
+    await waitFor(() => {
+      expect(pickerRows(next)).toEqual(['Нурофен']);
+    });
+    expect(screen.queryByText(/Не удалось сохранить/)).not.toBeInTheDocument();
+    await user.click(within(next).getByRole('button', { name: 'Отмена' }));
+    await user.click(await screen.findByRole('link', { name: /Болезнь 2 декабря 2026/ }));
+    expect(await screen.findByText('22:00 · нурофен — 5 мл')).toBeInTheDocument();
+  });
 });

@@ -31,8 +31,9 @@ class MedicineService implements SyncableTable {
 
   /**
    * An upsert creates the Medicine or renames it ({@code name} required, trimmed); a delete
-   * soft-deletes it, and doses keep naming it. Delete wins. A name that another Medicine which
-   * isn't deleted has, ignoring case, is {@code medicine.duplicate}.
+   * soft-deletes it, and doses keep naming it. Delete wins. A rename to a name that another
+   * Medicine which isn't deleted has, ignoring case, is {@code medicine.duplicate}; a new one with
+   * such a name is ignored and kept deleted, so the doses logged with it are not lost.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -50,11 +51,20 @@ class MedicineService implements SyncableTable {
       errors.add("name", FieldErrors.REQUIRED);
     }
     errors.throwIfAny();
-    if (medicines.nameTaken(name, operation.id())) {
+    boolean taken = medicines.nameTaken(name, operation.id());
+    if (taken && existing.isPresent()) {
       throw new ApiException(HttpStatus.CONFLICT, "medicine.duplicate");
     }
     Medicine medicine = existing.orElseGet(() -> new Medicine(operation.id(), name));
     medicine.rename(name);
+    if (taken) {
+      // The other Member added the same name first, both offline. Kept as deleted, with its name,
+      // so the doses logged with it (the same push) are applied and still show it; the picker
+      // shows only the first one.
+      medicine.markDeleted();
+      medicines.saveAndFlush(medicine);
+      return Outcome.IGNORED;
+    }
     medicines.saveAndFlush(medicine);
     return Outcome.APPLIED;
   }

@@ -135,21 +135,6 @@ describe('The «Новое лекарство» sheet', () => {
     expect(syncServer.operations('medicine')).toHaveLength(0);
   });
 
-  it('says why when the server refuses a duplicate the other Member added meanwhile', async () => {
-    syncServer.rejectWhen((operation) =>
-      operation.table === 'medicine' ? { code: 'medicine.duplicate' } : false,
-    );
-    const user = userEvent.setup();
-    renderApp('/settings');
-
-    const sheet = await openNewSheet(user);
-    await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Ибупрофен');
-    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
-
-    expect(
-      await screen.findByText('Не удалось сохранить: такое лекарство уже есть'),
-    ).toBeInTheDocument();
-  });
 });
 
 describe('Renaming and deleting a Medicine', () => {
@@ -189,6 +174,25 @@ describe('Renaming and deleting a Medicine', () => {
       await within(await section()).findByText('Такое лекарство уже есть'),
     ).toBeInTheDocument();
     expect(syncServer.operations('medicine')).toHaveLength(0);
+  });
+
+  it('says why when the server refuses a rename to a name the other Member added meanwhile', async () => {
+    syncServer.seed('medicine', [medicine('Ибупрофен')]);
+    syncServer.rejectWhen((operation) =>
+      operation.table === 'medicine' ? { code: 'medicine.duplicate' } : false,
+    );
+    const user = userEvent.setup();
+    renderApp('/settings');
+
+    const field = await within(await section()).findByRole('textbox', {
+      name: 'Название лекарства «Ибупрофен»',
+    });
+    await user.clear(field);
+    await user.type(field, 'Нурофен{Enter}');
+
+    expect(
+      await screen.findByText('Не удалось сохранить: такое лекарство уже есть'),
+    ).toBeInTheDocument();
   });
 
   it('deletes after the confirmation: it leaves the list', async () => {

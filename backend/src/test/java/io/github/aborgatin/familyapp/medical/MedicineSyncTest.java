@@ -79,13 +79,13 @@ class MedicineSyncTest {
     UUID paracetamol = UUID.randomUUID();
     pushApplied(anna, medicine(ibuprofen, "Ибупрофен"), medicine(paracetamol, "Парацетамол"));
 
+    // A rename to a taken name is rejected; a new one is kept deleted (the next test).
     SyncRequests.push(
             boris,
             medicine(UUID.randomUUID(), " ибупрофен "),
             SyncRequests.upsert(MEDICINE, paracetamol, "{\"name\":\"ИБУПРОФЕН\"}"),
             SyncRequests.upsert(MEDICINE, ibuprofen, "{\"name\":\"ибупрофен\"}"))
-        .andExpect(jsonPath("$.results[*].status", contains("rejected", "rejected", "applied")))
-        .andExpect(jsonPath("$.results[0].code").value("medicine.duplicate"))
+        .andExpect(jsonPath("$.results[*].status", contains("ignored", "rejected", "applied")))
         .andExpect(jsonPath("$.results[1].code").value("medicine.duplicate"));
     assertThat(SyncRequests.fields(anna, MEDICINE, paracetamol))
         .containsEntry("name", "Парацетамол");
@@ -95,6 +95,28 @@ class MedicineSyncTest {
     UUID again = UUID.randomUUID();
     pushApplied(anna, SyncRequests.delete(MEDICINE, ibuprofen), medicine(again, "Ибупрофен"));
     assertThat(SyncRequests.fields(boris, MEDICINE, again)).containsEntry("name", "Ибупрофен");
+  }
+
+  @Test
+  void theSameNewNameAddedOfflineByBothMembersKeepsTheSecondOnesDose() throws Exception {
+    UUID annas = UUID.randomUUID();
+    UUID boriss = UUID.randomUUID();
+    UUID dose = UUID.randomUUID();
+    pushApplied(anna, medicine(annas, "Нурофен"));
+
+    // Boris added «нурофен» inline at night, offline, with a dose: the dose is never lost.
+    SyncRequests.push(boris, medicine(boriss, "нурофен"), dose(dose, boriss, "5 мл", null))
+        .andExpect(jsonPath("$.results[*].status", contains("ignored", "applied")));
+
+    // His Medicine is kept deleted, with its name, so the dose shows it and the picker doesn't.
+    for (Browser member : new Browser[] {anna, boris}) {
+      assertThat(SyncRequests.fields(member, MEDICINE, boriss))
+          .containsEntry("name", "нурофен")
+          .containsEntry("deleted", true);
+      assertThat(SyncRequests.fields(member, MEDICINE, annas)).containsEntry("deleted", false);
+      assertThat(SyncRequests.fields(member, EVENT, dose))
+          .containsEntry("medicineId", boriss.toString());
+    }
   }
 
   @Test
