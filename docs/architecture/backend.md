@@ -12,7 +12,7 @@ step with the headings).
 
 - [Stack](#stack): Spring Boot, Java 21, Error Prone, Spotless, what the build copies from the web app
 - [Configuration](#configuration): the environment variables `application.yml` reads and their defaults
-- [Modules](#modules): the Modulith modules (`family`, `sync`, `lists`, `notifications`, `command`, `webapp`), their public API and internals
+- [Modules](#modules): the Modulith modules (`family`, `sync`, `lists`, `notifications`, `medical`, `command`, `webapp`), their public API and internals
 - [API conventions](#api-conventions): JSON shape, timestamps and dates, which resources are REST and which go through sync
 - [Errors](#errors): `ApiException`, `FieldErrors`, the error-code catalogue (I1, I3)
 - [Security, sessions, CSRF](#security-sessions-csrf): the security chains, public endpoints, sessions, CSRF, login limits
@@ -74,13 +74,15 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | `Lists` (with `ListSummary`, `ItemSummary`, `DueItem`), `ItemAdded`, `ItemAssigned`, `ListUnshared`, `ListKind`, `Visibility` | `lists.list`                                                                              |
 | `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `PushMessage`, `Urgency`, `SchedulerStep`, `AnnouncementCatalog`, `Announcement` | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule`, `notifications.announcement` |
+| `medical` | none                                                                                                   | `Person` (the card's visibility rule), `Illness`, `IllnessEvent`, their repositories, `IllnessService` (`illness`), `IllnessEventService` (`illness_event`) |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
 `sync → error`, `command → family`, `notifications → family`, `notifications → lists`,
-`notifications → sync` (the `mute` table), `notifications → error`. (`lists` reaches Members through `Operation.memberId()`, and
+`notifications → sync` (the `mute` table), `notifications → error`, `medical → sync`, `medical → family`
+(`Children`, `ChildDeleted`), `medical → error`. (`lists` reaches Members through `Operation.memberId()`, and
 `family` for the `FirstMemberRegistered` and `ChildDeleted` events, for `Children` (Child
 lists, #90) and for `Members.byId` (an Item's Assignee must be a Member, #85); the spec also
 allows `FamilyLock` when a ticket needs it.) The Version
@@ -558,6 +560,26 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   `notifications.RemindersTest`, which runs with `REMINDER_MORNING_TIME=08:30` (so the setting is
   seen to be read) and switches the JVM's default zone for one test (so `TZ` is).
 
+### `medical`
+
+Medical cards (spec #128, ticket #129): no public API, everything goes through the sync push and
+pull. A card is not a row: `illness` and `illness_event` rows name their person.
+
+- `Person(memberId, childId)`: exactly one is set. The one place of the visibility rule:
+  `visibleTo(viewer)` (a Child's card: every Member; a Member's: that Member) and `notFound(…)`,
+  the `medical.not_found` rejection.
+- `IllnessService` (the `illness` `SyncableTable`): an operation on a row the pusher can't see is
+  `medical.not_found`; creating checks the person (not another Member, a Child that exists) and
+  stamps `createdAt` from the `Clock`; a delete also soft-deletes its events
+  (`IllnessEventRepository.markDeletedOfIllness`); `onChildDeleted` (`ChildDeleted`) soft-deletes
+  the Child's events and Illnesses in two bulk updates; `changesSince` leaves out, without
+  tombstones, the rows of cards the Member can't see.
+- `IllnessEventService` (`illness_event`): the event's card is its Illness's; validation by kind
+  (sync.md, Push); `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted ones
+  included) and leaves out those the Member can't see.
+- Editing rows, Medicines, Documents and the dose Notification come with later tickets of #128.
+- Tested by `medical.MedicalCardSyncTest`.
+
 ### `command`
 
 Operator commands run from the same image. `FamilyAppApplication.main` checks
@@ -680,7 +702,7 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
 (`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field (a Due date, a Repeat or an Assignee) on an Item of a Shopping
 or Wish list; its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.repeat_without_due_date` (a Repeat without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
-`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute). An operation on a deleted Child, Child field, List,
+`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute), and for Medical cards `medical.not_found` (404, `params.illnessId` or `params.illnessEventId`: a row on another Member's card, or an Illness that never existed). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
 (`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a
@@ -796,6 +818,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V18__mute.sql`                 | `mute` (syncable; → `list`, Member → `member`; indexed by List): a Member's Mute of a Shared list |
 | `V19__announcement_sent.sql`    | `announcement_sent` (`id` text primary key, `sent_at`): each catalog Announcement the scheduler step has handled |
 | `V20__child_avatar.sql`         | `child.avatar` (nullable code of the Avatar set, checked in Java): a Child's Аватар (#124) |
+| `V21__illness.sql`              | `illness` (syncable; person: `member_id` → `member` or `child_id` → `child`, exactly one; `kind`, `name`, `description`, `ended`, `position`, `created_at`; indexed by Child) and `illness_event` (syncable; → `illness`; `kind`, `date`, `time`, `medicine_id`, `amount`, `temperature NUMERIC(3,1)`, `title`, `description`; indexed by Illness): Medical cards (#129) |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of

@@ -416,6 +416,24 @@ export const SEED = {
       ['Последний визит к врачу', '2026-10-03'],
     ],
   },
+  /**
+   * Illnesses on Маша's Medical card, each with its Temperatures (`[daysAgo, time or null, °C]`).
+   * «ОРВИ» had one yesterday, so a new Temperature joins it.
+   */
+  illnesses: {
+    Маша: [
+      {
+        name: 'ОРВИ',
+        temperatures: [
+          [2, '20:00', 38.5],
+          [1, '08:00', 37.8],
+          [1, '22:00', 38.2],
+          [1, null, 37.4],
+        ],
+      },
+      { name: 'Отит', temperatures: [[400, '09:30', 37.6]] },
+    ],
+  },
 };
 
 /** Calls the API from inside the page, the way the app does (same origin, XSRF header). */
@@ -539,8 +557,28 @@ async function pushChildFieldValues(page) {
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed values: ${JSON.stringify(pushed.results)}`);
 }
 
+/** The Illnesses of `SEED.illnesses` on the Children's Medical cards, each with its events. */
+async function pushIllnesses(page, childIds) {
+  const operations = Object.entries(SEED.illnesses).flatMap(([child, illnesses]) =>
+    illnesses.flatMap(({ name, temperatures }) => {
+      const illnessId = crypto.randomUUID();
+      return [
+        { table: 'illness', id: illnessId, op: 'upsert', fields: { childId: childIds[child], kind: 'ILLNESS', name } },
+        ...temperatures.map(([daysAgo, time, temperature]) => ({
+          table: 'illness_event',
+          id: crypto.randomUUID(),
+          op: 'upsert',
+          fields: { illnessId, kind: 'TEMPERATURE', date: dayFromToday(-daysAgo), time, temperature },
+        })),
+      ];
+    }),
+  );
+  const pushed = await api(page, 'POST', '/api/sync/push', { operations });
+  if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed illnesses: ${JSON.stringify(pushed.results)}`);
+}
+
 async function seed(browser, baseUrl, pg) {
-  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, Child lists, active Invite');
+  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, Child lists, Illnesses, active Invite');
   const ctx = await browser.newContext({ baseURL: baseUrl });
   const page = await ctx.newPage();
   await page.goto('/api/auth/session');
@@ -573,6 +611,7 @@ async function seed(browser, baseUrl, pg) {
     SEED.lists.children.map(({ child, ...list }) => ({ ...list, childId: childIds[child] })),
   );
   await pushChildFieldValues(page);
+  await pushIllnesses(page, childIds);
   const inv2 = await api(page, 'POST', '/api/invites'); // stays active: shows in Settings, used as {inviteToken}
   const storageState = await ctx.storageState();
   await ctx.close();
@@ -581,7 +620,8 @@ async function seed(browser, baseUrl, pg) {
 
 // ---------- shooting ---------------------------------------------------------------------------
 /**
- * Step forms (JSON): {"click": sel}, {"tap": sel}, {"fill": sel, "value": str}, {"press": key},
+ * Step forms (JSON): {"click": sel}, {"tap": sel}, {"fill": sel, "value": str}, {"select": sel,
+ * "value": option label}, {"press": key},
  * {"hover": sel}, {"waitFor": sel}, {"wait": ms}, {"eval": "js expression"}, {"scroll": sel}.
  * Selectors are Playwright selectors, e.g. `role=button[name="Добавить ребёнка"]`, `text=Дети`.
  * In a .mjs config a step may also be `async (page, ctx) => {...}`.
@@ -592,6 +632,7 @@ async function runStep(page, step, ctx) {
   if (step.click) return page.locator(step.click).first().click(t);
   if (step.tap) return page.locator(step.tap).first().tap(t);
   if (step.fill) return page.locator(step.fill).first().fill(step.value ?? '', t);
+  if (step.select) return page.locator(step.select).first().selectOption({ label: step.value }, t);
   if (step.press) return page.keyboard.press(step.press);
   if (step.hover) return page.locator(step.hover).first().hover(t);
   if (step.waitFor) return page.locator(step.waitFor).first().waitFor(t);

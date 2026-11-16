@@ -1409,6 +1409,93 @@ export default {
       steps: [{ waitFor: "role=alert" }],
     },
 
+    // Medical cards (spec #128)
+    {
+      // Анна's own card from the «Медкарта» row on Home: no Illnesses yet.
+      name: "medical-card-empty",
+      path: "/",
+      steps: [
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: "text=Болезней пока нет" },
+      ],
+    },
+    {
+      // Маша's card from her Child page: «ОРВИ» (this year) and «Отит» (last year).
+      name: "medical-card-child",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/Отит/]` },
+      ],
+    },
+    {
+      name: "medical-card-not-found",
+      path: "/children/00000000-0000-4000-8000-000000000000/medical",
+      steps: [{ waitFor: "role=alert" }],
+    },
+    {
+      // The Temperature sheet from Маша's card: «ОРВИ» had a Temperature yesterday, so it's
+      // preselected in «Добавить к».
+      name: "medical-temperature-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Записать температуру"]' },
+        { waitFor: 'role=dialog >> role=combobox[name="Добавить к"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Другая…» shows the other Illnesses to pick from.
+      name: "medical-temperature-sheet-other",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Записать температуру"]' },
+        {
+          select: 'role=dialog >> role=combobox[name="Добавить к"]',
+          value: "Другая…",
+        },
+        { waitFor: 'role=dialog >> role=combobox[name="Болезнь"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A Temperature logged on Анна's empty card starts «Болезнь <today>».
+      name: "medical-card-new-illness",
+      path: "/",
+      isolate: true,
+      steps: [
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=button[name="Записать температуру"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/Болезнь/]` },
+      ],
+    },
+    {
+      // «ОРВИ»: its first day, «Температура», the events by day, newest first.
+      name: "medical-illness",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { waitFor: 'role=button[name="Температура"]' },
+      ],
+    },
+    {
+      name: "medical-illness-not-found",
+      path: "/medical/illnesses/00000000-0000-4000-8000-000000000000",
+      steps: [{ waitFor: "role=alert" }],
+    },
+
     // Child screen and sheets
     {
       name: "child",

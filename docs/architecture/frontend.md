@@ -20,6 +20,7 @@ step with the headings).
 - [Look and theme](#look-and-theme): Tailwind tokens, light and dark theme, where the UI kit is specified
 - [Settings](#settings): the Settings screen: Members, Invites, profile, password, Notifications and this device's push subscription, theme, Child fields
 - [Home «Дети» and the Child page](#home-дети-and-the-child-page): Child cards on Home, the Child page, Child lists and fields
+- [Medical cards](#medical-cards): «Медкарта» on Home and the Child page, the card, the Illness screen, the Temperature sheet and its rules
 - [PWA](#pwa): manifest, icons, the service worker (precache, push, tap), the push payload contract, updates
 - [iOS and macOS](#ios-and-macos): installed-app cookies, ITP, Safari quirks
 - [Testing](#testing): shared test helpers, `renderApp`, the fake sync server, store-upgrade tests, clock and time zone, flaky tests
@@ -81,6 +82,10 @@ web/src/
                         `updateProfile` from `features/members`; this device), usePushDevice
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
                         ChildProfileSection («Профиль» on the Child page), useChildFieldValues(childId)
+    medical/            MedicalCardRow («Медкарта» on Home and the Child page), MedicalCardPage,
+                        IllnessPage, TemperatureSheet, cardRoute (whose card the route names),
+                        medicalPaths, medicalTypes, illnessRules (the pure rules),
+                        useMedicalCard(person)
   shared/
     api/                API client, error-code mapping, form error helpers
     i18n/               i18next set-up, typed keys, locales/ru.json
@@ -148,6 +153,10 @@ frame around every screen and the place a sidebar goes later.
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
 | `/children/:id`          | `ChildPage`         | logged in                      |
+| `/medical`               | `MedicalCardPage` (the Member's own) | logged in     |
+| `/children/:id/medical`  | `MedicalCardPage` (the Child's) | logged in          |
+| `/medical/illnesses/:illnessId` | `IllnessPage` | logged in                    |
+| `/children/:id/medical/illnesses/:illnessId` | `IllnessPage` | logged in       |
 
 The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure,
 or after an offline cold start, below;
@@ -233,11 +242,13 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`, `mute`; `child_field`
+  (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`, `mute`, `illness`,
+  `illness_event`; `child_field`
   and `list` came with store version 2, `item`, indexed by `listId`, with version 3, `category`,
   indexed by `listId`, with version 4, `item_history`, indexed by `listId`, with version 5;
   version 6 indexes `list` by `childId`, for Child lists; `child_field_value`, indexed by
-  `childId` and `childFieldId`, came with version 7; `mute`, indexed by `listId`, with version 8).
+  `childId` and `childFieldId`, came with version 7; `mute`, indexed by `listId`, with version 8;
+  `illness`, indexed by `childId`, and `illness_event`, indexed by `illnessId`, with version 9).
   A row holds the
   fields the pull sent and `version`, the Version it was pulled with (none on a row created here
   until the pull brings it back). Also there:
@@ -279,14 +290,16 @@ code that touches IndexedDB or the sync API:
     of which only those that differ from the local row are written and sent (read in the same
     transaction; nothing differs, nothing written), so a screen passes just the changed field and
     a change the other Member made meanwhile stays; `local` fields go only into the local row and the Outbox entry, never to the server,
-    until the server's copy replaces them (an Item's `doneHereAt`); `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
+    until the server's copy replaces them (an Item's `doneHereAt`); `upsertRows(writes)`: several
+    upserts in one transaction, so their Outbox operations go together and in order (a new Illness,
+    then its first event); `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
     once, online or not;
   - `useSaveRejection()` → `{message, dismiss}`: the message about the last operation the server
     rejected (`saveRejection.ts`, I3: `list.not_found`, `list.owner_only`, `list.kind_immutable`,
     `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only`,
     `item.list_not_todo`, `item.due_time_without_due_date`, `item.repeat_without_due_date`,
     `item.assignee_on_private_list`,
-    `item.assignee_not_found`, `list.hide_done_not_todo`, `mute.private_list` map to
+    `item.assignee_not_found`, `list.hide_done_not_todo`, `mute.private_list`, `medical.not_found` map to
     `sync.rejected.*`, «Не удалось сохранить: …» with the reason; any other code to
     `sync.saveRejected`, plain «Не удалось сохранить»). It is recorded whatever screen is open and
     cleared by the Member's next change, `dismiss()` or a logout. Its one user is
@@ -301,6 +314,8 @@ entries as they are, never drop `outbox`); the pull fills it, and the feature's 
 its List, a Child field value to its Child and to its Child field, a Mute to its List) get an index on the parent's id and a line in `DEPENDENT_TABLES`, so they go with it. The backend side is in [`backend.md`](backend.md#adding-a-syncable-table).
 
 ## Data access
+
+`useMedicalCard(person)` (`features/medical`) is described under [Medical cards](#medical-cards).
 
 Each synced data feature has one hook that is its only data access. Components never call `api`,
 Dexie or `@/shared/sync`'s writers directly; ESLint enforces it (`data-access/components-use-hooks`
@@ -783,7 +798,7 @@ the server's value again. Then a red «Удалить ребёнка» `ConfirmR
 
 ## Home «Дети» and the Child page
 
-Home (`HomePage`) is `Sections` of `ChildrenCards` and `ListsSection`. `ChildrenCards`
+Home (`HomePage`) is `Sections` of `ChildrenCards`, `MedicalCardRow` («Медкарта», see [Medical cards](#medical-cards)) and `ListsSection`. `ChildrenCards`
 (`features/children`, tickets #89, #124) reads `useChildren()` and shows «Дети» as a `CardGrid` above
 the Lists: a `Card` per Child in the Children order (oldest first), led by their `ChildAvatarOf` (the
 `ChildAvatar` from the stored codes: `childColor(code)?.hex`, grey for an unknown colour;
@@ -816,6 +831,48 @@ An unknown id, or a Child deleted while the page is open, shows «Такого �
 (Child lists on the page and off Home, «Новый список» there, a Child list's screen and settings,
 the delete warning, the store upgrade to version 6),
 `child-fields/childFieldValues.test.tsx` (the profile's values, and the store upgrade to version 7).
+
+## Medical cards
+
+Spec #128, ticket #129. A Medical card is every Member's and every Child's; its rows name their
+person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards the Member may see
+(their own and the Children's); the client still filters by person (`isOn`).
+
+- **Rows**: `MedicalCardRow` is a `GroupedSection` with one `ListRow` «Медкарта»: on Home, under
+  «Дети», to `/medical`; on the Child page, under «Профиль», to `/children/:id/medical` (the
+  routes pass it into `ChildPage` as `medical`, like `lists`, since `medical` imports `children`).
+- **Card** (`MedicalCardPage`, titled «Медкарта»): `useCardRoute(homePath)` picks the person
+  (the session's Member without `:id`, back «Семья»; the Child of `:id`, back to the Child page,
+  «Такого ребёнка нет» when missing). «Записать температуру» (an accent `ListRow`) opens the
+  Temperature sheet. «Болезни» lists the card's Illnesses (kind ILLNESS), each a row with the name
+  and «с 2 декабря · 4 события» (`medical.illnessSummary`, `medical.events_*` plurals; the year
+  only when it isn't this year; «Нет событий» for an empty one), opening the Illness screen;
+  «Болезней пока нет» with none. Later tickets add sections here.
+- **Illness screen** (`IllnessPage`, `…/illnesses/:illnessId`, back «Медкарта»): titled with the
+  name; «с 2 декабря 2026» (the first event's date), «Температура» (the sheet, into this
+  Illness, without «Добавить к»), then a `GroupedSection` per day («2 декабря», the year only when
+  not this year), events newest first: «22:00 · 38,5 °C», untimed «38,5 °C», the Description under
+  it. An unknown or deleted Illness: «Такой болезни нет: возможно, её удалили.».
+- **Temperature sheet** (`TemperatureSheet`, a `Sheet` «Температура»): «Температура» is a
+  `SelectRow` (a native `<select>`: the iPhone's wheel, the Mac's menu) from 34,0 to 43,0 °C in
+  0,1 steps, default 37,0; «Дата» and «Время» (`DateRow`s) default to when the sheet opened, the
+  time may be cleared; «Описание» (`TextAreaRow`). From the card, «Добавить к» preselects
+  `illnessToJoin` or «Новая болезнь»; «Другая…» shows a second `SelectRow` «Болезнь» with the
+  person's other Illnesses that aren't Ended. «Готово» saves through `useMedicalCard`.
+- **Rules** (`illnessRules.ts`, pure): `eventMoment` (date at time, 00:00 without one);
+  `illnessToJoin` (the not-Ended ILLNESS with the latest event, if that is at or after now − 48 h);
+  `illnessesInOrder` (latest event, newest first; an empty one by `createdAt`, or now before the
+  pull brings it); `eventsInOrder` (date newest first, timed ones latest first, then untimed);
+  `firstDay`; `formatTemperature` («38,5 °C»). The new Illness's name is «Болезнь » + the event's
+  date as «2 декабря 2026» (`medical.newIllnessName`, `longDay` from `@/shared/dates`).
+- **Data**: `useMedicalCard(person)` → `{illnesses, eventsOf(illnessId), logTemperature(target,
+  details)}` on `useRows('illness')` and `useRows('illness_event')`; `illnesses` is `undefined`
+  until both are read. `logTemperature` adds a TEMPERATURE event to `{illnessId}`, or, for
+  `{newIllnessName}`, creates the Illness (`memberId` or `childId`, `kind`, `name`) and the event
+  in one Outbox batch (`upsertRows`). It resolves at once, offline too.
+- Store: `illness` depends on `child` (`childId`), `illness_event` on `illness` (`illnessId`), in
+  `DEPENDENT_TABLES` and in the fake sync server's `CASCADES`.
+- Tests: `features/medical/medicalCard.test.tsx`.
 
 ## PWA
 

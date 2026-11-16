@@ -45,6 +45,8 @@ Ctrl-C). Then it seeds through the real API:
   Private «Подарок Анне», which Анна never sees. The Lists without Items show the empty states.
 - Child lists, on Маша's Child page only (never on Home): «Школа» (TODO, two open Items and one
   Done) and «Желания» (Желания, one Item). Петя and Соня have none.
+- Medical cards: Маша's has «ОРВИ» (four Temperatures two days ago and yesterday, one of them
+  without a time) and «Отит» (one Temperature 400 days ago). Анна's own card is empty.
 - One active Invite.
 
 Browser context: installed Google Chrome (`SHOOT_CHANNEL` to override), locale `ru-RU`,
@@ -71,7 +73,7 @@ or update its route there, so the next change shoots it too. A route has:
   without Child fields), `pushDevice({permission, subscribed, switchOn})` (a fake Push API in
   each state, for Settings «Уведомления») and `failClipboard`.
 - `fullPage`: default `true`; `false` shoots the viewport only (sheets, dialogs, scrolled states).
-- `steps`, run in order: `{click: sel}`, `{tap: sel}`, `{fill: sel, value}`, `{press: 'Enter'}`,
+- `steps`, run in order: `{click: sel}`, `{tap: sel}`, `{fill: sel, value}`, `{select: sel, value}` (a native `<select>`, by the option's label), `{press: 'Enter'}`,
   `{hover: sel}`, `{waitFor: sel}`, `{scroll: sel}`, `{wait: ms}`, `{eval: 'js'}`, or in a `.mjs`
   file `async (page, ctx) => {}` with `ctx.hasTouch` etc. `helpers.mjs` has `editIn(section)`,
   `toSection(section, by)`, `rowActions(section)` (swipe on touch, right-click on mouse) and

@@ -419,7 +419,9 @@ to footer messages. Auto-saved with `useAutoSaveChoice()` (spread `control`): a 
 once, `busy` shows the `Spinner` left of the pill, and a failed pick goes back to the previous
 choice. `disabled` dims the label and the pill to 40%. Touch: the pill is 32px tall in a 44px
 row. Fine pointer: tighter, like a `DateRow`'s pill; the focused pill gets the accent outline.
-A todo item's «Повтор» (#86, disabled without a «Срок») and «Ответственный» are two.
+A todo item's «Повтор» (#86, disabled without a «Срок») and «Ответственный» are two. The
+**temperature wheel** of the Temperature sheet (#129) is one too: 91 options from «34,0 °C» to
+«43,0 °C», so the iPhone shows its wheel and the Mac a menu; «Добавить к» there is another.
 
 ### ListRow
 

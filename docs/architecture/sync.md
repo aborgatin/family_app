@@ -37,6 +37,8 @@ table adds it here.
 | `item_history` | `V9__item_history.sql`         | server, when an Item is written (push: delete) | M3    |
 | `child_field_value` | `V11__child_field_value.sql` | client (`crypto.randomUUID()`)              | M4    |
 | `mute`        | `V18__mute.sql`                 | client (`crypto.randomUUID()`)                 | M5    |
+| `illness`     | `V21__illness.sql`              | client (`crypto.randomUUID()`)                 | M5.5  |
+| `illness_event` | `V21__illness.sql`            | client (`crypto.randomUUID()`)                 | M5.5  |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -250,6 +252,23 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   Mutes, everyone's, so their Members pull tombstones; made Shared again, nobody is Muted. The
   pull sends a Mute, `listId` only, **to its own Member only**: the other Member's pull leaves it
   out, not even as a tombstone.
+- **Medical cards** (`illness`, `illness_event`, ticket #129; owned by `medical`): a card's rows
+  name their person, exactly one of `memberId` and `childId` (`medical.Person`, the one place of
+  the visibility rule). An `illness` upsert of an unknown id carries the person, `kind`
+  (`ILLNESS` | `CONDITION`) and `name` (trimmed, required); `description` and `position` are
+  optional, `ended` starts `false`, and `createdAt` is the server's clock. No person, or both, is
+  `validation.failed` (`memberId` `required`, or `childId` `value.invalid`); an unknown Child is
+  `child.not_found`, a deleted one `ignored`. An `illness_event` upsert of an unknown id carries
+  `illnessId`, `kind` (`MEDICINE_DOSE` | `TEMPERATURE` | `NOTE`) and `date` (`YYYY-MM-DD`), with
+  `time` (`HH:MM`) optional; a TEMPERATURE needs `temperature`, a NOTE `title`, a dose
+  `medicineId`; `temperature` is 34.0–43.0 with at most one decimal (`value.invalid` otherwise);
+  an event for a deleted Illness is `ignored`. An upsert of a known row changes nothing yet
+  (editing comes with #131). **Visibility**: a Member's card is only that Member's: creating a row
+  on another Member's card, or any operation on a row there, is `medical.not_found`
+  (`params.illnessId` / `params.illnessEventId`), and the pull leaves those rows out of the other
+  Member's changes entirely, not even as tombstones (like a Mute). A Child's card is every
+  Member's. **Deleting an Illness** soft-deletes its events; **deleting a Child** soft-deletes their
+  Illnesses and those Illnesses' events, in the same operation.
 - **Deleting a Child** soft-deletes its Child field values in the same operation; **deleting a
   Child field** soft-deletes its values for every Child. They get new Versions, so devices pull
   their tombstones.
@@ -336,7 +355,7 @@ auth.required` without one) tells open apps when to pull:
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
   table (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`,
-  `item_history`, `mute`), the Outbox (`++seq`) and the stored
+  `item_history`, `mute`, `illness`, `illness_event`), the Outbox (`++seq`) and the stored
   Version. A row is the fields the pull sent plus `version`, the Version it was pulled with (absent
   on a row created here and not pulled back yet): what tells the latest Child field value. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives
@@ -388,7 +407,7 @@ auth.required` without one) tells open apps when to pull:
   `list.kind_immutable`, `list.wish_shared_only`, the four `list.child_*` codes,
   `list.hide_done_not_todo`,
   `child_field.value_type_immutable`, `sync.read_only`, `item.list_not_todo`,
-  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`, `mute.private_list`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping`,
+  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`, `mute.private_list`, `medical.not_found`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping`,
   `item.category_not_found` and `mute.not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.
