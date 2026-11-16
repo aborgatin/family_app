@@ -16,8 +16,8 @@ import org.junit.jupiter.api.Test;
  */
 class AnnouncementCatalogFileTest {
 
-  static final int MAX_TITLE = 60;
-  static final int MAX_BODY = 180;
+  private static final int MAX_TITLE = 60;
+  private static final int MAX_BODY = 180;
 
   private final List<Announcement> entries =
       new ResourceAnnouncementCatalog(new ObjectMapper()).entries();
@@ -36,18 +36,18 @@ class AnnouncementCatalogFileTest {
   }
 
   @Test
-  void titlesAreNonBlankAndAtMost60Characters() {
+  void titlesAreNonBlankAndWithinTheLimit() {
     assertThat(entries)
-        .filteredOn(a -> a.title() == null || a.title().isBlank() || length(a.title()) > MAX_TITLE)
+        .filteredOn(a -> !fits(a.title(), MAX_TITLE))
         .extracting(Announcement::id)
         .as("ids whose title is blank or longer than %d characters", MAX_TITLE)
         .isEmpty();
   }
 
   @Test
-  void bodiesAreNonBlankAndAtMost180Characters() {
+  void bodiesAreNonBlankAndWithinTheLimit() {
     assertThat(entries)
-        .filteredOn(a -> a.body() == null || a.body().isBlank() || length(a.body()) > MAX_BODY)
+        .filteredOn(a -> !fits(a.body(), MAX_BODY))
         .extracting(Announcement::id)
         .as("ids whose body is blank or longer than %d characters", MAX_BODY)
         .isEmpty();
@@ -70,8 +70,11 @@ class AnnouncementCatalogFileTest {
         && !url.startsWith("/api?");
   }
 
-  /** Characters as a person counts them: code points, so an emoji is one, not two. */
-  private static int length(String text) {
-    return text.codePointCount(0, text.length());
+  /**
+   * Non-blank and at most {@code max} characters as a person counts them: code points, so an emoji
+   * is one, not two.
+   */
+  private static boolean fits(String text, int max) {
+    return text != null && !text.isBlank() && text.codePointCount(0, text.length()) <= max;
   }
 }
