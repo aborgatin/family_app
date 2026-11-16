@@ -134,8 +134,12 @@ export const KIND_TEXTS: Record<
   {
     /** The kind's segment in «Вид». */
     choice: ParseKeys;
-    /** The kind as a row's subtitle on Home. */
+    /** The kind as a row's subtitle on the Child page. */
     name: ParseKeys;
+    /** Home's «Добавить …» row under the kind's section. */
+    add: ParseKeys;
+    /** The «Новый …» sheet opened from that row. */
+    newTitle: ParseKeys;
     /** The List screen while the List has no Items. */
     noItems: ParseKeys;
     /** The header of the List screen's Items. */
@@ -164,6 +168,8 @@ export const KIND_TEXTS: Record<
   SHOPPING: {
     choice: 'lists.kind.shopping',
     name: 'lists.kindName.shopping',
+    add: 'lists.addKind.shopping',
+    newTitle: 'lists.newKind.shopping',
     noItems: 'lists.noItems.shopping',
     items: 'lists.items.shopping',
     item: 'lists.item.shopping',
@@ -178,6 +184,8 @@ export const KIND_TEXTS: Record<
   TODO: {
     choice: 'lists.kind.todo',
     name: 'lists.kindName.todo',
+    add: 'lists.addKind.todo',
+    newTitle: 'lists.newKind.todo',
     noItems: 'lists.noItems.todo',
     items: 'lists.items.todo',
     item: 'lists.item.todo',
@@ -192,6 +200,8 @@ export const KIND_TEXTS: Record<
   WISH: {
     choice: 'lists.kind.wish',
     name: 'lists.kindName.wish',
+    add: 'lists.addKind.wish',
+    newTitle: 'lists.newKind.wish',
     noItems: 'lists.noItems.wish',
     items: 'lists.items.wish',
     item: 'lists.item.wish',

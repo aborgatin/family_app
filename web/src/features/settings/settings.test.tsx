@@ -49,7 +49,9 @@ describe('Settings', () => {
     const app = renderApp('/settings');
     await user.click(await screen.findByRole('link', { name: 'Семья' }));
 
-    expect(await screen.findByText('Списков пока нет')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Добавить список покупок' }),
+    ).toBeInTheDocument();
     expect(app.location()).toBe('/');
   });
 });

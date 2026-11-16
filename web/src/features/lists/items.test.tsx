@@ -206,7 +206,7 @@ describe('Adding an Item', () => {
     syncServer.goOffline();
     await user.type(screen.getByRole('textbox', { name: 'Новый товар' }), 'Молоко{Enter}');
     await user.click(screen.getByRole('link', { name: 'Семья' }));
-    await screen.findByRole('region', { name: 'Списки' });
+    await screen.findByRole('region', { name: 'Покупки' });
     expect(app.location()).toBe('/');
 
     reconnect();

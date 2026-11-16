@@ -7,7 +7,7 @@ import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
 
 // Lists live in the local store and reach the server through the Outbox (spec #3, tickets #55, #56):
-// Home lists them, «Новый список» creates one (offline too), a List opens its own screen, and its
+// Home lists them by kind, «Новый …» creates one (offline too), a List opens its own screen, and its
 // «Настройки списка» screen (#63) renames it, changes its Visibility and deletes it (both Owner
 // only, #64).
 
@@ -53,15 +53,28 @@ function reconnect() {
   window.dispatchEvent(new Event('online'));
 }
 
-async function listsSection() {
-  return screen.findByRole('region', { name: 'Списки' });
+/** Home's sections, one per List kind, top to bottom. */
+const SECTIONS = ['Покупки', 'TODO', 'Желания'];
+
+/** One kind's section on Home, «Покупки» unless said. */
+async function homeSection(header = 'Покупки') {
+  return screen.findByRole('region', { name: header });
 }
 
-/** The text of each List row on Home, top to bottom. */
+/**
+ * Each List row on Home, top to bottom, as «section · Visibility icon · text» (the text is the
+ * name, then the count of open Items).
+ */
 async function listRows() {
-  return within(await listsSection())
-    .queryAllByRole('link')
-    .map((row) => row.textContent);
+  await screen.findByRole('button', { name: 'Добавить список покупок' });
+  return SECTIONS.flatMap((header) =>
+    within(screen.getByRole('region', { name: header }))
+      .queryAllByRole('link')
+      .map(
+        (row) =>
+          `${header} · ${row.querySelector('[role="img"]')?.getAttribute('aria-label') ?? ''} · ${row.textContent}`,
+      ),
+  );
 }
 
 beforeEach(() => {
@@ -70,7 +83,7 @@ beforeEach(() => {
 });
 
 describe('«Списки» on Home', () => {
-  it('lists every List by name, ties by id, with its kind and « · Личный» when Private', async () => {
+  it('groups the Lists by kind, Shared before Private, each by name, ties by id', async () => {
     syncServer.seed('list', [
       list(4, 'Ёлка', 'TODO'),
       list(2, 'Аптека', 'SHOPPING'),
@@ -78,18 +91,20 @@ describe('«Списки» on Home', () => {
       list(6, 'Дела', 'TODO', 'PRIVATE'),
       list(5, 'Дела', 'SHOPPING'),
       list(7, 'Елена', 'WISH'),
+      list(8, 'Аврал', 'TODO', 'PRIVATE'),
     ]);
 
     renderApp('/');
 
     await waitFor(async () => {
       expect(await listRows()).toEqual([
-        'АптекаПокупки0',
-        'ДелаПокупки0',
-        'ДелаTODO-список · Личный0',
-        'ЕленаЖелания0',
-        'ЁлкаTODO-список0',
-        'ПодаркиЖелания0',
+        'Покупки · Общий · Аптека0',
+        'Покупки · Общий · Дела0',
+        'TODO · Общий · Ёлка0',
+        'TODO · Личный · Аврал0',
+        'TODO · Личный · Дела0',
+        'Желания · Общий · Елена0',
+        'Желания · Общий · Подарки0',
       ]);
     });
   });
@@ -107,7 +122,10 @@ describe('«Списки» on Home', () => {
     renderApp('/');
 
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['АптекаПокупки1', 'СупермаркетПокупки2']);
+      expect(await listRows()).toEqual([
+        'Покупки · Общий · Аптека1',
+        'Покупки · Общий · Супермаркет2',
+      ]);
     });
 
     // Boris ticks Хлеб off and adds Йод to the pharmacy List.
@@ -116,51 +134,65 @@ describe('«Списки» on Home', () => {
     window.dispatchEvent(new Event('online'));
 
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['АптекаПокупки2', 'СупермаркетПокупки1']);
+      expect(await listRows()).toEqual([
+        'Покупки · Общий · Аптека2',
+        'Покупки · Общий · Супермаркет1',
+      ]);
     });
   });
 
-  it('says when there are no Lists yet, still offering to add one', async () => {
+  it('shows every kind’s section with no Lists yet, each offering to add one of its kind', async () => {
     renderApp('/');
 
-    const section = await listsSection();
-    expect(await within(section).findByText('Списков пока нет')).toBeInTheDocument();
-    expect(within(section).getByRole('button', { name: 'Добавить список' })).toBeInTheDocument();
+    for (const [header, add] of [
+      ['Покупки', 'Добавить список покупок'],
+      ['TODO', 'Добавить TODO-список'],
+      ['Желания', 'Добавить список желаний'],
+    ]) {
+      const section = await homeSection(header);
+      expect(await within(section).findByRole('button', { name: add })).toBeInTheDocument();
+      expect(within(section).queryAllByRole('link')).toEqual([]);
+    }
+    expect(screen.queryByText('Списков пока нет')).not.toBeInTheDocument();
     expect(screen.queryByText('Здесь пока пусто')).not.toBeInTheDocument();
   });
 
   it('shows a List the other Member shared once the pull brings it', async () => {
     renderApp('/');
-    await within(await listsSection()).findByText('Списков пока нет');
+    await listRows();
 
     syncServer.seed('list', [{ ...groceries, ownerId: boris.id }]);
     window.dispatchEvent(new Event('online'));
 
-    expect(await within(await listsSection()).findByText('Супермаркет')).toBeInTheDocument();
+    expect(await within(await homeSection()).findByText('Супермаркет')).toBeInTheDocument();
   });
 });
 
-describe('The «Новый список» sheet', () => {
-  async function openSheet(user: ReturnType<typeof userEvent.setup>) {
-    const section = await listsSection();
-    await user.click(await within(section).findByRole('button', { name: 'Добавить список' }));
-    return screen.getByRole('dialog', { name: 'Новый список' });
+describe('The «Новый …» sheet', () => {
+  /** Opens the sheet from a kind's «Добавить …» row on Home, «Покупки» unless said. */
+  async function openSheet(
+    user: ReturnType<typeof userEvent.setup>,
+    [header, add, title] = ['Покупки', 'Добавить список покупок', 'Новый список покупок'],
+  ) {
+    const section = await homeSection(header);
+    await user.click(await within(section).findByRole('button', { name: add }));
+    return screen.getByRole('dialog', { name: title });
   }
 
-  it('creates a Shared List by default, under an id made on the client', async () => {
+  it('creates a Shared List of its section’s kind by default, under an id made on the client', async () => {
     const user = userEvent.setup();
 
     renderApp('/');
     const sheet = await openSheet(user);
+    expect(within(sheet).queryByRole('radiogroup', { name: 'Вид' })).not.toBeInTheDocument();
     // The Visibility row shows no label, but screen readers still hear its name.
     const visibility = within(sheet).getByRole('radiogroup', { name: 'Видимость' });
     expect(within(visibility).getByRole('radio', { name: 'Общий' })).toBeChecked();
     await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), '  Аптека ');
-    await user.click(within(sheet).getByRole('radio', { name: 'Покупки' }));
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['АптекаПокупки0']);
+      expect(await listRows()).toEqual(['Покупки · Общий · Аптека0']);
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await waitFor(() => {
@@ -177,16 +209,15 @@ describe('The «Новый список» sheet', () => {
     const user = userEvent.setup();
 
     renderApp('/');
-    await within(await listsSection()).findByText('Списков пока нет');
+    await listRows();
     syncServer.goOffline();
-    const sheet = await openSheet(user);
+    const sheet = await openSheet(user, ['TODO', 'Добавить TODO-список', 'Новый TODO-список']);
     await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Ремонт');
-    await user.click(within(sheet).getByRole('radio', { name: 'TODO' }));
     await user.click(within(sheet).getByRole('radio', { name: 'Личный' }));
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['РемонтTODO-список · Личный0']);
+      expect(await listRows()).toEqual(['TODO · Личный · Ремонт0']);
     });
     expect(syncServer.pushes).toEqual([]);
 
@@ -204,13 +235,15 @@ describe('The «Новый список» sheet', () => {
     });
   });
 
-  it('hides Visibility while «Желания» is chosen: a Wish list is always Shared', async () => {
+  it('asks no Visibility for a Wish list: it is always Shared', async () => {
     const user = userEvent.setup();
 
     renderApp('/');
-    const sheet = await openSheet(user);
-    await user.click(within(sheet).getByRole('radio', { name: 'Личный' }));
-    await user.click(within(sheet).getByRole('radio', { name: 'Желания' }));
+    const sheet = await openSheet(user, [
+      'Желания',
+      'Добавить список желаний',
+      'Новый список желаний',
+    ]);
     expect(within(sheet).queryByRole('radio', { name: 'Личный' })).not.toBeInTheDocument();
     expect(within(sheet).queryByRole('radio', { name: 'Общий' })).not.toBeInTheDocument();
     await user.type(
@@ -225,7 +258,7 @@ describe('The «Новый список» sheet', () => {
     });
   });
 
-  it('asks for a name and a kind without saving anything', async () => {
+  it('asks for a name without saving anything', async () => {
     const user = userEvent.setup();
 
     renderApp('/');
@@ -235,10 +268,7 @@ describe('The «Новый список» sheet', () => {
     expect(within(sheet).getByRole('textbox', { name: 'Название' })).toHaveAccessibleDescription(
       'Заполните это поле',
     );
-    expect(within(sheet).getByRole('radiogroup', { name: 'Вид' })).toHaveAccessibleDescription(
-      'Выберите вариант',
-    );
-    expect(screen.getByRole('dialog', { name: 'Новый список' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Новый список покупок' })).toBeInTheDocument();
     expect(syncServer.operations('list')).toEqual([]);
   });
 
@@ -249,10 +279,9 @@ describe('The «Новый список» sheet', () => {
     renderApp('/');
     const sheet = await openSheet(user);
     await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Аптека');
-    await user.click(within(sheet).getByRole('radio', { name: 'Покупки' }));
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
-    const section = await listsSection();
+    const section = await homeSection();
     expect(
       await screen.findByText('Не удалось сохранить: список желаний всегда общий'),
     ).toBeInTheDocument();
@@ -273,7 +302,7 @@ describe('The List screen', () => {
     const user = userEvent.setup();
 
     const app = renderApp('/');
-    await user.click(await within(await listsSection()).findByRole('link', { name: /Мой список/ }));
+    await user.click(await screen.findByRole('link', { name: /Мой список/ }));
 
     expect(app.location()).toBe(`/lists/${opened.id}`);
     expect(
@@ -387,16 +416,19 @@ describe('The «Настройки списка» screen', () => {
     const user = userEvent.setup();
 
     renderApp('/');
-    await within(await listsSection()).findByText('Списков пока нет');
+    await listRows();
     syncServer.goOffline();
     await user.click(
-      await within(await listsSection()).findByRole('button', { name: 'Добавить список' }),
+      await within(await homeSection('TODO')).findByRole('button', {
+        name: 'Добавить TODO-список',
+      }),
     );
-    const sheet = screen.getByRole('dialog', { name: 'Новый список' });
+    const sheet = screen.getByRole('dialog', { name: 'Новый TODO-список' });
     await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Ремонт');
-    await user.click(within(sheet).getByRole('radio', { name: 'TODO' }));
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
-    await user.click(await within(await listsSection()).findByRole('link', { name: /Ремонт/ }));
+    await user.click(
+      await within(await homeSection('TODO')).findByRole('link', { name: /Ремонт/ }),
+    );
     await user.click(await screen.findByRole('link', { name: 'Настройки списка' }));
 
     expect(await screen.findByRole('button', { name: 'Удалить список' })).toBeInTheDocument();
@@ -416,7 +448,7 @@ describe('The «Настройки списка» screen', () => {
       await screen.findByText('Не удалось сохранить: это может сделать только владелец списка'),
     ).toBeInTheDocument();
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['СупермаркетПокупки0']);
+      expect(await listRows()).toEqual(['Покупки · Общий · Супермаркет0']);
     });
   });
 
@@ -436,7 +468,7 @@ describe('The «Настройки списка» screen', () => {
       expect(app.location()).toBe('/');
     });
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['АптекаПокупки0']);
+      expect(await listRows()).toEqual(['Покупки · Общий · Аптека0']);
     });
     await waitFor(() => {
       expect(syncServer.operations('list')).toEqual([
@@ -477,7 +509,7 @@ describe('The «Настройки списка» screen', () => {
     await user.click(screen.getByRole('link', { name: 'Семья' }));
     expect(app.location()).toBe('/');
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['АптекаПокупки0']);
+      expect(await listRows()).toEqual(['Покупки · Общий · Аптека0']);
     });
   });
 

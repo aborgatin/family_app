@@ -69,6 +69,13 @@ async function listRows() {
 }
 
 /** The Child page of Маша is open, after the first sync. */
+/** The text of each row of Home's «TODO» section, top to bottom. */
+async function homeTodoRows() {
+  return within(await screen.findByRole('region', { name: 'TODO' }))
+    .queryAllByRole('link')
+    .map((row) => row.textContent);
+}
+
 async function mashasPage() {
   const app = renderApp(`/children/${masha.id}`);
   await screen.findByRole('heading', { level: 1, name: 'Маша' });
@@ -116,14 +123,14 @@ describe('«Списки» on the Child page', () => {
   });
 });
 
-describe('«Списки» on Home', () => {
+describe('The Lists on Home', () => {
   it('leaves out the Lists of a Child', async () => {
     syncServer.seed('list', [school, wishes, chores]);
 
     renderApp('/');
 
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['Дела по домуTODO-список0']);
+      expect(await homeTodoRows()).toEqual(['Дела по дому0']);
     });
   });
 });
@@ -337,7 +344,7 @@ describe('The store upgrade that adds Child lists', () => {
     renderApp('/');
 
     await waitFor(async () => {
-      expect(await listRows()).toEqual(['Дела по домуTODO-список0']);
+      expect(await homeTodoRows()).toEqual(['Дела по дому0']);
     });
     await waitFor(() => {
       expect(syncServer.row('list', id)).toEqual({ id, name, kind, visibility });
