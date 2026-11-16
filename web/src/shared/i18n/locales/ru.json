@@ -470,7 +470,7 @@
     "conditions": "Диагнозы/наблюдения",
     "addCondition": "+ Добавить",
     "condition": "Диагноз/наблюдение",
-    "conditionPlaceholder": "Например: Астма, Зрение, Зубы",
+    "conditionPlaceholder": "Например: Зрение, Зубы",
     "lastEvent": "последнее: {{date}}",
     "ended": "Завершённые",
     "showEnded": "Показать",

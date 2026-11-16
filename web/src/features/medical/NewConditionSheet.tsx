@@ -22,7 +22,7 @@ interface NewConditionSheetProps {
 
 /**
  * «Диагноз/наблюдение»: a Condition added by hand, before it has any events. «Название» is
- * required («Например: Астма, Зрение, Зубы»); saved only with «Готово».
+ * required («Например: Зрение, Зубы»); saved only with «Готово».
  */
 export function NewConditionSheet({ id, add, onClose }: NewConditionSheetProps) {
   const { t } = useTranslation();

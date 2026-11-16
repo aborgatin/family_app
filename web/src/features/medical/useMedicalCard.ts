@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { deleteRow, upsertRow, upsertRows, useRows, type SyncedTable } from '@/shared/sync';
 import { positionAfterMove } from '@/shared/ui';
-import { conditionsInOrder, illnessesInOrder, lastAmount } from './illnessRules';
+import { conditionsInOrder, illnessesInOrder, lastAmount, positionsOf } from './illnessRules';
 import { isOn, type Illness, type IllnessEvent, type Person } from './medicalTypes';
 
 /** When an event happened, and its Description, as every event sheet saves them. */
@@ -51,6 +51,11 @@ interface Write {
   fields: Record<string, unknown>;
 }
 
+/** A new Condition's id, made on the device (S3) once when its sheet opens. */
+export function newConditionId(): string {
+  return crypto.randomUUID();
+}
+
 /**
  * One person's Medical card on the local store: the only data access of this feature. It reads
  * the local store and writes through the Outbox (S4), so it works the same offline.
@@ -72,7 +77,7 @@ interface Write {
  *   `removeEvent(event)`;
  * - `addCondition(id, name)`: a Condition (name trimmed), last; `moveCondition(condition, to)`: to index `to` of
  *   `conditions`, writing only its position; `changeKind(illness, kind)` (resolves with the kind): one
- *   turned into a Condition goes last; `end(illness, ended)`: «Завершить» (`true`) or «Возобновить» (`false`).
+ *   turned into a Condition goes last; `end(illness)`: «Завершить»; `resume(illness)`: «Возобновить».
  *   None of them touches the events.
  */
 export function useMedicalCard(person: Person) {
@@ -118,10 +123,8 @@ export function useMedicalCard(person: Person) {
 
   /** One past the last Condition's position (a Condition goes last); 1 for the first. */
   const nextPosition = useCallback(() => {
-    const positions = (sections?.all ?? [])
-      .filter(({ kind }) => kind === 'CONDITION')
-      .map(({ position }) => position ?? 0);
-    return positions.length === 0 ? 1 : Math.max(...positions) + 1;
+    const conditionsOnCard = (sections?.all ?? []).filter(({ kind }) => kind === 'CONDITION');
+    return Math.max(0, ...positionsOf(conditionsInOrder(conditionsOnCard))) + 1;
   }, [sections]);
 
   const cardEvents = useMemo(
@@ -228,11 +231,7 @@ export function useMedicalCard(person: Person) {
   const moveCondition = useCallback(
     async (condition: Illness, to: number) => {
       const order = conditions ?? [];
-      const position = positionAfterMove(
-        order.map((row, index) => row.position ?? index),
-        order.indexOf(condition),
-        to,
-      );
+      const position = positionAfterMove(positionsOf(order), order.indexOf(condition), to);
       if (position === undefined) return;
       await upsertRow('illness', condition.id, { position });
     },
@@ -252,7 +251,12 @@ export function useMedicalCard(person: Person) {
   );
 
   const end = useCallback(
-    (illness: Illness, ended: boolean) => upsertRow('illness', illness.id, { ended }),
+    (illness: Illness) => upsertRow('illness', illness.id, { ended: true }),
+    [],
+  );
+
+  const resume = useCallback(
+    (illness: Illness) => upsertRow('illness', illness.id, { ended: false }),
     [],
   );
 
@@ -265,6 +269,7 @@ export function useMedicalCard(person: Person) {
     moveCondition,
     changeKind,
     end,
+    resume,
     eventsOf,
     lastAmountOf,
     saveTemperature,

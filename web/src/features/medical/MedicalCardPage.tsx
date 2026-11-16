@@ -20,7 +20,7 @@ import { cardPath, illnessPath } from './medicalPaths';
 import type { Illness, IllnessEvent, Person } from './medicalTypes';
 import { LogSection } from './LogSection';
 import { NewConditionSheet } from './NewConditionSheet';
-import { useMedicalCard } from './useMedicalCard';
+import { newConditionId, useMedicalCard } from './useMedicalCard';
 
 interface MedicalCardPageProps {
   /** Path of Home: the way back from the Member's own card. */
@@ -91,7 +91,7 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
               accent
               title={t('medical.addCondition')}
               onClick={() => {
-                setAddingId(crypto.randomUUID());
+                setAddingId(newConditionId());
               }}
             />
           }
@@ -119,7 +119,7 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
           messages={[illnesses?.length === 0 && { text: t('medical.noIllnesses') }]}
         >
           {illnesses?.map((illness) => (
-            <CardRow
+            <IllnessOrConditionRow
               key={illness.id}
               person={person}
               illness={illness}
@@ -140,7 +140,7 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
           >
             {showingEnded &&
               ended.map((illness) => (
-                <CardRow
+                <IllnessOrConditionRow
                   key={illness.id}
                   person={person}
                   illness={illness}
@@ -176,7 +176,7 @@ function conditionSummary(t: TFunction, events: readonly IllnessEvent[]): string
  * An Illness or Condition on the card: its name, then «с 2 декабря · 4 события» for an Illness,
  * «последнее: 3 марта» for a Condition, or «Нет событий».
  */
-function CardRow({
+function IllnessOrConditionRow({
   person,
   illness,
   events,

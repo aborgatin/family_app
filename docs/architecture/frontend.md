@@ -857,12 +857,12 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   `position`), each the name and «последнее: 3 марта» (`medical.lastEvent`, the latest event's
   date, the year only when not this year) or «Нет событий», opening its screen; an accent
   «+ Добавить» (`after`) opens `NewConditionSheet` («Диагноз/наблюдение», «Название» required,
-  placeholder «Например: Астма, Зрение, Зубы»; the id made once when it opens), which adds it
+  placeholder «Например: Зрение, Зубы»; the id made once when it opens, `newConditionId()`), which adds it
   last. «Болезни» lists the Illnesses that aren't Ended, each a row with the name and «с 2 декабря
   · 4 события» (`medical.illnessSummary`, `medical.events_*` plurals; the year only when it isn't
   this year; «Нет событий» for an empty one), opening the Illness screen; «Болезней пока нет»
   with none. Last, while any is Ended, «Завершённые»: both kinds by latest event, newest first
-  (`illnessesInOrder`), rows as above (`CardRow` by kind), collapsed on every visit: the header's
+  (`illnessesInOrder`), rows as above (`IllnessOrConditionRow` by kind), collapsed on every visit: the header's
   «Показать» / «Скрыть» (`action` with `expanded`) shows or hides them.
 - **Illness screen** (`IllnessPage`, `…/illnesses/:illnessId`, back «Медкарта»), an Illness's or
   a Condition's, Ended or not (it looks one up in `all`): titled with the
@@ -876,7 +876,8 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   `useMedicines().nameOf`, a deleted one's too), untimed «38,5 °C», a Note its title («Сходили к
   доктору», «21:00 · …» when timed), the Description under it. Each row is a button opening the
   event's sheet (`EditEventSheet`). Then «Тип» (#132): a `SegmentedControl` «Болезнь» /
-  «Диагноз/наблюдение» under a section header (`labelHidden`, so the long segment fits a phone),
+  «Диагноз/наблюдение» in its own `GroupedSection` headed «Тип» (the control's own label
+  `labelHidden`, so the long segment fits a phone),
   auto-saved on tap (`useAutoSaveChoice`, `changeKind`); and, with «Удалить», «Завершить» or
   «Возобновить» (an accent `ListRow`, `end`). An Ended one keeps every row and sheet. Last, «Удалить» (`ConfirmRow`) asks «Удалить «ОРВИ»?» with
   «Вместе с ней удалятся 6 событий.» (`medical.deleteIllnessEvents_*`; no message without events),
@@ -895,8 +896,9 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   amount, no «как в прошлый раз»), no «Добавить к». «Готово» saves through the same `save…`,
   the `EventPlace` carrying the event's id (`EventSheet` adds it), so only the changed fields are
   sent. «Перенести в…» (an accent `ListRow`) opens
-  an `ActionSheet` of the person's other Illnesses and Conditions that aren't Ended (from any
-  screen, an Ended one's included) and «Новая болезнь» (named
+  an `ActionSheet` of the person's other Illnesses and Conditions that aren't Ended (never an Ended
+  one, spec D15, so nothing is moved into one; an Ended one's own events can still be moved out)
+  and «Новая болезнь» (named
   after the event's date); a choice checks and saves the sheet into that Illness (a new one in
   the same Outbox batch). «Удалить» asks «Удалить событие?», then deletes it.
 - **Note sheet** (`NoteEventSheet`, «Заметка», #131; identifiers and i18n keys say «Note event»,
@@ -930,7 +932,7 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   `illnessToJoin` (the not-Ended ILLNESS with the latest event, if that is at or after now − 48 h);
   `illnessesInOrder` (latest event, newest first; an empty one by `createdAt`, or now before the
   pull brings it); `eventsInOrder` (date newest first, timed ones latest first, then untimed);
-  `conditionsInOrder` (`position`, one without last, ties by id); `firstDay`, `lastDay`;
+  `conditionsInOrder` (`position`, one without last, ties by id); `positionsOf`; `firstDay`, `lastDay`;
   `formatTemperature(t, value)` («38,5 °C», `medical.temperatureValue`, the decimal
   comma from `Intl.NumberFormat('ru')`); `lastAmount(events, medicineId)`: the amount of the
   latest dose of it by its own date and time (00:00 without one), the higher `version` on a tie
@@ -938,15 +940,15 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   change it. The new Illness's name is «Болезнь » + the event's
   date as «2 декабря 2026» (`medical.newIllnessName`, `longDay` from `@/shared/dates`).
 - **Data**: `useMedicalCard(person)` → `{all, conditions, illnesses, ended, addCondition(id,
-  name), moveCondition(condition, to), changeKind(illness, kind), end(illness, ended),
+  name), moveCondition(condition, to), changeKind(illness, kind), end(illness), resume(illness),
   eventsOf(illnessId), lastAmountOf(medicineId),
   saveTemperature(place, details), saveDose(…), saveNoteEvent(…), rename(illness, name),
   describe(illness, description), removeIllness(illness), removeEvent(event)}` on
   `useRows('illness')` and `useRows('illness_event')`; `all` (every row on the card),
   `conditions`, `illnesses` and `ended` (the sections) are `undefined` until both are read. A
   Condition added or switched to goes one past the largest `position` of the card's Conditions
-  (1 for the first); `moveCondition` writes only the `position` (`positionAfterMove`); `end` only
-  `ended`; `lastAmountOf` looks at every event on the card (any Illness or Condition). The `save…`
+  (1 for the first); `moveCondition` writes only the `position` (`positionAfterMove` over `positionsOf`, where one without a `position` counts as one past
+  the one before it); `end` and `resume` write only `ended`; `lastAmountOf` looks at every event on the card (any Illness or Condition). The `save…`
   add the event to `{illnessId}`, or, for `{newIllnessName}` (an `IllnessChoice`), create the Illness
   (`memberId` or `childId`, `kind`, `name`) and the event in one Outbox batch (`upsertRows`); a
   dose of `{newMedicineName}` (a `MedicineChoice`) puts the Medicine first in that batch. They

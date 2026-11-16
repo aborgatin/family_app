@@ -95,9 +95,14 @@ class Illness implements SyncedRecord {
     this.kind = kind;
   }
 
-  /** Ends it («Завершить»), or resumes it («Возобновить») with {@code false}. */
-  void end(boolean ended) {
-    this.ended = ended;
+  /** Ends it («Завершить»): it moves to «Завершённые»; its events and who sees it stay. */
+  void end() {
+    this.ended = true;
+  }
+
+  /** Resumes an Ended one («Возобновить»). */
+  void resume() {
+    this.ended = false;
   }
 
   /** Its place among the card's Conditions. */

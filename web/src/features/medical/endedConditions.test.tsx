@@ -134,7 +134,7 @@ describe('«Диагнозы/наблюдения» on the card', () => {
     await user.click(screen.getByRole('button', { name: '+ Добавить' }));
     const sheet = await screen.findByRole('dialog', { name: 'Диагноз/наблюдение' });
     const name = within(sheet).getByRole('textbox', { name: 'Название' });
-    expect(name).toHaveAttribute('placeholder', 'Например: Астма, Зрение, Зубы');
+    expect(name).toHaveAttribute('placeholder', 'Например: Зрение, Зубы');
     await user.type(name, '  Астма ');
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
@@ -185,6 +185,31 @@ describe('Reordering Conditions', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('moves a Condition among ones without a position (they sort last) between its neighbours', async () => {
+    const vision = conditionRow(me, 'Зрение', 1);
+    const teeth = { ...conditionRow(me, 'Зубы', 2), position: null };
+    const asthma = { ...conditionRow(me, 'Астма', 3), position: null };
+    syncServer.seed('illness', [vision, teeth, asthma]);
+    const user = userEvent.setup();
+    await annasCard();
+    await screen.findByText('Астма');
+    // The two without a position go last, by id.
+    const [, , last] = [vision, ...[teeth, asthma].sort((a, b) => a.id.localeCompare(b.id))];
+
+    const section = screen.getByRole('region', { name: 'Диагнозы/наблюдения' });
+    await user.click(within(section).getByRole('button', { name: 'Изменить' }));
+    within(section)
+      .getByRole('button', { name: `Переместить «${last?.name ?? ''}»` })
+      .focus();
+    await user.keyboard('[Space][ArrowUp][Space]');
+
+    await waitFor(() => {
+      expect(syncServer.operations('illness')).toEqual([
+        { table: 'illness', id: last?.id, op: 'upsert', fields: { position: 1.5 } },
+      ]);
+    });
   });
 
   it('moves a Condition with the drag handle in «Изменить», sending only its position', async () => {

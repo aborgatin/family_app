@@ -60,8 +60,7 @@ class IllnessService implements SyncableTable {
     FieldErrors errors = new FieldErrors();
     UUID memberId = errors.uuid("memberId", operation.text("memberId"));
     UUID childId = errors.uuid("childId", operation.text("childId"));
-    Illness.Kind kind =
-        errors.requiredChoice("kind", operation.text("kind"), Illness.Kind.values());
+    Illness.Kind kind = kindOf(operation, errors);
     String name = operation.trimmedText("name");
     if (name == null) {
       errors.add("name", FieldErrors.REQUIRED);
@@ -98,39 +97,41 @@ class IllnessService implements SyncableTable {
     return Outcome.APPLIED;
   }
 
+  /** The {@code kind} it carries, required: {@code ILLNESS} or {@code CONDITION}. */
+  private static Illness.Kind kindOf(Operation operation, FieldErrors errors) {
+    return errors.requiredChoice("kind", operation.text("kind"), Illness.Kind.values());
+  }
+
   private Outcome edit(Operation operation, Illness illness) {
-    if (operation.has("name")) {
-      FieldErrors errors = new FieldErrors();
-      String name = operation.trimmedText("name");
-      if (name == null) {
-        errors.add("name", FieldErrors.REQUIRED);
-      }
-      errors.throwIfAny();
+    FieldErrors errors = new FieldErrors();
+    String name = operation.has("name") ? operation.trimmedText("name") : null;
+    if (operation.has("name") && name == null) {
+      errors.add("name", FieldErrors.REQUIRED);
+    }
+    Illness.Kind kind = operation.has("kind") ? kindOf(operation, errors) : null;
+    Boolean ended = operation.has("ended") ? operation.bool("ended") : null;
+    if (operation.has("ended") && ended == null) {
+      errors.add("ended", FieldErrors.REQUIRED);
+    }
+    Double position = operation.number("position");
+    errors.throwIfAny();
+    if (name != null) {
       illness.rename(name);
     }
     if (operation.has("description")) {
       illness.describe(operation.trimmedText("description"));
     }
-    FieldErrors errors = new FieldErrors();
-    if (operation.has("kind")) {
-      Illness.Kind kind =
-          errors.requiredChoice("kind", operation.text("kind"), Illness.Kind.values());
-      if (kind != null) {
-        illness.changeKind(kind);
-      }
+    if (kind != null) {
+      illness.changeKind(kind);
     }
-    if (operation.has("ended")) {
-      Boolean ended = operation.bool("ended");
-      if (ended == null) {
-        errors.add("ended", FieldErrors.REQUIRED);
-      } else {
-        illness.end(ended);
-      }
+    if (Boolean.TRUE.equals(ended)) {
+      illness.end();
+    } else if (Boolean.FALSE.equals(ended)) {
+      illness.resume();
     }
     if (operation.has("position")) {
-      illness.moveTo(operation.number("position"));
+      illness.moveTo(position);
     }
-    errors.throwIfAny();
     illnesses.saveAndFlush(illness);
     return Outcome.APPLIED;
   }

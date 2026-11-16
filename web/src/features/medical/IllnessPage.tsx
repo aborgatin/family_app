@@ -50,7 +50,7 @@ function IllnessScreen({ person }: { person: Person }) {
   const { illnessId } = useParams();
   const card = useMedicalCard(person);
   const navigate = useNavigate();
-  const { all, eventsOf, rename, describe, removeIllness, changeKind, end } = card;
+  const { all, eventsOf, rename, describe, removeIllness, changeKind, end, resume } = card;
   const { nameOf } = useMedicines();
   const illness = all?.find(({ id }) => id === illnessId);
   const back = { to: cardPath(person), title: t('medical.title') };
@@ -111,6 +111,7 @@ function IllnessScreen({ person }: { person: Person }) {
           illness={illness}
           changeKind={changeKind}
           end={end}
+          resume={resume}
           confirmDelete={{
             title: t('medical.confirmDeleteIllness', { name: illness.name }),
             ...(events.length > 0 && {
@@ -139,13 +140,14 @@ function IllnessScreen({ person }: { person: Person }) {
   );
 }
 
-interface IllnessActionsProps {
+type IllnessActionsProps = Pick<
+  ReturnType<typeof useMedicalCard>,
+  'changeKind' | 'end' | 'resume'
+> & {
   illness: Illness;
-  changeKind: (illness: Illness, kind: Illness['kind']) => Promise<Illness['kind']>;
-  end: (illness: Illness, ended: boolean) => Promise<unknown>;
   confirmDelete: { title: string; message?: string; action: string };
   onDelete: () => void;
-}
+};
 
 /**
  * «Тип»: «Болезнь» / «Диагноз/наблюдение» (auto-saved on tap, the segments the whole row so the
@@ -155,6 +157,7 @@ function IllnessActions({
   illness,
   changeKind,
   end,
+  resume,
   confirmDelete,
   onDelete,
 }: IllnessActionsProps) {
@@ -184,7 +187,7 @@ function IllnessActions({
         <ListRow
           title={illness.ended === true ? t('medical.resume') : t('medical.end')}
           accent
-          onClick={() => void end(illness, illness.ended !== true)}
+          onClick={() => void (illness.ended === true ? resume(illness) : end(illness))}
         />
         <ConfirmRow title={t('ui.delete')} confirm={confirmDelete} onConfirm={onDelete} />
       </GroupedSection>

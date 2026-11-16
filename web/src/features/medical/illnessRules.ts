@@ -70,6 +70,18 @@ export function conditionsInOrder(conditions: readonly Illness[]): Illness[] {
   );
 }
 
+/**
+ * The positions of Conditions in order (`conditionsInOrder`), for `positionAfterMove`: one without
+ * a position (it sorts last) counts as one past the one before it, so the numbers keep the order.
+ */
+export function positionsOf(conditions: readonly Illness[]): number[] {
+  const positions: number[] = [];
+  for (const { position } of conditions) {
+    positions.push(position ?? (positions.at(-1) ?? 0) + 1);
+  }
+  return positions;
+}
+
 /** Events by date, newest first; within a day, timed ones (latest first) before untimed ones. */
 export function eventsInOrder(events: readonly IllnessEvent[]): IllnessEvent[] {
   return [...events].sort((a, b) => {
