@@ -139,7 +139,7 @@ describe('The dose sheet', () => {
     expect(within(sheet).getByRole('textbox', { name: 'Описание' })).toBeInTheDocument();
   });
 
-  it('shows «—» on the temperature wheel until it is turned, then 34,0–43,0 from 37,0', async () => {
+  it('shows «—», placed between 36,9 and 37,0, until the wheel is turned one step to 37,0', async () => {
     const user = userEvent.setup();
 
     const sheet = await openDoseSheetFromCard(user);
@@ -151,7 +151,7 @@ describe('The dose sheet', () => {
     expect(options).toHaveLength(92);
     expect(options[0]).toBe('34,0 °C');
     expect(options.at(-1)).toBe('43,0 °C');
-    // The wheel turns from «—» straight to 37,0 (one step down) or 36,9 (one step up).
+    // «—» sits between 36,9 and 37,0, not above 34,0: one turn down lands on 37,0, one up on 36,9.
     expect(options.slice(29, 32)).toEqual(['36,9 °C', '—', '37,0 °C']);
   });
 
