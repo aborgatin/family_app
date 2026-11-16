@@ -26,6 +26,7 @@ import { syncServer } from '@/test/syncServer';
 const NOW = new Date('2026-12-02T22:00:00');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const PDF_BYTES = new TextEncoder().encode('%PDF-1.7 Анализ крови');
+const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16]);
 /** The Cache Storage cache opened files are kept in. */
 const FILE_CACHE = 'family-app-documents';
 
@@ -223,27 +224,59 @@ describe('Adding a Document', () => {
 });
 
 describe('Opening a Document', () => {
-  it('shows the file full screen, and again offline from the device', async () => {
-    const analysis = documentRow({ memberId: anna.id }, 'Анализ крови', '2026-11-20');
-    syncServer.seed('document', [analysis]);
+  it('shows a photo full screen, and again offline from the device', async () => {
+    const photo = documentRow({ memberId: anna.id }, 'Рецепт', '2026-11-20', {
+      contentType: 'image/jpeg',
+    });
+    syncServer.seed('document', [photo]);
     const documents = documentsServer();
-    documents.keep(analysis, PDF_BYTES);
+    documents.keep(photo, JPEG_BYTES);
     const user = userEvent.setup();
     const app = renderApp('/medical/documents');
 
-    await user.click(await screen.findByRole('link', { name: /Анализ крови/ }));
+    await user.click(await screen.findByRole('link', { name: /Рецепт/ }));
 
-    expect(app.location()).toBe(`/medical/documents/${analysis.id}`);
-    expect(await screen.findByTitle('Анализ крови')).toBeInTheDocument();
-    expect(documents.fileRequests).toEqual([analysis.id]);
+    expect(app.location()).toBe(`/medical/documents/${photo.id}`);
+    expect(await screen.findByRole('img', { name: 'Рецепт' })).toHaveAttribute(
+      'src',
+      expect.stringMatching(/^blob:/),
+    );
+    expect(documents.fileRequests).toEqual([photo.id]);
     expect(fakeCaches.urls(FILE_CACHE)).toHaveLength(1);
 
     app.unmount();
     renderApp('/medical/documents', { offline: true });
+    await user.click(await screen.findByRole('link', { name: /Рецепт/ }));
+
+    expect(await screen.findByRole('img', { name: 'Рецепт' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(documents.fileRequests).toEqual([photo.id]);
+  });
+
+  // An iPhone shows only the first page of a PDF embedded in a page: a PDF opens in a window of
+  // its own, from the downloaded copy, where the browser's viewer shows every page.
+  it('opens a PDF in a window of its own, also offline', async () => {
+    const analysis = documentRow({ memberId: anna.id }, 'Анализ крови', '2026-11-20');
+    syncServer.seed('document', [analysis]);
+    const documents = documentsServer();
+    documents.keep(analysis, PDF_BYTES);
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const user = userEvent.setup();
+    const app = renderApp('/medical/documents');
     await user.click(await screen.findByRole('link', { name: /Анализ крови/ }));
 
-    expect(await screen.findByTitle('Анализ крови')).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Открыть PDF' }));
+
+    expect(open).toHaveBeenCalledWith(expect.stringMatching(/^blob:/), '_blank');
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(documents.fileRequests).toEqual([analysis.id]);
+
+    app.unmount();
+    renderApp('/medical/documents', { offline: true });
+    await user.click(await screen.findByRole('link', { name: /Анализ крови/ }));
+    await user.click(await screen.findByRole('button', { name: 'Открыть PDF' }));
+
+    expect(open).toHaveBeenCalledTimes(2);
     expect(documents.fileRequests).toEqual([analysis.id]);
   });
 
@@ -267,7 +300,7 @@ describe('Opening a Document', () => {
     const user = userEvent.setup();
     const app = renderApp('/medical/documents');
     await user.click(await screen.findByRole('link', { name: /Анализ крови/ }));
-    await screen.findByTitle('Анализ крови');
+    await screen.findByRole('button', { name: 'Открыть PDF' });
     expect(fakeCaches.cacheNames()).toContain(FILE_CACHE);
     app.unmount();
 
@@ -320,10 +353,10 @@ describe('Editing and deleting a Document', () => {
     const user = userEvent.setup();
     const app = renderApp('/medical/documents');
     await user.click(await screen.findByRole('link', { name: /Выписка/ }));
-    await screen.findByTitle('Выписка');
+    await screen.findByRole('button', { name: 'Открыть PDF' }); // «Выписка» is open
     await user.click(screen.getByRole('link', { name: 'Документы' }));
     await user.click(await screen.findByRole('link', { name: /Анализ крови/ }));
-    await screen.findByTitle('Анализ крови');
+    await screen.findByRole('button', { name: 'Открыть PDF' }); // «Анализ крови» is open
     expect(fakeCaches.urls(FILE_CACHE)).toHaveLength(2);
 
     await user.click(screen.getByRole('button', { name: 'Изменить' }));
@@ -355,7 +388,7 @@ describe('Editing and deleting a Document', () => {
     const user = userEvent.setup();
     const app = renderApp('/medical/documents');
     await user.click(await screen.findByRole('link', { name: /Анализ крови/ }));
-    await screen.findByTitle('Анализ крови');
+    await screen.findByRole('button', { name: 'Открыть PDF' }); // «Анализ крови» is open
     app.unmount();
     syncServer.change('document', analysis.id, 'deleted');
 

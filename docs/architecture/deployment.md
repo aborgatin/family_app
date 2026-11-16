@@ -276,7 +276,7 @@ whatever `latest` the server cached last, which may predate the command and star
 `VAPID_SUBJECT=mailto:<your email>`. Keep the pair: browsers subscribe with the public key, so a new
 pair silently stops every existing subscription until each device subscribes again. The private
 key is a secret, like `POSTGRES_PASSWORD`. Local runs and the image tests use the fixed, non-secret
-pair in `scripts/lib/dev-vapid-keys.env`, never in production.
+pair in `scripts/lib/dev-secrets.env`, never in production.
 
 ## Backups
 

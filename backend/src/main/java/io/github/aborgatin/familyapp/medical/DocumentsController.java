@@ -1,21 +1,27 @@
 package io.github.aborgatin.familyapp.medical;
 
+import io.github.aborgatin.familyapp.error.ApiError;
 import io.github.aborgatin.familyapp.family.Members;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -65,14 +71,36 @@ class DocumentsController {
     return ResponseEntity.status(HttpStatus.CREATED).body(DocumentResponse.of(document));
   }
 
-  /** The Document's file, decrypted, with the content type it was found to have. */
+  /**
+   * The Document's file, decrypted, with the content type it was found to have. As an attachment,
+   * so a browser that opens this URL itself downloads the file rather than showing it as a page of
+   * the site; never kept by a cache ({@code no-store}). Spring Security adds {@code
+   * X-Content-Type-Options: nosniff}.
+   */
   @GetMapping("/{id}/file")
   ResponseEntity<byte[]> file(@PathVariable UUID id) {
     DocumentService.File file = documents.file(members.current().id(), id);
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType(file.contentType()))
+        .header(
+            HttpHeaders.CONTENT_DISPOSITION,
+            ContentDisposition.attachment()
+                .filename(file.name(), StandardCharsets.UTF_8)
+                .build()
+                .toString())
         .cacheControl(CacheControl.noStore())
         .body(file.bytes());
+  }
+
+  /**
+   * A file over the multipart limit ({@code spring.servlet.multipart}, 20 MB), found while the body
+   * is read: the body is read lazily, when the {@code file} argument is resolved, so this handler
+   * sees it.
+   */
+  @ExceptionHandler(MaxUploadSizeExceededException.class)
+  ResponseEntity<ApiError> tooLarge(MaxUploadSizeExceededException ex) {
+    return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+        .body(ApiError.of("document.too_large"));
   }
 
   private static DocumentService.UploadedFile uploaded(MultipartFile file) {

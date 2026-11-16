@@ -98,7 +98,7 @@ BACKUP_RETENTION_DAYS=90
 BACKUP_TIME=03:30
 TZ=Europe/Berlin
 EOF
-  cat "$deploy_dir/../scripts/lib/dev-vapid-keys.env" >>"$work/.env"
+  cat "$deploy_dir/../scripts/lib/dev-secrets.env" >>"$work/.env"
 }
 
 # Files in one folder on the SFTP server, as stored (encrypted dumps end in .bin).

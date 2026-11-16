@@ -17,12 +17,16 @@ spring:
     jdbc:
       # The tables come from Flyway (V1).
       initialize-schema: never
-  # Document uploads (spec #128): a file up to 20 MB, checked by DocumentService
-  # (document.too_large). The limits here only stop a far larger request early.
+  # Document uploads (spec #128): a file up to 20 MB. The file's limit is checked while the body
+  # is read (document.too_large, DocumentsController); a body far over it is refused from its
+  # Content-Length before it is read. Parts stay in memory up to the limit, so an uploaded file is
+  # never written in plaintext to the temporary folder: only DocumentFiles stores it, encrypted.
   servlet:
     multipart:
-      max-file-size: 25MB
-      max-request-size: 26MB
+      max-file-size: 20MB
+      max-request-size: 22MB
+      file-size-threshold: 22MB
+      resolve-lazily: true
 
 # Push messages (spec #104). The VAPID key pair and subject are required: an empty value stops the
 # app at startup with a message naming the variable (NotificationsProperties). Generate a pair

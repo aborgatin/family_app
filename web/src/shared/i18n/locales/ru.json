@@ -402,7 +402,8 @@
     "medicineDuplicate": "Такое лекарство уже есть",
     "documentTooLarge": "Файл больше 20 МБ",
     "documentUnsupportedType": "Можно прикрепить PDF или фото",
-    "documentFileMissing": "Файл недоступен"
+    "documentFileMissing": "Файл недоступен",
+    "documentEventHasDocument": "К этой записи уже прикреплён документ"
   },
   "ui": {
     "saving": "Сохраняем…",
@@ -425,7 +426,9 @@
     },
     "suggestions": "Подсказки",
     "removeSuggestion": "Удалить подсказку „{{name}}“",
-    "addDescription": "Добавить описание"
+    "addDescription": "Добавить описание",
+    "openPdf": "Открыть PDF",
+    "pdfOpensApart": "PDF откроется в отдельном окне, со всеми страницами"
   },
   "medical": {
     "title": "Медкарта",

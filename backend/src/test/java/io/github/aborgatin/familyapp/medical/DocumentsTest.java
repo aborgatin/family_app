@@ -4,8 +4,12 @@ import static io.github.aborgatin.familyapp.MedicalOperations.illnessOf;
 import static io.github.aborgatin.familyapp.MedicalOperations.temperature;
 import static io.github.aborgatin.familyapp.SyncRequests.pushApplied;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -120,6 +124,51 @@ class DocumentsTest {
         .containsEntry("contentType", "application/pdf")
         .containsEntry("size", PDF.length)
         .doesNotContainKey("file");
+  }
+
+  @Test
+  void theFileIsNeitherRenderedOnTheSiteNorKeptByASharedCache() throws Exception {
+    UUID id = UUID.randomUUID();
+    upload(anna, form(id, "childId", masha), pdf()).andExpect(status().isCreated());
+
+    anna.get("/api/documents/" + id + "/file")
+        .andExpect(status().isOk())
+        .andExpect(content().contentType("application/pdf"))
+        .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+        .andExpect(header().string("Cache-Control", "no-store"))
+        .andExpect(
+            header()
+                .string(
+                    "Content-Disposition",
+                    allOf(
+                        startsWith("attachment;"),
+                        endsWith(
+                            "filename*=UTF-8''%D0%90%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7%20"
+                                + "%D0%BA%D1%80%D0%BE%D0%B2%D0%B8.pdf"))));
+  }
+
+  @Test
+  void anIllnessEventCarriesOneDocumentAtMost() throws Exception {
+    UUID illness = UUID.randomUUID();
+    UUID event = UUID.randomUUID();
+    pushApplied(
+        anna,
+        illnessOf("childId", masha, illness, "ОРВИ"),
+        temperature(event, illness, "2026-12-02", "22:00", 38.5));
+    Map<String, String> first = form(UUID.randomUUID(), "childId", masha);
+    first.put("illnessEventId", event.toString());
+    upload(anna, first, pdf()).andExpect(status().isCreated());
+    UUID second = UUID.randomUUID();
+    Map<String, String> another = form(second, "childId", masha);
+    another.put("illnessEventId", event.toString());
+
+    upload(boris, another, pdf())
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("document.event_has_document"))
+        .andExpect(jsonPath("$.params.illnessEventId").value(event.toString()));
+
+    assertThat(files.keys()).hasSize(1);
+    assertThat(SyncRequests.fields(anna, DOCUMENT, second)).isNull();
   }
 
   @Test

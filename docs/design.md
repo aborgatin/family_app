@@ -208,7 +208,7 @@ navigating.
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
 `check` (the chosen colour), `chevron`, `clear` (a circled ×), `description` (left-aligned lines, `AddRow`'s «Добавить описание»), `home`, `minus` (edit mode's ⊖),
-`expand` (a small ⌄ on a `MenuChip`), `offline` (crossed globe), `private` (a lock: a Private List), `reorder` (≡, a drag handle), `settings`, `shared` (two people: a Shared List), `spinner`; a new icon is added to the
+`expand` (a small ⌄ on a `MenuChip`), `file` (a page with lines: a PDF in `FileViewer`), `offline` (crossed globe), `private` (a lock: a Private List), `reorder` (≡, a drag handle), `settings`, `shared` (two people: a Shared List), `spinner`; a new icon is added to the
 map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
 colour, or `secondary-label` with `secondary`; default size 22px.
 
@@ -348,10 +348,12 @@ turns red. Like a `ListRow` in height and hover.
 
 A file full screen (#133, a Document): a slim nav bar (back link, the title as the screen's `h1`
 in the centre, `actions` such as «Изменить», the offline indicator), then the file filling the
-rest of the window: a PDF in an `iframe`, so the browser's own viewer zooms, scrolls, shares and
-prints it; a photo as an `img` fitted inside (`object-contain`). Instead of the file, `message`
-shows a loading `status` or an `alert` («Файл недоступен») as an `EmptyState`. No large title:
-the file gets the room.
+rest of the window: a photo as an `img` fitted inside (`object-contain`). A PDF is not embedded
+(an iPhone shows only the first page of an embedded PDF): an `EmptyState` with the `file` icon,
+«PDF откроется в отдельном окне, со всеми страницами» and a `primary` «Открыть PDF», which opens
+the file in a window of its own, where the browser's viewer zooms, scrolls, shares and prints every
+page. Instead of the file, `message` shows a loading `status` or an `alert` («Файл недоступен») as
+an `EmptyState`. No large title: the file gets the room.
 
 ### Sheet
 

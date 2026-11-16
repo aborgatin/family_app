@@ -27,6 +27,7 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   'document.too_large': 'errors.documentTooLarge',
   'document.unsupported_type': 'errors.documentUnsupportedType',
   'document.file_missing': 'errors.documentFileMissing',
+  'document.event_has_document': 'errors.documentEventHasDocument',
   'validation.failed': 'errors.validationFailed',
 };
 

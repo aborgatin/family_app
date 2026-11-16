@@ -138,8 +138,8 @@ trap 'exit 130' INT TERM
 echo "dev.sh: starting the backend (log: $backend_log)"
 # The local-only keys the app requires (VAPID, Document encryption).
 set -a
-# shellcheck source=lib/dev-vapid-keys.env
-source "$root/scripts/lib/dev-vapid-keys.env"
+# shellcheck source=lib/dev-secrets.env
+source "$root/scripts/lib/dev-secrets.env"
 set +a
 # Document files go to a folder next to the dev database's backups, shared by every checkout as
 # the dev database is (production stores them in R2).

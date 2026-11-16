@@ -11,16 +11,19 @@ import org.springframework.context.annotation.Primary;
 /**
  * The file store for tests (spec #128 "File store port"): objects in a map. A test reads what was
  * stored ({@link #object}), loses an object as a provider could ({@link #lose}), and makes deletes
- * fail ({@link #failDeletes}). Import {@link Config} and call {@link #reset} in
- * {@code @BeforeEach}: the context is shared.
+ * fail ({@link #failDeletes}), and looks around while an upload is being stored ({@link
+ * #whilePutting}). Import {@link Config} and call {@link #reset} in {@code @BeforeEach}: the
+ * context is shared.
  */
 final class InMemoryFileStore implements FileStore {
 
   private final Map<String, byte[]> objects = new ConcurrentHashMap<>();
   private volatile boolean failingDeletes;
+  private volatile Runnable onPut = () -> {};
 
   @Override
   public void put(String key, byte[] bytes) {
+    onPut.run();
     objects.put(key, bytes.clone());
   }
 
@@ -57,9 +60,15 @@ final class InMemoryFileStore implements FileStore {
     failingDeletes = true;
   }
 
+  /** From now on, runs {@code check} in every put, while the upload's request is still open. */
+  void whilePutting(Runnable check) {
+    onPut = check;
+  }
+
   void reset() {
     objects.clear();
     failingDeletes = false;
+    onPut = () -> {};
   }
 
   /** Puts an {@code InMemoryFileStore} in the context, in place of the configured store. */

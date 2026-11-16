@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Button } from './Button';
 import { EmptyState } from './EmptyState';
 import { Link } from './Link';
 import { OfflineIndicator, useRegisterNavBar } from './OfflineIndicator';
@@ -12,8 +14,9 @@ interface FileViewerProps {
   /** The bar's trailing slot, e.g. «Изменить». */
   actions?: ReactNode;
   /**
-   * The file to show: an object URL and its content type. A PDF shows in the browser's own PDF
-   * viewer, an image fitted to the screen.
+   * The file to show: an object URL and its content type. An image is fitted to the screen. A PDF
+   * opens in a window of its own («Открыть PDF»), where the browser's viewer shows every page: an
+   * iPhone shows only the first page of a PDF embedded in a page.
    */
   file?: { url: string; contentType: string };
   /** Instead of the file: a loading message (`status`) or why it can't be shown (`alert`). */
@@ -26,6 +29,7 @@ interface FileViewerProps {
  * printing work.
  */
 export function FileViewer({ title, back, actions, file, message }: FileViewerProps) {
+  const { t } = useTranslation();
   useRegisterNavBar();
   return (
     <div className="flex h-dvh flex-col bg-background">
@@ -49,7 +53,21 @@ export function FileViewer({ title, back, actions, file, message }: FileViewerPr
         ) : file.contentType.startsWith('image/') ? (
           <img src={file.url} alt={title} title={title} className="min-h-0 flex-1 object-contain" />
         ) : (
-          <iframe src={file.url} title={title} className="min-h-0 w-full flex-1 bg-cell" />
+          <EmptyState
+            icon="file"
+            action={
+              <Button
+                variant="primary"
+                onClick={() => {
+                  window.open(file.url, '_blank');
+                }}
+              >
+                {t('ui.openPdf')}
+              </Button>
+            }
+          >
+            {t('ui.pdfOpensApart')}
+          </EmptyState>
         )}
       </main>
     </div>

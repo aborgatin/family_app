@@ -77,9 +77,12 @@ class DocumentService implements SyncableTable {
     byte[] bytes();
   }
 
-  /** A Document's file as the download returns it. */
+  /**
+   * A Document's file as the download returns it: its content type, a file name (the title with the
+   * type's extension) and the bytes.
+   */
   @SuppressWarnings("ArrayRecordComponent") // Never compared: handed straight to the response.
-  record File(String contentType, byte[] bytes) {}
+  record File(String contentType, String name, byte[] bytes) {}
 
   /**
    * Adds a Document to a card: checks the fields, that the uploader sees the card (and the Illness
@@ -154,7 +157,8 @@ class DocumentService implements SyncableTable {
 
   /**
    * Whether the uploader may add a Document to the person's card: their own, or a Child's that is
-   * there; and the Illness event, when given, is one on that card that is there.
+   * there; and the Illness event, when given, is one on that card that is there and carries no
+   * Document yet ({@code document.event_has_document}: replacing one is ticket #134's).
    */
   private void checkCard(Person person, UUID uploader, @Nullable UUID illnessEventId) {
     if (person.memberId() != null && !person.visibleTo(uploader)) {
@@ -171,6 +175,12 @@ class DocumentService implements SyncableTable {
             .filter(illness -> !illness.deleted() && illness.person().equals(person))
             .isEmpty()) {
       throw Person.notFound("illnessEventId", illnessEventId);
+    }
+    if (illnessEventId != null && documents.existsByIllnessEventIdAndDeletedFalse(illnessEventId)) {
+      throw new ApiException(
+          HttpStatus.CONFLICT,
+          "document.event_has_document",
+          Map.of("illnessEventId", illnessEventId.toString()));
     }
   }
 
@@ -194,7 +204,8 @@ class DocumentService implements SyncableTable {
                         HttpStatus.NOT_FOUND,
                         "document.file_missing",
                         Map.of("documentId", id.toString())));
-    return new File(document.contentType(), bytes);
+    String name = document.details().title() + DocumentType.extension(document.contentType());
+    return new File(document.contentType(), name, bytes);
   }
 
   private static ApiException notFound(UUID id) {

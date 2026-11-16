@@ -16,6 +16,9 @@ interface DocumentRepository extends Repository<Document, UUID> {
   /** Including soft-deleted ones, so an operation can tell "deleted" from "new". */
   Optional<Document> findById(UUID id);
 
+  /** Whether the Illness event already carries a Document (at most one, the unique index). */
+  boolean existsByIllnessEventIdAndDeletedFalse(UUID illnessEventId);
+
   /** Every Document written after this Version, deleted ones included (for the pull). */
   List<Document> findByVersionGreaterThan(long version);
 

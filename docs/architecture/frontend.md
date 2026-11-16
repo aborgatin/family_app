@@ -975,11 +975,16 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   «Готово» checks the file (none: «Выберите файл»; over 20 MB: «Файл больше 20 МБ», before
   uploading), then uploads; offline it says «Нужен интернет, чтобы прикрепить файл» and keeps the
   sheet; the server's `document.too_large` and `document.unsupported_type` show as «Файл больше 20
-  МБ» and «Можно прикрепить PDF или фото» (`ERROR_KEYS`). `DocumentPage`
-  (`…/documents/:documentId`) shows the file in a `FileViewer` (the browser's PDF viewer in an
-  `iframe`, a photo fitted), back «Документы», «Изменить» opening the same sheet with the file
-  shown as «PDF, 47 КБ» (`fileSummary`) and its fields saved through sync on «Готово», and
-  «Удалить документ» (asks «Удалить «…»?», goes back to the Documents, deletes it). A file the
+  МБ» and «Можно прикрепить PDF или фото» (`ERROR_KEYS`); `document.event_has_document` (an
+  Illness event that already carries one, #134) as «К этой записи уже прикреплён документ».
+  `DocumentPage` (`…/documents/:documentId`) shows the file in a `FileViewer`: a photo fitted
+  full screen; a PDF behind «Открыть PDF», which opens its object URL with `window.open(url,
+  '_blank')` in a window of its own. Why not embedded: Safari on an iPhone (and a Home Screen app)
+  renders a PDF in an `iframe`, `object` or `embed` as its first page only, while a window of its
+  own gets the full viewer (every page, zoom, share). The URL is a `blob:` of the decrypted
+  download or the cached copy, so it opens offline too, and the tap is a real gesture, so no popup
+  blocker stops it. Back «Документы», «Изменить» opening the same sheet with the file shown as
+  «PDF, 47 КБ» (`fileSummary`) and its fields saved through sync on «Готово», and «Удалить документ» (asks «Удалить «…»?», goes back to the Documents, deletes it). A file the
   server lost: «Файл недоступен» (`document.file_missing`); an unknown Document: «Такого
   документа нет: возможно, его удалили.».
 - **Documents data**: `useDocuments(person)` → `{documents, add(id, file, details), save(document,

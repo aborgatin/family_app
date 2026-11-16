@@ -49,6 +49,18 @@ final class DocumentType {
     return Optional.empty();
   }
 
+  /** The file-name extension of a content type {@link #of} answers, such as {@code .pdf}. */
+  static String extension(String contentType) {
+    return switch (contentType) {
+      case "application/pdf" -> ".pdf";
+      case "image/jpeg" -> ".jpg";
+      case "image/png" -> ".png";
+      case "image/heic" -> ".heic";
+      case "image/heif" -> ".heif";
+      default -> "";
+    };
+  }
+
   private static boolean startsWith(byte[] file, byte[] prefix) {
     return file.length >= prefix.length
         && Arrays.equals(Arrays.copyOf(file, prefix.length), prefix);

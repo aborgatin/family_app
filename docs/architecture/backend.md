@@ -58,15 +58,19 @@ The `notifications.*` keys bind to `notifications.push.NotificationsProperties`.
 blank VAPID variable, a subject that is not `mailto:`, or keys that are not one P-256 pair stop the
 app at startup with a message naming the variable (`NotificationsConfigurationTest`). Tests get a
 test-only pair from `src/test/resources/config/application.yml` (loaded on top of the main
-`application.yml`); local runs and the image tests from `scripts/lib/dev-vapid-keys.env`.
+`application.yml`); local runs and the image tests from `scripts/lib/dev-secrets.env`.
 
 The `documents.*` keys bind to `medical.DocumentsProperties`. A missing or blank
 `DOCUMENTS_ENCRYPTION_KEY`, or one that is not 32 bytes in base64, stops the app at startup with a
 message naming it (`medical.DocumentsConfigurationTest`); tests and local runs get theirs from the
 same files as the VAPID pair. `DOCUMENTS_FOLDER` selects the folder store; without it, until the R2
 store (#135), there is no store: an upload fails (`500`) and every file is `document.file_missing`,
-and the app logs a warning at startup. Uploads: `spring.servlet.multipart` lets a file up to 25 MB
-through, so `DocumentService` answers anything over 20 MB with `document.too_large`.
+and the app logs a warning at startup. Uploads (`spring.servlet.multipart`): a file over 20 MB is
+refused while the body is read (`max-file-size`), and a body over 22 MB from its `Content-Length`
+before it is read (`max-request-size`; the connection then closes); the body is read lazily
+(`resolve-lazily`), when the controller's `file` argument is resolved, so `DocumentsController`'s
+own handler answers `document.too_large`. Parts stay in memory up to 22 MB
+(`file-size-threshold`): an uploaded file is never written in plaintext to the temporary folder.
 
 Durations use Spring's format (`180d`, `15m`, `1h`). `spring.jpa.hibernate.ddl-auto` is `validate`
 and `open-in-view` is off. A new setting needs a line in `deploy/.env.example` and in the `app`
@@ -633,12 +637,16 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   `upload(uploader, Upload)` checks the fields (`FieldErrors`), a retry (an id already there
   answers that Document, stores nothing; a deleted one, or one on another Member's card, is
   `medical.not_found`), the card (`memberId` the uploader's own, `childId` a Child that is there,
-  `illnessEventId` an event, not deleted, of an Illness on the same card), the size (`MAX_SIZE`,
+  `illnessEventId` an event, not deleted, of an Illness on the same card that carries no Document
+  yet, else `document.event_has_document` 409, so the partial unique index is never what refuses
+  it; replacing one is #134's), the size (`MAX_SIZE`,
   20 MB, `document.too_large` 413) and the type by content (`DocumentType.of`: `%PDF-`, JPEG, PNG,
   an ISO base media `ftyp` box with a HEIC or HEIF brand; else `document.unsupported_type` 415).
   It then stores the file and inserts the row in a `TransactionTemplate` under the `FamilyLock`
   (live updates go out), checking again. `file(reader, id)` answers the decrypted bytes with the
-  stored `contentType`: a deleted or invisible Document is `medical.not_found`
+  stored `contentType` and a name (the title and the type's extension, `DocumentType.extension`),
+  sent as `Content-Disposition: attachment` (a browser opening the URL itself downloads it rather
+  than showing it as a page of the site): a deleted or invisible Document is `medical.not_found`
   (`params.documentId`), a missing object `document.file_missing` (404). Through sync an upsert
   edits `title`, `date`, `description` (an unknown id is `medical.not_found`: only the upload
   creates); a delete, and `onChildDeleted` (`DocumentRepository.markDeletedOfChild`), register a
@@ -653,7 +661,9 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   `InMemoryFileStore`, and the R2 adapter of #135, which `DocumentsConfig` will select the same way.
 - Tested by `medical.MedicalCardSyncTest`, `medical.MedicineSyncTest`, `medical.DocumentsTest`
   (the upload and download, retries, limits, types, visibility, editing, deletion and the Child
-  cascade removing files) and `medical.DocumentsConfigurationTest` (the key, the folder store).
+  cascade removing files), `medical.DocumentUploadOverHttpTest` (on a real port: the multipart
+  limit, no plaintext in the temporary folder) and `medical.DocumentsConfigurationTest` (the key,
+  the folder store).
 
 ### `command`
 
@@ -715,7 +725,7 @@ there):
 | `POST /api/sync/push`                                          | `{operations}` → `{results, version}`; see [`sync.md`](sync.md)                    |
 | `GET /api/sync/pull?since=N`                                   | `{changes, version}`; see [`sync.md`](sync.md)                                     |
 | `POST /api/documents`                                          | multipart: `id`, `memberId` or `childId`, `illnessEventId`?, `title`, `date`, `description`?, `file` (≤ 20 MB; PDF, JPEG, PNG, HEIC/HEIF by content) → `201` the Document (its pulled fields and `version`), also for a retry of the same `id` |
-| `GET /api/documents/{id}/file`                                 | the decrypted file with its stored `Content-Type`, `Cache-Control: no-store`       |
+| `GET /api/documents/{id}/file`                                 | the decrypted file with its stored `Content-Type`, `Content-Disposition: attachment` (the title and extension), `Cache-Control: no-store`, `X-Content-Type-Options: nosniff` |
 | `GET /api/sync/events`                                         | SSE: `changed` `{version}` on connect and after each syncable commit; heartbeats   |
 | `GET /api/password-resets/by-token/{token}` (public)           | `{expiresAt}` or the reset's state error                                           |
 | `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions (same transaction), then logs in      |
@@ -764,6 +774,7 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 | 404    | `document.file_missing`                           | `GET /api/documents/{id}/file`: the Document is there, its object is gone (`params.documentId`) |
 | 405    | `method.not_allowed`                              | added: wrong HTTP method                                                      |
 | 409    | `auth.bootstrap_closed`                           | bootstrap after the first Member exists                                       |
+| 409    | `document.event_has_document`                     | an upload to an Illness event that already carries a Document (`params.illnessEventId`) |
 | 413    | `document.too_large`                              | a Document's file over 20 MB                                                  |
 | 415    | `document.unsupported_type`                       | a Document's file that is not a PDF, JPEG, PNG or HEIC/HEIF by its content    |
 | 409    | `member.email_taken`                              | Invite acceptance with an email any Member row has (removed ones included)    |

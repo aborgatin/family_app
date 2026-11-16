@@ -5,7 +5,7 @@
 #
 # then the backend against it, from backend/ (the wrapper finds JDK 21 and Node 22):
 #
-#   set -a; source ../scripts/lib/dev-vapid-keys.env; set +a   # the local-only keys
+#   set -a; source ../scripts/lib/dev-secrets.env; set +a   # the local-only keys
 #   DATASOURCE_URL=jdbc:postgresql://localhost:5432/family \
 #   DATASOURCE_USERNAME=family DATASOURCE_PASSWORD=family \
 #   DOCUMENTS_FOLDER=~/.cache/family-app/dev-documents ../scripts/with-toolchain.sh ./gradlew bootRun
