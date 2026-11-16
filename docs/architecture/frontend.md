@@ -89,6 +89,7 @@ web/src/
                         deleteRow, useSaveRejection, startSync / stopSync / onSessionEnded
     push/               this device and push: readPushState, subscribeThisDevice,
                         resyncSubscription (launch), forgetSubscription (logout), pushApi
+    pwa/                startAppUpdates(): a new version without a force-close (see PWA, Updates)
     palette/            Child color palette (childColors.json), Avatar set (childAvatars.json)
     dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests),
                         daysFromToday(day, now), shortDay(date, now) («15 нояб.»)
@@ -883,8 +884,13 @@ a Vite native-config-loader warning).
   focused.
 - **Updates**: `registerType: 'autoUpdate'`, and the worker calls `skipWaiting()` and
   `clientsClaim()` itself (the plugin doesn't add them to an `injectManifest` worker). A new worker
-  installs in the background and takes over, but the open page is never reloaded; the next launch
-  runs the new code. `cleanupOutdatedCaches` removes old precaches. The backend serves `sw.js`,
+  installs in the background and takes over. iOS keeps an installed app suspended instead of
+  closing it, so `startAppUpdates()` (`@/shared/pwa`, started in `main.tsx`, #126) brings the new
+  code in without a force-close: each return to the foreground calls `registration.update()`, and
+  when a new worker takes control of a page that already had one, the page reloads once, at once
+  if it came back (or loaded) less than 10 s ago and nothing was touched or typed since, else at
+  the next return to the foreground. It never reloads under the Member's hands; offline changes
+  are safe anyway in the Outbox. `cleanupOutdatedCaches` removes old precaches. The backend serves `sw.js`,
   `index.html` and the manifest with `no-cache` and `/assets/**` as immutable.
 - Installability was checked with headless Chrome (`Page.getInstallabilityErrors`); Lighthouse no
   longer has a PWA audit.

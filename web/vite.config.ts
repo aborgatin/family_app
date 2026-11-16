@@ -35,9 +35,9 @@ const iconPreset: Preset = {
 
 /**
  * Updates: the new service worker installs in the background, skips waiting and takes over. The
- * page that is already open keeps running the code it loaded and is never reloaded under the
- * Member's hands; the next launch loads the new shell. That is "auto-update on next launch"
- * without a prompt.
+ * open page then reloads itself only at a safe moment, when the app comes back to the foreground
+ * (`startAppUpdates` in src/shared/pwa, #126), never under the Member's hands, and without a
+ * prompt.
  *
  * The service worker precaches the built app shell (and shows pushes). It has no runtime caching,
  * and navigations under /api and /actuator are never answered with the cached shell, so the API

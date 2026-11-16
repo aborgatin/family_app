@@ -1,0 +1,1 @@
+export { startAppUpdates } from './appUpdates';
