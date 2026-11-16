@@ -151,6 +151,48 @@ _Avoid_: Field value, answer, value history
 What kind of value a Child field holds; chosen when the field is created and never changed. Fixed in code, not configurable.
 _Avoid_: Field type, data type, format
 
+## Medical
+
+**Medical card** — «Медкарта»:
+The medical record of one Member or one Child, holding their Illnesses, Conditions and Documents. A Member's card is always seen only by that Member; a Child's card is seen by both Members.
+_Avoid_: Health record, medical profile, health card
+
+**Document** — «Документ»:
+One file on a Medical card (a doctor's report, a test result), as a PDF or a photo, with a title and the date it is from; added to the card directly or to an Illness event.
+_Avoid_: Attachment, file, scan, record
+
+**Illness** — «Болезнь»:
+A bout of being ill (a cold, an otitis): a group of Illness events on a Medical card, for a Child or a Member. It lasts from its first event to its last. One made by adding a Medicine dose or Temperature is named after the day it was created («Болезнь 2 декабря 2026») until renamed; it stays, even with no events, until deleted. It can be turned into a Condition and back.
+_Avoid_: Episode, case, sickness, disease
+
+**Condition** — «Диагноз/наблюдение»:
+A long-running health matter on a Medical card (vision, teeth, asthma, a chronic illness), holding Illness events like an Illness does. Always added by hand, and never offered when a Medicine dose or Temperature picks its Illness.
+_Avoid_: Chronic illness, diagnosis, observation, topic, area
+
+**Ended** — «Завершена» / «Завершено»:
+An Illness or Condition a Member has marked as over («Завершить»). It moves to the card's «Завершённые» section and is no longer offered for new events, but stays fully editable; «Возобновить» brings it back.
+_Avoid_: Closed, archived, recovered, finished, cured
+
+**Illness event** — «Событие»:
+One dated entry in an Illness or Condition: a Medicine dose, a Temperature or a Note event. Its date has an optional time of day, both as written, not a moment in a time zone. Any event can carry a Description and one Document, and can be moved to another Illness or Condition.
+_Avoid_: Record, entry, log item
+
+**Medicine dose** — «Приём лекарства»:
+An Illness event saying that a Medicine was given, how much (as free text, «5 мл»), and optionally the temperature at that moment. Added from the card, it joins the latest Illness that is not Ended if that had an event in the last 48 hours, and otherwise starts a new Illness, unless the Member picks another one.
+_Avoid_: Intake, medication, dosage (for the event)
+
+**Temperature** — «Температура»:
+An Illness event recording a measured body temperature, with no Medicine given; it joins or starts an Illness as a Medicine dose does.
+_Avoid_: Fever, reading, measurement
+
+**Note event** — «Заметка»:
+An Illness event with a free title («Вырвало», «Сходили к доктору»), added from inside an Illness or Condition.
+_Avoid_: Custom record, comment, symptom
+
+**Medicine** — «Лекарство»:
+A medicine in the Family's list, named with its strength as one line of text («Ибупрофен 20 мг/мл»). It holds no dosing data: the amount suggested for a person is the amount of their latest Medicine dose of it.
+_Avoid_: Drug, medication, preparation
+
 ## Settings
 
 **Settings** — «Настройки»:
@@ -207,4 +249,4 @@ _Avoid_: Merge, conflict resolution
 
 ## Future
 
-Links (R2), recipes (R3), trips (R4) and medical cards (M5.5) will add their own terms when designed; a trip's packing list reuses List and Item.
+Links (R2), recipes (R3) and trips (R4) will add their own terms when designed; a trip's packing list reuses List and Item.

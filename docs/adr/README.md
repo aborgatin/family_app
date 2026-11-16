@@ -14,3 +14,4 @@ Add a new file (next number) instead of editing an accepted decision; mark the o
 | [0007](0007-typed-child-fields-timeline-values.md) | Typed Child fields; values stored as a timeline | Accepted |
 | [0008](0008-ios-style-ui-kit.md) | iOS-style UI from our own shared/ui kit; iPhone first, Mac-ready | Accepted |
 | [0009](0009-repeat-by-server-made-copy.md) | Repeat: the server adds a copy when the item is marked Done | Accepted |
+| [0010](0010-files-in-object-storage-without-backup.md) | Files in object storage, encrypted by the server, not backed up | Accepted |
