@@ -9,8 +9,8 @@ import {
 } from './pushPayload';
 
 // The text a push shows, built from the payload's codes and parameters with the app's ru i18n
-// file and its plurals and gendered verbs (spec #104 "UI and Copy"). Pure: no worker globals, so
-// it is tested without a worker.
+// file and its plurals and gendered verbs (spec #104 "UI and Copy"); an Announcement's text comes
+// as written (spec #120). Pure: no worker globals, so it is tested without a worker.
 
 // The worker's own i18next instance: the app's `@/shared/i18n` also loads react-i18next.
 const i18n = createInstance();
@@ -44,10 +44,14 @@ export function readPushMessage(data: string | undefined, now: Date): PushMessag
 
 /** The title, body and URL of the notification shown for `payload`, at the device's `now`. */
 function pushMessage(payload: PushPayload, now: Date): PushMessage {
-  if (payload.type === 'notification') {
-    return { title: payload.listName, body: notificationBody(payload), url: payload.url };
+  switch (payload.type) {
+    case 'notification':
+      return { title: payload.listName, body: notificationBody(payload), url: payload.url };
+    case 'reminder':
+      return { title: payload.itemName, body: reminderBody(payload, now), url: payload.url };
+    case 'announcement':
+      return { title: payload.title, body: payload.body, url: payload.url };
   }
-  return { title: payload.itemName, body: reminderBody(payload, now), url: payload.url };
 }
 
 /**
