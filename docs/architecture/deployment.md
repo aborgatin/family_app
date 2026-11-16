@@ -16,6 +16,7 @@ step with the headings).
 - [Caddy](#caddy): HTTPS, redirects, compression, headers in `deploy/Caddyfile`
 - [Environment variables](#environment-variables): every `deploy/.env` setting and what reads it
 - [Deploy and rollback](#deploy-and-rollback): pulling a new image, rolling back to a tag
+- [Adding an Announcement to a release](#adding-an-announcement-to-a-release): the «Что нового» catalog, when an entry is sent, the empty-catalog-first rule
 - [Password reset](#password-reset): the operator's one-time reset link
 - [Push keys (VAPID)](#push-keys-vapid): generating the key pair push messages need, once per installation
 - [Backups](#backups): `deploy/backup.sh`, the B2 and R2 targets, encryption, pruning, cron
@@ -48,7 +49,7 @@ every job runs. On a pull request a **changes** job (`dorny/paths-filter`) decid
 | Job                    | Runs on a pull request when changed                                                                                                                                              |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `backend`              | `backend/**`, `web/src/shared/palette/**` (the backend build copies the Child color palette), or `ci.yml`                                                                        |
-| `web`                  | `web/**` or `ci.yml`                                                                                                                                                             |
+| `web`                  | `web/**`, `backend/src/main/resources/announcements.json` (the catalog route test reads it), or `ci.yml`                                                                         |
 | `image`, `image-arm64` | `backend/**`, `web/**`, `Dockerfile`, `.dockerignore`, `deploy/**`, `scripts/image-smoke-test.sh`, `scripts/deploy-stack-test.sh`, `scripts/backup-restore-test.sh`, or `ci.yml` |
 
 `migrations` always runs. Never filter with workflow-level `paths:`: a skipped workflow leaves
@@ -78,7 +79,8 @@ Locally, `scripts/check.sh` runs the guards, the cheap web checks (format, lint,
 build and the web tests and build in one command from any directory; `scripts/check.sh --image` also builds the image and runs
 `scripts/image-smoke-test.sh`. It fails early when Docker is not running.
 
-Image tags: `ghcr.io/aborgatin/family_app:<full commit SHA>` and `:latest`. Deploy is manual; CI
+Image tags: `ghcr.io/aborgatin/family_app:<full commit SHA>` and `:latest`; the image's
+`org.opencontainers.image.revision` label holds the same SHA. Deploy is manual; CI
 never touches the server.
 
 Test scripts (each takes an `APP_IMAGE_TAG` or image name and cleans up after itself):
@@ -173,7 +175,19 @@ A new app setting needs a line in `.env.example` and in the `app` service's `env
 
 ## Deploy and rollback
 
-Deploy the newest `main` build (with `APP_IMAGE_TAG=latest`):
+Deploy the newest `main` build (with `APP_IMAGE_TAG=latest`), in the server's `deploy/` directory:
+
+1. Find what changed in `deploy/` since the running build. `docker compose images app` shows the
+   running image; its full SHA is the `org.opencontainers.image.revision` label
+   (`docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' <image id>`;
+   builds up to `12fc366` have no label: that one is `12fc366`).
+   Then, in a local checkout: `git diff --stat <running SHA> origin/main -- deploy/`.
+2. Copy each changed file. The repo is public, so no key is needed on the server:
+   `curl -fsSLO https://raw.githubusercontent.com/aborgatin/family_app/main/deploy/<file>`.
+   A changed `.env.example` means a new or renamed setting: add it to `.env`.
+3. Check the configuration before anything restarts; it names any required variable `.env` lacks:
+   `docker compose config >/dev/null`.
+4. Pull and restart:
 
 ```sh
 docker compose pull && docker compose up -d
@@ -188,6 +202,45 @@ code still runs on the newer schema. If it doesn't, restore the backup taken bef
 
 GHCR access: the server pulls anonymously once the package is public; otherwise
 `docker login ghcr.io` with a read-only token.
+
+## Adding an Announcement to a release
+
+An Announcement («Что нового», spec #120) is one push to every Member with the Notifications
+switch on, telling them what is new. The catalog is
+`backend/src/main/resources/announcements.json`, a JSON array in sending order:
+
+```json
+[
+  {
+    "id": "medical-cards",
+    "title": "Новое: медицинские карты",
+    "body": "Прививки, анализы и визиты к врачу для каждого ребёнка"
+  }
+]
+```
+
+- **Adding one**: append an entry to the array in the release's PR. `id` is any text never used
+  before; `title` and `body` are the push's text exactly as written (Russian, no prefix); `url` is
+  the app screen a tap opens, a path such as `/settings`, or left out for Home, `/`.
+- **Limits, checked in CI**: `id` unique and non-blank; `title` non-blank, at most 60 characters;
+  `body` non-blank, at most 180; `url` absent, or starting with `/` and not under `/api`
+  (`notifications.announcement.AnnouncementCatalogFileTest`, backend job). Each `url` must also be
+  a route of the app's router (`web/src/app/announcementRoutes.test.ts`, web job, whose filter
+  includes the catalog file). A bad entry turns the PR red before it can reach a phone.
+- **When it is sent**: on the first scheduler step after the new image starts (within a minute of
+  `docker compose up -d`), once, with a 7-day TTL so a phone that is off for a few days still gets
+  it. There are no quiet hours: deploy when a push is welcome. A Member whose switch is off then
+  never gets it, even after turning it on. A failed push is not retried.
+- **Once per installation**: the server records each `id` it has handled (`announcement_sent`,
+  V19), so a restart, a second step, or a rollback followed by a redeploy does not send it again.
+  Editing or deleting an entry that was already sent changes nothing; giving it a new `id` sends it
+  again as a new Announcement.
+- **A new installation** sends none of the catalog: its first scheduler step ever records every
+  entry as handled. Only entries added after that are sent.
+- **Empty catalog first**: the release that introduced Announcements shipped an **empty** catalog,
+  so that every phone had a service worker that reads the `announcement` payload before the first
+  one was sent. A future new kind of push message follows the same rule: ship the worker that reads
+  it one release before anything sends it.
 
 ## Password reset
 
@@ -205,18 +258,20 @@ and logs the Member out on every device, then logs them in on the current one.
 
 ## Push keys (VAPID)
 
-Push messages (Notifications and Reminders) are signed with the installation's VAPID key pair. The
-app does not start without `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and a `mailto:` `VAPID_SUBJECT`
-(the message names the missing one), and Compose refuses to start without them in `.env`. Generate
-the pair once, before the first deploy that needs it, with the image itself:
+Push messages (Notifications, Reminders and Announcements) are signed with the installation's
+VAPID key pair. The app does not start without `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and a
+`mailto:` `VAPID_SUBJECT` (the message names the missing one), and Compose refuses to start without
+them in `.env`. Generate the pair once, before the first deploy that needs it, with the image
+itself:
 
 ```sh
-docker run --rm ghcr.io/aborgatin/family_app:latest generate-vapid-keys
+docker run --rm --pull always ghcr.io/aborgatin/family_app:latest generate-vapid-keys
 ```
 
 It prints `VAPID_PUBLIC_KEY=…` and `VAPID_PRIVATE_KEY=…` (P-256, base64url) and exits 0; it starts
 nothing and needs no database or `.env`, so it is run with `docker run`, not `docker compose`
-(Compose would refuse the `.env` without the keys). Paste the two lines into `.env` and set
+(Compose would refuse the `.env` without the keys). `--pull always` matters: without it Docker runs
+whatever `latest` the server cached last, which may predate the command and start the whole app instead. Paste the two lines into `.env` and set
 `VAPID_SUBJECT=mailto:<your email>`. Keep the pair: browsers subscribe with the public key, so a new
 pair silently stops every existing subscription until each device subscribes again. The private
 key is a secret, like `POSTGRES_PASSWORD`. Local runs and the image tests use the fixed, non-secret

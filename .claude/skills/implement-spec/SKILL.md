@@ -18,7 +18,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 **Implementer subagents** should be run in the background where possible for maximum concurrency.
 
-Briefs carry pointers and constraints, not shared values (a migration version, a port, a file name). Each implementer picks those from the integration branch tip when it merges. Every implementer and merger brief says: "Read each doc's `## Contents` index, then only the sections for your area; of the spec, only the sections your ticket cites."
+Briefs carry pointers and constraints, not shared values (a migration version, a port, a file name). Each implementer picks those from the integration branch tip when it merges. Every implementer and merger brief says: "Read each doc's `## Contents` index, then only the sections for your area; of the spec, only the sections your ticket cites." and "Name every branch you create or push `ab-<kebab-case>`: a hook rejects pushes from other names."
 
 ## Usage budget
 
@@ -34,9 +34,9 @@ A run spans hours, so it is **budgeted**:
 
 2. (optional) Use an **exploration subagent** to conduct any exploration required by the tickets - relevant codebase files or external documentation. Ensure the exploration subagent can save files - it should save its markdown notes in a directory outside the repo, accessible by all future subagents. This lets **implementer subagents** focus on implementation rather than exploration.
 
-3. Create the integration branch from `origin/main` with `git branch` and push it, without checking it out: a branch checked out in one worktree can't be checked out in another, and every merger needs it. Mergers work on a local branch from `origin/<integration>` and push with `git push origin HEAD:<integration>`. If the issue tracker closes work through PRs, or the user asks for one, open a draft PR after the first merge in step 5 (a branch with no commits ahead of main can't open one), marked as closing the spec and tickets.
+3. Create the integration branch on the remote straight from `origin/main`, without a local branch or checkout: `git push origin origin/main:refs/heads/<integration>`. It fails if the name is already taken on the remote; pick another name rather than reuse it. A branch checked out in one worktree can't be checked out in another, and every merger needs it. Mergers work on a local branch from `origin/<integration>` and push with `git push origin HEAD:<integration>`. If the issue tracker closes work through PRs, or the user asks for one, open a draft PR after the first merge in step 5 (a branch with no commits ahead of main can't open one), marked as closing the spec and tickets.
 
-4. Use a fresh **implementer subagent** for each ticket, each in its own worktree on its own branch. Before starting two frontier tickets together, compare the new pieces their tickets name (as `to-tickets` step 3c lists them): when both name the same one, start one now and the other after it merges. Each implementer subagent:
+4. Use a fresh **implementer subagent** for each ticket, each in its own worktree on its own branch. Keep a **spawn ledger**: the agent id of every subagent you start in a worktree, as you start it. Before starting two frontier tickets together, compare the new pieces their tickets name (as `to-tickets` step 3c lists them): when both name the same one, start one now and the other after it merges. Each implementer subagent:
    - confirms its worktree is based on the integration branch before starting, and resets onto it if not;
    - calls the Skill tool with `tdd` to build the ticket;
    - merges the integration branch tip into its own branch before reporting done
@@ -51,4 +51,4 @@ A run spans hours, so it is **budgeted**:
 
 9. If a draft PR exists, mark it ready for review. Otherwise, resolve each ticket the way the issue tracker closes work, and report the integration branch.
 
-10. Clean up all **implementer subagent** worktrees, and stop the background `caffeinate` and usage watcher.
+10. Clean up the worktrees and branches named in the spawn ledger, one id at a time: `.claude/worktrees/` holds every session's agent worktrees, past and running. A locked worktree is yours only when its lock names this session's pid; leave every other worktree and branch, and list them in your report. Then stop the background `caffeinate` and usage watcher.

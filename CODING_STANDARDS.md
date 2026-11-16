@@ -75,7 +75,9 @@ components, hooks, API calls and local-store access, and exposes what others may
 and enum-like values travel as stable machine codes plus parameters, e.g.
 `{"code": "list.not_found", "params": {"listId": "…"}}`. Any Russian (or any natural-language) string
 in backend code outside log messages and seed data is a finding. Push notification text is rendered
-from a code + params via the same message files.
+from a code + params via the same message files, with one deliberate exception: an Announcement
+(spec #120) carries its hand-written `title` and `body` from the operator's catalog
+(`announcements.json`), shown as written (frontend.md "PWA").
 
 **I2 — Every UI string comes from the i18n files.** All user-visible text in `/web` (labels,
 placeholders, `aria-label`, `title`, toasts, empty states) goes through the i18n function with a key

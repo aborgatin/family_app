@@ -691,7 +691,8 @@ switch and this device, an untitled group (`label`, no `header`): its first row 
 «Уведомления». The `SwitchRow` «Уведомления» shows the session's
 `member.notificationsEnabled` and saves at once (`useAutoSaveChoice`, `PATCH /api/members/me`
 with only `notificationsEnabled`, online only; `memberChanged` updates the session); its hint is
-«Списки, которые меняет другой взрослый, и напоминания о сроках задач.», replaced by the
+«Списки, которые меняет другой взрослый, напоминания о сроках задач и новое в приложении.»
+(Announcements, spec #120, go to the same switch), replaced by the
 auto-save failure while there is one. Below it, by this device's state (`readPushState()` from
 `@/shared/push`, read when the screen opens):
 
@@ -839,7 +840,8 @@ a Vite native-config-loader warning).
   fields) gives «Семья» (`app.name`) with no body, opening `/`. The notification keeps
   `{ url }` as its `data`.
 - **Payload contract** (`pushPayload.ts`, the one definition the worker and its tests share; the
-  backend sends exactly this JSON): codes and parameters, never texts.
+  backend's `PushPayloads` writes exactly this JSON): codes and parameters, never texts, with one
+  deliberate exception, the Announcement (below).
   - `type: 'notification'` (title: the List name): `actorName`, `actorGrammaticalGender`
     (`MASCULINE` | `FEMININE`; always sent, though the worker still reads `null` as the neutral
     wording, defensively), `listName`, `listKind` (`SHOPPING` | `TODO` | `WISH`), `itemNames` (the
@@ -849,6 +851,13 @@ a Vite native-config-loader warning).
     `/lists/:id`).
   - `type: 'reminder'` (title: the Item name): `itemName`, `listName`, `dueDate` (`YYYY-MM-DD`),
     `dueTime` (`HH:mm` or `null`), `url` (the Item's screen, `/lists/:id/items/:itemId`).
+  - `type: 'announcement'` (spec #120, «Что нового»): `title`, `body`, `url` (always sent; `/`
+    when the catalog entry names no screen). The worker shows `title` and `body` exactly as they
+    come, with nothing added (iOS already shows «Семья» above it), and a tap follows the same
+    `notificationclick` path. This consciously breaks spec #104's "codes, not texts": an
+    Announcement is hand-written text with nothing to compose, and finished text keeps it readable
+    by any worker that knows the type, whatever the text says. A missing or wrong-typed field
+    gives «Семья», as for the other types.
 - **Push texts** come from the `push.*` keys of `ru.json` through the worker's own i18next
   instance (the app's `@/shared/i18n` also loads react-i18next). Added Items are named in
   quotes when `itemNames` holds them all (1–3); more are counted with the names sent

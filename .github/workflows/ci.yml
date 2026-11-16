@@ -44,6 +44,8 @@ jobs:
             web:
               - *workflow
               - web/**
+              # The catalog route test reads the backend's Announcement catalog.
+              - backend/src/main/resources/announcements.json
             image:
               - *workflow
               - backend/**
@@ -236,4 +238,5 @@ jobs:
           tags: |
             ${{ env.IMAGE }}:${{ github.sha }}
             ${{ env.IMAGE }}:latest
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha

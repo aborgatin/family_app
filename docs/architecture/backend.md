@@ -72,7 +72,7 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 | `family`  | `Members`, `MemberSummary`, `PasswordResets`, `Sessions`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | `Lists` (with `ListSummary`, `ItemSummary`, `DueItem`), `ItemAdded`, `ItemAssigned`, `ListUnshared`, `ListKind`, `Visibility` | `lists.list`                                                                              |
-| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `PushMessage`, `Urgency`, `SchedulerStep` | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule` |
+| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `PushMessage`, `Urgency`, `SchedulerStep`, `AnnouncementCatalog`, `Announcement` | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule`, `notifications.announcement` |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
@@ -435,7 +435,7 @@ Item history is in the same package: `ItemHistoryEntity` (`list_id`, `normalized
 
 Push messages (spec #104). Ticket #107 built the module's base: the Notifications switch's effect,
 push subscriptions and the push gateway. #109 added Batches and the scheduler step, #110 Reminders,
-#111 Mute.
+#111 Mute, #121 Announcements (spec #120).
 
 - **`Pushes.sendTo(memberId, payload, ttl, urgency)`** (public) is the one way out: if the
   Member's Notifications switch is on (`family.Members.notificationsEnabled`), it sends the payload
@@ -481,15 +481,17 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   reads those tables only through `lists.Lists` and `family.Members`, never by SQL (M2).
 - **The scheduler step** (`SchedulerStep.run()`, public): one transaction stores the run's time
   (`notifications.schedule.StepRuns`, the single `scheduler_step` row, locked `FOR UPDATE`; it
-  hands back the previous run's time, where the Reminders' window starts), finds the due Reminders
-  and takes the due Batches out of the database (`PendingBatches.takeDue`, `FOR
-  UPDATE SKIP LOCKED`, then deleted; due when the last change is `QUIET` = 2 minutes old or the
-  first `LONGEST` = 10 minutes old, constants); `Batches` turns them into Notifications. Both
-  come back as `PushMessage`s (recipient, payload, urgency: `NORMAL` for a Notification, `HIGH`
-  for a Reminder); after the commit each goes out through `Pushes.sendTo` with TTL 24 h,
-  Notifications first. A push that throws (a database call on the way out) is logged and costs
-  only itself; the rest of the step is still sent. A crash between the commit and the sending
-  loses those pushes rather than sending them twice.
+  hands back the previous run's time, where the Reminders' window starts), finds the due Reminders,
+  takes the due Batches out of the database (`PendingBatches.takeDue`, `FOR UPDATE SKIP LOCKED`,
+  then deleted; due when the last change is `QUIET` = 2 minutes old or the first `LONGEST` = 10
+  minutes old, constants; `Batches` turns them into Notifications) and records the catalog's new
+  Announcements. All come back as `PushMessage`s (recipient, payload, urgency, TTL: each message
+  carries its own, `PushMessage.notification` `NORMAL` 24 h, `reminder` `HIGH` 24 h,
+  `announcement` `NORMAL` 7 days); after the commit each goes out through `Pushes.sendTo` with its
+  TTL and urgency, Notifications first, then Reminders, then Announcements in catalog order. A
+  push that throws (a database call on the way out) is logged and costs only itself; the rest of
+  the step is still sent. A crash between the commit and the sending loses those pushes rather
+  than sending them twice.
   `notifications.schedule.SchedulerConfig` runs it at second 0 of every minute (`@Scheduled(cron
   = "0 * * * * *")`), in the web app only (`@ConditionalOnWebApplication`, so no operator
   command runs it) and unless `notifications.scheduler.enabled` is `false` (the tests' setting).
@@ -517,6 +519,25 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   by its own Member). It listens for `lists.ListUnshared` and soft-deletes the List's Mutes in
   that push operation. `Mutes` (a bean) answers `Batches`. Tested by `notifications.MuteSyncTest`
   and `BatchesTest`.
+- **Announcements** («Что нового», spec #120, ticket #121; `notifications.announcement`): the
+  catalog is `AnnouncementCatalog` (public, the test seam): the entries `{id, title, body, url?}`
+  in sending order. The real bean, `ResourceAnnouncementCatalog`, reads
+  `src/main/resources/announcements.json` once at startup (deployment.md "Adding an Announcement
+  to a release"); tests put a `@Primary` one of their own. `Announcements.takeNew(now)` runs
+  in the step's transaction: for each entry `SentAnnouncements.recordIfNew` inserts an
+  `announcement_sent` row (V19, `id` primary key, `ON CONFLICT DO NOTHING`), and an entry whose row
+  is new becomes one `PushMessage.announcement` per Member (`family.Members.all()`; Children are not
+  Members). `Pushes.sendTo` leaves out those whose switch is off, and they never get that one, even
+  after turning it on. Mute does not apply. On the first step ever (`StepRuns` has no previous run,
+  the Reminders' marker) `SchedulerStep` drops the pushes `takeNew` returns, so every entry is
+  recorded and nothing is sent, and a new installation gets none
+  of the old ones; the release that introduced Announcements shipped an empty catalog for the same
+  reason on existing ones. A row is never deleted: a second step, a restart or a rollback and
+  redeploy never sends an entry again, and a failed push still counts as sent. The payload is the
+  `announcement` of the contract in `web/src/serviceWorker/pushPayload.ts`: `title`, `body` as
+  written, `url` (`Announcements.HOME_URL`, `/`, when the entry has none), the one payload with
+  texts (frontend.md "PWA"). Tested by `notifications.AnnouncementsTest`, which starts a second app
+  on its database for the restart.
 
 - **Reminders** (`notifications.reminder.Reminders`): a step sends a Reminder for each open todo
   item whose due moment is after the previous step and at or before now (`lists.Lists.dueBetween`:
@@ -770,6 +791,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V16__push_subscription.sql`    | `member.notifications_enabled` default `FALSE` (existing Members set off); `push_subscription` (→ `member`, → `spring_session` cascading) |
 | `V17__pending_batch.sql`        | `pending_batch` (key actor → `member`, List → `list`; first and last change), `pending_batch_item` (→ `pending_batch` cascading, → `item`, Assignee → `member`; `position` identity for the order), `scheduler_step` (one row, `last_run_at` `NULL` until the first step) |
 | `V18__mute.sql`                 | `mute` (syncable; → `list`, Member → `member`; indexed by List): a Member's Mute of a Shared list |
+| `V19__announcement_sent.sql`    | `announcement_sent` (`id` text primary key, `sent_at`): each catalog Announcement the scheduler step has handled |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -784,7 +806,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
   write.
 - Hibernate only validates the schema (`ddl-auto: validate`); the schema comes from Flyway alone.
 - Server-only tables (`family`, `password_reset`, `invite`, Spring Session, `push_subscription`,
-  `pending_batch`, `pending_batch_item`, `scheduler_step`) have no sync columns
+  `pending_batch`, `pending_batch_item`, `scheduler_step`, `announcement_sent`) have no sync columns
   and may be hard-deleted. `token_hash` columns are `BYTEA` with a 32-byte check.
 
 ## Adding a syncable table
@@ -900,14 +922,18 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   `notifications.BatchesSurviveRestartTest`.
 - **The scheduler step** never runs by itself in tests (`notifications.scheduler.enabled: false`
   in the test `application.yml`): a test sets the `TestClock` and calls `SchedulerStep.run()`, as
-  `notifications.BatchesTest` does (`later(duration)`).
+  `notifications.BatchesTest` does (`later(duration)`). `notifications.AnnouncementsTest` also
+  replaces the catalog (its nested `Catalog`, a static list, so an app started again on the same
+  database reads the same entries).
 - **Real-port tests**: `HttpDevice` (public) also works in a `RANDOM_PORT` `@SpringBootTest` via
   `new HttpDevice().at(context)`; `openLines(path)` streams a long response line
   by line. `sync.LiveUpdatesTest` reads `/api/sync/events` that way (heartbeat set to `200ms`).
 - Other: `ModularityTest` (Modulith verify), `WebBundleServingTest` (RANDOM_PORT +
   `TestRestTemplate`; test bundle in `src/test/resources/static/`), `ForwardedHeadersTest`
   (`TRUSTED_PROXIES=127\.0\.0\.1` + `X-Forwarded-For`), `PasswordResetCommandTest` (runs the command
-  entry point against Testcontainers), `HealthEndpointTest`, `ApiErrorsTest`.
+  entry point against Testcontainers), `HealthEndpointTest`, `ApiErrorsTest`,
+  `notifications.announcement.AnnouncementCatalogFileTest` (plain JUnit on the real
+  `announcements.json`: the limits in deployment.md "Adding an Announcement to a release").
 - Run with `../scripts/with-toolchain.sh ./gradlew test` from `backend/` (Docker must be running;
   one class: `--tests '*ItemSyncTest'`). The wrapper finds JDK 21 and Node 22 as `check.sh` does,
   so no `JAVA_HOME` or `source` is needed. CI runs `spotlessCheck`,
