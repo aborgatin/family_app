@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Card, CardGrid } from '@/shared/ui';
 import { useAge } from './age';
-import { ChildPicture } from './ChildPicture';
+import { ChildAvatarOf } from './ChildAvatarOf';
 import { childPath } from './ChildPage';
 import { useChildren } from './useChildren';
 
@@ -26,7 +26,12 @@ export function ChildrenCards() {
           title={child.name}
           subtitle={child.birthday === null ? undefined : age(child.birthday)}
           leading={
-            <ChildPicture name={child.name} color={child.color} avatar={child.avatar} size="card" />
+            <ChildAvatarOf
+              name={child.name}
+              color={child.color}
+              avatar={child.avatar}
+              size="card"
+            />
           }
         />
       ))}

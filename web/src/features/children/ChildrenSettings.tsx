@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ChildPicture } from './ChildPicture';
+import { ChildAvatarOf } from './ChildAvatarOf';
 import {
   EditableRow,
   GroupedSection,
@@ -71,7 +71,7 @@ export function ChildrenSettings() {
             key={child.id}
             to={childSettingsPath(child.id)}
             leading={
-              <ChildPicture
+              <ChildAvatarOf
                 name={child.name}
                 color={child.color}
                 avatar={child.avatar}

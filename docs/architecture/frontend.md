@@ -19,7 +19,7 @@ step with the headings).
 - [i18n](#i18n): the `ru` resource file, key naming, plurals and gendered verbs (I2)
 - [Look and theme](#look-and-theme): Tailwind tokens, light and dark theme, where the UI kit is specified
 - [Settings](#settings): the Settings screen: Members, Invites, profile, password, Notifications and this device's push subscription, theme, Child fields
-- [Home «Дети» and the Child page](#home-дети-and-the-child-page): Child tiles on Home, the Child page, Child lists and fields
+- [Home «Дети» and the Child page](#home-дети-and-the-child-page): Child cards on Home, the Child page, Child lists and fields
 - [PWA](#pwa): manifest, icons, the service worker (precache, push, tap), the push payload contract, updates
 - [iOS and macOS](#ios-and-macos): installed-app cookies, ITP, Safari quirks
 - [Testing](#testing): shared test helpers, `renderApp`, the fake sync server, store-upgrade tests, clock and time zone, flaky tests
@@ -58,7 +58,7 @@ web/src/
     auth/               session, guard, setup (bootstrap), login, LogoutSection + useLogout, Invite acceptance,
                         password reset; LinkScreen (link-check states); GrammaticalGender (type)
                         and GrammaticalGenderRow («Пол», also used by «Ваш профиль»)
-    home/               HomePage: Page «Семья» with «Дети» (tiles), then «Списки», gear → Settings; HOME_PATH
+    home/               HomePage: Page «Семья» with «Дети» (cards), then «Списки», gear → Settings; HOME_PATH
     lists/              ListsSection («Списки» on Home and on the Child page), NewListSheet, ListPage,
                         ListSettingsPage, useListHome (back to Home, or to the Child page),
                         CategoriesPage («Категории» of a Shopping list), ItemPage (the Item screen),
@@ -76,7 +76,7 @@ web/src/
     members/            MembersSettings: «Взрослые», InvitesSettings, ProfileSection; PasswordPage;
                         useFamilyMembers() (the Members on the local store, by id)
     children/           ChildrenSettings («Дети»), ChildSettingsPage, NewChildSheet, ChildRows, age, useChildren(), useChild(id),
-                        ChildrenCards («Дети» on Home), ChildPicture, ChildPage (the Child page, CHILD_PATH)
+                        ChildrenCards («Дети» on Home), ChildAvatarOf, ChildPage (the Child page, CHILD_PATH)
     notifications/      NotificationsSection (Settings «Уведомления»: the switch, saved with
                         `updateProfile` from `features/members`; this device), usePushDevice
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
@@ -733,7 +733,7 @@ button go to Settings without saving. On success it navigates to Settings with
 current password empties that field). `app/routes.tsx` passes `SETTINGS_PATH` in as
 `settingsPath`, since `settings` already imports `members`.
 
-«Дети» (`ChildrenSettings`) is an edit-mode list of `EditableRow`s: the Child's `ChildPicture`
+«Дети» (`ChildrenSettings`) is an edit-mode list of `EditableRow`s: the Child's `ChildAvatarOf`
 (`row` size), name, age on the right («7 лет», «5 месяцев» under a year, «меньше месяца» under one, nothing without a birthday
 or before it; `i18n` plurals `children.age.years_*` / `months_*`, computed from the device's
 date) and a chevron to `/settings/children/:id` (`childSettingsPath(id)`). Edit mode deletes only
@@ -775,7 +775,7 @@ the server's value again. Then a red «Удалить ребёнка» `ConfirmR
 
 Home (`HomePage`) is `Sections` of `ChildrenCards` and `ListsSection`. `ChildrenCards`
 (`features/children`, tickets #89, #124) reads `useChildren()` and shows «Дети» as a `CardGrid` above
-«Списки»: a `Card` per Child in the Children order (oldest first), led by their `ChildPicture` (the
+«Списки»: a `Card` per Child in the Children order (oldest first), led by their `ChildAvatarOf` (the
 `ChildAvatar` from the stored codes: `childColor(code)?.hex`, grey for an unknown colour;
 `childAvatar(code)`, the initial for none or an unknown one), the name and under it the age as in Settings
 (`useAge()`; the name only without a birthday or before it), each a link to the Child page. While

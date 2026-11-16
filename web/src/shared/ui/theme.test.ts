@@ -90,7 +90,7 @@ describe.each(Object.entries(THEMES))('%s theme', (_, colors) => {
     expect(contrast(fg ?? '', bg ?? '')).toBeGreaterThanOrEqual(4.5);
   });
 
-  // A ChildAvatar without a figure shows the initial in `label` on the `child-tint` of the Child
+  // A ChildAvatar without a Child avatar shows the initial in `label` on the `child-tint` of the Child
   // color: the colour mixed into `cell` by `--child-tint-amount`, which must read on every colour.
   it.each(CHILD_COLORS.map((color) => [color.code, color.hex]))(
     'label on the child-tint of %s meets 4.5:1',

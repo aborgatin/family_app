@@ -7,7 +7,7 @@ import {
   type FieldMessages,
 } from '@/shared/api';
 import { GroupedSection, Sheet, useFooterLines } from '@/shared/ui';
-import { ChildRows, NO_AVATAR } from './ChildRows';
+import { avatarOrNull, ChildRows, NO_AVATAR } from './ChildRows';
 import type { ChildDetails } from './childTypes';
 
 type Field = 'name' | 'color' | 'avatar' | 'birthday';
@@ -51,7 +51,7 @@ export function NewChildSheet({ id, save, onClose }: NewChildSheetProps) {
         name: name.trim(),
         color,
         birthday: birthday === '' ? null : birthday,
-        avatar: avatar === NO_AVATAR ? null : avatar,
+        avatar: avatarOrNull(avatar),
       });
       onClose();
     } catch (error: unknown) {
@@ -77,7 +77,6 @@ export function NewChildSheet({ id, save, onClose }: NewChildSheetProps) {
           name={{ name: 'name', value: name, onChange: setName }}
           color={{ name: 'color', value: color, onChange: setColor }}
           avatar={{ name: 'avatar', value: avatar, onChange: setAvatar }}
-          childName={name}
           birthday={{ name: 'birthday', value: birthday, onChange: setBirthday }}
         />
       </GroupedSection>

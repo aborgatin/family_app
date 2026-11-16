@@ -13,7 +13,7 @@ import {
   useAutoSaveText,
   useFooterLines,
 } from '@/shared/ui';
-import { ChildRows, NO_AVATAR } from './ChildRows';
+import { avatarOrNull, ChildRows, NO_AVATAR } from './ChildRows';
 import type { Child, ChildDetails } from './childTypes';
 import { useChild } from './useChildren';
 
@@ -109,7 +109,7 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
     saved: child.avatar ?? NO_AVATAR,
     save: useCallback(
       async (value: string) => {
-        await save(id, { avatar: value === NO_AVATAR ? null : value });
+        await save(id, { avatar: avatarOrNull(value) });
         return value;
       },
       [id, save],
@@ -151,7 +151,6 @@ function ChildEditor({ child, save, remove, settingsPath }: ChildEditorProps) {
           name={name.input}
           color={color.control}
           avatar={avatar.control}
-          childName={child.name}
           birthday={birthday.input}
         />
       </GroupedSection>

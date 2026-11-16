@@ -5,7 +5,7 @@ interface InitialsProps {
 
 /**
  * A grey circle with a name's initial, before a Member's name in a row. Decorative. (Not a Child
- * avatar: that is a figure a Child is shown with, `ChildAvatar`.)
+ * avatar: that is a drawing a Child is shown with, `ChildAvatar`.)
  */
 export function Initials({ name }: InitialsProps) {
   return (

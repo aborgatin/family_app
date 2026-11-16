@@ -80,7 +80,7 @@
 /*
  * A Child color, drawn by ChildAvatar (ticket #124). The element sets `--child-color` to the Child
  * color's hex (data, not a colour written into code); `inline` makes the utilities mix it where it
- * is used rather than on :root. `child` is the colour itself (the figure), `child-tint` the soft
+ * is used rather than on :root. `child` is the colour itself (the drawing), `child-tint` the soft
  * circle under it (stronger in dark, mixed into the themed `cell`), `child-face` the light face.
  */
 @theme inline {

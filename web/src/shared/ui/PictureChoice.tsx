@@ -21,7 +21,7 @@ interface PictureChoiceProps<T extends string> {
 }
 
 /**
- * A row of a GroupedSection that picks one round picture of a few (a Child avatar), like
+ * A row of a GroupedSection that picks one round picture of a few (the Child avatars), like
  * ColorChoice: the label on top, the pictures under it, the chosen one ringed in `accent`. The
  * pictures are radios picked by a tap, Space or Enter (each pick saves); Tab reaches the group, the
  * arrow keys (Home, End) only move the focus.

@@ -1,7 +1,7 @@
 import { childAvatar, childColor } from '@/shared/palette';
 import { ChildAvatar } from '@/shared/ui';
 
-interface ChildPictureProps {
+interface ChildAvatarOfProps {
   name: string;
   /** The Child color's code. */
   color: string;
@@ -11,12 +11,12 @@ interface ChildPictureProps {
 }
 
 /** A Child's `ChildAvatar` from their stored codes (a colour this build doesn't know is grey). */
-export function ChildPicture({ name, color, avatar, size }: ChildPictureProps) {
+export function ChildAvatarOf({ name, color, avatar, size }: ChildAvatarOfProps) {
   return (
     <ChildAvatar
       name={name}
       color={childColor(color)?.hex}
-      figure={childAvatar(avatar)}
+      avatar={childAvatar(avatar)}
       size={size}
     />
   );

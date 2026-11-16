@@ -27,9 +27,9 @@ export function childColor(code: string): ChildColor | undefined {
 export type ChildAvatarCode = keyof typeof ru.childAvatars;
 
 /**
- * The Avatar set (ticket #124), in picker order: the figures a Child may be shown with. Defined
+ * The Avatar set (ticket #124), in picker order: the drawings a Child may be shown with. Defined
  * once in `childAvatars.json`, which the backend build also reads to validate `avatar`
- * (`avatar.invalid`). Only the code travels to the API; the figures are drawn by the web app.
+ * (`avatar.invalid`). Only the code travels to the API; the drawings are made by the web app.
  */
 export const CHILD_AVATARS = avatars as readonly { code: ChildAvatarCode }[];
 

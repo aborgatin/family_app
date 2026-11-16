@@ -2,12 +2,12 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { ChildAvatarCode } from '@/shared/palette';
 
 interface ChildAvatarProps {
-  /** The Child's name: its first letter shows when there is no figure. */
+  /** The Child's name: its first letter shows when there is no Child avatar. */
   name: string;
   /** A CSS colour (a Child color's `hex`); `undefined` draws in `secondary-label`. */
   color: string | undefined;
   /** The Child avatar to draw; `undefined` shows the initial. */
-  figure: ChildAvatarCode | undefined;
+  avatar: ChildAvatarCode | undefined;
   /** `card` 46px (Home), `row` 32px (a Settings row), `fill` as big as its parent (the picker). */
   size: 'card' | 'row' | 'fill';
 }
@@ -19,14 +19,14 @@ const SIZES = {
 } as const;
 
 /**
- * A Child's round picture (ticket #124): their Child avatar drawn in their Child color on a soft
+ * A Child's round avatar circle (ticket #124): their Child avatar drawn in their Child color on a soft
  * tint of it (`child-tint`), or without one the initial in `label`. Decorative: the name is always
  * next to it or names the control it is in.
  */
-export function ChildAvatar({ name, color, figure, size }: ChildAvatarProps) {
+export function ChildAvatar({ name, color, avatar, size }: ChildAvatarProps) {
   const style = { '--child-color': color ?? 'var(--color-secondary-label)' } as CSSProperties;
   const frame = `flex shrink-0 overflow-hidden rounded-full bg-child-tint ${SIZES[size]}`;
-  if (figure === undefined) {
+  if (avatar === undefined) {
     return (
       <span
         aria-hidden="true"
@@ -38,14 +38,14 @@ export function ChildAvatar({ name, color, figure, size }: ChildAvatarProps) {
   }
   return (
     <span aria-hidden="true" style={style} className={frame}>
-      <svg data-avatar={figure} viewBox="10 4 80 80" className="size-full fill-child">
-        {FIGURES[figure]}
+      <svg data-avatar={avatar} viewBox="10 4 80 80" className="size-full fill-child">
+        {DRAWINGS[avatar]}
       </svg>
     </span>
   );
 }
 
-// The figures: flat shapes, hair and clothes in the Child color, the face a light tint of it
+// The drawings: flat shapes, hair and clothes in the Child color, the face a light tint of it
 // (`child-face`), so they stay readable at 32px. Drawn on a 100×100 grid.
 
 const FACE = 'fill-child-face';
@@ -69,7 +69,7 @@ const BANGS =
 /** Hair pulled back, for the tied styles. */
 const CAP = 'M33 40 C33 25 42 21 50 21 C58 21 67 25 67 40 C62 33 56 31 50 31 C44 31 38 33 33 40 Z';
 
-const FIGURES: Record<ChildAvatarCode, ReactNode> = {
+const DRAWINGS: Record<ChildAvatarCode, ReactNode> = {
   long: (
     <>
       <path d="M31 46 C27 22 40 17 50 17 C60 17 73 22 69 46 L74 84 L26 84 Z" />

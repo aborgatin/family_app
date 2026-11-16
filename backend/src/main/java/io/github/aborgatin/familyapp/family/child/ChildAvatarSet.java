@@ -17,7 +17,7 @@ class ChildAvatarSet {
   private final Set<String> codes;
 
   ChildAvatarSet(ObjectMapper json) {
-    this.codes = ChildColorPalette.codes(json, RESOURCE);
+    this.codes = PaletteCodes.load(json, RESOURCE);
   }
 
   boolean contains(String code) {

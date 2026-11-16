@@ -16,7 +16,7 @@ import {
 
 const INVITE = 'role=button[name="Пригласить взрослого…"]';
 /** The card of the Child with this name in «Дети» on Home. */
-const childTile = (name) =>
+const childCard = (name) =>
   `role=region[name="Дети"] >> role=link[name=/${name}/]`;
 const ITEM = 'role=textbox[name="Товар «Молоко 3,2%»"]';
 /** Steps from Home to the «Настройки списка» screen of the List with this name. */
@@ -119,7 +119,7 @@ export default {
     {
       name: "home",
       path: "/",
-      steps: [{ waitFor: "text=Супермаркет" }, { waitFor: childTile("Соня") }],
+      steps: [{ waitFor: "text=Супермаркет" }, { waitFor: childCard("Соня") }],
     },
     // No Children: no «Дети» section at all.
     {
@@ -132,14 +132,14 @@ export default {
       name: "home-one-child",
       path: "/",
       initScript: onlyChildren("Маша"),
-      steps: [{ waitFor: "text=Супермаркет" }, { waitFor: childTile("Маша") }],
+      steps: [{ waitFor: "text=Супермаркет" }, { waitFor: childCard("Маша") }],
     },
     {
       // Петя has no birthday: the name only.
       name: "home-two-children",
       path: "/",
       initScript: onlyChildren("Маша", "Петя"),
-      steps: [{ waitFor: "text=Супермаркет" }, { waitFor: childTile("Петя") }],
+      steps: [{ waitFor: "text=Супермаркет" }, { waitFor: childCard("Петя") }],
     },
     {
       // A tile reached with Tab: the focus outline.
@@ -147,9 +147,9 @@ export default {
       path: "/",
       fullPage: false,
       steps: [
-        { waitFor: childTile("Соня") },
+        { waitFor: childCard("Соня") },
         async (page) => {
-          await page.locator(childTile("Маша")).focus();
+          await page.locator(childCard("Маша")).focus();
           await page.keyboard.press("Tab");
         },
         { wait: 200 },
@@ -1321,7 +1321,7 @@ export default {
       name: "child-page",
       path: "/",
       steps: [
-        { click: childTile("Маша") },
+        { click: childCard("Маша") },
         {
           waitFor: `${section("Профиль")} >> role=textbox[name="Размер обуви"]`,
         },
@@ -1334,7 +1334,7 @@ export default {
       name: "child-page-no-birthday",
       path: "/",
       steps: [
-        { click: childTile("Петя") },
+        { click: childCard("Петя") },
         { waitFor: "text=Не указан" },
         {
           waitFor: `${section("Профиль")} >> role=textbox[name="Размер обуви"]`,
@@ -1348,7 +1348,7 @@ export default {
       path: "/",
       fullPage: false,
       steps: [
-        { click: childTile("Маша") },
+        { click: childCard("Маша") },
         { click: 'role=button[name="Добавить список"]' },
         {
           fill: 'role=dialog >> role=textbox[name="Название"]',
@@ -1363,7 +1363,7 @@ export default {
       name: "child-list",
       path: "/",
       steps: [
-        { click: childTile("Маша") },
+        { click: childCard("Маша") },
         { click: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
         { waitFor: 'role=textbox[name="Новая задача"]' },
       ],
@@ -1373,7 +1373,7 @@ export default {
       name: "child-list-settings",
       path: "/",
       steps: [
-        { click: childTile("Маша") },
+        { click: childCard("Маша") },
         { click: 'role=region[name="Списки"] >> role=link[name=/Школа/]' },
         { click: 'role=link[name="Настройки списка"]' },
         { waitFor: 'role=textbox[name="Название"]' },
@@ -1385,7 +1385,7 @@ export default {
       path: "/",
       initScript: noChildFields,
       steps: [
-        { click: childTile("Маша") },
+        { click: childCard("Маша") },
         { waitFor: "text=Полей профиля нет" },
       ],
     },
@@ -1394,7 +1394,7 @@ export default {
       name: "child-page-value-too-long",
       path: "/",
       steps: [
-        { click: childTile("Маша") },
+        { click: childCard("Маша") },
         {
           fill: `${section("Профиль")} >> role=textbox[name="Размер обуви"]`,
           value: "31 ".repeat(334),

@@ -48,9 +48,9 @@ a new token here, with its light and dark values.
 | `overlay`          | black at 35%     | black at 55%     | the dimmed page behind an action sheet     |
 | `swatch-edge`      | black at 12%     | white at 18%     | hairline around a colour dot (`Swatch`)    |
 | `check-shadow`     | black at 50%     | black at 50%     | keeps the white check on a colour readable |
-| `child`            | the Child color  | the Child color  | a Child avatar's figure (`ChildAvatar`)    |
+| `child`            | the Child color  | the Child color  | a Child avatar's drawing (`ChildAvatar`)   |
 | `child-tint`       | Child color 22% on `cell` | Child color 34% on `cell` | the circle under it |
-| `child-face`       | Child color 38% on white | same           | the figure's face                          |
+| `child-face`       | Child color 38% on white | same           | the drawing's face                         |
 
 Contrast is WCAG AA (4.5:1 for text) in both themes, checked by `shared/ui/theme.test.ts` for every
 text/background pair; a new token that carries text or sits under it gets its pair there. The
@@ -424,7 +424,7 @@ A todo item's «Повтор» (#86, disabled without a «Срок») and «От
 ### ListRow
 
 A row of a `GroupedSection` that isn't a field: `title`, optional `subtitle` (second, smaller line), `leading` (an
-`Avatar`, a colour dot; centred in an avatar-wide slot, and the hairline above the row then starts
+`Initials`, a `ChildAvatar`, a colour dot; centred in an `Initials`-wide slot, and the hairline above the row then starts
 at the text, as on iOS), `value` (right-aligned, secondary colour), `busy` (spinner). What it does
 decides what it is:
 
@@ -621,10 +621,10 @@ Child avatar: that is `ChildAvatar`.)
 ### ChildAvatar
 
 A Child's round picture (ticket #124): `name`, `color` (a Child color's `hex`; `undefined` draws in
-`secondary-label`), `figure` (a code of the Avatar set, or `undefined`) and `size`: `card` (46px,
+`secondary-label`), `avatar` (a code of the Avatar set, or `undefined`) and `size`: `card` (46px,
 Home), `row` (32px, 28px with a fine pointer; `leading` of a Settings row) or `fill` (its parent's
-size, in `PictureChoice`). The circle is `child-tint`; the figure is flat shapes, hair and clothes in
-`child`, the face in `child-face`; without a figure the initial in `label` (drawn by CSS, so it
+size, in `PictureChoice`). The circle is `child-tint`; the drawing is flat shapes, hair and clothes in
+`child`, the face in `child-face`; without one the initial in `label` (drawn by CSS, so it
 isn't part of the row's text). Decorative: the name is always next to it or names its control.
 
 ### PictureChoice

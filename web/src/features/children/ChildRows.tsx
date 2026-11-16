@@ -2,18 +2,21 @@ import type { ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CHILD_AVATARS, CHILD_COLORS } from '@/shared/palette';
 import { ColorChoice, DateRow, InputRow, PictureChoice } from '@/shared/ui';
-import { ChildPicture } from './ChildPicture';
+import { ChildAvatarOf } from './ChildAvatarOf';
 
 /** The picker's value for «Без аватара» (the Child's `avatar` is then `null`). */
 export const NO_AVATAR = '';
+
+/** A picker value as the Child's `avatar`: `null` for «Без аватара». */
+export function avatarOrNull(value: string): string | null {
+  return value === NO_AVATAR ? null : value;
+}
 
 interface ChildRowsProps {
   name: Omit<ComponentProps<typeof InputRow>, 'label'>;
   color: Omit<ComponentProps<typeof ColorChoice<string>>, 'label' | 'options'>;
   /** The value is the avatar's code, or `NO_AVATAR`. */
   avatar: Omit<ComponentProps<typeof PictureChoice<string>>, 'label' | 'options'>;
-  /** The name, for the initial «Без аватара» shows (the name being typed in the sheet). */
-  childName: string;
   birthday: Omit<ComponentProps<typeof DateRow>, 'label'>;
 }
 
@@ -23,7 +26,7 @@ interface ChildRowsProps {
  * `childColors.<code>`), Аватар («Без аватара», then the Avatar set, each named by
  * `childAvatars.<code>` and drawn in the chosen colour), День рождения.
  */
-export function ChildRows({ name, color, avatar, childName, birthday }: ChildRowsProps) {
+export function ChildRows({ name, color, avatar, birthday }: ChildRowsProps) {
   const { t } = useTranslation();
   const colors = CHILD_COLORS.map((option) => ({
     value: option.code,
@@ -37,7 +40,7 @@ export function ChildRows({ name, color, avatar, childName, birthday }: ChildRow
   ].map(({ code, label }) => ({
     value: code,
     label,
-    picture: <ChildPicture name={childName} color={drawnIn} avatar={code} size="fill" />,
+    picture: <ChildAvatarOf name={name.value} color={drawnIn} avatar={code} size="fill" />,
   }));
   return (
     <>
