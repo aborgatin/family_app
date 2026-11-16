@@ -73,11 +73,7 @@ export interface DosePayload {
   url: string;
 }
 
-export type PushPayload =
-  | NotificationPayload
-  | ReminderPayload
-  | AnnouncementPayload
-  | DosePayload;
+export type PushPayload = NotificationPayload | ReminderPayload | AnnouncementPayload | DosePayload;
 
 /** The payload in the push data (JSON text), or `undefined` when it isn't one this worker reads. */
 export function parsePushPayload(data: string | undefined): PushPayload | undefined {
