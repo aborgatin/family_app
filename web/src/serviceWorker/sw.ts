@@ -18,7 +18,8 @@ declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: (string | PrecacheEntry)[];
 };
 
-// Updates: the new worker takes over at once; the open page is never reloaded (vite.config.ts).
+// Updates: the new worker takes over at once; the page reloads itself at a safe moment
+// (startAppUpdates in @/shared/pwa).
 void self.skipWaiting();
 clientsClaim();
 
