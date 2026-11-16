@@ -39,6 +39,7 @@ table adds it here.
 | `mute`        | `V18__mute.sql`                 | client (`crypto.randomUUID()`)                 | M5    |
 | `illness`     | `V21__illness.sql`              | client (`crypto.randomUUID()`)                 | M5.5  |
 | `illness_event` | `V21__illness.sql`            | client (`crypto.randomUUID()`)                 | M5.5  |
+| `medicine`    | `V22__medicine.sql`             | client (`crypto.randomUUID()`)                 | M5.5  |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -269,7 +270,17 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   (`params.illnessId` / `params.illnessEventId`), and the pull leaves those rows out of the other
   Member's changes entirely, not even as tombstones (like a Mute). A Child's card is every
   Member's. **Deleting an Illness** soft-deletes its events; **deleting a Child** soft-deletes their
-  Illnesses and those Illnesses' events, in the same operation.
+  Illnesses and those Illnesses' events, in the same operation. A dose's `medicineId` must name a
+  Medicine that exists, a deleted one included; one that never existed is `medical.not_found`
+  (`params.medicineId`).
+- **Medicines** (`medicine`, ticket #130; owned by `medical`): the Family's list, seen by every
+  Member. An upsert creates or renames: `name` (trimmed, required). A name that another Medicine
+  which isn't deleted has, ignoring letter case, is `medicine.duplicate` (409) on create and on
+  rename; the app checks its own list first, so it comes only from the other Member's Medicine of
+  the same name pushed first. A delete soft-deletes the Medicine and nothing else: doses keep
+  naming it, and anything later on it is `ignored`. **The pull never tombstones a Medicine**: a
+  deleted one comes as a row with its `name` and `deleted: true` (a live one with `deleted:
+  false`), in a full pull too, so a past dose shows its name on every device, a new one included.
 - **Deleting a Child** soft-deletes its Child field values in the same operation; **deleting a
   Child field** soft-deletes its values for every Child. They get new Versions, so devices pull
   their tombstones.
@@ -356,7 +367,7 @@ auth.required` without one) tells open apps when to pull:
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
   table (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`,
-  `item_history`, `mute`, `illness`, `illness_event`), the Outbox (`++seq`) and the stored
+  `item_history`, `mute`, `illness`, `illness_event`, `medicine`), the Outbox (`++seq`) and the stored
   Version. A row is the fields the pull sent plus `version`, the Version it was pulled with (absent
   on a row created here and not pulled back yet): what tells the latest Child field value. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives
@@ -402,13 +413,16 @@ auth.required` without one) tells open apps when to pull:
 - **Ignored operation** (delete wins): dropped from the Outbox, and the local row is removed with
   its dependents: the record is deleted on the server, and a pull may not send its tombstone
   again (it was already pulled, or a full pull left it out).
+- **Rows kept when deleted** (`KEPT_WHEN_DELETED` in `localStore.ts`: `medicine`): a delete here,
+  and an `ignored` operation on one, keep the local row marked `deleted: true` instead of removing
+  it, as the server's pull sends it, so a deleted Medicine's name stays on past doses offline too.
 - **Rejected operation**: dropped from the Outbox; «Не удалось сохранить» shows once, app-wide,
   wherever the Member is by then (`useSaveRejection`, a `Toast` placed by the app), with the
   reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
   `list.kind_immutable`, `list.wish_shared_only`, the four `list.child_*` codes,
   `list.hide_done_not_todo`,
   `child_field.value_type_immutable`, `sync.read_only`, `item.list_not_todo`,
-  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`, `mute.private_list`, `medical.not_found`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping`,
+  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`, `mute.private_list`, `medical.not_found`, `medicine.duplicate`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping`,
   `item.category_not_found` and `mute.not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.

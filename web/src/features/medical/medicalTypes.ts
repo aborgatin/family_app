@@ -25,9 +25,22 @@ export interface IllnessEvent {
   date: string;
   /** `HH:MM`, as written, or none. */
   time?: string | null;
-  /** °C, one decimal place. */
+  /** °C, one decimal place: a Temperature's, or optional on a Medicine dose. */
   temperature?: number | null;
+  /** A Medicine dose's Medicine and how much was given («5 мл»). */
+  medicineId?: string | null;
+  amount?: string | null;
   description?: string | null;
+  /** The Version the pull brought it with; absent on one made here until the pull brings it. */
+  version?: number;
+}
+
+/** A Medicine as the sync pull returns its fields (`medicine`): deleted ones too, marked. */
+export interface Medicine {
+  id: string;
+  name: string;
+  /** Deleted: left out of the list and the picker, but past doses still show its name. */
+  deleted?: boolean;
 }
 
 /** Whether the row is on `person`'s card. */

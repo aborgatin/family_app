@@ -72,6 +72,32 @@ export function eventsInOrder(events: readonly IllnessEvent[]): IllnessEvent[] {
   });
 }
 
+/**
+ * The amount to prefill for a dose of `medicineId`: that of the latest of `events` (a person's)
+ * dosing it, by its own date and time (none counts as 00:00), so a dose logged later for an earlier
+ * time doesn't change it; on a tie the higher Version wins, and one not pulled back yet is the
+ * newest. `undefined` when there is none.
+ */
+export function lastAmount(
+  events: readonly IllnessEvent[],
+  medicineId: string,
+): string | undefined {
+  let latest: { event: IllnessEvent; moment: number; version: number } | undefined;
+  for (const event of events) {
+    if (event.kind !== 'MEDICINE_DOSE' || event.medicineId !== medicineId) continue;
+    const moment = eventMoment(event).getTime();
+    const version = event.version ?? Number.POSITIVE_INFINITY;
+    if (
+      latest === undefined ||
+      moment > latest.moment ||
+      (moment === latest.moment && version > latest.version)
+    ) {
+      latest = { event, moment, version };
+    }
+  }
+  return latest?.event.amount ?? undefined;
+}
+
 /** The first day of the Illness: its earliest event's date; `undefined` without events. */
 export function firstDay(events: readonly IllnessEvent[]): string | undefined {
   let first: string | undefined;

@@ -14,7 +14,8 @@ import { network } from './network';
  * Repeat on to its next occurrence, a new open Item (ADR-0009); a pushed `done` change stamps
  * `doneAt` with the server's clock (`now()`), and a List upsert carrying `hideDone` (a press's id)
  * stamps the List's `doneHiddenAt` once per press (only on a Todo list:
- * `list.hide_done_not_todo`; ticket #93), the press not stored itself; a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
+ * `list.hide_done_not_todo`; ticket #93), the press not stored itself, and a Medicine's name is
+ * unique ignoring case (`medicine.duplicate`) and a deleted one stays a row marked `deleted`; a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
@@ -221,6 +222,7 @@ class FakeSyncServer {
       return { status: 'rejected', code, params };
     }
     const current = this.stored.get(key(operation.table, operation.id));
+    if (operation.table === 'medicine') return this.applyToMedicine(operation, current);
     if (current?.deleted === true || (operation.op === 'delete' && current === undefined)) {
       return { status: 'ignored' };
     }
@@ -271,6 +273,39 @@ class FakeSyncServer {
     } else {
       this.write(operation.table, operation.id, { ...current?.fields, ...operation.fields }, false);
     }
+    return { status: 'applied' };
+  }
+
+  /**
+   * A Medicine (ticket #130): its name unique ignoring case among those not deleted
+   * (`medicine.duplicate`); deleted, it stays a row with its name and `deleted: true`, never a
+   * tombstone, and anything more on it is ignored.
+   */
+  private applyToMedicine(operation: PushedOperation, current: StoredRow | undefined) {
+    if (current?.fields.deleted === true || (operation.op === 'delete' && current === undefined)) {
+      return { status: 'ignored' };
+    }
+    if (operation.op === 'delete') {
+      this.write('medicine', operation.id, { ...current?.fields, deleted: true }, false);
+      return { status: 'applied' };
+    }
+    const name = operation.fields?.name;
+    if (typeof name === 'string') {
+      const taken = [...this.stored.values()].some(
+        (row) =>
+          row.table === 'medicine' &&
+          row.id !== operation.id &&
+          row.fields.deleted !== true &&
+          String(row.fields.name).toLowerCase() === name.trim().toLowerCase(),
+      );
+      if (taken) return { status: 'rejected', code: 'medicine.duplicate', params: {} };
+    }
+    this.write(
+      'medicine',
+      operation.id,
+      { deleted: false, ...current?.fields, ...operation.fields },
+      false,
+    );
     return { status: 'applied' };
   }
 

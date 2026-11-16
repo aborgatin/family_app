@@ -7,9 +7,11 @@ import { useCardRoute } from './cardRoute';
 import { eventsInOrder, firstDay, formatTemperature } from './illnessRules';
 import { CardMissing } from './MedicalCardPage';
 import { cardPath } from './medicalPaths';
+import { DoseSheet } from './DoseSheet';
 import type { IllnessEvent, Person } from './medicalTypes';
 import { TemperatureSheet } from './TemperatureSheet';
 import { useMedicalCard } from './useMedicalCard';
+import { useMedicines } from './useMedicines';
 
 interface IllnessPageProps {
   /** Path of Home: the way back from the Member's own card. */
@@ -18,7 +20,7 @@ interface IllnessPageProps {
 
 /**
  * An Illness screen (`…/medical/illnesses/:illnessId`), back to its card: titled with the Illness's
- * name, «с 2 декабря 2026», «Температура» (the Temperature sheet, into this Illness), then its
+ * name, «с 2 декабря 2026», «Приём лекарства» and «Температура» (their sheets, into this Illness), then its
  * events, newest first, under a header per day. An Illness that is unknown, or is deleted while the
  * screen is open, says so. Data only through `useMedicalCard(person)`.
  */
@@ -31,8 +33,12 @@ export function IllnessPage({ homePath }: IllnessPageProps) {
 function IllnessScreen({ person }: { person: Person }) {
   const { t } = useTranslation();
   const { illnessId } = useParams();
-  const { illnesses, eventsOf, logTemperature } = useMedicalCard(person);
-  const [logging, setLogging] = useState(false);
+  const { illnesses, eventsOf, lastAmountOf, logTemperature, logDose } = useMedicalCard(person);
+  const { load: medicines, nameOf } = useMedicines();
+  const [logging, setLogging] = useState<'dose' | 'temperature'>();
+  const close = () => {
+    setLogging(undefined);
+  };
   const illness = illnesses?.find(({ id }) => id === illnessId);
   const back = { to: cardPath(person), title: t('medical.title') };
 
@@ -61,10 +67,17 @@ function IllnessScreen({ person }: { person: Person }) {
         )}
         <GroupedSection label={t('medical.log')}>
           <ListRow
+            title={t('medical.dose')}
+            accent
+            onClick={() => {
+              setLogging('dose');
+            }}
+          />
+          <ListRow
             title={t('medical.temperature')}
             accent
             onClick={() => {
-              setLogging(true);
+              setLogging('temperature');
             }}
           />
         </GroupedSection>
@@ -73,32 +86,53 @@ function IllnessScreen({ person }: { person: Person }) {
             {events
               .filter(({ date }) => date === day)
               .map((event) => (
-                <EventRow key={event.id} event={event} />
+                <EventRow key={event.id} event={event} medicineName={nameOf} />
               ))}
           </GroupedSection>
         ))}
       </Sections>
-      {logging && (
-        <TemperatureSheet
+      {logging === 'temperature' && (
+        <TemperatureSheet illnessId={illness.id} save={logTemperature} onClose={close} />
+      )}
+      {logging === 'dose' && medicines.status === 'ready' && (
+        <DoseSheet
           illnessId={illness.id}
-          save={logTemperature}
-          onClose={() => {
-            setLogging(false);
-          }}
+          medicines={medicines.value}
+          lastAmountOf={lastAmountOf}
+          save={logDose}
+          onClose={close}
         />
       )}
     </Page>
   );
 }
 
-/** «22:00 · 38,5 °C»; without a time just «38,5 °C». */
-function EventRow({ event }: { event: IllnessEvent }) {
+/**
+ * «22:00 · 38,5 °C», a dose «22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» (a deleted Medicine's
+ * name too); without a time or a temperature, without those parts.
+ */
+function EventRow({
+  event,
+  medicineName,
+}: {
+  event: IllnessEvent;
+  medicineName: (medicineId: string) => string | undefined;
+}) {
   const { t } = useTranslation();
-  const temperature =
-    event.temperature == null ? undefined : formatTemperature(t, event.temperature);
-  const title =
-    event.time == null || temperature === undefined
-      ? (temperature ?? event.time ?? '')
-      : t('medical.eventSummary', { time: event.time, temperature });
-  return <ListRow title={title} subtitle={event.description ?? undefined} />;
+  const parts = [
+    event.time,
+    event.kind === 'MEDICINE_DOSE' &&
+      t('medical.doseValue', {
+        medicine: (event.medicineId == null ? undefined : medicineName(event.medicineId)) ?? '',
+        amount: event.amount ?? '',
+      }),
+    event.temperature != null && formatTemperature(t, event.temperature),
+  ].filter((part) => typeof part === 'string' && part !== '');
+  return (
+    <ListRow
+      title={parts.join(t('medical.eventSeparator'))}
+      wrapTitle
+      subtitle={event.description ?? undefined}
+    />
+  );
 }

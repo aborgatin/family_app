@@ -1118,6 +1118,52 @@ export default {
       fullPage: false,
       steps: [editIn("Поля профиля"), toSection("Поля профиля", 120)],
     },
+    {
+      name: "settings-medicines-edit",
+      path: "/settings",
+      fullPage: false,
+      steps: [editIn("Лекарства"), toSection("Лекарства", 120)],
+    },
+    {
+      // «Новое лекарство»: the placeholder shows what to type.
+      name: "settings-medicines-new",
+      path: "/settings",
+      fullPage: false,
+      steps: [
+        { click: `${section("Лекарства")} >> role=button[name="Добавить лекарство"]` },
+        { waitFor: 'role=dialog >> role=textbox[name="Название"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A name the list has, in another letter case.
+      name: "settings-medicines-duplicate",
+      path: "/settings",
+      fullPage: false,
+      steps: [
+        { click: `${section("Лекарства")} >> role=button[name="Добавить лекарство"]` },
+        { fill: 'role=dialog >> role=textbox[name="Название"]', value: "ибупрофен 20 мг/мл" },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "role=dialog >> text=Такое лекарство уже есть" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // Both Medicines deleted: «Лекарств пока нет».
+      name: "settings-medicines-empty",
+      path: "/settings",
+      isolate: true,
+      fullPage: false,
+      steps: [
+        editIn("Лекарства"),
+        { click: 'role=button[name="Удалить «Ибупрофен 20 мг/мл»"]' },
+        { click: 'role=dialog >> role=button[name="Удалить"]' },
+        { click: 'role=button[name="Удалить «Парацетамол 120 мг/5 мл»"]' },
+        { click: 'role=dialog >> role=button[name="Удалить"]' },
+        { waitFor: "text=Лекарств пока нет" },
+        toSection("Лекарства", 120),
+      ],
+    },
     // Touch variants show the swipe, mouse variants the context menu.
     {
       name: "settings-row-actions",
@@ -1488,6 +1534,78 @@ export default {
         { click: 'role=link[name="Медкарта"]' },
         { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
         { waitFor: 'role=button[name="Температура"]' },
+        { waitFor: "text=/Ибупрофен 20 мг\\/мл — 5 мл/" },
+      ],
+    },
+    {
+      // The dose sheet from Маша's card: the picker lists the Family's Medicines.
+      name: "medical-dose-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Добавить приём лекарства"]' },
+        { waitFor: 'role=dialog >> role=button[name="Ибупрофен 20 мг/мл"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // Ибупрофен picked: «Количество» is what Маша got last time, «как в прошлый раз».
+      name: "medical-dose-sheet-prefilled",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Добавить приём лекарства"]' },
+        { click: 'role=dialog >> role=button[name="Ибупрофен 20 мг/мл"]' },
+        { waitFor: "role=dialog >> text=как в прошлый раз" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A name not in the list: «+ Нурофен» adds it.
+      name: "medical-dose-sheet-new-medicine",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Добавить приём лекарства"]' },
+        { fill: 'role=dialog >> role=textbox[name="Лекарство"]', value: "Нур" },
+        { waitFor: 'role=dialog >> role=button[name="+ Нур"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Готово» with nothing filled in: «Лекарство» and «Количество» are required.
+      name: "medical-dose-sheet-required",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=button[name="Добавить приём лекарства"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "role=dialog >> text=Заполните это поле" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «ОРВИ» from the Illness screen: the dose sheet without «Добавить к».
+      name: "medical-illness-dose-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Приём лекарства"]' },
+        { waitFor: 'role=dialog >> role=textbox[name="Количество"]' },
+        { wait: 400 },
       ],
     },
     {

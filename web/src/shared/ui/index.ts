@@ -22,6 +22,7 @@ export { ConfirmRow } from './ConfirmRow';
 export { EditableRow, type RowCaptionPart } from './EditableRow';
 export { MenuChip, type MenuChipChoice, type MenuChipProps } from './MenuChip';
 export { AddRow } from './AddRow';
+export { SuggestionRows } from './SuggestionRows';
 export { DoneToggle } from './DoneToggle';
 export { SwipeToDelete } from './SwipeToDelete';
 export {

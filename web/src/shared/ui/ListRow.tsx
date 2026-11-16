@@ -27,6 +27,11 @@ export interface RowContentProps {
    */
   wrapSubtitle?: boolean;
   /**
+   * Shows the whole title, wrapped between words, instead of cutting it with «…»: for a line made
+   * of several parts that all count (an Illness event, «22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C»).
+   */
+  wrapTitle?: boolean;
+  /**
    * Before the text: an `Initials`, a colour dot. Centred in a slot as wide as an `Initials`, so the
    * texts and the hairlines between rows line up.
    */
@@ -53,6 +58,7 @@ export function ListRow({
   title,
   subtitle,
   wrapSubtitle,
+  wrapTitle,
   leading,
   value,
   busy = false,
@@ -65,6 +71,7 @@ export function ListRow({
       title={title}
       subtitle={subtitle}
       wrapSubtitle={wrapSubtitle}
+      wrapTitle={wrapTitle}
       leading={leading}
       value={value}
       busy={busy}
@@ -121,6 +128,7 @@ export function RowInside({
   title,
   subtitle,
   wrapSubtitle = false,
+  wrapTitle = false,
   leading,
   value,
   busy = false,
@@ -147,7 +155,9 @@ export function RowInside({
       <span
         className={`min-w-0 flex-1 py-2.5 pointer-fine:py-1.5 ${muted ? 'text-secondary-label' : TONES[tone]}`}
       >
-        <span className={field ? 'block' : 'block truncate'}>{title}</span>
+        <span className={field ? 'block' : wrapTitle ? 'block wrap-break-word' : 'block truncate'}>
+          {title}
+        </span>
         {below}
         {subtitle !== undefined && (
           <span

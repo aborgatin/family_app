@@ -74,7 +74,7 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | `Lists` (with `ListSummary`, `ItemSummary`, `DueItem`), `ItemAdded`, `ItemAssigned`, `ListUnshared`, `ListKind`, `Visibility` | `lists.list`                                                                              |
 | `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `PushMessage`, `Urgency`, `SchedulerStep`, `AnnouncementCatalog`, `Announcement` | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule`, `notifications.announcement` |
-| `medical` | none                                                                                                   | `Person` (the card's visibility rule), `Illness`, `IllnessEvent`, their repositories, `IllnessService` (`illness`), `IllnessEventService` (`illness_event`) |
+| `medical` | none                                                                                                   | `Person` (the card's visibility rule), `Illness`, `IllnessEvent`, `Medicine`, their repositories, `IllnessService` (`illness`), `IllnessEventService` (`illness_event`), `MedicineService` (`medicine`) |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
@@ -564,8 +564,9 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
 
 ### `medical`
 
-Medical cards (spec #128, ticket #129): no public API, everything goes through the sync push and
-pull. A card is not a row: `illness` and `illness_event` rows name their person.
+Medical cards (spec #128, tickets #129, #130): no public API, everything goes through the sync
+push and pull. A card is not a row: `illness` and `illness_event` rows name their person. The
+Family's Medicines (`medicine`) belong to no card: every Member sees them.
 
 - `Person(memberId, childId)`: exactly one is set. The one place of the visibility rule:
   `visibleTo(viewer)` (a Child's card: every Member; a Member's: that Member) and `notFound(…)`,
@@ -578,9 +579,16 @@ pull. A card is not a row: `illness` and `illness_event` rows name their person.
   tombstones, the rows of cards the Member can't see.
 - `IllnessEventService` (`illness_event`): the event's card is its Illness's; validation by kind
   (sync.md, Push); `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted ones
-  included) and leaves out those the Member can't see.
-- Editing rows, Medicines, Documents and the dose Notification come with later tickets of #128.
-- Tested by `medical.MedicalCardSyncTest`.
+  included) and leaves out those the Member can't see. A dose's `medicineId` must name a
+  Medicine that exists, deleted or not (`MedicineService.exists`), else `medical.not_found`
+  (`params.medicineId`).
+- `MedicineService` (`medicine`, #130): an upsert creates or renames (`name` required, trimmed);
+  a name another Medicine that isn't deleted has, ignoring case, is `medicine.duplicate`
+  (`MedicineRepository.nameTaken`; the partial unique index on `lower(name)` backs it up). A
+  delete soft-deletes it only. `changesSince` sends every changed Medicine as a row with `name` and
+  `deleted`, **never a tombstone**, so past doses keep its name on every device.
+- Editing rows, Documents and the dose Notification come with later tickets of #128.
+- Tested by `medical.MedicalCardSyncTest` and `medical.MedicineSyncTest`.
 
 ### `command`
 
@@ -704,7 +712,7 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
 (`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field (a Due date, a Repeat or an Assignee) on an Item of a Shopping
 or Wish list; its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.repeat_without_due_date` (a Repeat without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
-`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute), and for Medical cards `medical.not_found` (404, `params.illnessId` or `params.illnessEventId`: a row on another Member's card, or an Illness that never existed). An operation on a deleted Child, Child field, List,
+`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute), and for Medical cards `medical.not_found` (404, `params.illnessId` or `params.illnessEventId`: a row on another Member's card, or an Illness that never existed; `params.medicineId`: a dose of a Medicine that never existed) and `medicine.duplicate` (409: a Medicine name the list already has, ignoring case). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
 (`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a
@@ -821,6 +829,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V19__announcement_sent.sql`    | `announcement_sent` (`id` text primary key, `sent_at`): each catalog Announcement the scheduler step has handled |
 | `V20__child_avatar.sql`         | `child.avatar` (nullable code of the Avatar set, checked in Java): a Child's Аватар (#124) |
 | `V21__illness.sql`              | `illness` (syncable; person: `member_id` → `member` or `child_id` → `child`, exactly one; `kind`, `name`, `description`, `ended`, `position`, `created_at`; indexed by Child) and `illness_event` (syncable; → `illness`; `kind`, `date`, `time`, `medicine_id`, `amount`, `temperature NUMERIC(3,1)`, `title`, `description`; indexed by Illness): Medical cards (#129) |
+| `V22__medicine.sql`             | `medicine` (syncable; `name`, unique ignoring case among rows not deleted: partial unique index on `lower(name)`), and the `illness_event.medicine_id` → `medicine` foreign key V21 left out: Medicines (#130) |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of

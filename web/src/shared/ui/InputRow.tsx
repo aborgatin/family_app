@@ -21,6 +21,8 @@ interface InputRowProps {
   busy?: boolean;
   type?: 'text' | 'email' | 'password';
   autoComplete?: string;
+  /** Already translated; an example of what to type, shown while the field is empty. */
+  placeholder?: string;
 }
 
 /**
@@ -37,6 +39,7 @@ export function InputRow({
   busy = false,
   type = 'text',
   autoComplete,
+  placeholder,
 }: InputRowProps) {
   const id = useId();
   const { describedBy, invalid } = useSectionRow(name);
@@ -61,6 +64,7 @@ export function InputRow({
         name={name}
         type={type}
         autoComplete={autoComplete}
+        placeholder={placeholder}
         value={value}
         onChange={(event) => {
           onChange(event.target.value);
@@ -83,4 +87,5 @@ export function InputRow({
 /** The field: its focus sign is `FIELD_FOCUS`. */
 const FIELD =
   'my-1 -ml-1 w-full min-w-0 self-stretch rounded-md bg-transparent px-1 text-body text-label ' +
+  'placeholder:text-tertiary-label ' +
   FIELD_FOCUS;
