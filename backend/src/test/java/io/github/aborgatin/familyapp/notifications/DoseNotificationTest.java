@@ -15,6 +15,8 @@ import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
 import io.github.aborgatin.familyapp.SyncRequests;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,9 +29,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * The dose Notification (spec #128 "Notification", ticket #136): a Medicine dose a Member logs on a
- * Child's card is pushed to the other Member at once, naming no medicine. Members act through the
- * sync push; pushes are observed on the fake gateway. Anna and Boris both have the switch on and a
- * phone each; the Child Маша has an Illness, and there is one Medicine.
+ * Child's card is pushed to the other Member at once, naming no medicine, off the sync request's
+ * thread. Members act through the sync push; pushes are observed on the fake gateway. Anna and
+ * Boris both have the switch on and a phone each; the Child Маша has two Illnesses, and there is
+ * one Medicine. Doses go out one at a time in the order logged, so {@link #sentBefore()} logs a
+ * marker dose last and waits for it: every push before it has then been sent.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -47,6 +51,7 @@ class DoseNotificationTest {
   Browser boris;
   final UUID masha = UUID.randomUUID();
   final UUID cold = UUID.randomUUID();
+  final UUID marker = UUID.randomUUID();
   final UUID ibuprofen = UUID.randomUUID();
 
   @BeforeEach
@@ -63,6 +68,7 @@ class DoseNotificationTest {
         anna,
         SyncRequests.upsert("child", masha, "{\"name\":\"Маша\",\"color\":\"coral\"}"),
         illnessOf("childId", masha, cold, "ОРВИ"),
+        illnessOf("childId", masha, marker, "Отит"),
         medicine(ibuprofen, "Ибупрофен 20 мг/мл"));
     gateway.reset();
   }
@@ -71,27 +77,41 @@ class DoseNotificationTest {
   void aDoseOnAChildsCardIsPushedToTheOtherMemberAtOnceNamingNoMedicine() throws Exception {
     pushApplied(boris, dose(UUID.randomUUID(), cold, ibuprofen, "5 мл", null));
 
-    assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE);
-    FakePushGateway.Push sent = gateway.pushes().get(0);
-    assertThat(sent.payloadJson())
+    List<FakePushGateway.Push> sent = sentBefore();
+    assertThat(sent).extracting(FakePushGateway.Push::endpoint).containsExactly(ANNA_PHONE);
+    assertThat(sent.get(0).payloadJson())
         .isEqualTo(
             FakePushGateway.json(
                 """
                 {"type":"dose","actorName":"Борис","actorGrammaticalGender":"MASCULINE",\
                 "childName":"Маша","url":"/children/%s/medical/illnesses/%s"}"""
                     .formatted(masha, cold)));
-    assertThat(sent.payload()).doesNotContain("Ибупрофен", "5 мл", ibuprofen.toString());
-    assertThat(sent.ttl()).isEqualTo(Duration.ofHours(24));
-    assertThat(sent.urgency()).isEqualTo(Urgency.NORMAL);
+    assertThat(sent.get(0).payload()).doesNotContain("Ибупрофен", "5 мл", ibuprofen.toString());
+    assertThat(sent.get(0).ttl()).isEqualTo(Duration.ofHours(24));
+    assertThat(sent.get(0).urgency()).isEqualTo(Urgency.NORMAL);
+  }
+
+  @Test
+  void aSlowPushServiceDoesNotDelayTheSyncAnswer() throws Exception {
+    gateway.holdSends();
+
+    Instant start = Instant.now();
+    pushApplied(boris, dose(UUID.randomUUID(), cold, ibuprofen, "5 мл", null));
+    Duration answeredIn = Duration.between(start, Instant.now());
+    gateway.releaseSends();
+
+    assertThat(answeredIn).isLessThan(FakePushGateway.PATIENCE.dividedBy(2));
+    assertThat(sentBefore()).extracting(FakePushGateway.Push::endpoint).containsExactly(ANNA_PHONE);
   }
 
   @Test
   void annasDoseIsPushedToBorisWithHerGender() throws Exception {
     pushApplied(anna, dose(UUID.randomUUID(), cold, ibuprofen, "5 мл", 38.2));
 
-    assertThat(gateway.endpoints()).containsExactly(BORIS_PHONE);
-    assertThat(gateway.pushes().get(0).payloadJson().get("actorName").asText()).isEqualTo("Анна");
-    assertThat(gateway.pushes().get(0).payloadJson().get("actorGrammaticalGender").asText())
+    List<FakePushGateway.Push> sent = sentBefore();
+    assertThat(sent).extracting(FakePushGateway.Push::endpoint).containsExactly(BORIS_PHONE);
+    assertThat(sent.get(0).payloadJson().get("actorName").asText()).isEqualTo("Анна");
+    assertThat(sent.get(0).payloadJson().get("actorGrammaticalGender").asText())
         .isEqualTo("FEMININE");
   }
 
@@ -102,7 +122,9 @@ class DoseNotificationTest {
         dose(UUID.randomUUID(), cold, ibuprofen, "5 мл", null),
         dose(UUID.randomUUID(), cold, ibuprofen, "5 мл", null));
 
-    assertThat(gateway.endpoints()).containsExactly(ANNA_PHONE, ANNA_PHONE);
+    assertThat(sentBefore())
+        .extracting(FakePushGateway.Push::endpoint)
+        .containsExactly(ANNA_PHONE, ANNA_PHONE);
   }
 
   @Test
@@ -113,26 +135,27 @@ class DoseNotificationTest {
         illnessOf("memberId", SyncRequests.memberId(boris), borisCold, "ОРВИ"),
         dose(UUID.randomUUID(), borisCold, ibuprofen, "5 мл", null));
 
-    assertThat(gateway.pushes()).isEmpty();
+    assertThat(sentBefore()).isEmpty();
   }
 
   @Test
   void anEditOfADoseSendsNothing() throws Exception {
     UUID given = UUID.randomUUID();
     pushApplied(boris, dose(given, cold, ibuprofen, "5 мл", null));
+    sentBefore();
     gateway.reset();
 
     pushApplied(boris, dose(given, cold, ibuprofen, "7,5 мл", null));
     pushApplied(anna, dose(given, cold, ibuprofen, "7,5 мл", null));
 
-    assertThat(gateway.pushes()).isEmpty();
+    assertThat(sentBefore()).isEmpty();
   }
 
   @Test
   void aTemperatureSendsNothing() throws Exception {
     pushApplied(boris, temperature(UUID.randomUUID(), cold, "2026-12-02", "22:00", 38.5));
 
-    assertThat(gateway.pushes()).isEmpty();
+    assertThat(sentBefore()).isEmpty();
   }
 
   @Test
@@ -141,7 +164,7 @@ class DoseNotificationTest {
 
     pushApplied(boris, dose(UUID.randomUUID(), cold, ibuprofen, "5 мл", null));
 
-    assertThat(gateway.pushes()).isEmpty();
+    assertThat(sentBefore()).isEmpty();
   }
 
   @Test
@@ -151,6 +174,20 @@ class DoseNotificationTest {
     SyncRequests.push(boris, dose(UUID.randomUUID(), cold, ibuprofen, "5 мл", null))
         .andExpect(jsonPath("$.results[0].status").value("ignored"));
 
-    assertThat(gateway.pushes()).isEmpty();
+    assertThat(sentBefore()).isEmpty();
+  }
+
+  /**
+   * The pushes sent for what the test did, once they all have been: Anna logs a dose on the marker
+   * Illness, and its push to Boris, sent after every earlier one, is waited for and left out.
+   */
+  private List<FakePushGateway.Push> sentBefore() throws Exception {
+    pushApplied(anna, dose(UUID.randomUUID(), marker, ibuprofen, "5 мл", null));
+    String markerUrl = "/children/%s/medical/illnesses/%s".formatted(masha, marker);
+    FakePushGateway.Push markerPush =
+        gateway.awaitPush(push -> push.payloadJson().get("url").asText().equals(markerUrl));
+    List<FakePushGateway.Push> all = gateway.pushes();
+    assertThat(all).last().isEqualTo(markerPush);
+    return all.subList(0, all.size() - 1);
   }
 }

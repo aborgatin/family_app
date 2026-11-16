@@ -566,11 +566,16 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   `notifications.dose.DoseNotifications`): `medical` publishes `MedicineDoseLogged(childId,
   illnessId, byMemberId)` when a push operation creates a `MEDICINE_DOSE` on a Child's card (not
   for an edit, a Member's card, another kind, or a dose ignored for a deleted Illness). A
-  `@TransactionalEventListener` (after commit, so a rolled-back push sends nothing) sends it at
-  once, on the push request's thread: not batched, not through the scheduler step, Mute does not
-  apply. Recipients: `family.Members.all()` but the actor; `Pushes.sendTo` leaves out those whose
-  switch is off. One `PushMessage.notification` (`NORMAL`, 24 h) per recipient and dose; a push
-  that throws is logged and costs only itself (the sync push already succeeded). Nothing is sent
+  `@TransactionalEventListener` (after commit, so a rolled-back push sends nothing; once per
+  commit, so sent once) reads the recipients and payload and hands the sends to the class's own
+  single-thread executor (`dose-push`, a daemon, as `sync`'s `LiveUpdates` has for heartbeats), so
+  a slow push service (the gateway's 30 s timeouts) never delays the sync answer. One thread sends
+  them one at a time in the order the doses were logged. Not batched, not through the scheduler
+  step (that would wait up to a minute), Mute does not apply. Recipients: `family.Members.all()`
+  but the actor; `Pushes.sendTo` leaves out those whose switch is off. One
+  `PushMessage.notification` (`NORMAL`, 24 h) per recipient and dose; a push that throws is logged
+  and costs only itself (the sync push already succeeded). As with the step, a crash or stop
+  before a queued push is sent loses it rather than sending it twice. Nothing is sent
   when the actor or the Child is gone by then (`family.Children.name`). The payload is the `dose`
   of the contract in `web/src/serviceWorker/pushPayload.ts`: `actorName`, `actorGrammaticalGender`,
   `childName`, `url` (`PushPayloads.childIllnessUrl`, `/children/:id/medical/illnesses/:illnessId`);
@@ -961,7 +966,10 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     gateway (`@Primary`). `pushes()` (subscription, payload, TTL, urgency), `endpoints()`,
     `answer(endpoint, GONE | FAILED)`, `reset()` (call it in `@BeforeEach`: the context is shared);
     `Push.payloadJson()` and the static `json(text)` parse a payload, or its expected value, to
-    compare.
+    compare. For a push sent off the request's thread (the dose Notification):
+    `awaitPush(predicate)` waits up to `PATIENCE` (10 s) for one, and `holdSends()` /
+    `releaseSends()` make the gateway slow, as a push service can be; `DoseNotificationTest`'s
+    `sentBefore()` waits for a marker push to prove that nothing else was sent.
     See `notifications.PushSubscriptionsTest`.
   - `ListOperations`: the Lists' operations most `lists.*SyncTest`s push, statically imported:
     `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`,
