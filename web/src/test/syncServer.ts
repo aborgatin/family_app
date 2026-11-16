@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { dayOf, dayParts } from '@/shared/dates';
+import { medicineKey } from '@/features/medical/useMedicines';
 import { network } from './network';
 
 /*
@@ -296,7 +297,7 @@ class FakeSyncServer {
           row.table === 'medicine' &&
           row.id !== operation.id &&
           row.fields.deleted !== true &&
-          String(row.fields.name).toLowerCase() === name.trim().toLowerCase(),
+          medicineKey(String(row.fields.name)) === medicineKey(name),
       );
       if (taken && current !== undefined) {
         return { status: 'rejected', code: 'medicine.duplicate', params: {} };

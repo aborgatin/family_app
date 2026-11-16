@@ -296,4 +296,14 @@ class MedicalCardSyncTest {
         "{\"illnessId\":\"%s\",\"kind\":\"TEMPERATURE\",\"date\":\"%s\",\"time\":%s,\"temperature\":%s}"
             .formatted(illness, date, time == null ? "null" : "\"" + time + "\"", value));
   }
+
+  /** A Medicine dose on 2 December 2026, 22:00; {@code temperature} may be {@code null}. */
+  static String dose(UUID id, UUID illness, UUID medicine, String amount, Double temperature) {
+    return SyncRequests.upsert(
+        EVENT,
+        id,
+        ("{\"illnessId\":\"%s\",\"kind\":\"MEDICINE_DOSE\",\"date\":\"2026-12-02\","
+                + "\"time\":\"22:00\",\"medicineId\":\"%s\",\"amount\":\"%s\",\"temperature\":%s}")
+            .formatted(illness, medicine, amount, temperature));
+  }
 }

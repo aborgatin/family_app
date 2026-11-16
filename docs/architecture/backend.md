@@ -581,7 +581,7 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   (sync.md, Push); `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted ones
   included) and leaves out those the Member can't see. A dose's `medicineId` must name a
   Medicine that exists, deleted or not (`MedicineService.exists`), else `medical.not_found`
-  (`params.medicineId`).
+  (`params.medicineId`, `Medicine.notFound`).
 - `MedicineService` (`medicine`, #130): an upsert creates or renames (`name` required, trimmed);
   a rename to a name another Medicine that isn't deleted has, ignoring case, is
   `medicine.duplicate` (`MedicineRepository.nameTaken`; the partial unique index on `lower(name)`

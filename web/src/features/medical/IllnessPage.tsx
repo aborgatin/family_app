@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { localDay, longDay } from '@/shared/dates';
@@ -7,9 +6,8 @@ import { useCardRoute } from './cardRoute';
 import { eventsInOrder, firstDay, formatTemperature } from './illnessRules';
 import { CardMissing } from './MedicalCardPage';
 import { cardPath } from './medicalPaths';
-import { DoseSheet } from './DoseSheet';
+import { LogSection } from './LogSection';
 import type { IllnessEvent, Person } from './medicalTypes';
-import { TemperatureSheet } from './TemperatureSheet';
 import { useMedicalCard } from './useMedicalCard';
 import { useMedicines } from './useMedicines';
 
@@ -33,12 +31,9 @@ export function IllnessPage({ homePath }: IllnessPageProps) {
 function IllnessScreen({ person }: { person: Person }) {
   const { t } = useTranslation();
   const { illnessId } = useParams();
-  const { illnesses, eventsOf, lastAmountOf, logTemperature, logDose } = useMedicalCard(person);
-  const { load: medicines, nameOf } = useMedicines();
-  const [logging, setLogging] = useState<'dose' | 'temperature'>();
-  const close = () => {
-    setLogging(undefined);
-  };
+  const card = useMedicalCard(person);
+  const { illnesses, eventsOf } = card;
+  const { nameOf } = useMedicines();
   const illness = illnesses?.find(({ id }) => id === illnessId);
   const back = { to: cardPath(person), title: t('medical.title') };
 
@@ -65,44 +60,21 @@ function IllnessScreen({ person }: { person: Person }) {
             <ListRow title={t('medical.since', { date: longDay(localDay(first), 'always') })} />
           </GroupedSection>
         )}
-        <GroupedSection label={t('medical.log')}>
-          <ListRow
-            title={t('medical.dose')}
-            accent
-            onClick={() => {
-              setLogging('dose');
-            }}
-          />
-          <ListRow
-            title={t('medical.temperature')}
-            accent
-            onClick={() => {
-              setLogging('temperature');
-            }}
-          />
-        </GroupedSection>
+        <LogSection
+          card={card}
+          target={{ illnessId: illness.id }}
+          titles={{ dose: t('medical.dose'), temperature: t('medical.temperature') }}
+        />
         {days.map((day) => (
           <GroupedSection key={day} header={longDay(localDay(day), new Date())}>
             {events
               .filter(({ date }) => date === day)
               .map((event) => (
-                <EventRow key={event.id} event={event} medicineName={nameOf} />
+                <EventRow key={event.id} event={event} nameOfMedicine={nameOf} />
               ))}
           </GroupedSection>
         ))}
       </Sections>
-      {logging === 'temperature' && (
-        <TemperatureSheet illnessId={illness.id} save={logTemperature} onClose={close} />
-      )}
-      {logging === 'dose' && medicines.status === 'ready' && (
-        <DoseSheet
-          illnessId={illness.id}
-          medicines={medicines.value}
-          lastAmountOf={lastAmountOf}
-          save={logDose}
-          onClose={close}
-        />
-      )}
     </Page>
   );
 }
@@ -113,17 +85,17 @@ function IllnessScreen({ person }: { person: Person }) {
  */
 function EventRow({
   event,
-  medicineName,
+  nameOfMedicine,
 }: {
   event: IllnessEvent;
-  medicineName: (medicineId: string) => string | undefined;
+  nameOfMedicine: (medicineId: string) => string | undefined;
 }) {
   const { t } = useTranslation();
   const parts = [
     event.time,
     event.kind === 'MEDICINE_DOSE' &&
       t('medical.doseValue', {
-        medicine: (event.medicineId == null ? undefined : medicineName(event.medicineId)) ?? '',
+        medicine: (event.medicineId == null ? undefined : nameOfMedicine(event.medicineId)) ?? '',
         amount: event.amount ?? '',
       }),
     event.temperature != null && formatTemperature(t, event.temperature),

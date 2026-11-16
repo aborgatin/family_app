@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { localDay, longDay } from '@/shared/dates';
 import { EmptyState, GroupedSection, ListRow, Page, Sections, type PageBack } from '@/shared/ui';
@@ -6,10 +5,8 @@ import { useCardRoute, type CardRoute } from './cardRoute';
 import { firstDay } from './illnessRules';
 import { cardPath, illnessPath } from './medicalPaths';
 import type { Illness, IllnessEvent, Person } from './medicalTypes';
-import { DoseSheet } from './DoseSheet';
-import { TemperatureSheet } from './TemperatureSheet';
+import { LogSection } from './LogSection';
 import { useMedicalCard } from './useMedicalCard';
-import { useMedicines } from './useMedicines';
 
 interface MedicalCardPageProps {
   /** Path of Home: the way back from the Member's own card. */
@@ -44,32 +41,17 @@ export function CardMissing({ route }: { route: CardRoute }) {
 
 function Card({ person, back }: { person: Person; back: PageBack }) {
   const { t } = useTranslation();
-  const { illnesses, eventsOf, lastAmountOf, logTemperature, logDose } = useMedicalCard(person);
-  const medicines = useMedicines().load;
-  const [logging, setLogging] = useState<'dose' | 'temperature'>();
-  const close = () => {
-    setLogging(undefined);
-  };
+  const card = useMedicalCard(person);
+  const { illnesses, eventsOf } = card;
 
   return (
     <Page title={t('medical.title')} back={back}>
       <Sections>
-        <GroupedSection label={t('medical.log')}>
-          <ListRow
-            title={t('medical.logDose')}
-            accent
-            onClick={() => {
-              setLogging('dose');
-            }}
-          />
-          <ListRow
-            title={t('medical.logTemperature')}
-            accent
-            onClick={() => {
-              setLogging('temperature');
-            }}
-          />
-        </GroupedSection>
+        <LogSection
+          card={card}
+          target={illnesses === undefined ? undefined : { addTo: { illnesses, eventsOf } }}
+          titles={{ dose: t('medical.logDose'), temperature: t('medical.logTemperature') }}
+        />
         <GroupedSection
           header={t('medical.illnesses')}
           messages={[illnesses?.length === 0 && { text: t('medical.noIllnesses') }]}
@@ -84,18 +66,6 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
           ))}
         </GroupedSection>
       </Sections>
-      {logging === 'temperature' && illnesses !== undefined && (
-        <TemperatureSheet addTo={{ illnesses, eventsOf }} save={logTemperature} onClose={close} />
-      )}
-      {logging === 'dose' && illnesses !== undefined && medicines.status === 'ready' && (
-        <DoseSheet
-          addTo={{ illnesses, eventsOf }}
-          medicines={medicines.value}
-          lastAmountOf={lastAmountOf}
-          save={logDose}
-          onClose={close}
-        />
-      )}
     </Page>
   );
 }

@@ -215,10 +215,7 @@ export async function ownerCopy(): Promise<unknown> {
 export async function removeLocally(table: SyncedTable, ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return;
   if (KEPT_WHEN_DELETED.includes(table)) {
-    for (const id of ids) {
-      const row = await localStore.rows(table).get(id);
-      if (row !== undefined) await localStore.rows(table).put({ ...row, deleted: true });
-    }
+    for (const id of ids) await localStore.rows(table).update(id, { deleted: true });
     return;
   }
   await localStore.rows(table).bulkDelete([...ids]);
@@ -234,16 +231,13 @@ export async function removeLocally(table: SyncedTable, ids: readonly string[]):
 /** Applies an operation to the local rows (not the Outbox): what the server will do with it. */
 export async function applyLocally(operation: Operation): Promise<void> {
   const rows = localStore.rows(operation.table);
-  if (operation.op === 'delete' && !KEPT_WHEN_DELETED.includes(operation.table)) {
-    await rows.delete(operation.id);
+  if (operation.op === 'delete') {
+    // A `KEPT_WHEN_DELETED` row stays, marked deleted (as `removeLocally` does).
+    if (KEPT_WHEN_DELETED.includes(operation.table))
+      await rows.update(operation.id, { deleted: true });
+    else await rows.delete(operation.id);
     return;
   }
   const existing = await rows.get(operation.id);
-  if (operation.op === 'delete') {
-    // Kept, marked deleted (as `removeLocally` does, inline: Dexie loses the transaction across
-    // one more level of async calls).
-    if (existing !== undefined) await rows.put({ ...existing, deleted: true });
-    return;
-  }
   await rows.put({ ...existing, ...operation.fields, ...operation.local, id: operation.id });
 }

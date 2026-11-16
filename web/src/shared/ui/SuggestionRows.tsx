@@ -41,7 +41,10 @@ export function SuggestionRows({ names, onPick, onRemove }: SuggestionRowsProps)
       className={`relative col-span-full grid grid-cols-subgrid ${ROW_SEPARATOR}`}
     >
       {names.map((name, index) => (
-        <div key={`${String(index)} ${name}`} className={`relative col-span-full flex items-center ${ROW_SEPARATOR}`}>
+        <div
+          key={`${String(index)} ${name}`}
+          className={`relative col-span-full flex items-center ${ROW_SEPARATOR}`}
+        >
           <button
             type="button"
             onMouseDown={keepFocus}

@@ -15,6 +15,9 @@ interface MedicineRepository extends Repository<Medicine, UUID> {
   /** Including soft-deleted ones, so an upsert can tell "deleted" from "new". */
   Optional<Medicine> findById(UUID id);
 
+  /** Whether a Medicine with this id exists, deleted or not. */
+  boolean existsById(UUID id);
+
   /** Every Medicine written after this Version, deleted ones included (for the pull). */
   List<Medicine> findByVersionGreaterThan(long version);
 

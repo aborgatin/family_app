@@ -347,7 +347,11 @@ describe('«Болезни» on the card', () => {
 
 describe('The Illness screen', () => {
   it('shows the name, the first day, «Температура» and the events by day, newest first', async () => {
-    const cold = { ...illnessRow({ memberId: anna.id }, 'ОРВИ'), memberId: null, childId: masha.id };
+    const cold = {
+      ...illnessRow({ memberId: anna.id }, 'ОРВИ'),
+      memberId: null,
+      childId: masha.id,
+    };
     syncServer.seed('child', [masha]);
     syncServer.seed('illness', [cold]);
     syncServer.seed('illness_event', [
@@ -424,7 +428,11 @@ describe('The Illness screen', () => {
 describe('Deleting a Child', () => {
   it('deletes the Child’s Illnesses and their events', async () => {
     server.use(membersHandler([anna, boris]), invitesHandler([]));
-    const cold = { ...illnessRow({ memberId: anna.id }, 'ОРВИ'), memberId: null, childId: masha.id };
+    const cold = {
+      ...illnessRow({ memberId: anna.id }, 'ОРВИ'),
+      memberId: null,
+      childId: masha.id,
+    };
     const event = temperatureRow(cold, '2026-12-01', '08:00', 38.0);
     const mine = illnessRow({ memberId: anna.id }, 'Моя');
     const myEvent = temperatureRow(mine, '2026-12-01', '08:00', 37.5);

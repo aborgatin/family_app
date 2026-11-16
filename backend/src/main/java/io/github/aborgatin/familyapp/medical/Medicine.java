@@ -1,14 +1,17 @@
 package io.github.aborgatin.familyapp.medical;
 
+import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.sync.SyncedRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 import org.hibernate.annotations.Generated;
 import org.hibernate.generator.EventType;
+import org.springframework.http.HttpStatus;
 
 /**
  * A Medicine (GLOSSARY): one line of the Family's list, its name with its strength. Syncable (S1):
@@ -40,6 +43,12 @@ class Medicine implements SyncedRecord {
   Medicine(UUID id, String name) {
     this.id = id;
     this.name = name;
+  }
+
+  /** The rejection of a dose naming a Medicine that never existed (a deleted one is fine). */
+  static ApiException notFound(UUID id) {
+    return new ApiException(
+        HttpStatus.NOT_FOUND, "medical.not_found", Map.of("medicineId", id.toString()));
   }
 
   void rename(String name) {

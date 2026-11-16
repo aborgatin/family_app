@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import { localMoment } from '@/shared/dates';
+import { byId } from '@/shared/sync';
 import type { Illness, IllnessEvent } from './medicalTypes';
 
 /*
@@ -58,7 +59,7 @@ export function illnessesInOrder(
       latestEventMoment(eventsOf(illness.id)) ??
       (illness.createdAt === undefined ? now : new Date(illness.createdAt))
     ).getTime();
-  return [...illnesses].sort((a, b) => moment(b) - moment(a) || (a.id < b.id ? -1 : 1));
+  return [...illnesses].sort((a, b) => moment(b) - moment(a) || byId(a, b));
 }
 
 /** Events by date, newest first; within a day, timed ones (latest first) before untimed ones. */
@@ -68,7 +69,7 @@ export function eventsInOrder(events: readonly IllnessEvent[]): IllnessEvent[] {
     const aTime = a.time ?? '';
     const bTime = b.time ?? '';
     if (aTime !== bTime) return aTime < bTime ? 1 : -1;
-    return a.id < b.id ? -1 : 1;
+    return byId(a, b);
   });
 }
 

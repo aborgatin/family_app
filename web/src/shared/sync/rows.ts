@@ -29,6 +29,11 @@ export function useRows(table: SyncedTable): Row[] | undefined {
   return rows;
 }
 
+/** The last tie-break of a synced table's order: by id, so every device agrees. */
+export function byId(a: { id: string }, b: { id: string }): number {
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 /** The rows of a synced table in the feature's order: `loading` until the first local read. */
 export type LocalLoad<T> = { status: 'loading' } | { status: 'ready'; value: T[] };
 

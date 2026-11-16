@@ -1,6 +1,8 @@
 package io.github.aborgatin.familyapp.medical;
 
 import static io.github.aborgatin.familyapp.SyncRequests.pushApplied;
+import static io.github.aborgatin.familyapp.medical.MedicalCardSyncTest.EVENT;
+import static io.github.aborgatin.familyapp.medical.MedicalCardSyncTest.dose;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.MAP;
 import static org.hamcrest.Matchers.contains;
@@ -31,7 +33,6 @@ import org.springframework.test.web.servlet.MockMvc;
 class MedicineSyncTest {
 
   static final String MEDICINE = "medicine";
-  static final String EVENT = "illness_event";
 
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
@@ -105,7 +106,7 @@ class MedicineSyncTest {
     pushApplied(anna, medicine(annas, "Нурофен"));
 
     // Boris added «нурофен» inline at night, offline, with a dose: the dose is never lost.
-    SyncRequests.push(boris, medicine(boriss, "нурофен"), dose(dose, boriss, "5 мл", null))
+    SyncRequests.push(boris, medicine(boriss, "нурофен"), dose(dose, cold, boriss, "5 мл", null))
         .andExpect(jsonPath("$.results[*].status", contains("ignored", "applied")));
 
     // His Medicine is kept deleted, with its name, so the dose shows it and the picker doesn't.
@@ -123,7 +124,7 @@ class MedicineSyncTest {
   void aRenameReachesEveryMemberAndEveryDose() throws Exception {
     UUID ibuprofen = UUID.randomUUID();
     UUID dose = UUID.randomUUID();
-    pushApplied(anna, medicine(ibuprofen, "Ибупрофен"), dose(dose, ibuprofen, "5 мл", 38.5));
+    pushApplied(anna, medicine(ibuprofen, "Ибупрофен"), dose(dose, cold, ibuprofen, "5 мл", 38.5));
     long before = SyncRequests.version(SyncRequests.pull(boris, 0));
 
     pushApplied(
@@ -144,7 +145,7 @@ class MedicineSyncTest {
   void deletingAMedicineKeepsItsNameForTheDosesThatNameIt() throws Exception {
     UUID ibuprofen = UUID.randomUUID();
     UUID dose = UUID.randomUUID();
-    pushApplied(anna, medicine(ibuprofen, "Ибупрофен"), dose(dose, ibuprofen, "5 мл", null));
+    pushApplied(anna, medicine(ibuprofen, "Ибупрофен"), dose(dose, cold, ibuprofen, "5 мл", null));
     long before = SyncRequests.version(SyncRequests.pull(boris, 0));
 
     pushApplied(anna, SyncRequests.delete(MEDICINE, ibuprofen));
@@ -164,7 +165,7 @@ class MedicineSyncTest {
     // A dose logged offline before the delete arrived still names it; a rename is ignored.
     SyncRequests.push(
             boris,
-            dose(UUID.randomUUID(), ibuprofen, "5 мл", null),
+            dose(UUID.randomUUID(), cold, ibuprofen, "5 мл", null),
             SyncRequests.upsert(MEDICINE, ibuprofen, "{\"name\":\"Нурофен\"}"))
         .andExpect(jsonPath("$.results[*].status", contains("applied", "ignored")));
   }
@@ -173,21 +174,12 @@ class MedicineSyncTest {
   void aDoseNeedsAMedicineThatExists() throws Exception {
     UUID unknown = UUID.randomUUID();
 
-    SyncRequests.push(anna, dose(UUID.randomUUID(), unknown, "5 мл", null))
+    SyncRequests.push(anna, dose(UUID.randomUUID(), cold, unknown, "5 мл", null))
         .andExpect(jsonPath("$.results[0].code").value("medical.not_found"))
         .andExpect(jsonPath("$.results[0].params.medicineId").value(unknown.toString()));
   }
 
   static String medicine(UUID id, String name) {
     return SyncRequests.upsert(MEDICINE, id, "{\"name\":\"%s\"}".formatted(name));
-  }
-
-  String dose(UUID id, UUID medicine, String amount, Double temperature) {
-    return SyncRequests.upsert(
-        EVENT,
-        id,
-        ("{\"illnessId\":\"%s\",\"kind\":\"MEDICINE_DOSE\",\"date\":\"2026-12-02\","
-                + "\"time\":\"22:00\",\"medicineId\":\"%s\",\"amount\":\"%s\",\"temperature\":%s}")
-            .formatted(cold, medicine, amount, temperature));
   }
 }

@@ -83,7 +83,7 @@ web/src/
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
                         ChildProfileSection («Профиль» on the Child page), useChildFieldValues(childId)
     medical/            MedicalCardRow («Медкарта» on Home and the Child page), MedicalCardPage,
-                        IllnessPage, EventSheet, TemperatureSheet, DoseSheet, TemperatureRow,
+                        IllnessPage, LogSection, EventSheet, TemperatureSheet, DoseSheet, TemperatureRow,
                         MedicinesSettings, NewMedicineSheet, cardRoute (whose card the route
                         names), medicalPaths, medicalTypes, illnessRules (the pure rules),
                         useMedicalCard(person), useMedicines()
@@ -850,7 +850,8 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
 - **Card** (`MedicalCardPage`, titled «Медкарта»): `useCardRoute(homePath)` picks the person
   (the session's Member without `:id`, back «Семья»; the Child of `:id`, back to the Child page,
   «Такого ребёнка нет» when missing). «Добавить приём лекарства» and «Записать температуру»
-  (accent `ListRow`s) open the dose and Temperature sheets. «Болезни» lists the card's Illnesses (kind ILLNESS), each a row with the name
+  (accent `ListRow`s of `LogSection`, which the Illness screen shares) open the dose and
+  Temperature sheets. «Болезни» lists the card's Illnesses (kind ILLNESS), each a row with the name
   and «с 2 декабря · 4 события» (`medical.illnessSummary`, `medical.events_*` plurals; the year
   only when it isn't this year; «Нет событий» for an empty one), opening the Illness screen;
   «Болезней пока нет» with none. Later tickets add sections here.
@@ -874,7 +875,8 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
 - **Temperature sheet** (`TemperatureSheet`, «Температура»): the wheel, default 37,0.
 - **Dose sheet** (`DoseSheet`, «Приём лекарства», #130): «Лекарство» is an `InputRow` with
   `SuggestionRows` under it: the Medicines (not deleted) whose name has the typed text, ignoring
-  case, then «+ <text>» (`medical.addMedicine`); picking a row puts its name in the field. A name
+  case, then «+ <text>» (`medical.addMedicine`), told apart by its place (a Medicine may be named
+  «+ …»); picking a row puts its name in the field. A name
   typed in any letter case picks that Medicine (`medicineNamed`) and closes the rows, as «+ …»
   does; otherwise «Готово» adds the typed name as a new Medicine in the same Outbox batch as the
   dose (and the new Illness). «Количество» (`InputRow`, placeholder «например, 5 мл», required)

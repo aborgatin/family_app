@@ -196,7 +196,9 @@ describe('Picking the Medicine', () => {
 
     await user.type(medicineField(sheet), 'Нурофен');
     expect(pickerRows(sheet)).toEqual(['+ Нурофен', '+ Нурофен']);
-    await user.click(within(sheet).getAllByRole('button', { name: '+ Нурофен' })[0]!);
+    const [named] = within(sheet).getAllByRole('button', { name: '+ Нурофен' });
+    if (named === undefined) throw new Error('no «+ Нурофен» row');
+    await user.click(named);
 
     expect(medicineField(sheet)).toHaveValue('+ Нурофен');
   });

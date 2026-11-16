@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   asApiError,
+  errorMessageKey,
   failureMessages,
   fieldMessageKey,
   type ErrorMessage,
@@ -43,8 +44,9 @@ export function NewMedicineSheet({ id, add, onClose }: NewMedicineSheetProps) {
       await add(id, name.trim());
       onClose();
     } catch (error: unknown) {
-      if (asApiError(error).code === MEDICINE_DUPLICATE) {
-        setFieldErrors({ name: 'errors.medicineDuplicate' });
+      const { code } = asApiError(error);
+      if (code === MEDICINE_DUPLICATE) {
+        setFieldErrors({ name: errorMessageKey(code) });
       } else {
         const { fieldMessages, formMessage } = failureMessages(error, FIELDS);
         setFieldErrors(fieldMessages);

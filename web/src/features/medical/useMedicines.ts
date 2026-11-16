@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { ApiError } from '@/shared/api';
-import { useSyncedRows } from '@/shared/sync';
+import { byId, useSyncedRows } from '@/shared/sync';
 import type { Medicine } from './medicalTypes';
 
 /** The rejection of a name the list already has (the server's code, checked here first). */
@@ -10,9 +10,7 @@ const COLLATOR = new Intl.Collator('ru', { sensitivity: 'base' });
 
 /** Every Medicine, deleted ones too, by name (ties by id). */
 function inOrder(medicines: Medicine[]): Medicine[] {
-  return [...medicines].sort(
-    (a, b) => COLLATOR.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-  );
+  return [...medicines].sort((a, b) => COLLATOR.compare(a.name, b.name) || byId(a, b));
 }
 
 /** A name as uniqueness compares it: trimmed, ignoring letter case. */

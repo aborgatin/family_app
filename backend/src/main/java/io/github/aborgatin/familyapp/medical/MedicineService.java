@@ -77,7 +77,7 @@ class MedicineService implements SyncableTable {
 
   /** Whether a dose may name this Medicine: one that exists, deleted or not. */
   boolean exists(UUID id) {
-    return medicines.findById(id).isPresent();
+    return medicines.existsById(id);
   }
 
   /**

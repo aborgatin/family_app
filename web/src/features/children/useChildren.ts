@@ -1,4 +1,4 @@
-import { useSyncedRows, type LocalLoad } from '@/shared/sync';
+import { byId, useSyncedRows, type LocalLoad } from '@/shared/sync';
 import type { Child } from './childTypes';
 
 export type ChildrenLoad = LocalLoad<Child>;
@@ -42,6 +42,6 @@ function inOrder(children: Child[]): Child[] {
       if (b.birthday === null) return -1;
       return a.birthday < b.birthday ? -1 : 1;
     }
-    return byName.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    return byName.compare(a.name, b.name) || byId(a, b);
   });
 }

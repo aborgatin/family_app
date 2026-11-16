@@ -95,7 +95,7 @@ class IllnessEventService implements SyncableTable {
       return Outcome.IGNORED;
     }
     if (medicineId != null && !medicines.exists(medicineId)) {
-      throw Person.notFound("medicineId", medicineId);
+      throw Medicine.notFound(medicineId);
     }
     events.saveAndFlush(
         new IllnessEvent(
