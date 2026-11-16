@@ -447,7 +447,9 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   Member's Notifications switch is on (`family.Members.notificationsEnabled`), it sends the payload
   to each of their live subscriptions, one push each, outside any transaction. `GONE` deletes the
   subscription; `FAILED` is logged and not retried. Turning the switch off keeps the
-  subscriptions. Callers decide recipients and payloads.
+  subscriptions. Callers decide recipients and payloads. `Pushes.send(PushMessage)` sends one
+  message that way and logs a failure that throws (a database call on the way out), so a caller
+  sending several (the scheduler step, the dose Notification) loses only that one.
 - **`PushGateway`** (public, the test seam): `send(subscription, payload, ttl, urgency)` →
   `DELIVERED | GONE | FAILED`, never throws. The real one, `notifications.push.WebPushGateway`, has
   `nl.martijndwars:web-push` build the request (VAPID `Authorization`, payload encrypted as
@@ -493,7 +495,7 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   minutes old, constants; `Batches` turns them into Notifications) and records the catalog's new
   Announcements. All come back as `PushMessage`s (recipient, payload, urgency, TTL: each message
   carries its own, `PushMessage.notification` `NORMAL` 24 h, `reminder` `HIGH` 24 h,
-  `announcement` `NORMAL` 7 days); after the commit each goes out through `Pushes.sendTo` with its
+  `announcement` `NORMAL` 7 days); after the commit each goes out through `Pushes.send` with its
   TTL and urgency, Notifications first, then Reminders, then Announcements in catalog order. A
   push that throws (a database call on the way out) is logged and costs only itself; the rest of
   the step is still sent. A crash between the commit and the sending loses those pushes rather

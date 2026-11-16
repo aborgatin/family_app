@@ -210,7 +210,7 @@ What the server sends to a Member's device through Web Push: a Notification, a R
 _Avoid_: Alert, notification (for the transport)
 
 **Notification** — «Уведомление»:
-A push message telling a Member about another Member's change to a Shared list: Items added to it, or a todo item assigned to them. Never sent for one's own changes; always sent as a Batch.
+A push message telling a Member about another Member's change: to a Shared list (Items added to it, or a todo item assigned to them), always sent as a Batch; or a Medicine dose logged on a Child's Medical card, sent at once, one per dose, naming no medicine. Never sent for one's own changes.
 _Avoid_: Alert, push, message, reminder
 
 **Reminder** — «Напоминание»:

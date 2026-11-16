@@ -14,6 +14,7 @@ import io.github.aborgatin.familyapp.FakePushGateway;
 import io.github.aborgatin.familyapp.FreshInstallation;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
 import io.github.aborgatin.familyapp.SyncRequests;
+import io.github.aborgatin.familyapp.notifications.push.PushPayloads;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -183,7 +184,7 @@ class DoseNotificationTest {
    */
   private List<FakePushGateway.Push> sentBefore() throws Exception {
     pushApplied(anna, dose(UUID.randomUUID(), marker, ibuprofen, "5 мл", null));
-    String markerUrl = "/children/%s/medical/illnesses/%s".formatted(masha, marker);
+    String markerUrl = PushPayloads.childIllnessUrl(masha, marker);
     FakePushGateway.Push markerPush =
         gateway.awaitPush(push -> push.payloadJson().get("url").asText().equals(markerUrl));
     List<FakePushGateway.Push> all = gateway.pushes();

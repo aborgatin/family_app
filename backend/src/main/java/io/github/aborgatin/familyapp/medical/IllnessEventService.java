@@ -24,17 +24,17 @@ class IllnessEventService implements SyncableTable {
   private final IllnessEventRepository events;
   private final IllnessRepository illnesses;
   private final MedicineService medicines;
-  private final ApplicationEventPublisher published;
+  private final ApplicationEventPublisher publisher;
 
   IllnessEventService(
       IllnessEventRepository events,
       IllnessRepository illnesses,
       MedicineService medicines,
-      ApplicationEventPublisher published) {
+      ApplicationEventPublisher publisher) {
     this.events = events;
     this.illnesses = illnesses;
     this.medicines = medicines;
-    this.published = published;
+    this.publisher = publisher;
   }
 
   @Override
@@ -119,7 +119,7 @@ class IllnessEventService implements SyncableTable {
                 operation.trimmedText("description"))));
     UUID childId = illness.person().childId();
     if (kind == IllnessEvent.Kind.MEDICINE_DOSE && childId != null) {
-      published.publishEvent(new MedicineDoseLogged(childId, illnessId, operation.memberId()));
+      publisher.publishEvent(new MedicineDoseLogged(childId, illnessId, operation.memberId()));
     }
     return Outcome.APPLIED;
   }

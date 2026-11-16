@@ -11,8 +11,6 @@ import io.github.aborgatin.familyapp.notifications.push.PushPayloads;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -27,8 +25,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
  */
 @Component
 class DoseNotifications {
-
-  private static final Logger log = LoggerFactory.getLogger(DoseNotifications.class);
 
   /** The push payload of a dose Notification, as the service worker reads it. */
   record DosePayload(
@@ -83,7 +79,7 @@ class DoseNotifications {
     for (MemberSummary member : members.all()) {
       if (!member.id().equals(dose.byMemberId())) {
         PushMessage message = PushMessage.notification(member.id(), payload);
-        sender.execute(() -> send(message));
+        sender.execute(() -> pushes.send(message));
       }
     }
   }
@@ -92,13 +88,5 @@ class DoseNotifications {
   @EventListener(ContextClosedEvent.class)
   void shutDown() {
     sender.shutdown();
-  }
-
-  private void send(PushMessage message) {
-    try {
-      pushes.sendTo(message.recipientId(), message.payload(), message.ttl(), message.urgency());
-    } catch (RuntimeException e) {
-      log.warn("A dose push to Member {} failed; it is not retried", message.recipientId(), e);
-    }
   }
 }
