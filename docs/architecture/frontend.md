@@ -763,8 +763,8 @@ current password empties that field). `app/routes.tsx` passes `SETTINGS_PATH` in
 or before it; `i18n` plurals `children.age.years_*` / `months_*`, computed from the device's
 date) and a chevron to `/settings/children/:id` (`childSettingsPath(id)`). Edit mode deletes only
 (Children have no order); a swipe and right-click delete too; each asks first, «Удалить „Маша“?»
-with the message «Списки и профиль ребёнка тоже будут удалены.» (`children.deleteTakesAll`; the
-server deletes the Child lists with the Child, #90). «Добавить ребёнка»
+with the message «Списки, профиль и медкарта ребёнка тоже будут удалены.» (`children.deleteTakesAll`; the
+server deletes the Child lists and the Medical card with the Child, #90, #129). «Добавить ребёнка»
 (the section's `after` row) opens `NewChildSheet`: a `Sheet` «Новый ребёнок» with the same rows
 as the Child screen (`ChildRows`), name and colour required, saved only with «Готово» (at once, also offline);
 the Child appears in the list in order. With no Children the footer says «Детей пока нет». A
@@ -793,7 +793,7 @@ The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_
 none). Each change saves only that field through `useChildren().save` (local store + Outbox), so
 it shows at once offline too; after a rejection («Не удалось сохранить» app-wide) the rows show
 the server's value again. Then a red «Удалить ребёнка» `ConfirmRow`: the `ActionSheet`
-«Удалить „Маша“?» with the same message «Списки и профиль ребёнка тоже будут удалены.», then back to Settings (replacing the history entry). An unknown id shows «Такого ребёнка
+«Удалить „Маша“?» with the same message «Списки, профиль и медкарта ребёнка тоже будут удалены.», then back to Settings (replacing the history entry). An unknown id shows «Такого ребёнка
 нет: возможно, его удалили.».
 
 ## Home «Дети» and the Child page

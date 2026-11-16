@@ -77,16 +77,11 @@ class IllnessService implements SyncableTable {
     if (memberId != null && !memberId.equals(operation.memberId())) {
       throw Person.notFound("illnessId", operation.id());
     }
-    if (childId != null) {
-      if (!children.known(childId)) {
-        throw new ApiException(
-            HttpStatus.NOT_FOUND, "child.not_found", Map.of("childId", childId.toString()));
-      }
-      if (!children.present(childId)) {
-        return Outcome.IGNORED;
-      }
+    if (childId != null && !children.known(childId)) {
+      throw new ApiException(
+          HttpStatus.NOT_FOUND, "child.not_found", Map.of("childId", childId.toString()));
     }
-    illnesses.saveAndFlush(
+    Illness illness =
         new Illness(
             operation.id(),
             new Person(memberId, childId),
@@ -94,7 +89,15 @@ class IllnessService implements SyncableTable {
             name,
             trimmed(operation.text("description")),
             operation.number("position"),
-            clock.instant()));
+            clock.instant());
+    if (childId != null && !children.present(childId)) {
+      // The Child was deleted meanwhile: delete wins. Kept as deleted, so the events logged with
+      // it offline (the same push) are ignored too, not medical.not_found.
+      illness.markDeleted();
+      illnesses.saveAndFlush(illness);
+      return Outcome.IGNORED;
+    }
+    illnesses.saveAndFlush(illness);
     return Outcome.APPLIED;
   }
 

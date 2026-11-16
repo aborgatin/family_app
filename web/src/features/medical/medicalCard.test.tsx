@@ -478,11 +478,11 @@ describe('Deleting a Child', () => {
 
     renderApp(`/settings/children/${masha.id}`);
     await user.click(await screen.findByRole('button', { name: 'Удалить ребёнка' }));
-    await user.click(
-      within(screen.getByRole('dialog', { name: 'Удалить „Маша“?' })).getByRole('button', {
-        name: 'Удалить',
-      }),
+    const confirmation = screen.getByRole('dialog', { name: 'Удалить „Маша“?' });
+    expect(confirmation).toHaveAccessibleDescription(
+      'Списки, профиль и медкарта ребёнка тоже будут удалены.',
     );
+    await user.click(within(confirmation).getByRole('button', { name: 'Удалить' }));
 
     await waitFor(() => {
       expect(syncServer.row('child', masha.id)).toBeUndefined();

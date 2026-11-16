@@ -1,7 +1,7 @@
 -- Medical cards (spec #128, ticket #129): Illnesses and Conditions (illness) and their Illness
 -- events (illness_event). A Medical card is not a row: every Member and Child has one, and a card's
 -- rows name their person, exactly one of a Member and a Child. A Member's card rows are pulled
--- only by that Member; a Child's by every Member (module medical, MedicalCards).
+-- only by that Member; a Child's by every Member (medical.Person).
 
 -- Syncable (S1): id (client-generated, S3), version, updated_at, deleted.
 -- kind ILLNESS | CONDITION (switchable); ended: «Завершить»; position orders Conditions;

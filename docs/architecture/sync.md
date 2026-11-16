@@ -258,7 +258,8 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   (`ILLNESS` | `CONDITION`) and `name` (trimmed, required); `description` and `position` are
   optional, `ended` starts `false`, and `createdAt` is the server's clock. No person, or both, is
   `validation.failed` (`memberId` `required`, or `childId` `value.invalid`); an unknown Child is
-  `child.not_found`, a deleted one `ignored`. An `illness_event` upsert of an unknown id carries
+  `child.not_found`, a deleted one `ignored` (stored as deleted, so the events pushed with it are
+  `ignored` too). An `illness_event` upsert of an unknown id carries
   `illnessId`, `kind` (`MEDICINE_DOSE` | `TEMPERATURE` | `NOTE`) and `date` (`YYYY-MM-DD`), with
   `time` (`HH:MM`) optional; a TEMPERATURE needs `temperature`, a NOTE `title`, a dose
   `medicineId`; `temperature` is 34.0–43.0 with at most one decimal (`value.invalid` otherwise);

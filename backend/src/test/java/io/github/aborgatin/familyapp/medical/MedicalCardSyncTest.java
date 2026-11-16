@@ -272,8 +272,13 @@ class MedicalCardSyncTest {
     assertThat(SyncRequests.change(boris, before, ILLNESS, illness)).containsEntry("deleted", true);
     assertThat(SyncRequests.change(boris, before, EVENT, event)).containsEntry("deleted", true);
     assertThat(SyncRequests.fields(anna, EVENT, annasEvent)).isNotNull();
-    SyncRequests.push(boris, illnessOf("childId", masha, UUID.randomUUID(), "Поздно"))
-        .andExpect(jsonPath("$.results[*].status", contains("ignored")));
+    // Logged offline before the delete arrived: a new Illness with its first event goes too.
+    UUID late = UUID.randomUUID();
+    SyncRequests.push(
+            boris,
+            illnessOf("childId", masha, late, "Поздно"),
+            temperature(UUID.randomUUID(), late, "2026-12-03", null, 37.0))
+        .andExpect(jsonPath("$.results[*].status", contains("ignored", "ignored")));
   }
 
   static String illnessOf(String personField, Object person, UUID id, String name) {
