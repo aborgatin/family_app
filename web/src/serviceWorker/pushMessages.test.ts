@@ -177,6 +177,36 @@ describe('a Reminder', () => {
   });
 });
 
+describe('an Announcement', () => {
+  it('shows its title and body exactly as written and opens its url', () => {
+    const data = JSON.stringify({
+      type: 'announcement',
+      title: 'Новое: медицинские карты',
+      body: 'Прививки, анализы и визиты к врачу для каждого ребёнка',
+      url: '/children',
+    });
+
+    expect(readPushMessage(data, NOW)).toEqual({
+      title: 'Новое: медицинские карты',
+      body: 'Прививки, анализы и визиты к врачу для каждого ребёнка',
+      url: '/children',
+    });
+  });
+});
+
+const ANNOUNCEMENT = { type: 'announcement', title: 'Новое', body: 'Что-то', url: '/' };
+
+/** Announcements with a field missing or of the wrong type. */
+const ANNOUNCEMENTS_THAT_CANT_BE_READ = (['title', 'body', 'url'] as const).flatMap(
+  (field): [string, string][] => [
+    [
+      `an Announcement missing its ${field}`,
+      JSON.stringify({ ...ANNOUNCEMENT, [field]: undefined }),
+    ],
+    [`an Announcement whose ${field} is not text`, JSON.stringify({ ...ANNOUNCEMENT, [field]: 7 })],
+  ],
+);
+
 describe('the push data as it arrives', () => {
   const GENERIC = { title: 'Семья', body: '', url: '/' };
 
@@ -212,6 +242,7 @@ describe('the push data as it arrives', () => {
     ['an unknown type', JSON.stringify({ type: 'birthday', url: '/' })],
     ['a Notification missing its fields', JSON.stringify({ type: 'notification', url: '/' })],
     ['a Reminder missing its fields', JSON.stringify({ type: 'reminder', itemName: 'Чай' })],
+    ...ANNOUNCEMENTS_THAT_CANT_BE_READ,
   ])('that can’t be read (%s) still shows a «Семья» notification opening /', (_, data) => {
     expect(readPushMessage(data, NOW)).toEqual(GENERIC);
   });

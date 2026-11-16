@@ -34,6 +34,8 @@ each with a recommended answer ("yes" accepts it).
 - It challenges terms against `GLOSSARY.md` and updates the glossary as soon as a term is
   settled. The glossary holds domain terms only, never UI mechanics or implementation.
 - It offers an ADR only for a decision that is hard to reverse, surprising, and a real trade-off.
+- It settles the **Announcement**: the push text telling every Member what is new (or none, for
+  work no Member sees), so its wording is the human's, never an agent's guess.
 - It ends with a summary of everything decided and waits for "yes" before writing anything.
 
 `/grill-me` is the same interview without the docs.
@@ -42,7 +44,8 @@ each with a recommended answer ("yes" accepts it).
 
 Turns the grilled conversation into one GitHub issue, titled `Spec #N: <name> (<milestone>)`,
 labelled `needs-triage`. Format (see spec #5 and #35): Problem Statement, Solution, User Stories,
-Implementation Decisions, Testing Decisions, Out of Scope, Ticket sketch. Every decision from
+Implementation Decisions, UI and Copy, Announcement, Testing Decisions, Out of Scope, Ticket
+sketch. Every decision from
 the grill must appear in it.
 
 ## 3. Decision docs PR
@@ -77,6 +80,8 @@ native blocking links, labelled `ready-for-agent`.
 - Each ticket points to the shared checks in [`ticket-checks.md`](ticket-checks.md) (tests,
   screenshots of its own routes, docs to update) and names its screenshot routes.
 - One milestone = one integration branch and one PR (as #30), even with many tickets.
+- The spec's Announcement entry goes to the ticket that adds the screen it opens, so it ships in
+  the same release as its feature.
 
 ## 6. Implement: `/implement-spec #<spec>` (user-only)
 

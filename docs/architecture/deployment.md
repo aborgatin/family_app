@@ -16,6 +16,7 @@ step with the headings).
 - [Caddy](#caddy): HTTPS, redirects, compression, headers in `deploy/Caddyfile`
 - [Environment variables](#environment-variables): every `deploy/.env` setting and what reads it
 - [Deploy and rollback](#deploy-and-rollback): pulling a new image, rolling back to a tag
+- [Adding an Announcement to a release](#adding-an-announcement-to-a-release): the «Что нового» catalog, when an entry is sent, the empty-catalog-first rule
 - [Password reset](#password-reset): the operator's one-time reset link
 - [Push keys (VAPID)](#push-keys-vapid): generating the key pair push messages need, once per installation
 - [Backups](#backups): `deploy/backup.sh`, the B2 and R2 targets, encryption, pruning, cron
@@ -48,7 +49,7 @@ every job runs. On a pull request a **changes** job (`dorny/paths-filter`) decid
 | Job                    | Runs on a pull request when changed                                                                                                                                              |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `backend`              | `backend/**`, `web/src/shared/palette/**` (the backend build copies the Child color palette), or `ci.yml`                                                                        |
-| `web`                  | `web/**` or `ci.yml`                                                                                                                                                             |
+| `web`                  | `web/**`, `backend/src/main/resources/announcements.json` (the catalog route test reads it), or `ci.yml`                                                                         |
 | `image`, `image-arm64` | `backend/**`, `web/**`, `Dockerfile`, `.dockerignore`, `deploy/**`, `scripts/image-smoke-test.sh`, `scripts/deploy-stack-test.sh`, `scripts/backup-restore-test.sh`, or `ci.yml` |
 
 `migrations` always runs. Never filter with workflow-level `paths:`: a skipped workflow leaves
@@ -202,6 +203,45 @@ code still runs on the newer schema. If it doesn't, restore the backup taken bef
 GHCR access: the server pulls anonymously once the package is public; otherwise
 `docker login ghcr.io` with a read-only token.
 
+## Adding an Announcement to a release
+
+An Announcement («Что нового», spec #120) is one push to every Member with the Notifications
+switch on, telling them what is new. The catalog is
+`backend/src/main/resources/announcements.json`, a JSON array in sending order:
+
+```json
+[
+  {
+    "id": "medical-cards",
+    "title": "Новое: медицинские карты",
+    "body": "Прививки, анализы и визиты к врачу для каждого ребёнка"
+  }
+]
+```
+
+- **Adding one**: append an entry to the array in the release's PR. `id` is any text never used
+  before; `title` and `body` are the push's text exactly as written (Russian, no prefix); `url` is
+  the app screen a tap opens, a path such as `/settings`, or left out for Home, `/`.
+- **Limits, checked in CI**: `id` unique and non-blank; `title` non-blank, at most 60 characters;
+  `body` non-blank, at most 180; `url` absent, or starting with `/` and not under `/api`
+  (`notifications.announcement.AnnouncementCatalogFileTest`, backend job). Each `url` must also be
+  a route of the app's router (`web/src/app/announcementRoutes.test.ts`, web job, whose filter
+  includes the catalog file). A bad entry turns the PR red before it can reach a phone.
+- **When it is sent**: on the first scheduler step after the new image starts (within a minute of
+  `docker compose up -d`), once, with a 7-day TTL so a phone that is off for a few days still gets
+  it. There are no quiet hours: deploy when a push is welcome. A Member whose switch is off then
+  never gets it, even after turning it on. A failed push is not retried.
+- **Once per installation**: the server records each `id` it has handled (`announcement_sent`,
+  V19), so a restart, a second step, or a rollback followed by a redeploy does not send it again.
+  Editing or deleting an entry that was already sent changes nothing; giving it a new `id` sends it
+  again as a new Announcement.
+- **A new installation** sends none of the catalog: its first scheduler step ever records every
+  entry as handled. Only entries added after that are sent.
+- **Empty catalog first**: the release that introduced Announcements shipped an **empty** catalog,
+  so that every phone had a service worker that reads the `announcement` payload before the first
+  one was sent. A future new kind of push message follows the same rule: ship the worker that reads
+  it one release before anything sends it.
+
 ## Password reset
 
 No email is sent; the operator creates a one-time link:
@@ -218,10 +258,11 @@ and logs the Member out on every device, then logs them in on the current one.
 
 ## Push keys (VAPID)
 
-Push messages (Notifications and Reminders) are signed with the installation's VAPID key pair. The
-app does not start without `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and a `mailto:` `VAPID_SUBJECT`
-(the message names the missing one), and Compose refuses to start without them in `.env`. Generate
-the pair once, before the first deploy that needs it, with the image itself:
+Push messages (Notifications, Reminders and Announcements) are signed with the installation's
+VAPID key pair. The app does not start without `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and a
+`mailto:` `VAPID_SUBJECT` (the message names the missing one), and Compose refuses to start without
+them in `.env`. Generate the pair once, before the first deploy that needs it, with the image
+itself:
 
 ```sh
 docker run --rm --pull always ghcr.io/aborgatin/family_app:latest generate-vapid-keys

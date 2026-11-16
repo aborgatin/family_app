@@ -16,7 +16,7 @@ The issue tracker and triage label vocabulary should have been provided to you. 
 
 Check with the user that these seams match their expectations.
 
-3. List every **unconfirmed decision**: anything the spec will settle that the conversation did not (a tie-break, a default value or order, which of several matches wins, a placeholder or a plural form, an error code). Show the list to the user with your choice for each, and wait for their answer. Done when every behaviour in the spec traces to the conversation or to this answered list.
+3. List every **unconfirmed decision**: anything the spec will settle that the conversation did not (the Announcement, a tie-break, a default value or order, which of several matches wins, a placeholder or a plural form, an error code). Show the list to the user with your choice for each, and wait for their answer. Done when every behaviour in the spec traces to the conversation or to this answered list.
 
 4. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
 
@@ -61,6 +61,10 @@ Exception: if a prototype produced a snippet that encodes a decision more precis
 ## UI and Copy
 
 For a spec with screens: how they look and read. Point to the project's design brief if one exists. Check every building block the screens use (a switch, a sheet, a row type) against the brief's component list: one that isn't there is a new component, named as such here so the tickets build it. Spell out user-facing wording decisions (questions, labels, confirmations) in the UI language, so the user can judge the copy before it is built. Omit this section only when the spec has no screens.
+
+## Announcement
+
+The Announcement (GLOSSARY) the release sends once this spec is deployed, as its catalog entry: `id`, then `title`, `body` and `url` in Russian, exactly as the push will read, within the limits in `docs/architecture/deployment.md` "Adding an Announcement to a release". Or **None**, with the reason no Member sees anything new. Every spec has this section.
 
 ## Testing Decisions
 

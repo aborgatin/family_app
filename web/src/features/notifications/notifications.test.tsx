@@ -10,7 +10,8 @@ import { server } from '@/test/server';
 
 // Settings «Уведомления»: the Notifications switch and this device (spec #104, ticket #108).
 
-const ABOUT = 'Списки, которые меняет другой взрослый, и напоминания о сроках задач.';
+const ABOUT =
+  'Списки, которые меняет другой взрослый, напоминания о сроках задач и новое в приложении.';
 
 /** Анна, with her Notifications switch as given. */
 function annaWith(notificationsEnabled: boolean) {
