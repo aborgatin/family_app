@@ -6,7 +6,7 @@ import {
   doseRow,
   illnessRow,
   medicineRow,
-  noteRow,
+  noteEventRow,
   selectedText,
   temperatureRow,
 } from '@/test/medical';
@@ -86,7 +86,7 @@ describe('Deleting an Illness', () => {
   it('asks with the number of its events, then deletes it with them', async () => {
     const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     const events = [1, 2, 3, 4, 5, 6].map((hour) =>
-      temperatureRow(cold, '2026-12-01', `0${hour}:00`, 38.0),
+      temperatureRow(cold, '2026-12-01', `0${String(hour)}:00`, 38.0),
     );
     syncServer.seed('illness', [cold]);
     syncServer.seed('illness_event', events);
@@ -117,7 +117,9 @@ describe('Deleting an Illness', () => {
 
     await user.click(screen.getByRole('button', { name: 'Удалить' }));
 
-    expect(screen.getByRole('dialog', { name: 'Удалить «ОРВИ»?' })).not.toHaveAccessibleDescription();
+    expect(
+      screen.getByRole('dialog', { name: 'Удалить «ОРВИ»?' }),
+    ).not.toHaveAccessibleDescription();
   });
 
   it('says «удалится 1 событие» for one', async () => {
@@ -136,7 +138,7 @@ describe('Deleting an Illness', () => {
 });
 
 describe('The Note sheet', () => {
-  async function openNoteSheet(user: User) {
+  async function openNoteEventSheet(user: User) {
     await user.click(screen.getByRole('button', { name: 'Заметка' }));
     return screen.findByRole('dialog', { name: 'Заметка' });
   }
@@ -147,7 +149,7 @@ describe('The Note sheet', () => {
     const user = userEvent.setup();
     await openIllness(cold);
 
-    const sheet = await openNoteSheet(user);
+    const sheet = await openNoteEventSheet(user);
 
     expect(within(sheet).getByRole('textbox', { name: 'Название' })).toHaveValue('');
     expect(within(sheet).getByLabelText('Дата')).toHaveValue('2026-12-02');
@@ -161,7 +163,7 @@ describe('The Note sheet', () => {
     const user = userEvent.setup();
     await openIllness(cold);
 
-    const sheet = await openNoteSheet(user);
+    const sheet = await openNoteEventSheet(user);
     await done(user, sheet);
 
     expect(within(sheet).getByText('Заполните это поле')).toBeInTheDocument();
@@ -174,7 +176,7 @@ describe('The Note sheet', () => {
     const user = userEvent.setup();
     await openIllness(cold);
 
-    const sheet = await openNoteSheet(user);
+    const sheet = await openNoteEventSheet(user);
     await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Сходили к доктору');
     await user.type(within(sheet).getByRole('textbox', { name: 'Описание' }), 'Сказал пить больше');
     await done(user, sheet);
@@ -199,11 +201,11 @@ describe('The events of an Illness', () => {
     const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('illness', [cold]);
     syncServer.seed('illness_event', [
-      noteRow(cold, '2026-12-01', null, 'Вызвали врача'),
+      noteEventRow(cold, '2026-12-01', null, 'Вызвали врача'),
       temperatureRow(cold, '2026-12-01', '07:00', 38.0),
-      noteRow(cold, '2026-12-02', null, 'Сходили к доктору'),
+      noteEventRow(cold, '2026-12-02', null, 'Сходили к доктору'),
       temperatureRow(cold, '2026-12-02', '09:30', 37.8),
-      noteRow(cold, '2026-12-02', '21:00', 'Купили лекарства'),
+      noteEventRow(cold, '2026-12-02', '21:00', 'Купили лекарства'),
       temperatureRow(cold, '2026-12-02', null, 37.1),
     ]);
     await openIllness(cold);
@@ -250,7 +252,12 @@ describe('Editing an event', () => {
     expect(await screen.findByRole('button', { name: /^37,2 °C/ })).toBeInTheDocument();
     await waitFor(() => {
       expect(syncServer.operations('illness_event')).toEqual([
-        { table: 'illness_event', id: fever.id, op: 'upsert', fields: { temperature: 37.2, time: null } },
+        {
+          table: 'illness_event',
+          id: fever.id,
+          op: 'upsert',
+          fields: { temperature: 37.2, time: null },
+        },
       ]);
     });
   });
@@ -304,7 +311,10 @@ describe('Editing an event', () => {
 
     await user.click(await screen.findByRole('button', { name: /Нурофен — 5 мл/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Приём лекарства' });
-    await user.type(within(sheet).getByRole('textbox', { name: 'Количество' }), '{Backspace}{Backspace}{Backspace}{Backspace}7 мл');
+    await user.type(
+      within(sheet).getByRole('textbox', { name: 'Количество' }),
+      '{Backspace}{Backspace}{Backspace}{Backspace}7 мл',
+    );
     await done(user, sheet);
 
     await waitFor(() => {
@@ -315,7 +325,7 @@ describe('Editing an event', () => {
 
   it('changes a Note’s title, and refuses an empty one', async () => {
     const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
-    const visit = noteRow(cold, '2026-12-02', null, 'Врач');
+    const visit = noteEventRow(cold, '2026-12-02', null, 'Врач');
     syncServer.seed('illness', [cold]);
     syncServer.seed('illness_event', [visit]);
     const user = userEvent.setup();
@@ -347,7 +357,11 @@ describe('«Перенести в…»', () => {
     const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     const flu = illnessRow({ memberId: anna.id }, 'Грипп');
     const ended = { ...illnessRow({ memberId: anna.id }, 'Ангина'), ended: true };
-    const childs = { ...illnessRow({ memberId: anna.id }, 'Ветрянка'), memberId: null, childId: masha.id };
+    const childs = {
+      ...illnessRow({ memberId: anna.id }, 'Ветрянка'),
+      memberId: null,
+      childId: masha.id,
+    };
     const fever = temperatureRow(cold, '2026-12-01', '08:00', 38.5);
     syncServer.seed('child', [masha]);
     syncServer.seed('illness', [cold, flu, ended, childs]);
@@ -437,7 +451,9 @@ describe('Deleting an event', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
-    expect(screen.queryByText(/38,5 °C/)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText(/38,5 °C/)).not.toBeInTheDocument();
+    });
     expect(screen.getByRole('heading', { level: 1, name: 'ОРВИ' })).toBeInTheDocument();
     await waitFor(() => {
       expect(syncServer.row('illness_event', fever.id)).toBeUndefined();

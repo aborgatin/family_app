@@ -84,7 +84,7 @@ function IllnessScreen({ person }: { person: Person }) {
           titles={{
             dose: t('medical.dose'),
             temperature: t('medical.temperature'),
-            note: t('medical.note'),
+            noteEvent: t('medical.note'),
           }}
         />
         {days.map((day) => (

@@ -84,7 +84,7 @@ export function doseRow(
 }
 
 /** A Note event («Сходили к доктору») in an Illness. */
-export function noteRow(
+export function noteEventRow(
   illness: { id: string },
   date: string,
   time: string | null,

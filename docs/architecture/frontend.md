@@ -883,7 +883,7 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   an `ActionSheet` of the person's other Illnesses that aren't Ended and «Новая болезнь» (named
   after the event's date); a choice checks and saves the sheet into that Illness (a new one in
   the same Outbox batch). «Удалить» asks «Удалить событие?», then deletes it.
-- **Note sheet** (`NoteSheet`, «Заметка», #131): «Название» (required), then `EventSheet`'s rows
+- **Note sheet** (`NoteEventSheet`, «Заметка», #131; identifiers say «Note event», since the lint guard reads a bare «note» as Description): «Название» (required), then `EventSheet`'s rows
   with «Время» empty (`untimed`).
 - **Temperature wheel** (`TemperatureRow`): «Температура» as a `SelectRow` (a native `<select>`:
   the iPhone's wheel, the Mac's menu) from 34,0 to 43,0 °C in 0,1 steps. `optional` adds «—»
@@ -919,7 +919,7 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   change it. The new Illness's name is «Болезнь » + the event's
   date as «2 декабря 2026» (`medical.newIllnessName`, `longDay` from `@/shared/dates`).
 - **Data**: `useMedicalCard(person)` → `{illnesses, eventsOf(illnessId), lastAmountOf(medicineId),
-  logTemperature(target, details, eventId?), logDose(…), logNote(…), rename(illness, name),
+  logTemperature(target, details, eventId?), logDose(…), logNoteEvent(…), rename(illness, name),
   describe(illness, description), removeIllness(illness), removeEvent(event)}` on `useRows('illness')` and
   `useRows('illness_event')`; `illnesses` is `undefined` until both are read; `lastAmountOf` looks
   at every event on the card (any Illness or Condition). `logTemperature` / `logDose` add the

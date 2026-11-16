@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { fieldMessageKey } from '@/shared/api';
 import { InputRow } from '@/shared/ui';
 import { EventSheet, type EventTarget } from './EventSheet';
-import type { IllnessChoice, NoteDetails } from './useMedicalCard';
+import type { IllnessChoice, NoteEventDetails } from './useMedicalCard';
 
-interface NoteSheetProps extends EventTarget {
-  save: (target: IllnessChoice, details: NoteDetails, eventId?: string) => Promise<unknown>;
+interface NoteEventSheetProps extends EventTarget {
+  save: (target: IllnessChoice, details: NoteEventDetails, eventId?: string) => Promise<unknown>;
 }
 
 const FIELDS = ['title'] as const;
@@ -15,7 +15,7 @@ const FIELDS = ['title'] as const;
  * «Заметка»: a Note («Сходили к доктору»), saved only with «Готово». «Название» is required;
  * «Время» starts empty. The rest is every event sheet's (`EventSheet`).
  */
-export function NoteSheet({ save, ...target }: NoteSheetProps) {
+export function NoteEventSheet({ save, ...target }: NoteEventSheetProps) {
   const { t } = useTranslation();
   const [title, setTitle] = useState(() => target.editing?.event.title ?? '');
   return (

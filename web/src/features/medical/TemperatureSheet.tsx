@@ -5,11 +5,7 @@ import { DEFAULT_TEMPERATURE, TemperatureRow } from './TemperatureRow';
 import type { IllnessChoice, TemperatureDetails } from './useMedicalCard';
 
 interface TemperatureSheetProps extends EventTarget {
-  save: (
-    target: IllnessChoice,
-    details: TemperatureDetails,
-    eventId?: string,
-  ) => Promise<unknown>;
+  save: (target: IllnessChoice, details: TemperatureDetails, eventId?: string) => Promise<unknown>;
 }
 
 const NO_FIELDS: readonly never[] = [];

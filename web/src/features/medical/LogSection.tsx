@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { GroupedSection, ListRow } from '@/shared/ui';
 import { DoseSheet } from './DoseSheet';
 import type { EventTarget } from './EventSheet';
-import { NoteSheet } from './NoteSheet';
+import { NoteEventSheet } from './NoteEventSheet';
 import { TemperatureSheet } from './TemperatureSheet';
 import type { useMedicalCard } from './useMedicalCard';
 import { useMedicines } from './useMedicines';
@@ -12,7 +12,7 @@ interface LogSectionProps {
   /** The card's `useMedicalCard`, which saves the events. */
   card: Pick<
     ReturnType<typeof useMedicalCard>,
-    'lastAmountOf' | 'logTemperature' | 'logDose' | 'logNote'
+    'lastAmountOf' | 'logTemperature' | 'logDose' | 'logNoteEvent'
   >;
   /**
    * Where the logged event goes: «Добавить к» from the card, or the open Illness; `undefined` while
@@ -23,7 +23,7 @@ interface LogSectionProps {
    * The rows' titles: «Добавить приём лекарства» on the card, «Приём лекарства» on an Illness;
    * «Заметка» only on an Illness.
    */
-  titles: { dose: string; temperature: string; note?: string };
+  titles: { dose: string; temperature: string; noteEvent?: string };
 }
 
 /**
@@ -32,7 +32,7 @@ interface LogSectionProps {
  */
 export function LogSection({ card, target, titles }: LogSectionProps) {
   const { t } = useTranslation();
-  const { lastAmountOf, logTemperature, logDose, logNote } = card;
+  const { lastAmountOf, logTemperature, logDose, logNoteEvent } = card;
   const medicines = useMedicines().load;
   const [logging, setLogging] = useState<'dose' | 'temperature' | 'note'>();
   const close = () => {
@@ -56,9 +56,9 @@ export function LogSection({ card, target, titles }: LogSectionProps) {
             setLogging('temperature');
           }}
         />
-        {titles.note !== undefined && (
+        {titles.noteEvent !== undefined && (
           <ListRow
-            title={titles.note}
+            title={titles.noteEvent}
             accent
             onClick={() => {
               setLogging('note');
@@ -67,7 +67,7 @@ export function LogSection({ card, target, titles }: LogSectionProps) {
         )}
       </GroupedSection>
       {logging === 'note' && target !== undefined && (
-        <NoteSheet {...target} save={logNote} onClose={close} />
+        <NoteEventSheet {...target} save={logNoteEvent} onClose={close} />
       )}
       {logging === 'temperature' && target !== undefined && (
         <TemperatureSheet {...target} save={logTemperature} onClose={close} />

@@ -19,7 +19,7 @@ export interface TemperatureDetails extends EventTiming {
 }
 
 /** A Note as the sheet saves it. */
-export interface NoteDetails extends EventTiming {
+export interface NoteEventDetails extends EventTiming {
   /** «Сходили к доктору». */
   title: string;
 }
@@ -56,7 +56,7 @@ interface Write {
  * - `eventsOf(illnessId)`: the Illness's events, unordered;
  * - `lastAmountOf(medicineId)`: the amount to prefill for a dose of it (`lastAmount` over every
  *   event on the card); `undefined` the first time;
- * - `logTemperature(target, details)`, `logDose(target, details)`, `logNote(target, details)`: add the event to an Illness,
+ * - `logTemperature(target, details)`, `logDose(target, details)`, `logNoteEvent(target, details)`: add the event to an Illness,
  *   or create the Illness and the event in one Outbox batch; a dose of a Medicine typed in the
  *   picker adds the Medicine first, in the same batch. Given an `eventId`, they change that
  *   event instead: only the fields that differ are written and sent (`upsertRows`);
@@ -144,8 +144,8 @@ export function useMedicalCard(person: Person) {
     [log],
   );
 
-  const logNote = useCallback(
-    (target: IllnessChoice, details: NoteDetails, eventId?: string) =>
+  const logNoteEvent = useCallback(
+    (target: IllnessChoice, details: NoteEventDetails, eventId?: string) =>
       log(target, { kind: 'NOTE', ...details }, [], eventId),
     [log],
   );
@@ -195,7 +195,7 @@ export function useMedicalCard(person: Person) {
     lastAmountOf,
     logTemperature,
     logDose,
-    logNote,
+    logNoteEvent,
     rename,
     describe,
     removeIllness,
