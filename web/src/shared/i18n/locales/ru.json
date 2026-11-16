@@ -464,7 +464,7 @@
     "deleteIllnessEvents_few": "Вместе с ней удалятся {{count}} события.",
     "deleteIllnessEvents_many": "Вместе с ней удалятся {{count}} событий.",
     "deleteIllnessEvents_other": "Вместе с ней удалятся {{count}} события.",
-    "note": "Заметка",
+    "noteEvent": "Заметка",
     "confirmDeleteEvent": "Удалить событие?",
     "moveTo": "Перенести в…"
   },

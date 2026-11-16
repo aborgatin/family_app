@@ -84,7 +84,7 @@ function IllnessScreen({ person }: { person: Person }) {
           titles={{
             dose: t('medical.dose'),
             temperature: t('medical.temperature'),
-            noteEvent: t('medical.note'),
+            noteEvent: t('medical.noteEvent'),
           }}
         />
         {days.map((day) => (
@@ -147,7 +147,7 @@ function IllnessFields({ illness, rename, describe }: IllnessFieldsProps) {
   const name = useAutoSaveText({
     name: 'name',
     saved: illness.name,
-    save: useCallback((value: string) => rename(illness, value.trim()), [illness, rename]),
+    save: useCallback((value: string) => rename(illness, value), [illness, rename]),
     required: true,
   });
   const description = useAutoSaveText({

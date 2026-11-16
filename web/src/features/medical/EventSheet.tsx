@@ -15,7 +15,7 @@ import {
 } from '@/shared/ui';
 import { illnessToJoin } from './illnessRules';
 import type { Illness, IllnessEvent } from './medicalTypes';
-import type { EventTiming, IllnessChoice } from './useMedicalCard';
+import type { EventPlace, EventTiming, IllnessChoice } from './useMedicalCard';
 
 /** «Добавить к» choices besides an Illness's id. */
 const NEW = 'new';
@@ -61,15 +61,15 @@ interface EventSheetProps extends EventTarget {
   check: () => FieldMessages<string>;
   /** Hints under those rows (already translated), shown while they have no error. */
   hints?: Partial<Record<string, string>>;
-  /** Saves the event; the sheet closes once it resolves. */
-  save: (target: IllnessChoice, timing: EventTiming) => Promise<unknown>;
+  /** Saves the event (`place.eventId` set when editing); the sheet closes once it resolves. */
+  save: (place: EventPlace, timing: EventTiming) => Promise<unknown>;
 }
 
 /**
  * What every Illness event sheet has, around the rows of its kind: «Дата» and «Время» default to
- * when the sheet opened (the time may be cleared; `untimed`, it starts empty), «Описание» is optional, and, from the card,
- * «Добавить к» preselects the Illness to join (`illnessToJoin`) or «Новая болезнь», named after
- * the event's date; «Другая…» picks another of the person's Illnesses that isn't Ended. Saved only
+ * when the sheet opened (the time may be cleared; `untimed`, it starts empty), «Описание» is
+ * optional, and, from the card, «Добавить к» preselects the Illness to join (`illnessToJoin`) or
+ * «Новая болезнь», named after the event's date; «Другая…» picks another of the person's Illnesses that isn't Ended. Saved only
  * with «Готово», once the kind's rows pass `check`. `editing` an event, its values fill the sheet,
  * «Готово» saves what changed, «Перенести в…» saves it into another of the person's Illnesses that
  * isn't Ended or a «Новая болезнь» named after its date, and «Удалить» deletes it after asking.
@@ -130,11 +130,14 @@ export function EventSheet({
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
     setSaving(true);
-    await save(choice(), {
-      date,
-      time: time === '' ? null : time,
-      description: description.trim() === '' ? null : description.trim(),
-    });
+    await save(
+      { ...choice(), ...(editing !== undefined && { eventId: editing.event.id }) },
+      {
+        date,
+        time: time === '' ? null : time,
+        description: description.trim() === '' ? null : description.trim(),
+      },
+    );
     onClose();
   }
 

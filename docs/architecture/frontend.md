@@ -859,9 +859,9 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   name; «Название» (`InputRow`, required) and «Описание» (`TextAreaRow`), auto-saved like an
   Item's (#131); «с 2 декабря 2026» (the first event's date, its own section), «Приём лекарства»,
   «Температура» and «Заметка» (in «Записать»: the sheets, into this Illness, without «Добавить
-  к»), then a
-  `GroupedSection` per day («2 декабря», the year only when not this year), events newest first,
-  the parts there are joined by « · » (`medical.eventSeparator`; the row wraps, `wrapTitle`): «22:00 · 38,5 °C», a dose
+  к»), then a `GroupedSection` per day («2 декабря», the year only when not this year), events
+  newest first, the parts there are joined by « · » (`medical.eventSeparator`; the row wraps,
+  `wrapTitle`): «22:00 · 38,5 °C», a dose
   «22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» (`medical.doseValue`; the Medicine's name from
   `useMedicines().nameOf`, a deleted one's too), untimed «38,5 °C», a Note its title («Сходили к
   доктору», «21:00 · …» when timed), the Description under it. Each row is a button opening the
@@ -878,13 +878,16 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
 - **Editing an event** (`EditEventSheet`, #131): the sheet of its kind with `editing` (an
   `EventEditing`: the event, the person's Illnesses, `remove`): every row filled with its values
   (a dose: its Medicine's name, a deleted one's too, kept while the name is left as it is; its
-  amount, no «как в прошлый раз»), no «Добавить к». «Готово» saves through the same `log…` with
-  the event's id, so only the changed fields are sent. «Перенести в…» (an accent `ListRow`) opens
+  amount, no «как в прошлый раз»), no «Добавить к». «Готово» saves through the same `save…`,
+  the `EventPlace` carrying the event's id (`EventSheet` adds it), so only the changed fields are
+  sent. «Перенести в…» (an accent `ListRow`) opens
   an `ActionSheet` of the person's other Illnesses that aren't Ended and «Новая болезнь» (named
   after the event's date); a choice checks and saves the sheet into that Illness (a new one in
   the same Outbox batch). «Удалить» asks «Удалить событие?», then deletes it.
-- **Note sheet** (`NoteEventSheet`, «Заметка», #131; identifiers say «Note event», since the lint guard reads a bare «note» as Description): «Название» (required), then `EventSheet`'s rows
-  with «Время» empty (`untimed`).
+- **Note sheet** (`NoteEventSheet`, «Заметка», #131; identifiers and i18n keys say «Note event»,
+  `medical.noteEvent`, since GLOSSARY lists a bare «note» under Description's _Avoid_ and the lint
+  guard rejects it): «Название» (required), then `EventSheet`'s rows with «Время» empty
+  (`untimed`).
 - **Temperature wheel** (`TemperatureRow`): «Температура» as a `SelectRow` (a native `<select>`:
   the iPhone's wheel, the Mac's menu) from 34,0 to 43,0 °C in 0,1 steps. `optional` adds «—»
   (`medical.noTemperature`, value `''`) right before 37,0, selected at first, so the wheel shows
@@ -919,11 +922,11 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   change it. The new Illness's name is «Болезнь » + the event's
   date as «2 декабря 2026» (`medical.newIllnessName`, `longDay` from `@/shared/dates`).
 - **Data**: `useMedicalCard(person)` → `{illnesses, eventsOf(illnessId), lastAmountOf(medicineId),
-  logTemperature(target, details, eventId?), logDose(…), logNoteEvent(…), rename(illness, name),
-  describe(illness, description), removeIllness(illness), removeEvent(event)}` on `useRows('illness')` and
-  `useRows('illness_event')`; `illnesses` is `undefined` until both are read; `lastAmountOf` looks
-  at every event on the card (any Illness or Condition). `logTemperature` / `logDose` add the
-  event to `{illnessId}`, or, for `{newIllnessName}` (an `IllnessChoice`), create the Illness
+  saveTemperature(place, details), saveDose(…), saveNoteEvent(…), rename(illness, name),
+  describe(illness, description), removeIllness(illness), removeEvent(event)}` on
+  `useRows('illness')` and `useRows('illness_event')`; `illnesses` is `undefined` until both are
+  read; `lastAmountOf` looks at every event on the card (any Illness or Condition). The `save…`
+  add the event to `{illnessId}`, or, for `{newIllnessName}` (an `IllnessChoice`), create the Illness
   (`memberId` or `childId`, `kind`, `name`) and the event in one Outbox batch (`upsertRows`); a
   dose of `{newMedicineName}` (a `MedicineChoice`) puts the Medicine first in that batch. They
   resolve at once, offline too. `useMedicines()` → `{load (not deleted, by name), all, nameOf(id),

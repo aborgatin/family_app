@@ -11,7 +11,7 @@ interface EditEventSheetProps {
   /** The card's `useMedicalCard`, which saves and deletes the event. */
   card: Pick<
     ReturnType<typeof useMedicalCard>,
-    'illnesses' | 'lastAmountOf' | 'logTemperature' | 'logDose' | 'logNoteEvent' | 'removeEvent'
+    'illnesses' | 'lastAmountOf' | 'saveTemperature' | 'saveDose' | 'saveNoteEvent' | 'removeEvent'
   >;
   onClose: () => void;
 }
@@ -29,9 +29,9 @@ export function EditEventSheet({ event, card, onClose }: EditEventSheetProps) {
   };
   switch (event.kind) {
     case 'TEMPERATURE':
-      return <TemperatureSheet editing={editing} save={card.logTemperature} onClose={onClose} />;
+      return <TemperatureSheet editing={editing} save={card.saveTemperature} onClose={onClose} />;
     case 'NOTE':
-      return <NoteEventSheet editing={editing} save={card.logNoteEvent} onClose={onClose} />;
+      return <NoteEventSheet editing={editing} save={card.saveNoteEvent} onClose={onClose} />;
     case 'MEDICINE_DOSE':
       return load.status === 'ready' ? (
         <DoseSheet
@@ -39,7 +39,7 @@ export function EditEventSheet({ event, card, onClose }: EditEventSheetProps) {
           medicines={load.value}
           medicineName={event.medicineId == null ? undefined : nameOf(event.medicineId)}
           lastAmountOf={card.lastAmountOf}
-          save={card.logDose}
+          save={card.saveDose}
           onClose={onClose}
         />
       ) : null;

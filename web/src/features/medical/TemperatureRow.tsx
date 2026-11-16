@@ -11,6 +11,11 @@ export const DEFAULT_TEMPERATURE = '37.0';
 /** An optional wheel's value while it shows «—»: no temperature. */
 export const NO_TEMPERATURE = '';
 
+/** The wheel's value for a temperature saved as `temperature`, or `empty` without one. */
+export function wheelValue(temperature: number | null | undefined, empty: string): string {
+  return temperature?.toFixed(1) ?? empty;
+}
+
 interface TemperatureRowProps {
   /** `"38.5"`, or `NO_TEMPERATURE` on an optional wheel. */
   value: string;

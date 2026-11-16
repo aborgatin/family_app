@@ -12,7 +12,7 @@ interface LogSectionProps {
   /** The card's `useMedicalCard`, which saves the events. */
   card: Pick<
     ReturnType<typeof useMedicalCard>,
-    'lastAmountOf' | 'logTemperature' | 'logDose' | 'logNoteEvent'
+    'lastAmountOf' | 'saveTemperature' | 'saveDose' | 'saveNoteEvent'
   >;
   /**
    * Where the logged event goes: «Добавить к» from the card, or the open Illness; `undefined` while
@@ -32,9 +32,9 @@ interface LogSectionProps {
  */
 export function LogSection({ card, target, titles }: LogSectionProps) {
   const { t } = useTranslation();
-  const { lastAmountOf, logTemperature, logDose, logNoteEvent } = card;
+  const { lastAmountOf, saveTemperature, saveDose, saveNoteEvent } = card;
   const medicines = useMedicines().load;
-  const [logging, setLogging] = useState<'dose' | 'temperature' | 'note'>();
+  const [logging, setLogging] = useState<'dose' | 'temperature' | 'noteEvent'>();
   const close = () => {
     setLogging(undefined);
   };
@@ -61,23 +61,23 @@ export function LogSection({ card, target, titles }: LogSectionProps) {
             title={titles.noteEvent}
             accent
             onClick={() => {
-              setLogging('note');
+              setLogging('noteEvent');
             }}
           />
         )}
       </GroupedSection>
-      {logging === 'note' && target !== undefined && (
-        <NoteEventSheet {...target} save={logNoteEvent} onClose={close} />
+      {logging === 'noteEvent' && target !== undefined && (
+        <NoteEventSheet {...target} save={saveNoteEvent} onClose={close} />
       )}
       {logging === 'temperature' && target !== undefined && (
-        <TemperatureSheet {...target} save={logTemperature} onClose={close} />
+        <TemperatureSheet {...target} save={saveTemperature} onClose={close} />
       )}
       {logging === 'dose' && target !== undefined && medicines.status === 'ready' && (
         <DoseSheet
           {...target}
           medicines={medicines.value}
           lastAmountOf={lastAmountOf}
-          save={logDose}
+          save={saveDose}
           onClose={close}
         />
       )}

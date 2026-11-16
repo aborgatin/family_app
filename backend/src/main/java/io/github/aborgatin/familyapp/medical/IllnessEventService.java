@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.lang.Nullable;
@@ -57,6 +59,11 @@ class IllnessEventService implements SyncableTable {
       throw Person.notFound("illnessEventId", operation.id());
     }
     return Outcome.deleteWins(operation, existing, this::upsert, this::delete);
+  }
+
+  /** The person whose card holds the Illness, which exists. */
+  private Person personOf(UUID illnessId) {
+    return illnesses.findById(illnessId).orElseThrow().person();
   }
 
   private boolean visible(UUID illnessId, UUID memberId) {
@@ -108,7 +115,7 @@ class IllnessEventService implements SyncableTable {
     IllnessEvent.Details details = details(operation, event.details(), errors);
     errors.throwIfAny();
     if (!illnessId.equals(event.illnessId())) {
-      Person person = illnesses.findById(event.illnessId()).orElseThrow().person();
+      Person person = personOf(event.illnessId());
       Illness target =
           illnesses
               .findById(illnessId)
@@ -135,38 +142,36 @@ class IllnessEventService implements SyncableTable {
    */
   private static IllnessEvent.Details details(
       Operation operation, @Nullable IllnessEvent.Details current, FieldErrors errors) {
-    boolean isNew = current == null;
+    Carried carried = new Carried(operation, current);
     IllnessEvent.Kind kind =
-        isNew || operation.has("kind")
-            ? errors.requiredChoice("kind", operation.text("kind"), IllnessEvent.Kind.values())
-            : current.kind();
-    if (!isNew && kind != null && kind != current.kind()) {
+        carried.field(
+            "kind",
+            () -> errors.requiredChoice("kind", operation.text("kind"), IllnessEvent.Kind.values()),
+            IllnessEvent.Details::kind);
+    if (current != null && kind != null && kind != current.kind()) {
       errors.add("kind", FieldErrors.VALUE_INVALID);
     }
     LocalDate date =
-        isNew || operation.has("date")
-            ? errors.requiredParsed("date", operation.text("date"), LocalDate::parse)
-            : current.date();
+        carried.field(
+            "date",
+            () -> errors.requiredParsed("date", operation.text("date"), LocalDate::parse),
+            IllnessEvent.Details::date);
     LocalTime time =
-        isNew || operation.has("time")
-            ? errors.time("time", operation.text("time"))
-            : current.time();
+        carried.field(
+            "time", () -> errors.time("time", operation.text("time")), IllnessEvent.Details::time);
     BigDecimal temperature =
-        isNew || operation.has("temperature")
-            ? temperature(errors, operation.number("temperature"))
-            : current.temperature();
+        carried.field(
+            "temperature",
+            () -> temperature(errors, operation.number("temperature")),
+            IllnessEvent.Details::temperature);
     UUID medicineId =
-        isNew || operation.has("medicineId")
-            ? errors.uuid("medicineId", operation.text("medicineId"))
-            : current.medicineId();
-    String amount =
-        isNew || operation.has("amount") ? operation.trimmedText("amount") : current.amount();
-    String title =
-        isNew || operation.has("title") ? operation.trimmedText("title") : current.title();
-    String description =
-        isNew || operation.has("description")
-            ? operation.trimmedText("description")
-            : current.description();
+        carried.field(
+            "medicineId",
+            () -> errors.uuid("medicineId", operation.text("medicineId")),
+            IllnessEvent.Details::medicineId);
+    String amount = carried.trimmedText("amount", IllnessEvent.Details::amount);
+    String title = carried.trimmedText("title", IllnessEvent.Details::title);
+    String description = carried.trimmedText("description", IllnessEvent.Details::description);
     if (kind == IllnessEvent.Kind.TEMPERATURE
         && temperature == null
         && !errors.has("temperature")) {
@@ -182,6 +187,20 @@ class IllnessEventService implements SyncableTable {
     }
     return new IllnessEvent.Details(
         kind, date, time, medicineId, amount, temperature, title, description);
+  }
+
+  /** A field of the event: read from the operation when it carries it (or the event is new). */
+  private record Carried(Operation operation, @Nullable IllnessEvent.Details current) {
+
+    @Nullable
+    <T> T field(String name, Supplier<T> read, Function<IllnessEvent.Details, T> kept) {
+      return current == null || operation.has(name) ? read.get() : kept.apply(current);
+    }
+
+    @Nullable
+    String trimmedText(String name, Function<IllnessEvent.Details, String> kept) {
+      return field(name, () -> operation.trimmedText(name), kept);
+    }
   }
 
   private Outcome delete(IllnessEvent event) {

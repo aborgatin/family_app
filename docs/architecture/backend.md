@@ -603,9 +603,10 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   tombstones, the rows of cards the Member can't see.
 - `IllnessEventService` (`illness_event`): the event's card is its Illness's; validation by kind
   (sync.md, Push), one `details(operation, current, errors)` for a new event and an edit (the
-  carried fields over the stored ones, #131); a move checks the target Illness has the same
-  `Person`; `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted ones
-  included) and leaves out those the Member can't see. A dose's `medicineId` must name a
+  carried fields over the stored ones, read through `Carried`, #131); a move checks the target
+  Illness has the same `Person` (a move to a deleted one is `ignored`); only a new dose publishes
+  `MedicineDoseLogged`; `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted
+  ones included) and leaves out those the Member can't see. A dose's `medicineId` must name a
   Medicine that exists, deleted or not (`MedicineService.exists`), else `medical.not_found`
   (`params.medicineId`, `Medicine.notFound`).
 - `MedicineService` (`medicine`, #130): an upsert creates or renames (`name` required, trimmed);

@@ -438,7 +438,7 @@ export const SEED = {
           [2, '20:00', 'Ибупрофен 20 мг/мл', '5 мл', 38.5],
           [1, '22:00', 'Парацетамол 120 мг/5 мл', '1 таблетка', null],
         ],
-        notes: [[1, null, 'Сходили к доктору']],
+        noteEvents: [[1, null, 'Сходили к доктору']],
       },
       { name: 'Отит', temperatures: [[400, '09:30', 37.6]] },
     ],
@@ -579,7 +579,7 @@ async function pushIllnesses(page, childIds) {
     fields: { name },
   }));
   const operations = medicines.concat(Object.entries(SEED.illnesses).flatMap(([child, illnesses]) =>
-    illnesses.flatMap(({ name, description = null, temperatures, doses = [], notes = [] }) => {
+    illnesses.flatMap(({ name, description = null, temperatures, doses = [], noteEvents = [] }) => {
       const illnessId = crypto.randomUUID();
       return [
         {
@@ -608,7 +608,7 @@ async function pushIllnesses(page, childIds) {
             temperature,
           },
         })),
-        ...notes.map(([daysAgo, time, title]) => ({
+        ...noteEvents.map(([daysAgo, time, title]) => ({
           table: 'illness_event',
           id: crypto.randomUUID(),
           op: 'upsert',

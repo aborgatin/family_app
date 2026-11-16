@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EventSheet, type EventTarget } from './EventSheet';
-import { DEFAULT_TEMPERATURE, TemperatureRow } from './TemperatureRow';
-import type { IllnessChoice, TemperatureDetails } from './useMedicalCard';
+import { DEFAULT_TEMPERATURE, TemperatureRow, wheelValue } from './TemperatureRow';
+import type { EventPlace, TemperatureDetails } from './useMedicalCard';
 
 interface TemperatureSheetProps extends EventTarget {
-  save: (target: IllnessChoice, details: TemperatureDetails, eventId?: string) => Promise<unknown>;
+  save: (place: EventPlace, details: TemperatureDetails) => Promise<unknown>;
 }
 
 const NO_FIELDS: readonly never[] = [];
@@ -17,8 +17,8 @@ const NO_FIELDS: readonly never[] = [];
  */
 export function TemperatureSheet({ save, ...target }: TemperatureSheetProps) {
   const { t } = useTranslation();
-  const [temperature, setTemperature] = useState(
-    () => target.editing?.event.temperature?.toFixed(1) ?? DEFAULT_TEMPERATURE,
+  const [temperature, setTemperature] = useState(() =>
+    wheelValue(target.editing?.event.temperature, DEFAULT_TEMPERATURE),
   );
   return (
     <EventSheet
@@ -26,9 +26,7 @@ export function TemperatureSheet({ save, ...target }: TemperatureSheetProps) {
       title={t('medical.temperature')}
       fields={NO_FIELDS}
       check={() => ({})}
-      save={(choice, timing) =>
-        save(choice, { temperature: Number(temperature), ...timing }, target.editing?.event.id)
-      }
+      save={(place, timing) => save(place, { temperature: Number(temperature), ...timing })}
     >
       <TemperatureRow value={temperature} onChange={setTemperature} />
     </EventSheet>

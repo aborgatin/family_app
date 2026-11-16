@@ -99,10 +99,12 @@ class IllnessService implements SyncableTable {
 
   private Outcome edit(Operation operation, Illness illness) {
     if (operation.has("name")) {
+      FieldErrors errors = new FieldErrors();
       String name = operation.trimmedText("name");
       if (name == null) {
-        new FieldErrors().add("name", FieldErrors.REQUIRED).throwIfAny();
+        errors.add("name", FieldErrors.REQUIRED);
       }
+      errors.throwIfAny();
       illness.rename(name);
     }
     if (operation.has("description")) {

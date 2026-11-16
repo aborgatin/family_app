@@ -4,8 +4,8 @@ import { fieldMessageKey, type FieldMessages } from '@/shared/api';
 import { InputRow, SuggestionRows } from '@/shared/ui';
 import { EventSheet, type EventTarget } from './EventSheet';
 import type { Medicine } from './medicalTypes';
-import { NO_TEMPERATURE, TemperatureRow } from './TemperatureRow';
-import type { DoseDetails, IllnessChoice, MedicineChoice } from './useMedicalCard';
+import { NO_TEMPERATURE, TemperatureRow, wheelValue } from './TemperatureRow';
+import type { DoseDetails, EventPlace, MedicineChoice } from './useMedicalCard';
 import { medicineKey, medicineNamed } from './useMedicines';
 
 type Field = 'medicine' | 'amount';
@@ -16,7 +16,7 @@ interface DoseSheetProps extends EventTarget {
   medicines: readonly Medicine[];
   /** The amount to prefill for a Medicine: the person's latest dose of it; none the first time. */
   lastAmountOf: (medicineId: string) => string | undefined;
-  save: (target: IllnessChoice, details: DoseDetails, eventId?: string) => Promise<unknown>;
+  save: (place: EventPlace, details: DoseDetails) => Promise<unknown>;
   /** Editing a dose: its Medicine's name, a deleted one's too. */
   medicineName?: string;
 }
@@ -44,8 +44,8 @@ export function DoseSheet({
   const [addingTyped, setAddingTyped] = useState(false);
   // What the Member typed in «Количество»; `undefined` while it shows the prefilled amount.
   const [ownAmount, setOwnAmount] = useState(edited?.amount ?? undefined);
-  const [temperature, setTemperature] = useState(
-    () => edited?.temperature?.toFixed(1) ?? NO_TEMPERATURE,
+  const [temperature, setTemperature] = useState(() =>
+    wheelValue(edited?.temperature, NO_TEMPERATURE),
   );
 
   // The edited dose's own Medicine, while its name is left as it was: a deleted one too.
@@ -86,17 +86,13 @@ export function DoseSheet({
       hints={{
         ...(prefilled !== undefined && amount === prefilled && { amount: t('medical.asLastTime') }),
       }}
-      save={(choice, timing) =>
-        save(
-          choice,
-          {
-            medicine,
-            amount: amount.trim(),
-            temperature: temperature === NO_TEMPERATURE ? null : Number(temperature),
-            ...timing,
-          },
-          edited?.id,
-        )
+      save={(place, timing) =>
+        save(place, {
+          medicine,
+          amount: amount.trim(),
+          temperature: temperature === NO_TEMPERATURE ? null : Number(temperature),
+          ...timing,
+        })
       }
     >
       <InputRow
