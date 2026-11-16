@@ -160,7 +160,7 @@ _Avoid_: Seed, fixtures, presets
 ## Notifications
 
 **Push message** — —:
-What the server sends to a Member's device through Web Push: a Notification or a Reminder. Only the transport; code names it `Push…` (`Pushes`, `PushGateway`, `PushSubscription`). A device receives them through a push subscription, which belongs to the login session that registered it.
+What the server sends to a Member's device through Web Push: a Notification, a Reminder or an Announcement. Only the transport; code names it `Push…` (`Pushes`, `PushGateway`, `PushSubscription`). A device receives them through a push subscription, which belongs to the login session that registered it.
 _Avoid_: Alert, notification (for the transport)
 
 **Notification** — «Уведомление»:
@@ -171,6 +171,10 @@ _Avoid_: Alert, push, message, reminder
 A push message telling a Member that a todo item's Due date has arrived: at its time, or in the morning of the day when it has none. It goes to the Assignee, or, without one, to everyone who sees the List (the Owner of a private list, both Members on a Shared one). One per Due date; an item Done before then gets none.
 _Avoid_: Notification, alert, due notification
 
+**Announcement** — «Что нового»:
+A push message telling every Member about a new feature of the app («Новое: медицинские карты»), written by the operator as part of a release and sent once, soon after that release is installed. A Member who joins later never gets earlier ones, and nobody gets the ones that existed when the Family's installation was set up.
+_Avoid_: Release note, changelog, update, news
+
 **Batch** — —:
 Several changes by one Member to one List combined into a single Notification ("Даша добавила 7 товаров в Супермаркет"), sent once that Member has paused; Items no longer there by then are left out.
 _Avoid_: Digest, summary, bundle
@@ -180,7 +184,7 @@ A Member's choice to get no Notifications about Items added to one List; Reminde
 _Avoid_: Unsubscribe, silence, snooze
 
 **Notifications switch** — «Уведомления»:
-A Member's global on/off for all push messages, Notifications and Reminders alike.
+A Member's global on/off for all push messages: Notifications, Reminders and Announcements alike.
 _Avoid_: Do not disturb, push setting
 
 ## Sync
