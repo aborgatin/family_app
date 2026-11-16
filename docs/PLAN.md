@@ -41,7 +41,7 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
    - Batching: "Даша добавила 7 товаров в Супермаркет" instead of 7 pushes.
    - Reminders (todo due dates) always fire unless notifications are globally off.
 7. **Auth:** email + password, long-lived session per device, invite link to add the second adult. Passkeys later.
-8. **Medical card** (M5.5, after M5; grilled 2026-11-16): one per Member and per Child. A Member's card is seen only by that Member; a Child's card by both Members. Reached from a new «Здоровье» tab and from each Child page. Terms are in `GLOSSARY.md` (§ Medical).
+8. **Medical card** (M5.5, after M5; grilled 2026-11-16): one per Member and per Child. A Member's card is seen only by that Member; a Child's card by both Members. A Member reaches their own card from a «Медкарта» row on Home; a Child's card only from their Child page. Terms are in `GLOSSARY.md` (§ Medical).
    - Illnesses (bouts, created automatically by a Medicine dose or Temperature, joined within 48 h) and Conditions «Диагноз/наблюдение» (long-running: vision, teeth, chronic illnesses), both holding Illness events: Medicine dose, Temperature, Note event. Either can be Ended and resumed; Ended ones stay editable.
    - Medicines: one line of text each («Ибупрофен 20 мг/мл») in a Family list. No dose calculation: the amount is prefilled from that person's latest dose of that Medicine.
    - Documents: one file each (PDF or photo), on the card or on an event; stored in object storage, encrypted, not backed up ([ADR-0010](adr/0010-files-in-object-storage-without-backup.md)); opened on demand, not synced to devices.
@@ -58,6 +58,7 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 ### Backlog (ideas, not committed)
 
 - Meal planner (needs recipes in structured form first).
+- Medical card: combine several photos into one PDF Document; back up Document files ([ADR-0010](adr/0010-files-in-object-storage-without-backup.md)).
 - Child field history: a per-field «Хранить историю» switch showing past values (e.g. a growth chart for «Рост»/«Вес»), built on the M4 value timeline ([ADR-0007](adr/0007-typed-child-fields-timeline-values.md)).
 - Google Calendar integration — purpose TBD.
 - Documents vault — first evaluate ready solutions (Paperless-ngx for scanned documents, Vaultwarden for secrets); drop from backlog if one fits.
@@ -169,6 +170,6 @@ Secrets only in the server's `.env`, never in git.
 
 **M5.5 — Medical card** (spec now, implementation after M5)
 - [x] Grill (2026-11-16); decisions in §1, item 8.
-- [ ] Spec and tickets.
+- [x] Spec [#128](https://github.com/aborgatin/family_app/issues/128); [ ] tickets.
 - [ ] Member and Child cards, Illnesses and Conditions with events, Medicines, Documents in object storage.
-- [ ] After M5: a Notification to the other Member when a Medicine dose is logged on a Child's card (no medicine details on the lock screen).
+- [ ] A Notification to the other Member when a Medicine dose is logged on a Child's card (no medicine details on the lock screen).
