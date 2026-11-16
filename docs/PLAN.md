@@ -170,6 +170,6 @@ Secrets only in the server's `.env`, never in git.
 
 **M5.5 — Medical card** (spec now, implementation after M5)
 - [x] Grill (2026-11-16); decisions in §1, item 8.
-- [x] Spec [#128](https://github.com/aborgatin/family_app/issues/128); [ ] tickets.
+- [x] Spec [#128](https://github.com/aborgatin/family_app/issues/128) and tickets #129–#137.
 - [ ] Member and Child cards, Illnesses and Conditions with events, Medicines, Documents in object storage.
 - [ ] A Notification to the other Member when a Medicine dose is logged on a Child's card (no medicine details on the lock screen).
