@@ -49,7 +49,7 @@ every job runs. On a pull request a **changes** job (`dorny/paths-filter`) decid
 | Job                    | Runs on a pull request when changed                                                                                                                                              |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `backend`              | `backend/**`, `web/src/shared/palette/**` (the backend build copies the Child color palette), or `ci.yml`                                                                        |
-| `web`                  | `web/**` or `ci.yml`                                                                                                                                                             |
+| `web`                  | `web/**`, `backend/src/main/resources/announcements.json` (the catalog route test reads it), or `ci.yml`                                                                         |
 | `image`, `image-arm64` | `backend/**`, `web/**`, `Dockerfile`, `.dockerignore`, `deploy/**`, `scripts/image-smoke-test.sh`, `scripts/deploy-stack-test.sh`, `scripts/backup-restore-test.sh`, or `ci.yml` |
 
 `migrations` always runs. Never filter with workflow-level `paths:`: a skipped workflow leaves
@@ -209,6 +209,11 @@ switch on, telling them what is new. The catalog is
 - **Adding one**: append an entry to the array in the release's PR. `id` is any text never used
   before; `title` and `body` are the push's text exactly as written (Russian, no prefix); `url` is
   the app screen a tap opens, a path such as `/settings`, or left out for Home, `/`.
+- **Limits, checked in CI**: `id` unique and non-blank; `title` non-blank, at most 60 characters;
+  `body` non-blank, at most 180; `url` absent, or starting with `/` and not under `/api`
+  (`notifications.announcement.AnnouncementCatalogFileTest`, backend job). Each `url` must also be
+  a route of the app's router (`web/src/app/announcementRoutes.test.ts`, web job, whose filter
+  includes the catalog file). A bad entry turns the PR red before it can reach a phone.
 - **When it is sent**: on the first scheduler step after the new image starts (within a minute of
   `docker compose up -d`), once, with a 7-day TTL so a phone that is off for a few days still gets
   it. There are no quiet hours: deploy when a push is welcome. A Member whose switch is off then

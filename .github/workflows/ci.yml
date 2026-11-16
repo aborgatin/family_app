@@ -44,6 +44,8 @@ jobs:
             web:
               - *workflow
               - web/**
+              # The catalog route test reads the backend's Announcement catalog.
+              - backend/src/main/resources/announcements.json
             image:
               - *workflow
               - backend/**

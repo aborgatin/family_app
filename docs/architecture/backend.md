@@ -931,7 +931,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
 - Other: `ModularityTest` (Modulith verify), `WebBundleServingTest` (RANDOM_PORT +
   `TestRestTemplate`; test bundle in `src/test/resources/static/`), `ForwardedHeadersTest`
   (`TRUSTED_PROXIES=127\.0\.0\.1` + `X-Forwarded-For`), `PasswordResetCommandTest` (runs the command
-  entry point against Testcontainers), `HealthEndpointTest`, `ApiErrorsTest`.
+  entry point against Testcontainers), `HealthEndpointTest`, `ApiErrorsTest`,
+  `notifications.announcement.AnnouncementCatalogFileTest` (plain JUnit on the real
+  `announcements.json`: the limits in deployment.md "Adding an Announcement to a release").
 - Run with `../scripts/with-toolchain.sh ./gradlew test` from `backend/` (Docker must be running;
   one class: `--tests '*ItemSyncTest'`). The wrapper finds JDK 21 and Node 22 as `check.sh` does,
   so no `JAVA_HOME` or `source` is needed. CI runs `spotlessCheck`,
