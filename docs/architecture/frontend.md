@@ -965,6 +965,11 @@ a Vite native-config-loader warning).
     Announcement is hand-written text with nothing to compose, and finished text keeps it readable
     by any worker that knows the type, whatever the text says. A missing or wrong-typed field
     gives «Семья», as for the other types.
+  - `type: 'dose'` (spec #128, ticket #136; title «Медкарта», `medical.title`): `actorName`,
+    `actorGrammaticalGender` (as in a `notification`), `childName`, `url` (the Illness,
+    `/children/:id/medical/illnesses/:illnessId`). The body is `push.dose`, «Даша записала приём
+    лекарства: Миша» («записал» for `MASCULINE`, «записал(а)» for `null`). There is no Medicine
+    name or amount in the payload, so a lock screen shows nothing medical.
 - **Push texts** come from the `push.*` keys of `ru.json` through the worker's own i18next
   instance (the app's `@/shared/i18n` also loads react-i18next). Added Items are named in
   quotes when `itemNames` holds them all (1–3); more are counted with the names sent

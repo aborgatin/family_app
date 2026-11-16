@@ -3,6 +3,7 @@ import { daysFromToday, localDay, shortDay } from '@/shared/dates';
 import ru from '@/shared/i18n/locales/ru.json';
 import {
   parsePushPayload,
+  type DosePayload,
   type NotificationPayload,
   type PushPayload,
   type ReminderPayload,
@@ -51,7 +52,18 @@ function pushMessage(payload: PushPayload, now: Date): PushMessage {
       return { title: payload.itemName, body: reminderBody(payload, now), url: payload.url };
     case 'announcement':
       return { title: payload.title, body: payload.body, url: payload.url };
+    case 'dose':
+      return { title: t('medical.title'), body: doseBody(payload), url: payload.url };
   }
+}
+
+/** «Даша записала приём лекарства: Миша»; «записал» for a masculine Member. */
+function doseBody(payload: DosePayload): string {
+  return t('push.dose', {
+    actor: payload.actorName,
+    child: payload.childName,
+    context: payload.actorGrammaticalGender?.toLowerCase(),
+  });
 }
 
 /**

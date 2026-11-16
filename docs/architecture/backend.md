@@ -73,15 +73,16 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 | `family`  | `Members`, `MemberSummary`, `PasswordResets`, `Sessions`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | `Lists` (with `ListSummary`, `ItemSummary`, `DueItem`), `ItemAdded`, `ItemAssigned`, `ListUnshared`, `ListKind`, `Visibility` | `lists.list`                                                                              |
-| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `PushMessage`, `Urgency`, `SchedulerStep`, `AnnouncementCatalog`, `Announcement` | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule`, `notifications.announcement` |
-| `medical` | none                                                                                                   | `Person` (the card's visibility rule), `Illness`, `IllnessEvent`, `Medicine`, their repositories, `IllnessService` (`illness`), `IllnessEventService` (`illness_event`), `MedicineService` (`medicine`) |
+| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `PushMessage`, `Urgency`, `SchedulerStep`, `AnnouncementCatalog`, `Announcement` | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule`, `notifications.announcement`, `notifications.dose` |
+| `medical` | `MedicineDoseLogged`                                                                                   | `Person` (the card's visibility rule), `Illness`, `IllnessEvent`, `Medicine`, their repositories, `IllnessService` (`illness`), `IllnessEventService` (`illness_event`), `MedicineService` (`medicine`) |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
 `sync → error`, `command → family`, `notifications → family`, `notifications → lists`,
-`notifications → sync` (the `mute` table), `notifications → error`, `medical → sync`, `medical → family`
+`notifications → sync` (the `mute` table), `notifications → medical` (`MedicineDoseLogged`),
+`notifications → error`, `medical → sync`, `medical → family`
 (`Children`, `ChildDeleted`), `medical → error`. (`lists` reaches Members through `Operation.memberId()`, and
 `family` for the `FirstMemberRegistered` and `ChildDeleted` events, for `Children` (Child
 lists, #90) and for `Members.byId` (an Item's Assignee must be a Member, #85); the spec also
@@ -440,7 +441,7 @@ Item history is in the same package: `ItemHistoryEntity` (`list_id`, `normalized
 
 Push messages (spec #104). Ticket #107 built the module's base: the Notifications switch's effect,
 push subscriptions and the push gateway. #109 added Batches and the scheduler step, #110 Reminders,
-#111 Mute, #121 Announcements (spec #120).
+#111 Mute, #121 Announcements (spec #120), #136 the dose Notification (spec #128).
 
 - **`Pushes.sendTo(memberId, payload, ttl, urgency)`** (public) is the one way out: if the
   Member's Notifications switch is on (`family.Members.notificationsEnabled`), it sends the payload
@@ -561,11 +562,26 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   `dueTime` (`HH:mm` or `null`), `url` `/lists/:id/items/:itemId`. Tested by
   `notifications.RemindersTest`, which runs with `REMINDER_MORNING_TIME=08:30` (so the setting is
   seen to be read) and switches the JVM's default zone for one test (so `TZ` is).
+- **The dose Notification** (spec #128 "Notification", ticket #136;
+  `notifications.dose.DoseNotifications`): `medical` publishes `MedicineDoseLogged(childId,
+  illnessId, byMemberId)` when a push operation creates a `MEDICINE_DOSE` on a Child's card (not
+  for an edit, a Member's card, another kind, or a dose ignored for a deleted Illness). A
+  `@TransactionalEventListener` (after commit, so a rolled-back push sends nothing) sends it at
+  once, on the push request's thread: not batched, not through the scheduler step, Mute does not
+  apply. Recipients: `family.Members.all()` but the actor; `Pushes.sendTo` leaves out those whose
+  switch is off. One `PushMessage.notification` (`NORMAL`, 24 h) per recipient and dose; a push
+  that throws is logged and costs only itself (the sync push already succeeded). Nothing is sent
+  when the actor or the Child is gone by then (`family.Children.name`). The payload is the `dose`
+  of the contract in `web/src/serviceWorker/pushPayload.ts`: `actorName`, `actorGrammaticalGender`,
+  `childName`, `url` (`PushPayloads.childIllnessUrl`, `/children/:id/medical/illnesses/:illnessId`);
+  never the Medicine or the amount. A dose logged offline notifies when its push reaches the
+  server. Tested by `notifications.DoseNotificationTest`.
 
 ### `medical`
 
-Medical cards (spec #128, tickets #129, #130): no public API, everything goes through the sync
-push and pull. A card is not a row: `illness` and `illness_event` rows name their person. The
+Medical cards (spec #128, tickets #129, #130, #136): everything goes through the sync push and
+pull; the one public type is the event `MedicineDoseLogged`, published by `IllnessEventService`
+for a new dose on a Child's card (`notifications` sends the dose Notification). A card is not a row: `illness` and `illness_event` rows name their person. The
 Family's Medicines (`medicine`) belong to no card: every Member sees them.
 
 - `Person(memberId, childId)`: exactly one is set. The one place of the visibility rule:
@@ -589,7 +605,7 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   pushed with it are applied ([sync.md](sync.md#push-the-only-write-path)). A
   delete soft-deletes it only. `changesSince` sends every changed Medicine as a row with `name` and
   `deleted`, **never a tombstone**, so past doses keep its name on every device.
-- Editing rows, Documents and the dose Notification come with later tickets of #128.
+- Editing rows and Documents come with later tickets of #128.
 - Tested by `medical.MedicalCardSyncTest` and `medical.MedicineSyncTest`.
 
 ### `command`
@@ -919,6 +935,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   | `FreshInstallation` | `@BeforeEach` of a test that needs an empty Family, or adds Members by JDBC |
   | `SyncRequests` | any sync test: push/pull operations, read a pulled change, the two usual devices |
   | `ListOperations` | a `lists.*SyncTest`: the List and Item operations it pushes |
+  | `MedicalOperations` | a test that pushes Illnesses, Illness events or Medicines |
   | `HttpDevice` | a real port: restarts, SSE streams |
   | `LockWaits` | proving a request waits on the Family lock |
   | `TestClock` | a test whose answer depends on today or now: fix the server's clock |
@@ -948,7 +965,11 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     See `notifications.PushSubscriptionsTest`.
   - `ListOperations`: the Lists' operations most `lists.*SyncTest`s push, statically imported:
     `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`,
-    `mute(id, listId)` (a Mute of the List, used by the `notifications` tests). A helper one test class needs stays in it; one a second class needs moves here.
+    `mute(id, listId)` (a Mute of the List, used by the `notifications` tests).
+  - `MedicalOperations`: the Medical card operations the `medical` tests and
+    `notifications.DoseNotificationTest` push, statically imported: `illnessOf(personField,
+    person, id, name)`, `temperature(id, illness, date, time, value)`, `dose(id, illness,
+    medicine, amount, temperature)`, `medicine(id, name)`. A helper one test class needs stays in it; one a second class needs moves here.
 - Concurrency (`PullNeverSkipsASlowerWriteTest`, `MemberWritesTakeTheFamilyLockTest`): a raw JDBC
   connection holds a row lock, a request runs on another thread, and the test waits until it is
   blocked (`LockWaits.transactionsWaitingOnALock(jdbc)` reads `pg_stat_activity`,

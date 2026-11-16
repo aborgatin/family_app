@@ -1,5 +1,7 @@
 package io.github.aborgatin.familyapp.medical;
 
+import static io.github.aborgatin.familyapp.MedicalOperations.illnessOf;
+import static io.github.aborgatin.familyapp.MedicalOperations.temperature;
 import static io.github.aborgatin.familyapp.SyncRequests.pushApplied;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -279,31 +281,5 @@ class MedicalCardSyncTest {
             illnessOf("childId", masha, late, "Поздно"),
             temperature(UUID.randomUUID(), late, "2026-12-03", null, 37.0))
         .andExpect(jsonPath("$.results[*].status", contains("ignored", "ignored")));
-  }
-
-  static String illnessOf(String personField, Object person, UUID id, String name) {
-    return SyncRequests.upsert(
-        ILLNESS,
-        id,
-        "{\"%s\":\"%s\",\"kind\":\"ILLNESS\",\"name\":\"%s\"}"
-            .formatted(personField, person, name));
-  }
-
-  static String temperature(UUID id, UUID illness, String date, String time, double value) {
-    return SyncRequests.upsert(
-        EVENT,
-        id,
-        "{\"illnessId\":\"%s\",\"kind\":\"TEMPERATURE\",\"date\":\"%s\",\"time\":%s,\"temperature\":%s}"
-            .formatted(illness, date, time == null ? "null" : "\"" + time + "\"", value));
-  }
-
-  /** A Medicine dose on 2 December 2026, 22:00; {@code temperature} may be {@code null}. */
-  static String dose(UUID id, UUID illness, UUID medicine, String amount, Double temperature) {
-    return SyncRequests.upsert(
-        EVENT,
-        id,
-        ("{\"illnessId\":\"%s\",\"kind\":\"MEDICINE_DOSE\",\"date\":\"2026-12-02\","
-                + "\"time\":\"22:00\",\"medicineId\":\"%s\",\"amount\":\"%s\",\"temperature\":%s}")
-            .formatted(illness, medicine, amount, temperature));
   }
 }

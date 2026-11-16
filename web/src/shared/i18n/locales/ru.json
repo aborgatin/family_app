@@ -348,6 +348,9 @@
     "assigned": "{{actor}} назначил(а) вам {{items}}",
     "assigned_masculine": "{{actor}} назначил вам {{items}}",
     "assigned_feminine": "{{actor}} назначила вам {{items}}",
+    "dose": "{{actor}} записал(а) приём лекарства: {{child}}",
+    "dose_masculine": "{{actor}} записал приём лекарства: {{child}}",
+    "dose_feminine": "{{actor}} записала приём лекарства: {{child}}",
     "count": {
       "SHOPPING_one": "{{count}} товар",
       "SHOPPING_few": "{{count}} товара",

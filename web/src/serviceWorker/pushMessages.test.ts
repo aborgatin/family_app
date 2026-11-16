@@ -194,6 +194,42 @@ describe('an Announcement', () => {
   });
 });
 
+const DOSE = {
+  type: 'dose',
+  actorName: 'Даша',
+  actorGrammaticalGender: 'FEMININE',
+  childName: 'Миша',
+  url: '/children/c1/medical/illnesses/i1',
+};
+
+describe('a dose Notification', () => {
+  it('says who logged a dose for which Child, under «Медкарта», and opens the Illness', () => {
+    expect(readPushMessage(JSON.stringify(DOSE), NOW)).toEqual({
+      title: 'Медкарта',
+      body: 'Даша записала приём лекарства: Миша',
+      url: '/children/c1/medical/illnesses/i1',
+    });
+  });
+
+  it('follows the actor’s Grammatical gender', () => {
+    const data = JSON.stringify({
+      ...DOSE,
+      actorName: 'Борис',
+      actorGrammaticalGender: 'MASCULINE',
+    });
+
+    expect(readPushMessage(data, NOW).body).toBe('Борис записал приём лекарства: Миша');
+  });
+});
+
+/** Dose Notifications with a field missing or of the wrong type. */
+const DOSES_THAT_CANT_BE_READ = (
+  ['actorName', 'actorGrammaticalGender', 'childName', 'url'] as const
+).flatMap((field): [string, string][] => [
+  [`a dose Notification missing its ${field}`, JSON.stringify({ ...DOSE, [field]: undefined })],
+  [`a dose Notification whose ${field} is wrong`, JSON.stringify({ ...DOSE, [field]: 7 })],
+]);
+
 const ANNOUNCEMENT = { type: 'announcement', title: 'Новое', body: 'Что-то', url: '/' };
 
 /** Announcements with a field missing or of the wrong type. */
@@ -243,6 +279,7 @@ describe('the push data as it arrives', () => {
     ['a Notification missing its fields', JSON.stringify({ type: 'notification', url: '/' })],
     ['a Reminder missing its fields', JSON.stringify({ type: 'reminder', itemName: 'Чай' })],
     ...ANNOUNCEMENTS_THAT_CANT_BE_READ,
+    ...DOSES_THAT_CANT_BE_READ,
   ])('that can’t be read (%s) still shows a «Семья» notification opening /', (_, data) => {
     expect(readPushMessage(data, NOW)).toEqual(GENERIC);
   });

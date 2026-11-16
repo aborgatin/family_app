@@ -1,8 +1,10 @@
 package io.github.aborgatin.familyapp.medical;
 
+import static io.github.aborgatin.familyapp.MedicalOperations.dose;
+import static io.github.aborgatin.familyapp.MedicalOperations.illnessOf;
+import static io.github.aborgatin.familyapp.MedicalOperations.medicine;
 import static io.github.aborgatin.familyapp.SyncRequests.pushApplied;
 import static io.github.aborgatin.familyapp.medical.MedicalCardSyncTest.EVENT;
-import static io.github.aborgatin.familyapp.medical.MedicalCardSyncTest.dose;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.MAP;
 import static org.hamcrest.Matchers.contains;
@@ -50,7 +52,7 @@ class MedicineSyncTest {
     pushApplied(
         anna,
         SyncRequests.upsert("child", masha, "{\"name\":\"Маша\",\"color\":\"coral\"}"),
-        MedicalCardSyncTest.illnessOf("childId", masha, cold, "ОРВИ"));
+        illnessOf("childId", masha, cold, "ОРВИ"));
   }
 
   @Test
@@ -177,9 +179,5 @@ class MedicineSyncTest {
     SyncRequests.push(anna, dose(UUID.randomUUID(), cold, unknown, "5 мл", null))
         .andExpect(jsonPath("$.results[0].code").value("medical.not_found"))
         .andExpect(jsonPath("$.results[0].params.medicineId").value(unknown.toString()));
-  }
-
-  static String medicine(UUID id, String name) {
-    return SyncRequests.upsert(MEDICINE, id, "{\"name\":\"%s\"}".formatted(name));
   }
 }

@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
@@ -23,12 +24,17 @@ class IllnessEventService implements SyncableTable {
   private final IllnessEventRepository events;
   private final IllnessRepository illnesses;
   private final MedicineService medicines;
+  private final ApplicationEventPublisher published;
 
   IllnessEventService(
-      IllnessEventRepository events, IllnessRepository illnesses, MedicineService medicines) {
+      IllnessEventRepository events,
+      IllnessRepository illnesses,
+      MedicineService medicines,
+      ApplicationEventPublisher published) {
     this.events = events;
     this.illnesses = illnesses;
     this.medicines = medicines;
+    this.published = published;
   }
 
   @Override
@@ -41,7 +47,8 @@ class IllnessEventService implements SyncableTable {
    * kind} and {@code date} required). An upsert of a known one changes nothing yet. A delete
    * deletes it. Delete wins: an event for a deleted Illness is ignored. An Illness that never
    * existed, or is on another Member's card, and an event on such a card, is {@code
-   * medical.not_found}; so is a dose of a Medicine that never existed (a deleted one is fine).
+   * medical.not_found}; so is a dose of a Medicine that never existed (a deleted one is fine). A
+   * new dose on a Child's card publishes {@link MedicineDoseLogged}.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -110,6 +117,10 @@ class IllnessEventService implements SyncableTable {
                 temperature,
                 title,
                 operation.trimmedText("description"))));
+    UUID childId = illness.person().childId();
+    if (kind == IllnessEvent.Kind.MEDICINE_DOSE && childId != null) {
+      published.publishEvent(new MedicineDoseLogged(childId, illnessId, operation.memberId()));
+    }
     return Outcome.APPLIED;
   }
 
