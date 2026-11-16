@@ -7,8 +7,8 @@ import { ROW_LAYOUT, TAPPABLE } from './ListRow';
 interface SuggestionRowsProps {
   /** The names to suggest, top to bottom (already chosen and limited by the caller). */
   names: readonly string[];
-  /** A name was tapped. */
-  onPick: (name: string) => void;
+  /** A name was tapped; `index` tells two rows of the same name apart. */
+  onPick: (name: string, index: number) => void;
   /** With it, each row ends with a × that removes its name (no confirmation). */
   onRemove?: (name: string) => void;
 }
@@ -40,13 +40,13 @@ export function SuggestionRows({ names, onPick, onRemove }: SuggestionRowsProps)
       aria-label={t('ui.suggestions')}
       className={`relative col-span-full grid grid-cols-subgrid ${ROW_SEPARATOR}`}
     >
-      {names.map((name) => (
-        <div key={name} className={`relative col-span-full flex items-center ${ROW_SEPARATOR}`}>
+      {names.map((name, index) => (
+        <div key={`${String(index)} ${name}`} className={`relative col-span-full flex items-center ${ROW_SEPARATOR}`}>
           <button
             type="button"
             onMouseDown={keepFocus}
             onClick={() => {
-              onPick(name);
+              onPick(name, index);
             }}
             className={
               `${ROW_LAYOUT} ${TAPPABLE} min-w-0 flex-1 self-stretch px-4 text-left ` +

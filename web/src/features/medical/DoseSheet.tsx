@@ -40,15 +40,15 @@ export function DoseSheet({ medicines, lastAmountOf, save, ...target }: DoseShee
   const amount = ownAmount ?? prefilled ?? '';
   const name = typed.trim();
   const addLabel = t('medical.addMedicine', { name });
-  const choices =
+  const matching =
     picked !== undefined || addingTyped
       ? []
-      : [
-          ...medicines
-            .filter((medicine) => medicineKey(medicine.name).includes(medicineKey(typed)))
-            .map((medicine) => medicine.name),
-          ...(name === '' ? [] : [addLabel]),
-        ];
+      : medicines
+          .filter((medicine) => medicineKey(medicine.name).includes(medicineKey(typed)))
+          .map((medicine) => medicine.name);
+  // «+ <text>» comes last, told apart by its place: a Medicine may be named like it.
+  const choices =
+    picked !== undefined || addingTyped || name === '' ? matching : [...matching, addLabel];
 
   function check(): FieldMessages<Field> {
     return {
@@ -89,8 +89,8 @@ export function DoseSheet({ medicines, lastAmountOf, save, ...target }: DoseShee
       />
       <SuggestionRows
         names={choices}
-        onPick={(choice) => {
-          if (choice === addLabel) {
+        onPick={(choice, index) => {
+          if (index === matching.length) {
             setAddingTyped(true);
           } else {
             setTyped(choice);

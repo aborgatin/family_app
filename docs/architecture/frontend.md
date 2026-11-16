@@ -105,7 +105,7 @@ web/src/
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
                         InputRow, TextAreaRow (+ LinkedText, not exported), DateRow,
                         SegmentedControl, SwitchRow, SelectRow, ColorChoice, Swatch, ListRow,
-                        LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
+                        LoadingRow, EditableRow, AddRow, SuggestionRows, SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Initials, ChildAvatar, PictureChoice, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         CardGrid + Card,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
@@ -1020,6 +1020,7 @@ helper a second test file needs moves here.
 | `fakePushDevice({permission, answer, subscribedAt})`, `pushServer()` (`@/test/pushDevice`) | a device that can receive push (jsdom has none: without it every test is a device without push): fake `Notification`, `PushManager`, `serviceWorker.ready`; the server's VAPID key and subscription endpoints, recording `posted` / `deleted` |
 | `upgradeStoreFrom(version, seed)` (`@/test/olderStore`) | a store-upgrade test: an older store with rows or Outbox operations, then the current one opened over it (lint rejects store versions declared anywhere else) |
 | `anna`, `boris`, `masha`, `petya`, `weight`, `height`, `sessionHandler`, `membersHandler`, `invitesHandler`, `fixtureId` (`@/test/fixtures`) | Members, Children, Child fields, the auth/settings handlers every test needs, and ids for seeded rows |
+| `illnessRow`, `temperatureRow`, `doseRow`, `medicineRow`, `selectedText` (`@/test/medical`) | Medical card rows to seed (Illnesses, Temperatures, Medicine doses, Medicines), each with a fresh id; the chosen option of a wheel |
 | `dayParts`, `localDay` (`@/shared/dates`, app code) | a `YYYY-MM-DD` day in a test or in code: lint rejects parsing one by hand elsewhere |
 
 Run one file with `../scripts/with-toolchain.sh npx vitest run <file>` from `web/`; a test that

@@ -1,7 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { anna, fixtureId, masha, sessionHandler } from '@/test/fixtures';
+import { anna, masha, sessionHandler } from '@/test/fixtures';
+import { doseRow, illnessRow, medicineRow, selectedText } from '@/test/medical';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
@@ -20,53 +21,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
 });
-
-let ids = 0;
-function nextId() {
-  ids += 1;
-  return fixtureId('d05e0000', ids);
-}
-
-function medicine(name: string, deleted = false) {
-  return { id: nextId(), name, deleted };
-}
-
-function illnessOf(person: { memberId: string } | { childId: string }, name: string) {
-  return {
-    id: nextId(),
-    memberId: null,
-    childId: null,
-    ...person,
-    kind: 'ILLNESS',
-    name,
-    description: null,
-    ended: false,
-    position: null,
-    createdAt: '2026-11-01T10:00:00Z',
-  };
-}
-
-function doseIn(
-  illness: { id: string },
-  of: { id: string },
-  amount: string,
-  date: string,
-  time: string | null,
-  temperature: number | null = null,
-) {
-  return {
-    id: nextId(),
-    illnessId: illness.id,
-    kind: 'MEDICINE_DOSE',
-    date,
-    time,
-    medicineId: of.id,
-    amount,
-    temperature,
-    title: null,
-    description: null,
-  };
-}
 
 type User = ReturnType<typeof userEvent.setup>;
 
@@ -88,10 +42,6 @@ function wheel(sheet: HTMLElement) {
   return within(sheet).getByRole('combobox', { name: 'Температура' });
 }
 
-function selectedText(select: HTMLElement) {
-  return (select as HTMLSelectElement).selectedOptions[0]?.textContent;
-}
-
 /** The picker's rows under «Лекарство», top to bottom. */
 function pickerRows(sheet: HTMLElement) {
   const group = within(sheet).queryByRole('group', { name: 'Подсказки' });
@@ -108,7 +58,7 @@ async function done(user: User, sheet: HTMLElement) {
 
 describe('Where a dose is logged', () => {
   it('offers «Добавить приём лекарства» on the card and «Приём лекарства» on an Illness', async () => {
-    const cold = illnessOf({ memberId: anna.id }, 'ОРВИ');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('illness', [cold]);
     const user = userEvent.setup();
 
@@ -170,9 +120,9 @@ describe('The dose sheet', () => {
 describe('Picking the Medicine', () => {
   it('lists the Family’s Medicines, without deleted ones, and narrows them as you type', async () => {
     syncServer.seed('medicine', [
-      medicine('Парацетамол 120 мг/5 мл'),
-      medicine('Нурофен', true),
-      medicine('Ибупрофен 20 мг/мл'),
+      medicineRow('Парацетамол 120 мг/5 мл'),
+      medicineRow('Нурофен', true),
+      medicineRow('Ибупрофен 20 мг/мл'),
     ]);
     const user = userEvent.setup();
     const sheet = await openDoseSheetFromCard(user);
@@ -186,7 +136,7 @@ describe('Picking the Medicine', () => {
   });
 
   it('logs a dose of the Medicine picked from the list', async () => {
-    const ibuprofen = medicine('Ибупрофен 20 мг/мл');
+    const ibuprofen = medicineRow('Ибупрофен 20 мг/мл');
     syncServer.seed('medicine', [ibuprofen]);
     const user = userEvent.setup();
     const sheet = await openDoseSheetFromCard(user);
@@ -217,7 +167,7 @@ describe('Picking the Medicine', () => {
   });
 
   it('picks an existing Medicine when its name is typed in any letter case', async () => {
-    const ibuprofen = medicine('Ибупрофен');
+    const ibuprofen = medicineRow('Ибупрофен');
     syncServer.seed('medicine', [ibuprofen]);
     const user = userEvent.setup();
     const sheet = await openDoseSheetFromCard(user);
@@ -236,6 +186,19 @@ describe('Picking the Medicine', () => {
       medicineId: ibuprofen.id,
       temperature: null,
     });
+  });
+
+  it('tells a Medicine named like «+ …» from the row that adds the typed text', async () => {
+    syncServer.seed('medicine', [medicineRow('+ Нурофен')]);
+    const user = userEvent.setup();
+    const sheet = await openDoseSheetFromCard(user);
+    await within(sheet).findByRole('button', { name: '+ Нурофен' });
+
+    await user.type(medicineField(sheet), 'Нурофен');
+    expect(pickerRows(sheet)).toEqual(['+ Нурофен', '+ Нурофен']);
+    await user.click(within(sheet).getAllByRole('button', { name: '+ Нурофен' })[0]!);
+
+    expect(medicineField(sheet)).toHaveValue('+ Нурофен');
   });
 
   it('adds a typed Medicine with «+ …», and it is in the list next time', async () => {
@@ -272,12 +235,12 @@ describe('The prefilled amount', () => {
   }
 
   it('is empty the first time this person gets the Medicine', async () => {
-    const ibuprofen = medicine('Ибупрофен');
-    const mashas = illnessOf({ childId: masha.id }, 'ОРВИ');
+    const ibuprofen = medicineRow('Ибупрофен');
+    const mashas = illnessRow({ childId: masha.id }, 'ОРВИ');
     syncServer.seed('child', [masha]);
     syncServer.seed('medicine', [ibuprofen]);
     syncServer.seed('illness', [mashas]);
-    syncServer.seed('illness_event', [doseIn(mashas, ibuprofen, '5 мл', '2026-12-02', '08:00')]);
+    syncServer.seed('illness_event', [doseRow(mashas, ibuprofen, '5 мл', '2026-12-02', '08:00')]);
 
     const sheet = await amountFor('Ибупрофен');
 
@@ -286,18 +249,18 @@ describe('The prefilled amount', () => {
   });
 
   it('is the amount of this person’s latest dose of it, by its own date and time', async () => {
-    const ibuprofen = medicine('Ибупрофен');
-    const paracetamol = medicine('Парацетамол');
-    const cold = illnessOf({ memberId: anna.id }, 'ОРВИ');
-    const otitis = illnessOf({ memberId: anna.id }, 'Отит');
+    const ibuprofen = medicineRow('Ибупрофен');
+    const paracetamol = medicineRow('Парацетамол');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
+    const otitis = illnessRow({ memberId: anna.id }, 'Отит');
     syncServer.seed('medicine', [ibuprofen, paracetamol]);
     syncServer.seed('illness', [cold, otitis]);
     syncServer.seed('illness_event', [
-      doseIn(otitis, ibuprofen, '7,5 мл', '2026-12-01', null),
-      doseIn(cold, ibuprofen, '5 мл', '2026-11-30', '23:00'),
-      doseIn(cold, paracetamol, '1 таблетка', '2026-12-02', '20:00'),
+      doseRow(otitis, ibuprofen, '7,5 мл', '2026-12-01', null),
+      doseRow(cold, ibuprofen, '5 мл', '2026-11-30', '23:00'),
+      doseRow(cold, paracetamol, '1 таблетка', '2026-12-02', '20:00'),
       // Backfilled later, but given earlier: it doesn't change the suggestion.
-      doseIn(cold, ibuprofen, '2,5 мл', '2026-11-29', '10:00'),
+      doseRow(cold, ibuprofen, '2,5 мл', '2026-11-29', '10:00'),
     ]);
 
     const sheet = await amountFor('Ибупрофен');
@@ -308,12 +271,12 @@ describe('The prefilled amount', () => {
   });
 
   it('goes to the dose the server got last when two have the same date and time', async () => {
-    const ibuprofen = medicine('Ибупрофен');
-    const cold = illnessOf({ memberId: anna.id }, 'ОРВИ');
+    const ibuprofen = medicineRow('Ибупрофен');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('medicine', [ibuprofen]);
     syncServer.seed('illness', [cold]);
-    syncServer.seed('illness_event', [doseIn(cold, ibuprofen, '10 мл', '2026-12-01', '22:00')]);
-    syncServer.seed('illness_event', [doseIn(cold, ibuprofen, '5 мл', '2026-12-01', '22:00')]);
+    syncServer.seed('illness_event', [doseRow(cold, ibuprofen, '10 мл', '2026-12-01', '22:00')]);
+    syncServer.seed('illness_event', [doseRow(cold, ibuprofen, '5 мл', '2026-12-01', '22:00')]);
 
     const sheet = await amountFor('Ибупрофен');
 
@@ -321,11 +284,11 @@ describe('The prefilled amount', () => {
   });
 
   it('follows a changed amount next time, and not a dose backfilled before it', async () => {
-    const ibuprofen = medicine('Ибупрофен');
-    const cold = illnessOf({ memberId: anna.id }, 'ОРВИ');
+    const ibuprofen = medicineRow('Ибупрофен');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('medicine', [ibuprofen]);
     syncServer.seed('illness', [cold]);
-    syncServer.seed('illness_event', [doseIn(cold, ibuprofen, '5 мл', '2026-12-02', '08:00')]);
+    syncServer.seed('illness_event', [doseRow(cold, ibuprofen, '5 мл', '2026-12-02', '08:00')]);
     const user = userEvent.setup();
 
     let sheet = await openDoseSheetFromCard(user);
@@ -355,14 +318,14 @@ describe('The prefilled amount', () => {
 
 describe('Dose rows on the Illness screen', () => {
   it('read «22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C», a deleted Medicine’s name included', async () => {
-    const ibuprofen = medicine('Ибупрофен 20 мг/мл');
-    const nurofen = medicine('Нурофен', true);
-    const cold = illnessOf({ memberId: anna.id }, 'ОРВИ');
+    const ibuprofen = medicineRow('Ибупрофен 20 мг/мл');
+    const nurofen = medicineRow('Нурофен', true);
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('medicine', [ibuprofen, nurofen]);
     syncServer.seed('illness', [cold]);
     syncServer.seed('illness_event', [
-      doseIn(cold, ibuprofen, '5 мл', '2026-12-02', '22:00', 38.5),
-      doseIn(cold, nurofen, '1 таблетка', '2026-12-02', null),
+      doseRow(cold, ibuprofen, '5 мл', '2026-12-02', '22:00', 38.5),
+      doseRow(cold, nurofen, '1 таблетка', '2026-12-02', null),
     ]);
 
     renderApp(`/medical/illnesses/${cold.id}`);
@@ -377,11 +340,11 @@ describe('Dose rows on the Illness screen', () => {
   });
 
   it('keep the name of a Medicine deleted in Settings, offline too', async () => {
-    const ibuprofen = medicine('Ибупрофен');
-    const cold = illnessOf({ memberId: anna.id }, 'ОРВИ');
+    const ibuprofen = medicineRow('Ибупрофен');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('medicine', [ibuprofen]);
     syncServer.seed('illness', [cold]);
-    syncServer.seed('illness_event', [doseIn(cold, ibuprofen, '5 мл', '2026-12-02', '20:00')]);
+    syncServer.seed('illness_event', [doseRow(cold, ibuprofen, '5 мл', '2026-12-02', '20:00')]);
     const user = userEvent.setup();
     const first = renderApp('/settings');
     const medicines = await screen.findByRole('region', { name: 'Лекарства' });
@@ -454,7 +417,7 @@ describe('Offline', () => {
     await screen.findByRole('link', { name: /Болезнь 2 декабря 2026/ });
     offline.unmount();
     // Boris added «Нурофен» first, from his phone.
-    syncServer.seed('medicine', [medicine('Нурофен')]);
+    syncServer.seed('medicine', [medicineRow('Нурофен')]);
 
     syncServer.goOnline();
     await openDoseSheetFromCard(user);

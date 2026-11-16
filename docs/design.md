@@ -146,8 +146,8 @@ spacing `n`).
 ## Components
 
 All in `web/src/shared/ui`, exported from its `index.ts` (except `OfflineIndicator`,
-`Spinner`, `RowContextMenu`, `SuggestionRows` and `LinkedText`, which only other components
-place). Text fields
+`Spinner`, `RowContextMenu` and `LinkedText`, which only other components place; `SuggestionRows`
+is exported for the dose sheet's picker, #130). Text fields
 share their focus sign (`FIELD_FOCUS`), and rows their hairline (`ROW_SEPARATOR`, part of
 `ROW_FRAME`). Feature code uses nothing
 else to draw: no raw `button` / `input` / `select` / `textarea` / `form` / `a`, no `className` or
@@ -558,7 +558,8 @@ Up to 5 plain rows directly under the focused `AddRow` (it places them; a List's
 from the Item history), or every choice under an `InputRow` that is a picker with search (the
 dose sheet's «Лекарство», #130: the matching Medicines and «+ <typed text>», shown until one is
 picked): each a name in `label`, a hairline above every row as in any group.
-Tapping or clicking a row picks it; pressing it with the mouse doesn't take the focus from the
+Tapping or clicking a row picks it (`onPick(name, index)`: the index tells two rows of one name
+apart, as a Medicine named «+ Нурофен» and the «+ Нурофен» that adds the typed text); pressing it with the mouse doesn't take the focus from the
 field. With `onRemove` (`AddRow` `onRemoveSuggestion`), each row ends with a × (`clear` icon,
 `tertiary-label`, darker on hover; 44px target on touch, 36px with a mouse) named «Удалить
 подсказку „Малоко“» (`ui.removeSuggestion`): it removes the name at once, with no action sheet,

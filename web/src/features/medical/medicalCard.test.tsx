@@ -4,12 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   anna,
   boris,
-  fixtureId,
   invitesHandler,
   masha,
   membersHandler,
   sessionHandler,
 } from '@/test/fixtures';
+import { illnessRow, selectedText, temperatureRow } from '@/test/medical';
 import { upgradeStoreFrom } from '@/test/olderStore';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
@@ -37,49 +37,6 @@ function backLink() {
   return within(screen.getByRole('banner')).getAllByRole('link')[0];
 }
 
-let ids = 0;
-/** A unique id for a seeded row. */
-function nextId() {
-  ids += 1;
-  return fixtureId('5e1d0000', ids);
-}
-
-/** An Illness on Anna's card, as the pull returns it. */
-function annasIllness(name: string, createdAt = '2026-11-01T10:00:00Z') {
-  return {
-    id: nextId(),
-    memberId: anna.id,
-    childId: null,
-    kind: 'ILLNESS',
-    name,
-    description: null,
-    ended: false,
-    position: null,
-    createdAt,
-  };
-}
-
-/** A Temperature in an Illness, as the pull returns it. */
-function temperatureIn(
-  illness: { id: string },
-  date: string,
-  time: string | null,
-  temperature: number,
-) {
-  return {
-    id: nextId(),
-    illnessId: illness.id,
-    kind: 'TEMPERATURE',
-    date,
-    time,
-    medicineId: null,
-    amount: null,
-    temperature,
-    title: null,
-    description: null,
-  };
-}
-
 /** Anna's card is open, after the first sync. */
 async function annasCard() {
   const app = renderApp('/medical');
@@ -105,10 +62,6 @@ async function openTemperatureSheet(user: ReturnType<typeof userEvent.setup>) {
 
 function addTo(sheet: HTMLElement) {
   return within(sheet).getByRole('combobox', { name: 'Добавить к' });
-}
-
-function selectedText(select: HTMLElement) {
-  return (select as HTMLSelectElement).selectedOptions[0]?.textContent;
 }
 
 describe('Opening a Medical card', () => {
@@ -166,15 +119,15 @@ describe('The Temperature sheet', () => {
   });
 
   it('joins the Illness whose latest event is the latest, within 48 hours', async () => {
-    const cold = annasIllness('ОРВИ');
-    const older = annasIllness('Отит');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
+    const older = illnessRow({ memberId: anna.id }, 'Отит');
     syncServer.seed('illness', [older, cold]);
     syncServer.seed('illness_event', [
-      temperatureIn(cold, '2026-11-30', '22:00', 38.0),
-      temperatureIn(older, '2026-11-20', '10:00', 37.5),
-      temperatureIn(older, '2026-11-30', '22:00', 37.5),
-      temperatureIn(cold, '2026-12-01', '10:00', 38.0),
-      temperatureIn(older, '2026-12-01', '09:00', 37.5),
+      temperatureRow(cold, '2026-11-30', '22:00', 38.0),
+      temperatureRow(older, '2026-11-20', '10:00', 37.5),
+      temperatureRow(older, '2026-11-30', '22:00', 37.5),
+      temperatureRow(cold, '2026-12-01', '10:00', 38.0),
+      temperatureRow(older, '2026-12-01', '09:00', 37.5),
     ]);
     const user = userEvent.setup();
     await annasCard();
@@ -203,9 +156,9 @@ describe('The Temperature sheet', () => {
   });
 
   it('starts a new Illness, named after the event’s date, when the latest event is older than 48 hours', async () => {
-    const cold = annasIllness('ОРВИ');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('illness', [cold]);
-    syncServer.seed('illness_event', [temperatureIn(cold, '2026-11-30', '21:59', 38.0)]);
+    syncServer.seed('illness_event', [temperatureRow(cold, '2026-11-30', '21:59', 38.0)]);
     const user = userEvent.setup();
     await annasCard();
     await screen.findByText('ОРВИ');
@@ -232,9 +185,9 @@ describe('The Temperature sheet', () => {
   });
 
   it('still joins an Illness whose latest event was exactly 48 hours ago', async () => {
-    const cold = annasIllness('ОРВИ');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('illness', [cold]);
-    syncServer.seed('illness_event', [temperatureIn(cold, '2026-11-30', '22:00', 38.0)]);
+    syncServer.seed('illness_event', [temperatureRow(cold, '2026-11-30', '22:00', 38.0)]);
     const user = userEvent.setup();
     await annasCard();
     await screen.findByText('ОРВИ');
@@ -245,10 +198,10 @@ describe('The Temperature sheet', () => {
   });
 
   it('counts an event without a time as 00:00 of its day', async () => {
-    const cold = annasIllness('ОРВИ');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('illness', [cold]);
     // 30 November without a time is 00:00, more than 48 hours before 2 December 22:00.
-    syncServer.seed('illness_event', [temperatureIn(cold, '2026-11-30', null, 38.0)]);
+    syncServer.seed('illness_event', [temperatureRow(cold, '2026-11-30', null, 38.0)]);
     const user = userEvent.setup();
     await annasCard();
     await screen.findByText('ОРВИ');
@@ -277,12 +230,12 @@ describe('The Temperature sheet', () => {
   });
 
   it('adds to another of the person’s Illnesses with «Другая…»', async () => {
-    const cold = annasIllness('ОРВИ');
-    const older = annasIllness('Отит');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
+    const older = illnessRow({ memberId: anna.id }, 'Отит');
     syncServer.seed('illness', [cold, older]);
     syncServer.seed('illness_event', [
-      temperatureIn(cold, '2026-12-02', '08:00', 38.0),
-      temperatureIn(older, '2026-11-20', '10:00', 37.5),
+      temperatureRow(cold, '2026-12-02', '08:00', 38.0),
+      temperatureRow(older, '2026-11-20', '10:00', 37.5),
     ]);
     const user = userEvent.setup();
     await annasCard();
@@ -329,16 +282,16 @@ describe('The Temperature sheet', () => {
 
 describe('«Болезни» on the card', () => {
   it('shows each Illness with its first day and its events, the year only when not this year', async () => {
-    const cold = annasIllness('ОРВИ');
-    const otitis = annasIllness('Отит');
-    const flu = annasIllness('Грипп');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
+    const otitis = illnessRow({ memberId: anna.id }, 'Отит');
+    const flu = illnessRow({ memberId: anna.id }, 'Грипп');
     syncServer.seed('illness', [cold, otitis, flu]);
     syncServer.seed('illness_event', [
-      temperatureIn(cold, '2026-12-01', '08:00', 38.0),
-      temperatureIn(cold, '2026-12-02', '08:00', 37.8),
-      temperatureIn(otitis, '2026-11-20', '10:00', 37.5),
+      temperatureRow(cold, '2026-12-01', '08:00', 38.0),
+      temperatureRow(cold, '2026-12-02', '08:00', 37.8),
+      temperatureRow(otitis, '2026-11-20', '10:00', 37.5),
       ...['01', '02', '03', '04', '05'].map((day) =>
-        temperatureIn(flu, `2025-03-${day}`, null, 38.2),
+        temperatureRow(flu, `2025-03-${day}`, null, 38.2),
       ),
     ]);
 
@@ -354,15 +307,15 @@ describe('«Болезни» on the card', () => {
   });
 
   it('orders Illnesses by their latest event, newest first, and an empty one by when it was made', async () => {
-    const early = annasIllness('Ранняя');
-    const late = annasIllness('Поздняя');
-    const empty = annasIllness('Пустая', '2026-11-25T10:00:00Z');
+    const early = illnessRow({ memberId: anna.id }, 'Ранняя');
+    const late = illnessRow({ memberId: anna.id }, 'Поздняя');
+    const empty = illnessRow({ memberId: anna.id }, 'Пустая', '2026-11-25T10:00:00Z');
     syncServer.seed('illness', [late, empty, early]);
     syncServer.seed('illness_event', [
       // Started earlier, but its latest event is the newest.
-      temperatureIn(early, '2026-11-10', '08:00', 38.0),
-      temperatureIn(early, '2026-12-01', '08:00', 38.0),
-      temperatureIn(late, '2026-11-20', '08:00', 38.0),
+      temperatureRow(early, '2026-11-10', '08:00', 38.0),
+      temperatureRow(early, '2026-12-01', '08:00', 38.0),
+      temperatureRow(late, '2026-11-20', '08:00', 38.0),
     ]);
 
     await annasCard();
@@ -379,9 +332,9 @@ describe('«Болезни» on the card', () => {
   it('shows only the Member’s own card: not the other Member’s, nor a Child’s', async () => {
     syncServer.seed('child', [masha]);
     syncServer.seed('illness', [
-      annasIllness('Моя'),
-      { ...annasIllness('Борина'), memberId: boris.id },
-      { ...annasIllness('Машина'), memberId: null, childId: masha.id },
+      illnessRow({ memberId: anna.id }, 'Моя'),
+      { ...illnessRow({ memberId: anna.id }, 'Борина'), memberId: boris.id },
+      { ...illnessRow({ memberId: anna.id }, 'Машина'), memberId: null, childId: masha.id },
     ]);
 
     await annasCard();
@@ -394,14 +347,14 @@ describe('«Болезни» on the card', () => {
 
 describe('The Illness screen', () => {
   it('shows the name, the first day, «Температура» and the events by day, newest first', async () => {
-    const cold = { ...annasIllness('ОРВИ'), memberId: null, childId: masha.id };
+    const cold = { ...illnessRow({ memberId: anna.id }, 'ОРВИ'), memberId: null, childId: masha.id };
     syncServer.seed('child', [masha]);
     syncServer.seed('illness', [cold]);
     syncServer.seed('illness_event', [
-      temperatureIn(cold, '2026-12-01', '08:00', 38.0),
-      temperatureIn(cold, '2026-12-02', null, 37.1),
-      temperatureIn(cold, '2026-12-02', '22:00', 38.5),
-      temperatureIn(cold, '2026-12-02', '09:30', 37.8),
+      temperatureRow(cold, '2026-12-01', '08:00', 38.0),
+      temperatureRow(cold, '2026-12-02', null, 37.1),
+      temperatureRow(cold, '2026-12-02', '22:00', 38.5),
+      temperatureRow(cold, '2026-12-02', '09:30', 37.8),
     ]);
     const user = userEvent.setup();
     const app = renderApp(`/children/${masha.id}/medical`);
@@ -425,9 +378,9 @@ describe('The Illness screen', () => {
   });
 
   it('adds a Temperature to this Illness', async () => {
-    const cold = annasIllness('ОРВИ');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('illness', [cold]);
-    syncServer.seed('illness_event', [temperatureIn(cold, '2026-11-01', '08:00', 38.0)]);
+    syncServer.seed('illness_event', [temperatureRow(cold, '2026-11-01', '08:00', 38.0)]);
     const user = userEvent.setup();
     renderApp(`/medical/illnesses/${cold.id}`);
     await screen.findByRole('heading', { level: 1, name: 'ОРВИ' });
@@ -446,7 +399,7 @@ describe('The Illness screen', () => {
   });
 
   it('says so when the Illness is deleted while it is open', async () => {
-    const cold = annasIllness('ОРВИ');
+    const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
     syncServer.seed('illness', [cold]);
     renderApp(`/medical/illnesses/${cold.id}`);
     await screen.findByRole('heading', { level: 1, name: 'ОРВИ' });
@@ -471,10 +424,10 @@ describe('The Illness screen', () => {
 describe('Deleting a Child', () => {
   it('deletes the Child’s Illnesses and their events', async () => {
     server.use(membersHandler([anna, boris]), invitesHandler([]));
-    const cold = { ...annasIllness('ОРВИ'), memberId: null, childId: masha.id };
-    const event = temperatureIn(cold, '2026-12-01', '08:00', 38.0);
-    const mine = annasIllness('Моя');
-    const myEvent = temperatureIn(mine, '2026-12-01', '08:00', 37.5);
+    const cold = { ...illnessRow({ memberId: anna.id }, 'ОРВИ'), memberId: null, childId: masha.id };
+    const event = temperatureRow(cold, '2026-12-01', '08:00', 38.0);
+    const mine = illnessRow({ memberId: anna.id }, 'Моя');
+    const myEvent = temperatureRow(mine, '2026-12-01', '08:00', 37.5);
     syncServer.seed('child', [masha]);
     syncServer.seed('illness', [cold, mine]);
     syncServer.seed('illness_event', [event, myEvent]);

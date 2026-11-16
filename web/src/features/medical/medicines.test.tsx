@@ -9,6 +9,7 @@ import {
   membersHandler,
   sessionHandler,
 } from '@/test/fixtures';
+import { medicineRow } from '@/test/medical';
 import { upgradeStoreFrom } from '@/test/olderStore';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
@@ -18,12 +19,6 @@ import { syncServer } from '@/test/syncServer';
 // fields. A name is unique ignoring case; a deleted Medicine leaves the list.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-
-let ids = 0;
-function medicine(name: string, deleted = false) {
-  ids += 1;
-  return { id: fixtureId('3ed10000', ids), name, deleted };
-}
 
 beforeEach(() => {
   document.cookie = 'XSRF-TOKEN=token-from-server';
@@ -63,9 +58,9 @@ async function openNewSheet(user: ReturnType<typeof userEvent.setup>) {
 describe('«Лекарства» in Settings', () => {
   it('lists the Medicines by name, leaving out deleted ones', async () => {
     syncServer.seed('medicine', [
-      medicine('Парацетамол 120 мг/5 мл'),
-      medicine('Нурофен', true),
-      medicine('Ибупрофен 20 мг/мл'),
+      medicineRow('Парацетамол 120 мг/5 мл'),
+      medicineRow('Нурофен', true),
+      medicineRow('Ибупрофен 20 мг/мл'),
     ]);
 
     renderApp('/settings');
@@ -105,7 +100,7 @@ describe('The «Новое лекарство» sheet', () => {
   });
 
   it('refuses a name the list already has, in any letter case', async () => {
-    syncServer.seed('medicine', [medicine('Ибупрофен'), medicine('Нурофен', true)]);
+    syncServer.seed('medicine', [medicineRow('Ибупрофен'), medicineRow('Нурофен', true)]);
     const user = userEvent.setup();
     renderApp('/settings');
     await showing(['Ибупрофен']);
@@ -134,12 +129,11 @@ describe('The «Новое лекарство» sheet', () => {
     expect(await within(sheet).findByText('Заполните это поле')).toBeInTheDocument();
     expect(syncServer.operations('medicine')).toHaveLength(0);
   });
-
 });
 
 describe('Renaming and deleting a Medicine', () => {
   it('renames in place, sending only the name', async () => {
-    const ibuprofen = medicine('Ибупрофен');
+    const ibuprofen = medicineRow('Ибупрофен');
     syncServer.seed('medicine', [ibuprofen]);
     const user = userEvent.setup();
     renderApp('/settings');
@@ -160,7 +154,7 @@ describe('Renaming and deleting a Medicine', () => {
   });
 
   it('refuses to rename to another Medicine’s name', async () => {
-    syncServer.seed('medicine', [medicine('Ибупрофен'), medicine('Парацетамол')]);
+    syncServer.seed('medicine', [medicineRow('Ибупрофен'), medicineRow('Парацетамол')]);
     const user = userEvent.setup();
     renderApp('/settings');
 
@@ -177,7 +171,7 @@ describe('Renaming and deleting a Medicine', () => {
   });
 
   it('says why when the server refuses a rename to a name the other Member added meanwhile', async () => {
-    syncServer.seed('medicine', [medicine('Ибупрофен')]);
+    syncServer.seed('medicine', [medicineRow('Ибупрофен')]);
     syncServer.rejectWhen((operation) =>
       operation.table === 'medicine' ? { code: 'medicine.duplicate' } : false,
     );
@@ -196,8 +190,8 @@ describe('Renaming and deleting a Medicine', () => {
   });
 
   it('deletes after the confirmation: it leaves the list', async () => {
-    const ibuprofen = medicine('Ибупрофен');
-    syncServer.seed('medicine', [ibuprofen, medicine('Парацетамол')]);
+    const ibuprofen = medicineRow('Ибупрофен');
+    syncServer.seed('medicine', [ibuprofen, medicineRow('Парацетамол')]);
     const user = userEvent.setup();
     renderApp('/settings');
     const medicines = await section();
