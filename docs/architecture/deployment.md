@@ -78,7 +78,8 @@ Locally, `scripts/check.sh` runs the guards, the cheap web checks (format, lint,
 build and the web tests and build in one command from any directory; `scripts/check.sh --image` also builds the image and runs
 `scripts/image-smoke-test.sh`. It fails early when Docker is not running.
 
-Image tags: `ghcr.io/aborgatin/family_app:<full commit SHA>` and `:latest`. Deploy is manual; CI
+Image tags: `ghcr.io/aborgatin/family_app:<full commit SHA>` and `:latest`; the image's
+`org.opencontainers.image.revision` label holds the same SHA. Deploy is manual; CI
 never touches the server.
 
 Test scripts (each takes an `APP_IMAGE_TAG` or image name and cleans up after itself):
@@ -173,7 +174,19 @@ A new app setting needs a line in `.env.example` and in the `app` service's `env
 
 ## Deploy and rollback
 
-Deploy the newest `main` build (with `APP_IMAGE_TAG=latest`):
+Deploy the newest `main` build (with `APP_IMAGE_TAG=latest`), in the server's `deploy/` directory:
+
+1. Find what changed in `deploy/` since the running build. `docker compose images app` shows the
+   running image; its full SHA is the `org.opencontainers.image.revision` label
+   (`docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' <image id>`;
+   builds up to `12fc366` have no label: that one is `12fc366`).
+   Then, in a local checkout: `git diff --stat <running SHA> origin/main -- deploy/`.
+2. Copy each changed file. The repo is public, so no key is needed on the server:
+   `curl -fsSLO https://raw.githubusercontent.com/aborgatin/family_app/main/deploy/<file>`.
+   A changed `.env.example` means a new or renamed setting: add it to `.env`.
+3. Check the configuration before anything restarts; it names any required variable `.env` lacks:
+   `docker compose config >/dev/null`.
+4. Pull and restart:
 
 ```sh
 docker compose pull && docker compose up -d
@@ -211,12 +224,13 @@ app does not start without `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and a `mailto
 the pair once, before the first deploy that needs it, with the image itself:
 
 ```sh
-docker run --rm ghcr.io/aborgatin/family_app:latest generate-vapid-keys
+docker run --rm --pull always ghcr.io/aborgatin/family_app:latest generate-vapid-keys
 ```
 
 It prints `VAPID_PUBLIC_KEY=…` and `VAPID_PRIVATE_KEY=…` (P-256, base64url) and exits 0; it starts
 nothing and needs no database or `.env`, so it is run with `docker run`, not `docker compose`
-(Compose would refuse the `.env` without the keys). Paste the two lines into `.env` and set
+(Compose would refuse the `.env` without the keys). `--pull always` matters: without it Docker runs
+whatever `latest` the server cached last, which may predate the command and start the whole app instead. Paste the two lines into `.env` and set
 `VAPID_SUBJECT=mailto:<your email>`. Keep the pair: browsers subscribe with the public key, so a new
 pair silently stops every existing subscription until each device subscribes again. The private
 key is a secret, like `POSTGRES_PASSWORD`. Local runs and the image tests use the fixed, non-secret

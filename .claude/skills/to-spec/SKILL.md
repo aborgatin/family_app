@@ -60,7 +60,7 @@ Exception: if a prototype produced a snippet that encodes a decision more precis
 
 ## UI and Copy
 
-For a spec with screens: how they look and read. Point to the project's design brief if one exists, and name any new components or patterns. Spell out user-facing wording decisions (questions, labels, confirmations) in the UI language, so the user can judge the copy before it is built. Omit this section only when the spec has no screens.
+For a spec with screens: how they look and read. Point to the project's design brief if one exists. Check every building block the screens use (a switch, a sheet, a row type) against the brief's component list: one that isn't there is a new component, named as such here so the tickets build it. Spell out user-facing wording decisions (questions, labels, confirmations) in the UI language, so the user can judge the copy before it is built. Omit this section only when the spec has no screens.
 
 ## Testing Decisions
 

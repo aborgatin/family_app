@@ -63,6 +63,7 @@ Goal: **working and supportable** first, easy to extend, cheap to host, reusable
 - Move an Item to another List.
 - Migrate the net-worth tracker from Google Sheets into the app.
 - Native SwiftUI app (iPhone + Mac) on the same API, if PWA limitations become annoying.
+- Release image tags: pushing a git tag `vX.Y.Z` on `main` makes CI retag the already-built SHA image with that name (`docker buildx imagetools create`, no rebuild); production pins `APP_IMAGE_TAG` to the release, so rolling back a buggy release is one `.env` line, and any future GHCR retention keeps release images. Caveat: migrations only go forward, so take a backup before each deploy (see `deployment.md` "Deploy and rollback").
 
 ### Explicitly out of scope
 
