@@ -96,6 +96,9 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
 - The push is one transaction that takes the `SyncLock` (`FamilyLock`) first. Each operation runs
   inside an SQL savepoint; a rejected one rolls back alone and the others still apply.
 - Repeating a whole push leaves the same state (S3).
+- **Children** (`child`): `name`, `color` (a palette code), `birthday` and, since ticket #124,
+  `avatar` (an Avatar set code or `null`; `avatar.invalid` otherwise). `avatar` is optional on
+  create, and an upsert without it leaves it as it is, so a client built before it keeps working.
 - Table rules: a Child field's `valueType` can't change after creation (ADR-0007): an upsert
   carrying another one is rejected with `child_field.value_type_immutable`.
 - Codes of the push itself: `sync.table_unknown` (`params.table`), `sync.read_only` (a pull-only

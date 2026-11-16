@@ -29,6 +29,7 @@ const sonya: typeof masha = {
   name: 'Соня',
   color: 'green',
   birthday: '2025-11-08',
+  avatar: null,
 };
 
 async function childrenSection() {
@@ -342,12 +343,45 @@ describe('The Child screen', () => {
     expect(screen.getByRole('radio', { name: 'Бирюзовый' })).toBeChecked();
   });
 
+  it('picks an Аватар on tap, and «Без аватара» goes back to the initial', async () => {
+    syncServer.seed('child', [masha]);
+    const user = userEvent.setup();
+
+    renderApp(`/settings/children/${masha.id}`);
+    const avatars = await screen.findByRole('radiogroup', { name: 'Аватар' });
+    expect(
+      within(avatars)
+        .getAllByRole('radio')
+        .map((radio) => radio.getAttribute('aria-label')),
+    ).toEqual(['Без аватара', 'Длинные волосы', 'Каре', 'Хвост', 'Хвост на макушке', 'Мальчик']);
+    expect(within(avatars).getByRole('radio', { name: 'Без аватара' })).toBeChecked();
+
+    await user.click(within(avatars).getByRole('radio', { name: 'Хвост на макушке' }));
+    await waitFor(() => {
+      expect(syncServer.operations('child').map((op) => op.fields)).toEqual([
+        { avatar: 'top-knot' },
+      ]);
+    });
+    expect(within(avatars).getByRole('radio', { name: 'Хвост на макушке' })).toBeChecked();
+
+    await user.click(within(avatars).getByRole('radio', { name: 'Без аватара' }));
+    await waitFor(() => {
+      expect(syncServer.operations('child').map((op) => op.fields)).toEqual([
+        { avatar: 'top-knot' },
+        { avatar: null },
+      ]);
+    });
+    expect(syncServer.row('child', masha.id)).toEqual(masha);
+  });
+
   it('arrow keys only move between colours; Space or Enter saves the one reached', async () => {
     syncServer.seed('child', [masha]);
     const user = userEvent.setup();
 
     renderApp(`/settings/children/${masha.id}`);
     await user.click(await screen.findByLabelText('День рождения'));
+    await user.tab({ shift: true });
+    expect(screen.getByRole('radio', { name: 'Без аватара' })).toHaveFocus();
     await user.tab({ shift: true });
     expect(screen.getByRole('radio', { name: 'Коралловый' })).toHaveFocus();
 
@@ -583,6 +617,7 @@ describe('The «Новый ребёнок» sheet', () => {
     const sheet = await openSheet(user);
     await user.type(within(sheet).getByRole('textbox', { name: 'Имя' }), 'Ваня');
     await user.click(within(sheet).getByRole('radio', { name: 'Зелёный' }));
+    await user.click(within(sheet).getByRole('radio', { name: 'Каре' }));
     await user.type(within(sheet).getByLabelText('День рождения'), '2021-06-01');
     expect(syncServer.operations('child')).toEqual([]);
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
@@ -603,7 +638,12 @@ describe('The «Новый ребёнок» sheet', () => {
     const [added] = syncServer.operations('child');
     expect(added?.id).toMatch(UUID);
     expect(added?.op).toBe('upsert');
-    expect(added?.fields).toEqual({ name: 'Ваня', color: 'green', birthday: '2021-06-01' });
+    expect(added?.fields).toEqual({
+      name: 'Ваня',
+      color: 'green',
+      birthday: '2021-06-01',
+      avatar: 'short',
+    });
     expect(syncServer.pushes[0]?.csrf).toBe('token-from-server');
   });
 
@@ -612,14 +652,16 @@ describe('The «Новый ребёнок» sheet', () => {
 
     renderApp('/settings');
     const sheet = await openSheet(user);
-    expect(within(sheet).queryAllByRole('radio', { checked: true })).toEqual([]);
+    const colors = within(sheet).getByRole('radiogroup', { name: 'Цвет' });
+    expect(within(colors).queryAllByRole('radio', { checked: true })).toEqual([]);
+    expect(within(sheet).getByRole('radio', { name: 'Без аватара' })).toBeChecked();
     await user.click(within(sheet).getByRole('radio', { name: 'Фиолетовый' }));
     await user.type(within(sheet).getByRole('textbox', { name: 'Имя' }), '  Ваня {Enter}');
 
     expect(await within(await childrenList()).findByText('Ваня')).toBeInTheDocument();
     await waitFor(() => {
       expect(syncServer.operations('child').map((op) => op.fields)).toEqual([
-        { name: 'Ваня', color: 'purple', birthday: null },
+        { name: 'Ваня', color: 'purple', birthday: null, avatar: null },
       ]);
     });
   });
@@ -666,6 +708,7 @@ describe('The «Новый ребёнок» sheet', () => {
       name: 'Ваня',
       color: 'blue',
       birthday: null,
+      avatar: null,
     });
   });
 

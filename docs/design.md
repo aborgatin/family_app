@@ -17,7 +17,7 @@ step with the headings).
 - [Theme](#theme): «Авто», light and dark, the stored choice and the theme script
 - [Rules every component follows](#rules-every-component-follows): touch vs pointer, narrow vs wide, keyboard and focus, motion, text and names
 - [Saving and deleting](#saving-and-deleting): auto-save, spinners, rejected changes, delete with undo or confirmation
-- [Components](#components): one `###` per `shared/ui` component: AppShell, Page, Button, Link, Icon, EmptyState, StatusScreen, OfflineIndicator, CenteredPage, Form, GroupedSection, ColorChoice, DateRow, Sheet, Swatch, Sections, InputRow, TextAreaRow, SegmentedControl, SwitchRow, SelectRow, ListRow, LoadingRow, EditableRow, AddRow, SuggestionRows, DoneToggle, SortableList, SwipeToDelete, MenuChip, RowContextMenu, Avatar, ConfirmRow, ActionSheet, TileGrid and Tile, Toast, Spinner
+- [Components](#components): one `###` per `shared/ui` component: AppShell, Page, Button, Link, Icon, EmptyState, StatusScreen, OfflineIndicator, CenteredPage, Form, GroupedSection, ColorChoice, DateRow, Sheet, Swatch, Sections, InputRow, TextAreaRow, SegmentedControl, SwitchRow, SelectRow, ListRow, LoadingRow, EditableRow, AddRow, SuggestionRows, DoneToggle, SortableList, SwipeToDelete, MenuChip, RowContextMenu, Initials, ChildAvatar, PictureChoice, ConfirmRow, ActionSheet, CardGrid and Card, Toast, Spinner
 
 ## Tokens
 
@@ -48,12 +48,15 @@ a new token here, with its light and dark values.
 | `overlay`          | black at 35%     | black at 55%     | the dimmed page behind an action sheet     |
 | `swatch-edge`      | black at 12%     | white at 18%     | hairline around a colour dot (`Swatch`)    |
 | `check-shadow`     | black at 50%     | black at 50%     | keeps the white check on a colour readable |
-| `on-child-color`   | `#000000`        | `#000000`        | text on a `Tile` filled with a Child color |
+| `child`            | the Child color  | the Child color  | a Child avatar's drawing (`ChildAvatar`)   |
+| `child-tint`       | Child color 22% on `cell` | Child color 34% on `cell` | the circle under it |
+| `child-face`       | Child color 38% on white | same           | the drawing's face                         |
 
 Contrast is WCAG AA (4.5:1 for text) in both themes, checked by `shared/ui/theme.test.ts` for every
 text/background pair; a new token that carries text or sits under it gets its pair there. The
-Child colors are the same in both themes, and `on-child-color` is checked against every one of
-them (black: white fails on most, e.g. 1.7:1 on yellow). Three
+Child colors are the same in both themes. The three `child*` tokens mix the Child color the
+element sets in `--child-color` (`@theme inline`, so they mix where used); `label` (the initial) is
+checked on the `child-tint` of every Child color in both themes. Three
 deliberate departures from the iOS values: light destructive text is `#D70015` (iOS `#FF3B30` is
 3.5:1 on white), in dark the filled button is `#0071E3` (white on `#0A84FF` is 3.7:1), and the swipe
 «Удалить» in dark is `#E0262B` (white on `#FF453A` is 3.4:1). The accent is never used for decoration, so it doesn't compete with the Child colours.
@@ -421,7 +424,7 @@ A todo item's «Повтор» (#86, disabled without a «Срок») and «От
 ### ListRow
 
 A row of a `GroupedSection` that isn't a field: `title`, optional `subtitle` (second, smaller line), `leading` (an
-`Avatar`, a colour dot; centred in an avatar-wide slot, and the hairline above the row then starts
+`Initials`, a `ChildAvatar`, a colour dot; centred in an `Initials`-wide slot, and the hairline above the row then starts
 at the text, as on iOS), `value` (right-aligned, secondary colour), `busy` (spinner). What it does
 decides what it is:
 
@@ -610,9 +613,27 @@ menu next to the pointer: «Удалить» in red. Fine pointer only: on a tou
 nothing (the row is swiped there). Keyboard: arrows move, Enter picks, Esc closes. Built on Radix
 Context Menu (non-modal, so the action sheet can open from it).
 
-### Avatar
+### Initials
 
-The grey circle with a name's initial, as `leading` of a row about a person. Decorative.
+The grey circle with a name's initial, as `leading` of a row about a Member. Decorative. (Not a
+Child avatar: that is `ChildAvatar`.)
+
+### ChildAvatar
+
+A Child's round picture (ticket #124): `name`, `color` (a Child color's `hex`; `undefined` draws in
+`secondary-label`), `avatar` (a code of the Avatar set, or `undefined`) and `size`: `card` (46px,
+Home), `row` (32px, 28px with a fine pointer; `leading` of a Settings row) or `fill` (its parent's
+size, in `PictureChoice`). The circle is `child-tint`; the drawing is flat shapes, hair and clothes in
+`child`, the face in `child-face`; without one the initial in `label` (drawn by CSS, so it
+isn't part of the row's text). Decorative: the name is always next to it or names its control.
+
+### PictureChoice
+
+One round picture of a few (the Child avatars), as a row of a `GroupedSection`, like `ColorChoice`:
+`label` on top, the pictures (`options` `{value, label, picture}`) wrapping under it, the chosen one
+ringed in `accent` (offset 2px). Radios in a `radiogroup` named by the label: Tab reaches it, the
+arrows move the focus, Space, Enter or a click picks (and saves, with `useAutoSaveChoice()`'s
+`control`). Touch: 44px circles, 12px apart; fine pointer: 36px.
 
 ### ConfirmRow
 
@@ -629,24 +650,21 @@ iOS action sheet sliding up from the bottom, «Отменить» in its own blo
 dialog, «Отменить» its last line. Built on Radix Dialog: focus moves in and back to the trigger,
 Esc or a tap outside cancels.
 
-### TileGrid and Tile
+### CardGrid and Card
 
-A section of square tiles: big targets for the few things a screen is mostly about (the Children
-in «Дети» on Home, ticket #89). `TileGrid` takes a `header` (footnote, uppercase,
+A section of compact cards: big targets for the few things a screen is mostly about (the Children
+in «Дети» on Home, tickets #89 and #124). `CardGrid` takes a `header` (footnote, uppercase,
 `secondary-label`, as a `GroupedSection`'s; it names the section, a region, and its `list`) and
-`Tile`s as children. A `Tile` is a link (`to`): `title` (`title3`, semibold, up to two lines),
-optional `subtitle` under it (`subhead`, one line), both at the bottom left, and `color`, a CSS
-colour that fills it (a Child color's `hex`), with the text in `on-child-color`; without `color`
-the tile is `fill` with `label` text (a colour code this build doesn't know). Rounded corners
-(16px), a `swatch-edge` hairline, no chevron. The tiles sit on the page `background`, not on a
-cell.
+`Card`s as children. A `Card` is a link (`to`) on `cell`, 68px tall: `leading` (a `ChildAvatar`),
+then `title` (`body`, semibold, one line) and optional `subtitle` under it (`subhead`,
+`secondary-label`, one line). Rounded corners (16px), a `swatch-edge` hairline, no chevron. The
+cards sit on the page `background`.
 
-- Narrow windows (< 640px): two per row, each half the row wide minus the 12px gap, so about
-  173px on an iPhone; an odd last one at the left.
-- Wide windows: the tiles keep that size (172px) and as many as fit go in a row (three in the
-  640px column), from the left.
-- Touch: the whole tile is the target, dimmed while pressed. Fine pointer: dimmed on hover.
-- Keyboard: Tab reaches each tile in order (accent outline, offset 2px), Enter opens it.
+- Narrow windows (< 640px): two per row, each half the row wide minus the 12px gap; an odd last one
+  at the left.
+- Wide windows: the cards keep that width (172px) and as many as fit go in a row, from the left.
+- Touch: the whole card is the target, dimmed while pressed. Fine pointer: dimmed on hover.
+- Keyboard: Tab reaches each card in order (accent outline, offset 2px), Enter opens it.
 
 ### Toast
 

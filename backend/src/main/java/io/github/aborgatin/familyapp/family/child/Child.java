@@ -33,6 +33,8 @@ class Child implements SyncedRecord {
 
   @Nullable private LocalDate birthday;
 
+  @Nullable private String avatar;
+
   @Generated(event = {EventType.INSERT, EventType.UPDATE})
   @Column(insertable = false, updatable = false)
   private long version;
@@ -57,6 +59,7 @@ class Child implements SyncedRecord {
     this.name = details.name();
     this.color = details.color();
     this.birthday = details.birthday();
+    this.avatar = details.avatar();
   }
 
   /** Soft delete (S2): the row stays, hidden from lists, and its Version advances. */
@@ -80,6 +83,11 @@ class Child implements SyncedRecord {
   @Nullable
   LocalDate birthday() {
     return birthday;
+  }
+
+  @Nullable
+  String avatar() {
+    return avatar;
   }
 
   @Override

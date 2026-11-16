@@ -1,6 +1,7 @@
-import { useId, type KeyboardEvent } from 'react';
+import { useId } from 'react';
 import { ROW_FRAME, useSectionRow } from './GroupedSection';
 import { Icon } from './Icon';
+import { moveFocus } from './radioFocus';
 import { Spinner } from './Spinner';
 
 interface ColorChoiceProps<T extends string> {
@@ -92,29 +93,4 @@ export function ColorChoice<T extends string>({
       </div>
     </div>
   );
-}
-
-const NEXT: Readonly<Record<string, number>> = {
-  ArrowRight: 1,
-  ArrowDown: 1,
-  ArrowLeft: -1,
-  ArrowUp: -1,
-};
-
-/** Moves the focus to another circle of the same group, wrapping around at the ends. */
-function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
-  const circles = Array.from(
-    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [],
-  );
-  const at = circles.indexOf(event.currentTarget);
-  let to: number;
-  if (event.key === 'Home') to = 0;
-  else if (event.key === 'End') to = circles.length - 1;
-  else {
-    const step = NEXT[event.key];
-    if (step === undefined) return;
-    to = (at + step + circles.length) % circles.length;
-  }
-  event.preventDefault();
-  circles[to]?.focus();
 }

@@ -31,8 +31,9 @@ step with the headings).
 - Spotless: google-java-format for Java, ktfmt (Google style) for `*.gradle.kts`. Run
   `scripts/with-toolchain.sh ./gradlew spotlessApply` (from `backend/`) before committing; CI runs
   `spotlessCheck`.
-- `processResources` copies `web/src/shared/palette/childColors.json` into the jar as
-  `palette/childColors.json` (the Child color palette is defined once, in the web app).
+- `processResources` copies `web/src/shared/palette/childColors.json` and `childAvatars.json` into
+  the jar under `palette/` (the Child color palette and the Avatar set are defined once, in the web
+  app; `ChildColorPalette`, `ChildAvatarSet`).
 
 ## Configuration
 
@@ -692,10 +693,12 @@ unexpected exception), so that every error still has the `{code, params}` shape.
 case.
 
 Field codes inside `validation.failed` (constants on `FieldErrors`): `required`, `email.invalid`,
-`password.too_short`, `too_long`, `value.invalid` (enum value or date not allowed), `color.invalid`.
+`password.too_short`, `too_long`, `value.invalid` (enum value or date not allowed), `color.invalid`,
+`avatar.invalid`.
 Rules: email ≤ 254 chars and `x@y.z`-shaped, stored trimmed and lower-cased; password ≥ 8 code
 points and ≤ 72 UTF-8 bytes (bcrypt's limit; longer is refused, not truncated); display name, Child
-name and Child field name 1–100 code points after trim; `color` a palette code; `birthday`
+name and Child field name 1–100 code points after trim; `color` a palette code; `avatar` an Avatar
+set code or `null`; `birthday`
 `YYYY-MM-DD` or `null`; Child field `position` required.
 
 A new code the user may see needs an entry in the web's `ERROR_KEYS` (see
@@ -792,6 +795,7 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V17__pending_batch.sql`        | `pending_batch` (key actor → `member`, List → `list`; first and last change), `pending_batch_item` (→ `pending_batch` cascading, → `item`, Assignee → `member`; `position` identity for the order), `scheduler_step` (one row, `last_run_at` `NULL` until the first step) |
 | `V18__mute.sql`                 | `mute` (syncable; → `list`, Member → `member`; indexed by List): a Member's Mute of a Shared list |
 | `V19__announcement_sent.sql`    | `announcement_sent` (`id` text primary key, `sent_at`): each catalog Announcement the scheduler step has handled |
+| `V20__child_avatar.sql`         | `child.avatar` (nullable code of the Avatar set, checked in Java): a Child's Аватар (#124) |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of

@@ -45,8 +45,6 @@
   --color-swatch-edge: rgb(0 0 0 / 0.12);
   /* The shadow that keeps the white check readable on a light colour circle (ColorChoice). */
   --color-check-shadow: rgb(0 0 0 / 0.5);
-  /* Text on a tile filled with a Child color (Tile); the fills are the same in both themes. */
-  --color-on-child-color: #000000;
 
   --font-*: initial;
   --font-sans:
@@ -80,6 +78,22 @@
 }
 
 /*
+ * A Child color, drawn by ChildAvatar (ticket #124). The element sets `--child-color` to the Child
+ * color's hex (data, not a colour written into code); `inline` makes the utilities mix it where it
+ * is used rather than on :root. `child` is the colour itself (the drawing), `child-tint` the soft
+ * circle under it (stronger in dark, mixed into the themed `cell`), `child-face` the light face.
+ */
+@theme inline {
+  --color-child: var(--child-color);
+  --color-child-tint: color-mix(
+    in srgb,
+    var(--child-color) var(--child-tint-amount),
+    var(--color-cell)
+  );
+  --color-child-face: color-mix(in srgb, var(--child-color) 38%, #ffffff);
+}
+
+/*
  * Padding that keeps clear of the notch, the rounded corners and the home indicator
  * (env(safe-area-inset-*)): `px-safe-4` is the inset on each side but at least 1rem (spacing
  * 4); `pt-safe-8` / `pb-safe-8` are the top / bottom inset plus 2rem; `-0` is the inset alone.
@@ -109,6 +123,8 @@
 @layer base {
   :root {
     color-scheme: light;
+    /* How much Child color is in `child-tint` (theme.test.ts checks `label` on it). */
+    --child-tint-amount: 22%;
   }
 
   :root[data-theme='dark'] {
@@ -131,6 +147,7 @@
     --color-overlay: rgb(0 0 0 / 0.55);
     --color-swatch-edge: rgb(255 255 255 / 0.18);
     --color-check-shadow: rgb(0 0 0 / 0.5);
+    --child-tint-amount: 34%;
   }
 
   html {
