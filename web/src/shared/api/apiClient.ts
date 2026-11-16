@@ -56,9 +56,20 @@ function csrfToken(): string | undefined {
   return cookie === undefined ? undefined : decodeURIComponent(cookie.slice(prefix.length));
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const headers = new Headers({ Accept: 'application/json' });
-  if (body !== undefined) {
+/**
+ * Sends the request and answers the response when it is a success (2xx). A JSON `body` is sent as
+ * JSON, a `FormData` as `multipart/form-data`; `accept` is what the answer may be. Every
+ * failure is an `ApiError`.
+ */
+async function send(
+  method: string,
+  path: string,
+  body?: unknown,
+  accept = 'application/json',
+): Promise<Response> {
+  const headers = new Headers({ Accept: accept });
+  const form = body instanceof FormData;
+  if (body !== undefined && !form) {
     headers.set('Content-Type', 'application/json');
   }
   if (method !== 'GET') {
@@ -74,7 +85,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       method,
       headers,
       credentials: 'same-origin',
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined || form ? body : JSON.stringify(body),
     });
   } catch {
     reportServerReachable(false);
@@ -86,6 +97,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (!response.ok) {
     throw await toApiError(response);
   }
+  return response;
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const response = await send(method, path, body);
   if (response.status === 204) {
     return undefined as T;
   }
@@ -115,4 +131,8 @@ export const api = {
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   delete: <T>(path: string, body?: unknown) => request<T>('DELETE', path, body),
+  /** A `multipart/form-data` POST (a file upload), JSON answer. */
+  postForm: <T>(path: string, form: FormData) => request<T>('POST', path, form),
+  /** A GET of a file: the whole successful response, to read or keep as it is. */
+  file: (path: string) => send('GET', path, undefined, '*/*'),
 };

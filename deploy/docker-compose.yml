@@ -32,6 +32,8 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:?set VAPID_PRIVATE_KEY in .env}
       VAPID_SUBJECT: ${VAPID_SUBJECT:?set VAPID_SUBJECT in .env}
       REMINDER_MORNING_TIME: ${REMINDER_MORNING_TIME:-09:00}
+      # Document files are encrypted with this key (ADR-0010): losing it loses every file.
+      DOCUMENTS_ENCRYPTION_KEY: ${DOCUMENTS_ENCRYPTION_KEY:?set DOCUMENTS_ENCRYPTION_KEY in .env}
       TZ: ${TZ:-Europe/Berlin}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/actuator/health"]

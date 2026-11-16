@@ -136,14 +136,17 @@ trap stop EXIT
 trap 'exit 130' INT TERM
 
 echo "dev.sh: starting the backend (log: $backend_log)"
-# The local-only VAPID key pair (the app requires one).
+# The local-only keys the app requires (VAPID, Document encryption).
 set -a
 # shellcheck source=lib/dev-vapid-keys.env
 source "$root/scripts/lib/dev-vapid-keys.env"
 set +a
+# Document files go to a folder next to the dev database's backups, shared by every checkout as
+# the dev database is (production stores them in R2).
+documents="${XDG_CACHE_HOME:-$HOME/.cache}/family-app/dev-documents"
 (cd "$root/backend" &&
   DATASOURCE_URL="jdbc:postgresql://localhost:$db_port/family" \
-    DATASOURCE_USERNAME=family DATASOURCE_PASSWORD=family \
+    DATASOURCE_USERNAME=family DATASOURCE_PASSWORD=family DOCUMENTS_FOLDER="$documents" \
     exec ./gradlew bootRun --console=plain) >"$backend_log" 2>&1 &
 pids+=($!)
 backend_pid=$!

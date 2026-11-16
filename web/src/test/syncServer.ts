@@ -8,7 +8,7 @@ import { network } from './network';
  * for every test by `server.ts` and emptied after each. It behaves like the real one where the
  * client can tell: a global Version, per-field Last write wins by arrival, delete wins, tombstones
  * after a first sync, and the table rules a screen relies on: a deleted row takes the rows that
- * belong to it (`CASCADES`: a Child its Child lists and Child field values, a List its Items,
+ * belong to it (`CASCADES`: a Child its Child lists, Child field values, Illnesses and Documents, a List its Items,
  * Categories and Item history), and a Child field value is a timeline entry (stamped with `recordedAt`, never
  * changed, ignored for a deleted Child or Child field), a List made Private loses the Assignee
  * of every one of its Items, and a repeating Item turned Done (pushed, or by `change`) hands its
@@ -70,6 +70,7 @@ const CASCADES: readonly { parent: string; table: string; key: string }[] = [
   { parent: 'list', table: 'mute', key: 'listId' },
   { parent: 'child', table: 'illness', key: 'childId' },
   { parent: 'illness', table: 'illness_event', key: 'illnessId' },
+  { parent: 'child', table: 'document', key: 'childId' },
 ];
 
 /** The rejection used when `rejectWhen`'s predicate just answers `true`. */

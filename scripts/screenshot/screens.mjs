@@ -25,6 +25,13 @@ const listSettings = (name) => [
   { click: 'role=link[name="Настройки списка"]' },
   { waitFor: 'role=textbox[name="Название"]' },
 ];
+/** Steps from Home to the Documents of Маша's Medical card. */
+const mashasDocuments = [
+  { click: childCard("Маша") },
+  { click: 'role=link[name="Медкарта"]' },
+  { click: 'role=link[name="Документы (3)"]' },
+  { waitFor: 'role=heading[level=1][name="Документы"]' },
+];
 /** Steps on /setup of a fresh installation: Анна registers and lands on Home with the Defaults. */
 const registerFirstMember = [
   { fill: 'role=textbox[name="Электронная почта"]', value: "anna@example.com" },
@@ -1486,6 +1493,117 @@ export default {
         { click: 'role=link[name="Медкарта"]' },
         { click: `${section("Завершённые")} >> role=button[name="Показать"]` },
         { waitFor: `${section("Завершённые")} >> role=link[name=/Аденоиды/]` },
+      ],
+    },
+    {
+      // Маша's Documents from «Документы (3)» on her card, newest first (ticket #133).
+      name: "medical-documents",
+      path: "/",
+      steps: [...mashasDocuments, { waitFor: 'role=link[name=/Выписка из поликлиники/]' }],
+    },
+    {
+      // Анна's own card has no Documents: the empty state, «+ Документ» still there.
+      name: "medical-documents-empty",
+      path: "/",
+      steps: [
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=link[name="Документы (0)"]' },
+        { waitFor: "text=Документов пока нет" },
+      ],
+    },
+    {
+      // «+ Документ»: the Document sheet, «Файл» not chosen yet, «Дата» today.
+      name: "medical-document-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: 'role=button[name="+ Документ"]' },
+        { waitFor: 'role=dialog[name="Документ"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Готово» without a file: «Выберите файл», nothing uploaded.
+      name: "medical-document-sheet-required",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: 'role=button[name="+ Документ"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "text=Выберите файл" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A file chosen («Название» from its name), then «Готово» offline: the upload needs the
+      // internet, the sheet stays.
+      name: "medical-document-sheet-offline",
+      path: "/",
+      offline: "afterLoad",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: 'role=button[name="+ Документ"]' },
+        async (page) => {
+          await page.locator('role=dialog >> input[type="file"]').setInputFiles({
+            name: "Анализ мочи.pdf",
+            mimeType: "application/pdf",
+            buffer: Buffer.from("%PDF-1.4\n%%EOF"),
+          });
+        },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "text=Нужен интернет, чтобы прикрепить файл" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A photo Document open full screen, fitted.
+      name: "medical-document-photo",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: 'role=link[name=/Заключение ЛОРа/]' },
+        { waitFor: 'img[title="Заключение ЛОРа"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A PDF Document open full screen, in the browser's own PDF viewer.
+      name: "medical-document-pdf",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: 'role=link[name=/Общий анализ крови/]' },
+        { waitFor: 'iframe[title="Общий анализ крови"]' },
+        { wait: 1000 },
+      ],
+    },
+    {
+      // A Document whose file the store has lost: «Файл недоступен».
+      name: "medical-document-missing",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: 'role=link[name=/Выписка из поликлиники/]' },
+        { waitFor: "role=alert" },
+      ],
+    },
+    {
+      // «Изменить» on an open Document: the sheet with its file, fields and «Удалить документ».
+      name: "medical-document-edit",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: 'role=link[name=/Заключение ЛОРа/]' },
+        { click: 'role=button[name="Изменить"]' },
+        { waitFor: 'role=dialog[name="Документ"] >> text=Удалить документ' },
+        { wait: 400 },
       ],
     },
     {

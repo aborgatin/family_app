@@ -17,7 +17,7 @@ step with the headings).
 - [Theme](#theme): «Авто», light and dark, the stored choice and the theme script
 - [Rules every component follows](#rules-every-component-follows): touch vs pointer, narrow vs wide, keyboard and focus, motion, text and names
 - [Saving and deleting](#saving-and-deleting): auto-save, spinners, rejected changes, delete with undo or confirmation
-- [Components](#components): one `###` per `shared/ui` component: AppShell, Page, Button, Link, Icon, EmptyState, StatusScreen, OfflineIndicator, CenteredPage, Form, GroupedSection, ColorChoice, DateRow, Sheet, Swatch, Sections, InputRow, TextAreaRow, SegmentedControl, SwitchRow, SelectRow, ListRow, LoadingRow, EditableRow, AddRow, SuggestionRows, DoneToggle, SortableList, SwipeToDelete, MenuChip, RowContextMenu, Initials, ChildAvatar, PictureChoice, ConfirmRow, ActionSheet, CardGrid and Card, Toast, Spinner
+- [Components](#components): one `###` per `shared/ui` component: AppShell, Page, Button, Link, Icon, EmptyState, StatusScreen, OfflineIndicator, CenteredPage, Form, GroupedSection, ColorChoice, DateRow, FileRow, FileViewer, Sheet, Swatch, Sections, InputRow, TextAreaRow, SegmentedControl, SwitchRow, SelectRow, ListRow, LoadingRow, EditableRow, AddRow, SuggestionRows, DoneToggle, SortableList, SwipeToDelete, MenuChip, RowContextMenu, Initials, ChildAvatar, PictureChoice, ConfirmRow, ActionSheet, CardGrid and Card, Toast, Spinner
 
 ## Tokens
 
@@ -334,6 +334,24 @@ be set yet («Время» while there is no «Срок»). Auto-saved like an `
 leaving the field or Enter saves, Esc puts the saved date back, clearing saves at once; not on
 every change, since typing a year digit by digit is a valid date at each step. Without
 `onCommit` (in a `Sheet`) Enter submits. Touch: the ⊗ has a 44px target. Fine pointer: 28px.
+
+### FileRow
+
+A file field as a row (#133, «Файл» in the Document sheet): `label` at the left, `value` at the
+right in the secondary colour (the chosen file's name, or «Выбрать»), the whole row a tap target
+that opens the system's picker (`accept`: PDFs and photos, so the iPhone offers Files, Photos and
+the camera). The `<input type="file">` itself is visually hidden and named by `label`; keyboard
+focus on it outlines the row. Errors about it (`name`) show in the group footer, and the label
+turns red. Like a `ListRow` in height and hover.
+
+### FileViewer
+
+A file full screen (#133, a Document): a slim nav bar (back link, the title as the screen's `h1`
+in the centre, `actions` such as «Изменить», the offline indicator), then the file filling the
+rest of the window: a PDF in an `iframe`, so the browser's own viewer zooms, scrolls, shares and
+prints it; a photo as an `img` fitted inside (`object-contain`). Instead of the file, `message`
+shows a loading `status` or an `alert` («Файл недоступен») as an `EmptyState`. No large title:
+the file gets the room.
 
 ### Sheet
 

@@ -219,6 +219,8 @@ function backendEnv(pg, port) {
     DATASOURCE_PASSWORD: DB.password,
     SERVER_PORT: String(port),
     DOMAIN: 'localhost',
+    // Document files of this run, next to its logs (the folder store, as `scripts/dev.sh` uses).
+    DOCUMENTS_FOLDER: path.join(logDir, 'documents'),
   };
 }
 
@@ -463,6 +465,17 @@ export const SEED = {
   },
 };
 
+/**
+ * Documents on Маша's card (ticket #133), newest first: a photo of a doctor's report (drawn on a
+ * canvas, a PNG), a PDF, and one whose file the store has lost (`lost`: its row only, put straight
+ * in the database), which opens as «Файл недоступен».
+ */
+SEED.documents = [
+  { title: 'Заключение ЛОРа', daysAgo: 1, kind: 'photo', description: 'Повторный приём через неделю' },
+  { title: 'Общий анализ крови', daysAgo: 12, kind: 'pdf' },
+  { title: 'Выписка из поликлиники', daysAgo: 400, kind: 'pdf', lost: true },
+];
+
 /** Calls the API from inside the page, the way the app does (same origin, XSRF header). */
 async function api(page, method, url, body) {
   return page.evaluate(
@@ -651,8 +664,73 @@ async function pushIllnesses(page, childIds) {
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed illnesses: ${JSON.stringify(pushed.results)}`);
 }
 
+/** Uploads `SEED.documents` to Маша's card through `POST /api/documents`, as the app does. */
+async function uploadDocuments(page, pg, childIds) {
+  for (const { title, daysAgo, kind, description = '', lost = false } of SEED.documents) {
+    const id = crypto.randomUUID();
+    const date = dayFromToday(-daysAgo);
+    if (lost) {
+      await psql(
+        pg,
+        `INSERT INTO document (id, child_id, title, date, content_type, size)
+         VALUES ('${id}', '${childIds['Маша']}', '${title}', '${date}', 'application/pdf', 182044);`,
+      );
+      continue;
+    }
+    await page.evaluate(
+      async ({ id, childId, title, date, description, kind }) => {
+        let file;
+        if (kind === 'photo') {
+          // A photographed page: paper, a heading and lines of text.
+          const canvas = document.createElement('canvas');
+          canvas.width = 900;
+          canvas.height = 1200;
+          const g = canvas.getContext('2d');
+          g.fillStyle = '#f4f1ea';
+          g.fillRect(0, 0, 900, 1200);
+          g.fillStyle = '#222';
+          g.font = 'bold 44px sans-serif';
+          g.fillText('Заключение', 80, 140);
+          for (let line = 0; line < 22; line += 1) g.fillRect(80, 220 + line * 40, 520 + ((line * 97) % 220), 8);
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+          file = new File([blob], 'IMG_2041.png', { type: 'image/png' });
+        } else {
+          const text = 'BT /F1 24 Tf 72 720 Td (Complete blood count) Tj ET';
+          const pdf = [
+            '%PDF-1.4',
+            '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+            '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+            '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj',
+            `4 0 obj << /Length ${text.length} >> stream\n${text}\nendstream endobj`,
+            '5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
+            'trailer << /Root 1 0 R >>',
+            '%%EOF',
+          ].join('\n');
+          file = new File([pdf], `${title}.pdf`, { type: 'application/pdf' });
+        }
+        const form = new FormData();
+        form.append('id', id);
+        form.append('childId', childId);
+        form.append('title', title);
+        form.append('date', date);
+        if (description) form.append('description', description);
+        form.append('file', file);
+        const xsrf = decodeURIComponent((document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1] || '');
+        const r = await fetch('/api/documents', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'X-XSRF-TOKEN': xsrf },
+          body: form,
+        });
+        if (!r.ok) throw new Error(`POST /api/documents -> ${r.status} ${await r.text()}`);
+      },
+      { id, childId: childIds['Маша'], title, date, description, kind },
+    );
+  }
+}
+
 async function seed(browser, baseUrl, pg) {
-  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, Child lists, Illnesses, active Invite');
+  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, Child lists, Illnesses, Documents, active Invite');
   const ctx = await browser.newContext({ baseURL: baseUrl });
   const page = await ctx.newPage();
   await page.goto('/api/auth/session');
@@ -686,6 +764,7 @@ async function seed(browser, baseUrl, pg) {
   );
   await pushChildFieldValues(page);
   await pushIllnesses(page, childIds);
+  await uploadDocuments(page, pg, childIds);
   const inv2 = await api(page, 'POST', '/api/invites'); // stays active: shows in Settings, used as {inviteToken}
   const storageState = await ctx.storageState();
   await ctx.close();

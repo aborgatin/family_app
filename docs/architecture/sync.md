@@ -40,6 +40,7 @@ table adds it here.
 | `illness`     | `V21__illness.sql`              | client (`crypto.randomUUID()`)                 | M5.5  |
 | `illness_event` | `V21__illness.sql`            | client (`crypto.randomUUID()`)                 | M5.5  |
 | `medicine`    | `V22__medicine.sql`             | client (`crypto.randomUUID()`)                 | M5.5  |
+| `document`    | `V23__document.sql`             | client (`newDocumentId()`), sent with the upload, which creates the row (#133) | M5.5  |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -292,6 +293,16 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   naming it, and anything later on it is `ignored`. **The pull never tombstones a Medicine**: a
   deleted one comes as a row with its `name` and `deleted: true` (a live one with `deleted:
   false`), in a full pull too, so a past dose shows its name on every device, a new one included.
+- **Documents** (`document`, ticket #133; owned by `medical`): created only by the upload, `POST
+  /api/documents` (not sync: it needs a connection; backend.md "API conventions"), never by a
+  push: an upsert of an unknown id is `medical.not_found` (`params.documentId`). An upsert of a
+  known one changes the `title` (trimmed, required), `date` (`YYYY-MM-DD`, required) and
+  `description` it carries; the person, `illnessEventId`, `contentType` and `size` never change.
+  A delete soft-deletes it, and **after the commit** the server deletes its file from the file
+  store (a failure is logged, never a rejection). Seen as the card is (`Person`): another
+  Member's Document is `medical.not_found` and left out of their pull. **Deleting a Child**
+  soft-deletes their Documents in the same operation, and their files after the commit. The pull
+  carries the fields only, never the file.
 - **Deleting a Child** soft-deletes its Child field values in the same operation; **deleting a
   Child field** soft-deletes its values for every Child. They get new Versions, so devices pull
   their tombstones.
@@ -378,7 +389,7 @@ auth.required` without one) tells open apps when to pull:
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
   table (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`,
-  `item_history`, `mute`, `illness`, `illness_event`, `medicine`), the Outbox (`++seq`) and the stored
+  `item_history`, `mute`, `illness`, `illness_event`, `medicine`, `document`), the Outbox (`++seq`) and the stored
   Version. A row is the fields the pull sent plus `version`, the Version it was pulled with (absent
   on a row created here and not pulled back yet): what tells the latest Child field value. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives

@@ -17,6 +17,12 @@ spring:
     jdbc:
       # The tables come from Flyway (V1).
       initialize-schema: never
+  # Document uploads (spec #128): a file up to 20 MB, checked by DocumentService
+  # (document.too_large). The limits here only stop a far larger request early.
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 26MB
 
 # Push messages (spec #104). The VAPID key pair and subject are required: an empty value stops the
 # app at startup with a message naming the variable (NotificationsProperties). Generate a pair
@@ -28,6 +34,13 @@ notifications:
     subject: ${VAPID_SUBJECT:}
   # When a Due date without a time is due, in the installation's TZ.
   reminder-morning-time: ${REMINDER_MORNING_TIME:09:00}
+
+# Documents on Medical cards (spec #128, ADR-0010). The encryption key (32 bytes, base64) is
+# required: an empty one stops the app at startup (DocumentsProperties). DOCUMENTS_FOLDER keeps the
+# files in a local folder (scripts/dev.sh); production stores them in R2 (ticket #135).
+documents:
+  encryption-key: ${DOCUMENTS_ENCRYPTION_KEY:}
+  folder: ${DOCUMENTS_FOLDER:}
 
 server:
   # Sessions live in PostgreSQL (Spring Session JDBC), so they survive redeploys. The lifetime

@@ -16,10 +16,11 @@ import {
 } from '@/shared/ui';
 import { useCardRoute, type CardRoute } from './cardRoute';
 import { firstDay, lastDay } from './illnessRules';
-import { cardPath, illnessPath } from './medicalPaths';
+import { cardPath, documentsPath, illnessPath } from './medicalPaths';
 import type { Illness, IllnessEvent, Person } from './medicalTypes';
 import { LogSection } from './LogSection';
 import { NewConditionSheet } from './NewConditionSheet';
+import { useDocuments } from './useDocuments';
 import { newConditionId, useMedicalCard } from './useMedicalCard';
 
 interface MedicalCardPageProps {
@@ -32,8 +33,8 @@ interface MedicalCardPageProps {
  * (`/children/:id/medical`, back to the Child page). «Добавить приём лекарства» opens the dose
  * sheet, «Записать температуру» the Temperature sheet. Then «Диагнозы/наблюдения» (the Conditions
  * that aren't Ended, by their place: «+ Добавить» adds one last, «Изменить» reorders them),
- * «Болезни» (the Illnesses that aren't Ended, newest first) and, while there are any, the collapsed
- * «Завершённые» (both kinds, by latest event). Each row opens its Illness or Condition screen.
+ * «Болезни» (the Illnesses that aren't Ended, newest first), «Документы (n)» (the Documents screen)
+ * and, while there are any, the collapsed «Завершённые» (both kinds, by latest event). Each row opens its Illness or Condition screen.
  * Data only through `useMedicalCard(person)`.
  */
 export function MedicalCardPage({ homePath }: MedicalCardPageProps) {
@@ -60,6 +61,7 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const card = useMedicalCard(person);
+  const { documents } = useDocuments(person);
   const { illnesses, conditions, ended, eventsOf, addCondition, moveCondition } = card;
   const list = useEditableList();
   // The id of the Condition being added, made once when its sheet opens (S3).
@@ -126,6 +128,12 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
               events={eventsOf(illness.id)}
             />
           ))}
+        </GroupedSection>
+        <GroupedSection>
+          <ListRow
+            title={t('medical.documentsCount', { n: documents?.length ?? 0 })}
+            to={documentsPath(person)}
+          />
         </GroupedSection>
         {ended !== undefined && ended.length > 0 && (
           <GroupedSection

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { asApiError, errorMessage, type ErrorMessage, NETWORK_UNAVAILABLE } from '@/shared/api';
+import { clearFileCache } from '@/shared/files';
 import { forgetSubscription } from '@/shared/push';
 import { flushOutbox, stopSyncAndWipe } from '@/shared/sync';
 import { logout, markLogoutPending } from './logoutApi';
@@ -11,10 +12,11 @@ import { useSession } from './session';
  * `logOut()` sends unsent changes first. When they can't be sent (the server can't be reached, or
  * the session has already ended) it sets `unsentWarning` instead: the Member confirms with
  * `logOut({discardUnsent: true})` or cancels with `dismissWarning()`. Then the server's logout,
- * and every table of the local store is wiped (rows, Outbox, the owner and its copy), so nothing of
- * the Member's data stays on the device and an offline start can't open as them. When the server
- * can't be reached the device logs out at once, and the server is told when it can be (a pending
- * logout, `logoutApi.ts`); a session that has already ended counts as logged out.
+ * and every table of the local store is wiped (rows, Outbox, the owner and its copy), and the files
+ * kept from opening Documents are deleted, so nothing of the Member's data stays on the device and
+ * an offline start can't open as them. When the server can't be reached the device logs out at
+ * once, and the server is told when it can be (a pending logout, `logoutApi.ts`); a session that
+ * has already ended counts as logged out.
  */
 export function useLogout() {
   const { loggedOut } = useSession();
@@ -51,6 +53,8 @@ export function useLogout() {
       }
     }
     await stopSyncAndWipe();
+    // The files opened here (Documents) go too.
+    await clearFileCache();
     loggedOut();
   }
 

@@ -45,9 +45,33 @@ export interface Medicine {
   deleted?: boolean;
 }
 
-/** Whether the row is on `person`'s card. */
-export function isOn(person: Person, illness: Illness): boolean {
+/**
+ * A Document as the sync pull returns its fields (`document`): never the file itself, which is
+ * downloaded when opened.
+ */
+export interface MedicalDocument {
+  id: string;
+  /** The person: exactly one of these two is set. */
+  memberId?: string | null;
+  childId?: string | null;
+  /** The Illness event it was added to, if any. */
+  illnessEventId?: string | null;
+  title: string;
+  /** `YYYY-MM-DD`: the day the document is from. */
+  date: string;
+  description?: string | null;
+  /** What the server found the file to be: `application/pdf`, `image/jpeg`, … */
+  contentType: string;
+  /** The file's size in bytes. */
+  size: number;
+}
+
+/** Whether the row (an Illness, a Document) is on `person`'s card. */
+export function isOn(
+  person: Person,
+  row: { memberId?: string | null; childId?: string | null },
+): boolean {
   return person.childId !== undefined
-    ? illness.childId === person.childId
-    : illness.memberId === person.memberId;
+    ? row.childId === person.childId
+    : row.memberId === person.memberId;
 }

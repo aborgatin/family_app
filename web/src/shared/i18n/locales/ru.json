@@ -399,7 +399,10 @@
       "avatarInvalid": "Выберите аватар из списка",
       "invalid": "Проверьте это поле"
     },
-    "medicineDuplicate": "Такое лекарство уже есть"
+    "medicineDuplicate": "Такое лекарство уже есть",
+    "documentTooLarge": "Файл больше 20 МБ",
+    "documentUnsupportedType": "Можно прикрепить PDF или фото",
+    "documentFileMissing": "Файл недоступен"
   },
   "ui": {
     "saving": "Сохраняем…",
@@ -477,7 +480,24 @@
     "hideEnded": "Скрыть",
     "kind": "Тип",
     "end": "Завершить",
-    "resume": "Возобновить"
+    "resume": "Возобновить",
+    "documents": "Документы",
+    "documentsCount": "Документы ({{n}})",
+    "noDocuments": "Документов пока нет",
+    "addDocument": "+ Документ",
+    "document": "Документ",
+    "documentNotFound": "Такого документа нет: возможно, его удалили.",
+    "file": "Файл",
+    "chooseFile": "Выбрать",
+    "fileRequired": "Выберите файл",
+    "uploadNeedsInternet": "Нужен интернет, чтобы прикрепить файл",
+    "fileSummary": "{{kind}}, {{size}}",
+    "pdf": "PDF",
+    "photo": "Фото",
+    "kilobytes": "{{size}} КБ",
+    "megabytes": "{{size}} МБ",
+    "deleteDocument": "Удалить документ",
+    "confirmDeleteDocument": "Удалить «{{title}}»?"
   },
   "medicines": {
     "title": "Лекарства",

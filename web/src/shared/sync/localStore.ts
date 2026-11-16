@@ -24,6 +24,7 @@ export const SYNCED_TABLES = [
   'illness',
   'illness_event',
   'medicine',
+  'document',
 ] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 
@@ -78,6 +79,7 @@ export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTabl
     { parent: 'list', table: 'mute', key: 'listId' },
     { parent: 'child', table: 'illness', key: 'childId' },
     { parent: 'illness', table: 'illness_event', key: 'illnessId' },
+    { parent: 'child', table: 'document', key: 'childId' },
   ];
 
 /**
@@ -114,6 +116,8 @@ export const STORE_SCHEMA: readonly Readonly<Record<string, string>>[] = [
   { illness: 'id, childId', illness_event: 'id, illnessId' },
   // The Family's Medicines (ticket #130), which Medicine doses name.
   { medicine: 'id' },
+  // Documents on Medical cards (ticket #133), dependent on their Child (none for a Member's card).
+  { document: 'id, childId' },
 ];
 
 interface Meta {

@@ -1,4 +1,8 @@
+import { http, HttpResponse } from 'msw';
 import { fixtureId } from './fixtures';
+import { readMultipart, type FormPart } from './multipart';
+import { server } from './server';
+import { syncServer } from './syncServer';
 
 /*
  * Medical card rows as the sync pull returns them (spec #128), for `syncServer.seed`: Illnesses,
@@ -115,4 +119,101 @@ export function medicineRow(name: string, deleted = false) {
 /** The text of a wheel's (a native select's) chosen option. */
 export function selectedText(select: HTMLElement) {
   return (select as HTMLSelectElement).selectedOptions[0]?.textContent;
+}
+
+/** A Document on the card of `person`, a PDF of `size` bytes, as the pull returns it. */
+export function documentRow(
+  person: { memberId: string } | { childId: string },
+  title: string,
+  date: string,
+  { contentType = 'application/pdf', size = 48_000 } = {},
+) {
+  return {
+    id: nextId(),
+    memberId: null as string | null,
+    childId: null as string | null,
+    ...person,
+    illnessEventId: null as string | null,
+    title,
+    date,
+    description: null as string | null,
+    contentType,
+    size,
+  };
+}
+
+/** A file as the document endpoints keep it: its content type and bytes. */
+interface StoredFile {
+  contentType: string;
+  bytes: Uint8Array;
+}
+
+/**
+ * The document endpoints (spec #128 "Documents API"), installed for one test: `POST
+ * /api/documents` keeps the file and adds the Document to `syncServer` (so the next pull brings
+ * it), as the server does; `GET /api/documents/:id/file` answers the kept file, or
+ * `document.file_missing`. `uploads` holds each upload's parts; `fileRequests` the ids asked for.
+ * `keep(document, bytes)` gives a seeded Document its file; `failUploadsWith(status, code)` makes
+ * every upload fail.
+ */
+export function documentsServer() {
+  const files = new Map<string, StoredFile>();
+  const record = {
+    uploads: [] as Map<string, FormPart>[],
+    fileRequests: [] as string[],
+    failure: undefined as { status: number; code: string } | undefined,
+    keep(document: { id: string; contentType: string }, bytes: Uint8Array) {
+      files.set(document.id, { contentType: document.contentType, bytes });
+    },
+    failUploadsWith(status: number, code: string) {
+      record.failure = { status, code };
+    },
+  };
+  server.use(
+    http.post('/api/documents', async ({ request }) => {
+      const form = await readMultipart(request);
+      record.uploads.push(form);
+      if (record.failure !== undefined) {
+        return HttpResponse.json(
+          { code: record.failure.code, params: {} },
+          { status: record.failure.status },
+        );
+      }
+      const text = (name: string) => {
+        const part = form.get(name);
+        return typeof part === 'string' && part.trim() !== '' ? part.trim() : null;
+      };
+      const file = form.get('file');
+      if (file === undefined || typeof file === 'string') {
+        return HttpResponse.json({ code: 'validation.failed', params: {} }, { status: 400 });
+      }
+      const row = {
+        id: text('id') ?? '',
+        memberId: text('memberId'),
+        childId: text('childId'),
+        illnessEventId: text('illnessEventId'),
+        title: text('title'),
+        date: text('date'),
+        description: text('description'),
+        contentType: file.type,
+        size: file.bytes.length,
+      };
+      files.set(row.id, { contentType: file.type, bytes: file.bytes });
+      syncServer.seed('document', [row]);
+      return HttpResponse.json({ ...row, version: syncServer.latestVersion }, { status: 201 });
+    }),
+    http.get('/api/documents/:id/file', ({ params }) => {
+      const id = String(params.id);
+      record.fileRequests.push(id);
+      const file = files.get(id);
+      if (file === undefined) {
+        return HttpResponse.json(
+          { code: 'document.file_missing', params: { documentId: id } },
+          { status: 404 },
+        );
+      }
+      return new HttpResponse(file.bytes, { headers: { 'Content-Type': file.contentType } });
+    }),
+  );
+  return record;
 }

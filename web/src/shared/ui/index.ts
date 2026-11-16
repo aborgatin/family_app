@@ -39,6 +39,8 @@ export { useEditableList } from './editableList';
 export { Swatch } from './Swatch';
 export { ColorChoice } from './ColorChoice';
 export { DateRow } from './DateRow';
+export { FileRow } from './FileRow';
+export { FileViewer } from './FileViewer';
 export { Sheet } from './Sheet';
 export { positionAfterMove } from './positionAfterMove';
 export { SortableList, type SortableRow } from './SortableList';

@@ -20,7 +20,7 @@ step with the headings).
 - [Look and theme](#look-and-theme): Tailwind tokens, light and dark theme, where the UI kit is specified
 - [Settings](#settings): the Settings screen: Members, Invites, profile, password, Notifications and this device's push subscription, theme, Child fields, Medicines
 - [Home «Дети» and the Child page](#home-дети-and-the-child-page): Child cards on Home, the Child page, Child lists and fields
-- [Medical cards](#medical-cards): «Медкарта» on Home and the Child page, the card, the Illness screen, the Temperature and dose sheets and their rules, «Лекарства» in Settings
+- [Medical cards](#medical-cards): «Медкарта» on Home and the Child page, the card, the Illness screen, the Temperature and dose sheets and their rules, Documents (upload, viewer, file cache), «Лекарства» in Settings
 - [PWA](#pwa): manifest, icons, the service worker (precache, push, tap), the push payload contract, updates
 - [iOS and macOS](#ios-and-macos): installed-app cookies, ITP, Safari quirks
 - [Testing](#testing): shared test helpers, `renderApp`, the fake sync server, store-upgrade tests, clock and time zone, flaky tests
@@ -86,7 +86,8 @@ web/src/
                         IllnessPage, LogSection, EventSheet, TemperatureSheet, DoseSheet, TemperatureRow,
                         MedicinesSettings, NewMedicineSheet, cardRoute (whose card the route
                         names), medicalPaths, medicalTypes, illnessRules (the pure rules),
-                        useMedicalCard(person), useMedicines()
+                        useMedicalCard(person), useMedicines(), DocumentsPage, DocumentPage,
+                        DocumentSheet, documentsApi, useDocuments(person), useDocumentFile
   shared/
     api/                API client, error-code mapping, form error helpers
     i18n/               i18next set-up, typed keys, locales/ru.json
@@ -96,6 +97,8 @@ web/src/
     push/               this device and push: readPushState, subscribeThisDevice,
                         resyncSubscription (launch), forgetSubscription (logout), pushApi
     pwa/                startAppUpdates(): a new version without a force-close (see PWA, Updates)
+    files/              opened Document files kept on the device (Cache Storage): cachedFile,
+                        keepFile, forgetFile, forgetFilesExcept, clearFileCache (logout)
     palette/            Child color palette (childColors.json), Avatar set (childAvatars.json)
     dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests),
                         daysFromToday(day, now), shortDay(date, now) («15 нояб.»), longDay(date,
@@ -103,7 +106,8 @@ web/src/
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
-                        InputRow, TextAreaRow (+ LinkedText, not exported), DateRow,
+                        InputRow, TextAreaRow (+ LinkedText, not exported), DateRow, FileRow,
+                        FileViewer,
                         SegmentedControl, SwitchRow, SelectRow, ColorChoice, Swatch, ListRow,
                         LoadingRow, EditableRow, AddRow, SuggestionRows, SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Initials, ChildAvatar, PictureChoice, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
@@ -159,6 +163,8 @@ frame around every screen and the place a sidebar goes later.
 | `/children/:id/medical`  | `MedicalCardPage` (the Child's) | logged in          |
 | `/medical/illnesses/:illnessId` | `IllnessPage` | logged in                    |
 | `/children/:id/medical/illnesses/:illnessId` | `IllnessPage` | logged in       |
+| `/medical/documents`, `/children/:id/medical/documents` | `DocumentsPage` | logged in |
+| `/medical/documents/:documentId`, `/children/:id/medical/documents/:documentId` | `DocumentPage` (the file full screen) | logged in |
 
 The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure,
 or after an offline cold start, below;
@@ -216,7 +222,9 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 
 - `api.get/post/put/patch/delete<T>(path, body?)`: `fetch` with `credentials: 'same-origin'`, JSON
   in and out, `204` → `undefined`. Every non-GET sends the `XSRF-TOKEN` cookie's value as
-  `X-XSRF-TOKEN`.
+  `X-XSRF-TOKEN`. `api.postForm<T>(path, formData)` sends `multipart/form-data` (a Document
+  upload), JSON back; `api.file(path)` answers the whole successful `Response` (`Accept: */*`), to
+  read as a `Blob` or keep in Cache Storage. Both fail the same way.
 - Every failure rejects with `ApiError` (`status`, `code`, `params`, `fieldErrors`).
   `asApiError(error)` turns whatever a `catch` got into an `ApiError` (`unknown`, status 0, when it
   isn't one already); use it instead of writing the check again. A fetch that
@@ -252,7 +260,7 @@ code that touches IndexedDB or the sync API:
   version 6 indexes `list` by `childId`, for Child lists; `child_field_value`, indexed by
   `childId` and `childFieldId`, came with version 7; `mute`, indexed by `listId`, with version 8;
   `illness`, indexed by `childId`, and `illness_event`, indexed by `illnessId`, with version 9;
-  `medicine` with version 10). A row of `KEPT_WHEN_DELETED` (`medicine`) stays when deleted, here
+  `medicine` with version 10; `document`, indexed by `childId`, with version 11). A row of `KEPT_WHEN_DELETED` (`medicine`) stays when deleted, here
   or on the server, marked `deleted: true` (sync.md, Client). A row holds the
   fields the pull sent and `version`, the Version it was pulled with (none on a row created here
   until the pull brings it back). Also there:
@@ -276,7 +284,8 @@ code that touches IndexedDB or the sync API:
   session already gone), opens the unsent-changes warning; «Выйти» there goes on without them.
   After the server's logout (`auth.required` counts as logged out), or when the logout itself
   can't reach the server (then a pending logout, see the auth guard), `stopSyncAndWipe()` stops
-  the engine and wipes the store: an explicit logout always wipes, owner copy included.
+  the engine and wipes the store: an explicit logout always wipes, owner copy included; then
+  `clearFileCache()` (`@/shared/files`) deletes the opened Document files.
 - `liveUpdates.ts`: `openLiveUpdates(onNewerVersion)`, opened by `startSync` and closed by
   `stopSync`. One `EventSource` on `/api/sync/events`; a `changed` event whose Version is above
   the stored one calls `requestSync()`, any other causes no pull. When the browser gives up on the
@@ -320,7 +329,7 @@ its List, a Child field value to its Child and to its Child field, a Mute to its
 
 ## Data access
 
-`useMedicalCard(person)` (`features/medical`) is described under [Medical cards](#medical-cards).
+`useMedicalCard(person)` and `useDocuments(person)` (`features/medical`) are described under [Medical cards](#medical-cards).
 
 Each synced data feature has one hook that is its only data access. Components never call `api`,
 Dexie or `@/shared/sync`'s writers directly; ESLint enforces it (`data-access/components-use-hooks`
@@ -840,7 +849,7 @@ the delete warning, the store upgrade to version 6),
 
 ## Medical cards
 
-Spec #128, tickets #129, #130, #131, #132. A Medical card is every Member's and every Child's; its rows name their
+Spec #128, tickets #129, #130, #131, #132, #133. A Medical card is every Member's and every Child's; its rows name their
 person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards the Member may see
 (their own and the Children's); the client still filters by person (`isOn`).
 
@@ -955,11 +964,41 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   resolve at once, offline too. `useMedicines()` → `{load (not deleted, by name), all, nameOf(id),
   add, rename, remove}` on `useSyncedRows('medicine')`; `add` and `rename` reject with
   `ApiError` `medicine.duplicate` for a name the list has (ignoring case), writing nothing.
-- Store: `illness` depends on `child` (`childId`), `illness_event` on `illness` (`illnessId`), in
-  `DEPENDENT_TABLES` and in the fake sync server's `CASCADES`.
+- **Documents** (#133): the card's row «Документы (n)» (its own `GroupedSection`, after
+  «Болезни») opens `DocumentsPage` (`…/medical/documents`, «Документы», back «Медкарта»): the
+  card's Documents newest first by date (one day's by title), each a row with the title and the
+  date («2 декабря», the year only when not this year), opening the file; «Документов пока нет»
+  with none; an accent «+ Документ» (`after`) opens `DocumentSheet` for a new one, its id made once
+  when it opens (`newDocumentId()`), so a retried upload repeats it. The sheet («Документ»):
+  «Файл» (`FileRow`, PDFs and photos), «Название» (required; choosing a file fills it with the
+  file's name without its extension, unless the Member typed their own), «Дата» (today), «Описание».
+  «Готово» checks the file (none: «Выберите файл»; over 20 MB: «Файл больше 20 МБ», before
+  uploading), then uploads; offline it says «Нужен интернет, чтобы прикрепить файл» and keeps the
+  sheet; the server's `document.too_large` and `document.unsupported_type` show as «Файл больше 20
+  МБ» and «Можно прикрепить PDF или фото» (`ERROR_KEYS`). `DocumentPage`
+  (`…/documents/:documentId`) shows the file in a `FileViewer` (the browser's PDF viewer in an
+  `iframe`, a photo fitted), back «Документы», «Изменить» opening the same sheet with the file
+  shown as «PDF, 47 КБ» (`fileSummary`) and its fields saved through sync on «Готово», and
+  «Удалить документ» (asks «Удалить «…»?», goes back to the Documents, deletes it). A file the
+  server lost: «Файл недоступен» (`document.file_missing`); an unknown Document: «Такого
+  документа нет: возможно, его удалили.».
+- **Documents data**: `useDocuments(person)` → `{documents, add(id, file, details), save(document,
+  details), remove(document)}` on `useRows('document')`. `add` uploads (`documentsApi.uploadDocument`,
+  `FormData` with `memberId` or `childId`) and then `requestSync()`: the row arrives with the pull,
+  never written locally first; it rejects offline. `save` is `upsertRow` (only changed fields
+  go), `remove` `deleteRow` and `forgetFile`. While it is mounted it also forgets kept files of
+  Documents no longer in the store (deleted elsewhere, or with their Child). `useDocumentFile(document)`
+  opens the file: the copy in the `family-app-documents` cache (keyed by the file's URL,
+  `/api/documents/<id>/file`), else `api.file` and `keepFile`, then an object URL (revoked on
+  unmount); `{status: 'loading' | 'ready' | 'failed'}`.
+- Store: `illness` depends on `child` (`childId`), `illness_event` on `illness` (`illnessId`),
+  `document` on `child` (`childId`), in `DEPENDENT_TABLES` and in the fake sync server's
+  `CASCADES`.
 - Tests: `features/medical/medicalCard.test.tsx`, `medicines.test.tsx` (Settings, the store
   upgrade to version 10), `medicineDoses.test.tsx`, `illnessEditing.test.tsx` (#131),
-  `endedConditions.test.tsx` (#132).
+  `endedConditions.test.tsx` (#132), `documents.test.tsx` (#133: adding, listing, opening,
+  reopening offline from the cache, logout clearing it, editing, deleting, the messages, the store
+  upgrade to version 11).
 
 ## PWA
 
@@ -1073,6 +1112,9 @@ helper a second test file needs moves here.
 | `upgradeStoreFrom(version, seed)` (`@/test/olderStore`) | a store-upgrade test: an older store with rows or Outbox operations, then the current one opened over it (lint rejects store versions declared anywhere else) |
 | `anna`, `boris`, `masha`, `petya`, `weight`, `height`, `sessionHandler`, `membersHandler`, `invitesHandler`, `fixtureId` (`@/test/fixtures`) | Members, Children, Child fields, the auth/settings handlers every test needs, and ids for seeded rows |
 | `illnessRow`, `temperatureRow`, `doseRow`, `medicineRow`, `selectedText` (`@/test/medical`) | Medical card rows to seed (Illnesses, Temperatures, Medicine doses, Medicines), each with a fresh id; the chosen option of a wheel |
+| `documentRow`, `documentsServer()` (`@/test/medical`) | Documents to seed, and the document endpoints for one test: uploads add the row to `syncServer` and keep the file; `uploads`, `fileRequests`, `keep(document, bytes)`, `failUploadsWith(status, code)` |
+| `fakeCaches` (`@/test/cacheStorage`) | Cache Storage (jsdom has none), installed as `caches` and emptied for every test: `cacheNames()`, `urls(name)` |
+| `readMultipart(request)` (`@/test/multipart`) | an MSW handler reading a `multipart/form-data` upload; `network.ts` encodes a `FormData` body as a browser does (jsdom's `FormData` is not Node's) |
 | `dayParts`, `localDay` (`@/shared/dates`, app code) | a `YYYY-MM-DD` day in a test or in code: lint rejects parsing one by hand elsewhere |
 
 Run one file with `../scripts/with-toolchain.sh npx vitest run <file>` from `web/`; a test that
@@ -1087,8 +1129,8 @@ fails only sometimes, with `scripts/repeat-test.sh <file> [n]`.
 - The sync API is always answered by the fake sync server `syncServer` (`@/test/syncServer`,
   installed in `server.ts`, emptied after each test). It behaves like the real one (Versions,
   per-field Last write wins, delete wins, tombstones; a deleted row takes the rows that belong to
-  it, in `CASCADES`, as the server does: a Child its Child lists, Child field values and
-  Illnesses, a Child field its Child field values, a List its Items, Categories, Item history and
+  it, in `CASCADES`, as the server does: a Child its Child lists, Child field values,
+  Illnesses and Documents, a Child field its Child field values, a List its Items, Categories, Item history and
   Mutes, an Illness its Illness events; a Child field value is stamped with `recordedAt`, never
   changes once recorded, and is `ignored` for a deleted or unknown Child or Child field; a List
   made Private loses its Items' Assignees; a repeating Item turned Done (created Done or changed), pushed or by `change`,

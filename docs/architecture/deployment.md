@@ -163,6 +163,7 @@ the backup scripts (`ENV_FILE` overrides the path; process environment wins over
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`                             | required; see [Push keys](#push-keys-vapid) | app: signs and encrypts push messages                                  |
 | `VAPID_SUBJECT`                                                     | `mailto:you@example.com` (required)        | app: the contact push services may use                                 |
 | `REMINDER_MORNING_TIME`                                             | `09:00`                                    | app: when a Due date without a time is due, in `TZ`                    |
+| `DOCUMENTS_ENCRYPTION_KEY`                                          | required; `openssl rand -base64 32`        | app: encrypts Document files (ADR-0010); kept next to `BACKUP_PASSPHRASE` in the password manager: losing it loses every file |
 | `TZ`                                                                | `Europe/Berlin`                            | all containers; the host must use the same zone for cron               |
 | `BACKUP_REMOTES`                                                    | `"b2:<bucket> r2:<bucket>"` (required)     | `backup.sh`, `restore.sh`: rclone targets, space-separated             |
 | `BACKUP_PASSPHRASE`                                                 | required                                   | backup scripts: encrypts the dumps (rclone crypt)                      |
@@ -355,7 +356,10 @@ the other arguments (`deploy/restore.sh --from r2:family-backups --scratch resto
    read-only token on the server.
 5. Copy `deploy/` to the server; create `.env` from `.env.example` with real values (strong
    `POSTGRES_PASSWORD`, `DOMAIN`, `ACME_EMAIL`, the VAPID pair from
-   [Push keys](#push-keys-vapid) and `VAPID_SUBJECT`).
+   [Push keys](#push-keys-vapid) and `VAPID_SUBJECT`, and `DOCUMENTS_ENCRYPTION_KEY` from
+   `openssl rand -base64 32`, saved in the password manager next to `BACKUP_PASSPHRASE`). The
+   store for Document files in production (Cloudflare R2) comes with #135; until then uploads
+   fail.
 6. Backup targets: a Backblaze B2 bucket (EU Central) with an application key for that bucket only,
    and a Cloudflare R2 bucket with an API token for that bucket only. Fill `rclone.conf` from
    `rclone.conf.example` (`chmod 600`), set `BACKUP_REMOTES` and `BACKUP_PASSPHRASE`, run

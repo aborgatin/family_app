@@ -48,6 +48,10 @@ Ctrl-C). Then it seeds through the real API:
 - Medical cards: Маша's has «ОРВИ» (a Description; four Temperatures two days ago and yesterday,
   one of them without a time; two Medicine doses; the Note «Сходили к доктору» yesterday, without
   a time) and «Отит» (one Temperature 400 days ago). Анна's own card is empty.
+- Documents on Маша's card, uploaded through `POST /api/documents` into a folder store under
+  `<out>/_logs/documents` (`DOCUMENTS_FOLDER`): «Заключение ЛОРа» (a photo, yesterday, with a
+  Description), «Общий анализ крови» (a PDF, 12 days ago), and «Выписка из поликлиники» (400 days
+  ago, its row only: the file is missing, so it opens as «Файл недоступен»).
 - One active Invite.
 
 Browser context: installed Google Chrome (`SHOOT_CHANNEL` to override), locale `ru-RU`,

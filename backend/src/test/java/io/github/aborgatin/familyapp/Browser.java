@@ -5,9 +5,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 /**
@@ -82,6 +84,23 @@ public final class Browser {
   /** A {@code POST} without a body. */
   public ResultActions post(String path) throws Exception {
     return write(MockMvcRequestBuilders.post(path));
+  }
+
+  /**
+   * A {@code multipart/form-data} {@code POST}, as a browser sends a {@code FormData}: the text
+   * fields (a {@code null} value is left out) and the file.
+   */
+  public ResultActions postMultipart(
+      String path, Map<String, String> fields, MockMultipartFile file) throws Exception {
+    MockMultipartHttpServletRequestBuilder request = MockMvcRequestBuilders.multipart(path);
+    request.file(file);
+    fields.forEach(
+        (name, value) -> {
+          if (value != null) {
+            request.param(name, value);
+          }
+        });
+    return write(request);
   }
 
   private ResultActions write(MockHttpServletRequestBuilder request) throws Exception {
