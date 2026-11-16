@@ -21,6 +21,8 @@ export const SYNCED_TABLES = [
   'category',
   'item_history',
   'mute',
+  'illness',
+  'illness_event',
 ] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 
@@ -73,6 +75,8 @@ export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTabl
     { parent: 'list', table: 'category', key: 'listId' },
     { parent: 'list', table: 'item_history', key: 'listId' },
     { parent: 'list', table: 'mute', key: 'listId' },
+    { parent: 'child', table: 'illness', key: 'childId' },
+    { parent: 'illness', table: 'illness_event', key: 'illnessId' },
   ];
 
 /**
@@ -96,6 +100,9 @@ export const STORE_SCHEMA: readonly Readonly<Record<string, string>>[] = [
   { child_field_value: 'id, childId, childFieldId' },
   // The Member's own Mutes (spec #104), dependent on their List.
   { mute: 'id, listId' },
+  // Medical cards (spec #128): Illnesses, dependent on their Child (none for a Member's card),
+  // and their Illness events, dependent on their Illness.
+  { illness: 'id, childId', illness_event: 'id, illnessId' },
 ];
 
 interface Meta {

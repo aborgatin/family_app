@@ -55,7 +55,8 @@ type Rejecter = (
  * whose `key` field holds the deleted `parent` row's id, and so on down. A deleted Child takes its
  * Child lists, whoever owns them, and its Child field values; a deleted Child field takes its
  * Child field values (spec #81); a deleted List takes its Items, Categories and Item history
- * (`ListService.deleteWithContent`), and its Mutes (`lists.ListUnshared`, #111).
+ * (`ListService.deleteWithContent`), and its Mutes (`lists.ListUnshared`, #111); a deleted Child
+ * takes their Illnesses, and a deleted Illness its events (`medical.IllnessService`, #129).
  */
 const CASCADES: readonly { parent: string; table: string; key: string }[] = [
   { parent: 'child', table: 'list', key: 'childId' },
@@ -65,6 +66,8 @@ const CASCADES: readonly { parent: string; table: string; key: string }[] = [
   { parent: 'list', table: 'category', key: 'listId' },
   { parent: 'list', table: 'item_history', key: 'listId' },
   { parent: 'list', table: 'mute', key: 'listId' },
+  { parent: 'child', table: 'illness', key: 'childId' },
+  { parent: 'illness', table: 'illness_event', key: 'illnessId' },
 ];
 
 /** The rejection used when `rejectWhen`'s predicate just answers `true`. */

@@ -30,3 +30,34 @@ export function shortDay(day: Date, now: Date): string {
     ...(day.getFullYear() !== now.getFullYear() && { year: 'numeric' }),
   }).format(day);
 }
+
+/**
+ * «2 декабря 2026» (`year: 'always'`), or «2 декабря» with the year only when it isn't `now`'s
+ * (`year: now`). Without the «г.» Intl adds.
+ */
+export function longDay(day: Date, year: 'always' | Date): string {
+  const withYear = year === 'always' || day.getFullYear() !== year.getFullYear();
+  return new Intl.DateTimeFormat('ru', {
+    day: 'numeric',
+    month: 'long',
+    ...(withYear && { year: 'numeric' }),
+  })
+    .formatToParts(day)
+    .filter(({ type }) => type === 'day' || type === 'month' || type === 'year')
+    .map(({ value }) => value)
+    .join(' ');
+}
+
+/** The day `date` is on, written `YYYY-MM-DD` (its local calendar day). */
+export function dayOf(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${String(date.getFullYear())}-${month}-${day}`;
+}
+
+/** The time of day `date` is at, written `HH:MM` (local time). */
+export function timeOf(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}

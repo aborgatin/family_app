@@ -48,6 +48,8 @@ const REJECTION_KEYS = {
   'child_field.not_found': 'sync.saveRejected',
   // Another Member's Mute: the pull never brings one, so the app never sends it.
   'mute.not_found': 'sync.saveRejected',
+  // A row on another Member's Medical card: the pull never brings one, so the app sends none.
+  'medical.not_found': 'sync.rejected.medicalNotFound',
 } as const satisfies Readonly<Record<string, ErrorMessage['key']>>;
 
 export function rejectionMessage(code: string): ErrorMessage {

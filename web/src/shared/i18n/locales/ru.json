@@ -21,7 +21,8 @@
       "itemAssigneeOnPrivateList": "Не удалось сохранить: в личном списке нет ответственных",
       "itemAssigneeNotFound": "Не удалось сохранить: такого взрослого больше нет",
       "itemRepeatWithoutDueDate": "Не удалось сохранить: повтор указывается только вместе со сроком",
-      "mutePrivateList": "Не удалось сохранить: в личном списке уведомлений нет"
+      "mutePrivateList": "Не удалось сохранить: в личном списке уведомлений нет",
+      "medicalNotFound": "Не удалось сохранить: такой записи в медкарте нет, возможно, её удалили"
     }
   },
   "offline": {
@@ -417,5 +418,29 @@
     "suggestions": "Подсказки",
     "removeSuggestion": "Удалить подсказку „{{name}}“",
     "addDescription": "Добавить описание"
+  },
+  "medical": {
+    "title": "Медкарта",
+    "log": "Записать",
+    "logTemperature": "Записать температуру",
+    "illnesses": "Болезни",
+    "noIllnesses": "Болезней пока нет",
+    "illness": "Болезнь",
+    "illnessNotFound": "Такой болезни нет: возможно, её удалили.",
+    "illnessSummary": "с {{since}} · {{events}}",
+    "noEvents": "Нет событий",
+    "events_one": "{{count}} событие",
+    "events_few": "{{count}} события",
+    "events_many": "{{count}} событий",
+    "events_other": "{{count}} события",
+    "since": "с {{date}}",
+    "temperature": "Температура",
+    "date": "Дата",
+    "time": "Время",
+    "description": "Описание",
+    "addTo": "Добавить к",
+    "newIllness": "Новая болезнь",
+    "otherIllness": "Другая…",
+    "newIllnessName": "Болезнь {{date}}"
   }
 }
