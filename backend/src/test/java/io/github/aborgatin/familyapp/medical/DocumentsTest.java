@@ -171,6 +171,23 @@ class DocumentsTest {
     assertThat(SyncRequests.fields(anna, DOCUMENT, second)).isNull();
   }
 
+  @Test
+  void anUploadRefusedAfterItsFileWasStoredLeavesNoFileBehind() throws Exception {
+    UUID illness = UUID.randomUUID();
+    UUID event = UUID.randomUUID();
+    orviWithATemperature(illness, event);
+    // Boris deletes the event while Anna's file is being stored.
+    files.whilePutting(
+        () -> jdbc.update("UPDATE illness_event SET deleted = TRUE WHERE id = ?", event));
+    UUID id = UUID.randomUUID();
+
+    upload(anna, onEvent(id, event), pdf())
+        .andExpect(jsonPath("$.code").value("medical.not_found"));
+
+    assertThat(files.keys()).isEmpty();
+    assertThat(SyncRequests.fields(anna, DOCUMENT, id)).isNull();
+  }
+
   /** An Illness «ОРВИ» on Маша's card with a Temperature, {@code event}. */
   void orviWithATemperature(UUID illness, UUID event) throws Exception {
     pushApplied(

@@ -96,7 +96,8 @@ class DocumentService implements SyncableTable {
   /**
    * Adds a Document to a card: checks the fields, that the uploader sees the card (and the Illness
    * event, when given, is on it), the size and the type by content; stores the encrypted file, then
-   * inserts the row, which reaches devices through the pull. A retry of an upload that already
+   * inserts the row, which reaches devices through the pull (the file is deleted again when the
+   * insert is refused). A retry of an upload that already
    * created the Document answers that Document again and stores nothing.
    */
   Document upload(UUID uploader, Upload upload) {
@@ -139,6 +140,28 @@ class DocumentService implements SyncableTable {
                     new ApiException(
                         HttpStatus.UNSUPPORTED_MEDIA_TYPE, "document.unsupported_type"));
     files.put(id, bytes);
+    try {
+      return insert(uploader, id, person, illnessEventId, replaces, details, type, bytes.length);
+    } catch (RuntimeException e) {
+      // Refused after the file was stored (the event deleted meanwhile, given a Document, …): no
+      // row names the object, so it goes; a Document already there with this id keeps its file.
+      if (documents.findById(id).isEmpty()) {
+        files.delete(id);
+      }
+      throw e;
+    }
+  }
+
+  /** Inserts the uploaded Document's row, checked again under the Family lock. */
+  private Document insert(
+      UUID uploader,
+      UUID id,
+      Person person,
+      @Nullable UUID illnessEventId,
+      @Nullable UUID replaces,
+      Document.Details details,
+      DocumentType type,
+      long size) {
     return transaction.execute(
         status -> {
           lock.lock();
@@ -158,7 +181,7 @@ class DocumentService implements SyncableTable {
                 .ifPresent(this::delete);
           }
           return documents.saveAndFlush(
-              new Document(id, person, illnessEventId, details, type.contentType(), bytes.length));
+              new Document(id, person, illnessEventId, details, type.contentType(), size));
         });
   }
 
