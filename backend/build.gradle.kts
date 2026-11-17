@@ -45,6 +45,16 @@ dependencies {
   }
   implementation("org.bouncycastle:bcprov-jdk18on:1.80")
   implementation("org.bitbucket.b_c:jose4j:0.9.6")
+  // Document files in Cloudflare R2 (ticket #135, ADR-0010) through the S3 API: the AWS SDK's s3
+  // module with the JDK's URLConnection client, so neither Apache's nor Netty's HTTP client comes
+  // along (backend.md "Stack").
+  implementation(platform("software.amazon.awssdk:bom:2.57.8"))
+  implementation("software.amazon.awssdk:s3") {
+    exclude(group = "software.amazon.awssdk", module = "apache-client")
+    exclude(group = "software.amazon.awssdk", module = "apache5-client")
+    exclude(group = "software.amazon.awssdk", module = "netty-nio-client")
+  }
+  implementation("software.amazon.awssdk:url-connection-client")
 
   errorprone("com.google.errorprone:error_prone_core:2.52.0")
 
@@ -54,6 +64,7 @@ dependencies {
   testImplementation("org.springframework.modulith:spring-modulith-starter-test")
   testImplementation("org.testcontainers:junit-jupiter")
   testImplementation("org.testcontainers:postgresql")
+  testImplementation("org.testcontainers:minio")
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

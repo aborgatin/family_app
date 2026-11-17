@@ -19,6 +19,7 @@ step with the headings).
 - [Adding an Announcement to a release](#adding-an-announcement-to-a-release): the «Что нового» catalog, when an entry is sent, the empty-catalog-first rule
 - [Password reset](#password-reset): the operator's one-time reset link
 - [Push keys (VAPID)](#push-keys-vapid): generating the key pair push messages need, once per installation
+- [Document files](#document-files): the Cloudflare R2 bucket of Document files, its API token, the encryption key; not backed up
 - [Backups](#backups): `deploy/backup.sh`, the B2 and R2 targets, encryption, pruning, cron
 - [Restore](#restore): `deploy/restore.sh`, listing and restoring a dump
 - [Server set-up checklist](#server-set-up-checklist): first-time set-up of the server, in order
@@ -164,6 +165,8 @@ the backup scripts (`ENV_FILE` overrides the path; process environment wins over
 | `VAPID_SUBJECT`                                                     | `mailto:you@example.com` (required)        | app: the contact push services may use                                 |
 | `REMINDER_MORNING_TIME`                                             | `09:00`                                    | app: when a Due date without a time is due, in `TZ`                    |
 | `DOCUMENTS_ENCRYPTION_KEY`                                          | required; `openssl rand -base64 32`        | app: encrypts Document files (ADR-0010); kept next to `BACKUP_PASSPHRASE` in the password manager: losing it loses every file |
+| `DOCUMENTS_S3_ENDPOINT`, `DOCUMENTS_S3_BUCKET`                      | `https://<account id>.r2.cloudflarestorage.com`, `family-documents` (required) | app: the R2 bucket of Document files; see [Document files](#document-files) |
+| `DOCUMENTS_S3_ACCESS_KEY_ID`, `DOCUMENTS_S3_SECRET_ACCESS_KEY`      | required                                   | app: that bucket's R2 API token                                        |
 | `TZ`                                                                | `Europe/Berlin`                            | all containers; the host must use the same zone for cron               |
 | `BACKUP_REMOTES`                                                    | `"b2:<bucket> r2:<bucket>"` (required)     | `backup.sh`, `restore.sh`: rclone targets, space-separated             |
 | `BACKUP_PASSPHRASE`                                                 | required                                   | backup scripts: encrypts the dumps (rclone crypt)                      |
@@ -278,6 +281,44 @@ pair silently stops every existing subscription until each device subscribes aga
 key is a secret, like `POSTGRES_PASSWORD`. Local runs and the image tests use the fixed, non-secret
 pair in `scripts/lib/dev-secrets.env`, never in production.
 
+## Document files
+
+Documents on Medical cards are files (PDFs, photos). Their contents live in a Cloudflare R2 bucket of
+their own, not in PostgreSQL and not in a backup bucket; the database keeps each file's metadata and
+object key (ADR-0010). The app encrypts every file before uploading it (AES-256-GCM with
+`DOCUMENTS_ENCRYPTION_KEY`), so the bucket only ever holds ciphertext.
+
+Set up once, before the first deploy that needs it, in the Cloudflare dashboard:
+
+1. **R2 → Create bucket**: a name such as `family-documents`, location hint Europe (or a
+   jurisdiction of EU), Standard storage class. No public access, no custom domain: only the app
+   reads it.
+2. **R2 → Manage API tokens → Create API token**: permission **Object Read & Write**, applied to
+   that bucket only, no expiry (or note the date). Copy the **Access Key ID** and **Secret Access
+   Key** (shown once) and the **S3 endpoint** `https://<account id>.r2.cloudflarestorage.com` (the
+   account's, without the bucket name; for an EU-jurisdiction bucket,
+   `https://<account id>.eu.r2.cloudflarestorage.com`).
+3. In `.env`: `DOCUMENTS_S3_ENDPOINT`, `DOCUMENTS_S3_BUCKET`, `DOCUMENTS_S3_ACCESS_KEY_ID`,
+   `DOCUMENTS_S3_SECRET_ACCESS_KEY`, and `DOCUMENTS_ENCRYPTION_KEY` from `openssl rand -base64 32`.
+
+The app does not start with one of them blank (the message names it), and Compose refuses an `.env`
+without them. The app logs `Document files are stored in the bucket <name> at <endpoint>` at
+startup. `DOCUMENTS_FOLDER` is for local runs only: it would make the app keep the files in a folder
+inside the container, lost on the next deploy. The compose file never passes it to the app, so a
+`DOCUMENTS_FOLDER` line in `.env` has no effect; do not add it to the compose file
+(`scripts/deploy-stack-test.sh` checks the app logs the bucket). The app reaches the bucket only when a file is uploaded, opened or deleted: a wrong
+token or endpoint shows as a failed upload (`500`, the app's log has the S3 error), not at startup,
+so upload one file after setting it up.
+
+**The files are not backed up.** The nightly backup is the database only; the files rely on R2's
+durability. A restored database points at the files still in the bucket; a Document whose object is
+gone is shown as unavailable.
+
+**Keep `DOCUMENTS_ENCRYPTION_KEY` in the password manager next to `BACKUP_PASSPHRASE`.** Losing it
+loses every file: the objects cannot be decrypted, and there is no other copy. Never change it on a
+running installation: files stored with the old key would no longer open. The API token can be
+rolled at any time (a new token, `.env`, `docker compose up -d`).
+
 ## Backups
 
 `deploy/backup.sh` (shared code in `deploy/backup-common.sh`):
@@ -306,8 +347,9 @@ Nightly run: a host cron entry at `BACKUP_TIME`. Cron uses the host's time zone,
 (crontab -l 2>/dev/null; deploy/backup.sh --cron-entry) | crontab -
 ```
 
-The entry appends output to `deploy/backup.log`. Only the database is backed up: keep a copy of
-`.env` elsewhere. Caddy certificates are re-issued if lost.
+The entry appends output to `deploy/backup.log`. Only the database is backed up, not the Document
+files in their R2 bucket ([Document files](#document-files)): keep a copy of `.env` elsewhere.
+Caddy certificates are re-issued if lost.
 
 ## Restore
 
@@ -357,9 +399,8 @@ the other arguments (`deploy/restore.sh --from r2:family-backups --scratch resto
 5. Copy `deploy/` to the server; create `.env` from `.env.example` with real values (strong
    `POSTGRES_PASSWORD`, `DOMAIN`, `ACME_EMAIL`, the VAPID pair from
    [Push keys](#push-keys-vapid) and `VAPID_SUBJECT`, and `DOCUMENTS_ENCRYPTION_KEY` from
-   `openssl rand -base64 32`, saved in the password manager next to `BACKUP_PASSPHRASE`). The
-   store for Document files in production (Cloudflare R2) comes with #135; until then uploads
-   fail.
+   `openssl rand -base64 32`, saved in the password manager next to `BACKUP_PASSPHRASE`, and the
+   `DOCUMENTS_S3_*` values of the R2 bucket of [Document files](#document-files)).
 6. Backup targets: a Backblaze B2 bucket (EU Central) with an application key for that bucket only,
    and a Cloudflare R2 bucket with an API token for that bucket only. Fill `rclone.conf` from
    `rclone.conf.example` (`chmod 600`), set `BACKUP_REMOTES` and `BACKUP_PASSPHRASE`, run

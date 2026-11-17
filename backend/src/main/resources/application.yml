@@ -41,10 +41,16 @@ notifications:
 
 # Documents on Medical cards (spec #128, ADR-0010). The encryption key (32 bytes, base64) is
 # required: an empty one stops the app at startup (DocumentsProperties). DOCUMENTS_FOLDER keeps the
-# files in a local folder (scripts/dev.sh); production stores them in R2 (ticket #135).
+# files in a local folder (scripts/dev.sh); without it they go to the S3-compatible bucket
+# (production: Cloudflare R2, ticket #135), and every DOCUMENTS_S3_* value is required.
 documents:
   encryption-key: ${DOCUMENTS_ENCRYPTION_KEY:}
   folder: ${DOCUMENTS_FOLDER:}
+  s3:
+    endpoint: ${DOCUMENTS_S3_ENDPOINT:}
+    name: ${DOCUMENTS_S3_BUCKET:}
+    access-key-id: ${DOCUMENTS_S3_ACCESS_KEY_ID:}
+    secret-access-key: ${DOCUMENTS_S3_SECRET_ACCESS_KEY:}
 
 server:
   # Sessions live in PostgreSQL (Spring Session JDBC), so they survive redeploys. The lifetime

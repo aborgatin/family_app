@@ -7,6 +7,12 @@ VAPID_PRIVATE_KEY: 494_2TbVXlrlwcwNylIQ7rNOe3v5onx91UaQqu1Wk4Y
 VAPID_SUBJECT: mailto:tests@example.com
 # A Document encryption key for tests only (any 32 bytes, base64).
 DOCUMENTS_ENCRYPTION_KEY: dGVzdHMtb25seS1kb2N1bWVudHMta2V5LTMyLWJ5dGU=
+# The bucket store's settings, required without DOCUMENTS_FOLDER. Nothing listens there: a test
+# that stores files imports InMemoryFileStore, or points these at MinIO (DocumentsConfigurationTest).
+DOCUMENTS_S3_ENDPOINT: http://127.0.0.1:9
+DOCUMENTS_S3_BUCKET: tests-documents
+DOCUMENTS_S3_ACCESS_KEY_ID: tests-only
+DOCUMENTS_S3_SECRET_ACCESS_KEY: tests-only
 
 # Tests call the scheduler step themselves, with a TestClock; SchedulerScheduleTest checks the
 # schedule production runs.

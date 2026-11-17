@@ -34,6 +34,13 @@ services:
       REMINDER_MORNING_TIME: ${REMINDER_MORNING_TIME:-09:00}
       # Document files are encrypted with this key (ADR-0010): losing it loses every file.
       DOCUMENTS_ENCRYPTION_KEY: ${DOCUMENTS_ENCRYPTION_KEY:?set DOCUMENTS_ENCRYPTION_KEY in .env}
+      # The Cloudflare R2 bucket Document files are stored in, not the backup bucket (ADR-0010).
+      # Never add DOCUMENTS_FOLDER here: it selects the folder store of local runs, and files in the
+      # container would be lost on the next deploy (deployment.md "Document files").
+      DOCUMENTS_S3_ENDPOINT: ${DOCUMENTS_S3_ENDPOINT:?set DOCUMENTS_S3_ENDPOINT in .env}
+      DOCUMENTS_S3_BUCKET: ${DOCUMENTS_S3_BUCKET:?set DOCUMENTS_S3_BUCKET in .env}
+      DOCUMENTS_S3_ACCESS_KEY_ID: ${DOCUMENTS_S3_ACCESS_KEY_ID:?set DOCUMENTS_S3_ACCESS_KEY_ID in .env}
+      DOCUMENTS_S3_SECRET_ACCESS_KEY: ${DOCUMENTS_S3_SECRET_ACCESS_KEY:?set DOCUMENTS_S3_SECRET_ACCESS_KEY in .env}
       TZ: ${TZ:-Europe/Berlin}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/actuator/health"]
