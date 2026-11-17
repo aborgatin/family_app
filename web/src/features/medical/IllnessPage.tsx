@@ -40,7 +40,7 @@ interface IllnessPageProps {
 /**
  * An Illness or Condition screen (`…/medical/illnesses/:illnessId`), back to its card: titled with
  * its name, «с 2 декабря 2026» (an Illness only), «Документы (n)» (its events' Documents),
- * «Приём лекарства», «Температура» and «Заметка»
+ * «Приём лекарства», «Температура» and «Заметка» (a Condition: «Заметка» only)
  * (their sheets, into this one), then its events, newest first, under a header per day (a paperclip opens
  * the Document an event carries), and the
  * actions «Завершить» or «Возобновить», and «Удалить». An Ended
@@ -92,11 +92,15 @@ function IllnessScreen({ person }: { person: Person }) {
           card={card}
           documents={eventDocuments}
           target={{ illnessId: illness.id }}
-          titles={{
-            dose: t('medical.dose'),
-            temperature: t('medical.temperature'),
-            noteEvent: t('medical.noteEvent'),
-          }}
+          titles={
+            illness.kind === 'CONDITION'
+              ? { noteEvent: t('medical.noteEvent') }
+              : {
+                  dose: t('medical.dose'),
+                  temperature: t('medical.temperature'),
+                  noteEvent: t('medical.noteEvent'),
+                }
+          }
         />
         {days.map((day) => (
           <GroupedSection key={day} header={longDay(localDay(day), new Date())}>

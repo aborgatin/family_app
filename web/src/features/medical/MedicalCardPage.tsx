@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { localDay, longDay } from '@/shared/dates';
 import {
@@ -69,21 +69,14 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
   // The id of the Condition being added, made once when its sheet opens (S3).
   const [addingId, setAddingId] = useState<string>();
   const [showingEnded, setShowingEnded] = useState(false);
-  // What «Добавить к» offers: the Illnesses and Conditions that aren't Ended.
-  const current = useMemo(
-    () =>
-      illnesses === undefined || conditions === undefined
-        ? undefined
-        : [...conditions, ...illnesses],
-    [conditions, illnesses],
-  );
 
   return (
     <Page title={t('medical.title')} back={back}>
       <Sections>
         <AddEventSection
           card={card}
-          target={current === undefined ? undefined : { addTo: { illnesses: current, eventsOf } }}
+          // «Добавить к» offers the Illnesses that aren't Ended: a Condition holds Notes only.
+          target={illnesses === undefined ? undefined : { addTo: { illnesses, eventsOf } }}
           documents={eventDocuments}
           titles={{ dose: t('medical.logDose'), temperature: t('medical.logTemperature') }}
         />

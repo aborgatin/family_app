@@ -58,7 +58,10 @@ export interface EventTarget {
 /** An event opened from its row: its values fill the sheet; it may be moved or deleted. */
 export interface EventEditing {
   event: IllnessEvent;
-  /** The person's Illnesses, for «Перенести в…» (those that aren't Ended, but its own). */
+  /**
+   * The person's Illnesses and Conditions, for «Перенести в…»: those that aren't Ended, but its
+   * own; Conditions only for a Note event (a Condition holds Notes only).
+   */
   illnesses: readonly Illness[];
   /** Deletes the event (after «Удалить» is confirmed). */
   remove: () => Promise<unknown>;
@@ -84,7 +87,7 @@ interface EventSheetProps extends EventTarget {
  * «Новая болезнь», named after the event's date; «Другая…» picks another of the person's Illnesses that isn't Ended. Saved only
  * with «Готово», once the kind's rows pass `check`. `editing` an event, its values fill the sheet,
  * «Готово» saves what changed, «Перенести в…» saves it into another of the person's Illnesses that
- * isn't Ended or a «Новая болезнь» named after its date, and «Удалить» deletes it after asking.
+ * isn't Ended (a Note event: or Conditions) or a «Новая болезнь» named after its date, and «Удалить» deletes it after asking.
  * «Документ» attaches a PDF or photo to the event once it is saved (replacing the one it carries),
  * which needs the internet: offline the event is saved and the sheet stays, saying so.
  */
@@ -267,7 +270,12 @@ export function EventSheet({
               title={t('medical.moveTo')}
               actions={[
                 ...editing.illnesses
-                  .filter(({ id, ended }) => id !== editing.event.illnessId && ended !== true)
+                  .filter(
+                    ({ id, kind, ended }) =>
+                      id !== editing.event.illnessId &&
+                      ended !== true &&
+                      (kind === 'ILLNESS' || editing.event.kind === 'NOTE'),
+                  )
                   .map((illness) => ({
                     label: illness.name,
                     onSelect: () => void done(() => ({ illnessId: illness.id })),

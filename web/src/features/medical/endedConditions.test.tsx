@@ -2,7 +2,14 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { anna, sessionHandler } from '@/test/fixtures';
-import { conditionRow, ended, illnessRow, selectedText, temperatureRow } from '@/test/medical';
+import {
+  conditionRow,
+  ended,
+  illnessRow,
+  noteEventRow,
+  selectedText,
+  temperatureRow,
+} from '@/test/medical';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
@@ -330,6 +337,32 @@ describe('The kind', () => {
   });
 });
 
+describe('A Condition', () => {
+  it('adds only Note events; an Illness adds all three', async () => {
+    const vision = conditionRow(me, 'Зрение', 1);
+    const otitis = illnessRow(me, 'Отит');
+    syncServer.seed('illness', [vision, otitis]);
+    const user = userEvent.setup();
+    await openIllness(vision);
+
+    const log = screen.getByRole('region', { name: 'Записать' });
+    expect(
+      within(log)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Заметка']);
+
+    await user.click(screen.getByRole('link', { name: 'Медкарта' }));
+    await user.click(await screen.findByRole('link', { name: /Отит/ }));
+    await screen.findByRole('heading', { level: 1, name: 'Отит' });
+    expect(
+      within(screen.getByRole('region', { name: 'Записать' }))
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Приём лекарства', 'Температура', 'Заметка']);
+  });
+});
+
 describe('«Добавить к» and «Перенести в…» with Conditions and Ended ones', () => {
   async function openTemperatureSheet(user: User) {
     await user.click(await screen.findByRole('button', { name: 'Записать температуру' }));
@@ -339,7 +372,7 @@ describe('«Добавить к» and «Перенести в…» with Conditio
   it('never preselects a recent Condition', async () => {
     const asthma = conditionRow(me, 'Астма', 1);
     syncServer.seed('illness', [asthma]);
-    syncServer.seed('illness_event', [temperatureRow(asthma, '2026-12-02', '20:00', 37.0)]);
+    syncServer.seed('illness_event', [noteEventRow(asthma, '2026-12-02', '20:00', 'Приступ')]);
     const user = userEvent.setup();
     await annasCard();
     await screen.findByText('Астма');
@@ -363,12 +396,13 @@ describe('«Добавить к» and «Перенести в…» with Conditio
     expect(within(addTo).queryByRole('option', { name: 'Другая…' })).toBeNull();
   });
 
-  it('«Другая…» lists every Illness and Condition that isn’t Ended', async () => {
+  it('«Другая…» lists the other Illnesses that aren’t Ended, never a Condition', async () => {
     const cold = illnessRow(me, 'ОРВИ');
+    const flu = illnessRow(me, 'Грипп');
     const asthma = conditionRow(me, 'Астма', 1);
     const teeth = ended(conditionRow(me, 'Зубы', 2));
     const angina = ended(illnessRow(me, 'Ангина'));
-    syncServer.seed('illness', [cold, asthma, teeth, angina]);
+    syncServer.seed('illness', [cold, flu, asthma, teeth, angina]);
     syncServer.seed('illness_event', [temperatureRow(cold, '2026-12-02', '08:00', 38.0)]);
     const user = userEvent.setup();
     await annasCard();
@@ -384,33 +418,56 @@ describe('«Добавить к» and «Перенести в…» with Conditio
       within(other)
         .getAllByRole('option')
         .map((option) => option.textContent),
-    ).toEqual(['Астма']);
+    ).toEqual(['Грипп']);
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     await waitFor(() => {
       expect(syncServer.operations('illness_event')[0]?.fields).toMatchObject({
-        illnessId: asthma.id,
+        illnessId: flu.id,
       });
     });
   });
 
-  it('«Перенести в…» offers Conditions too', async () => {
+  it('«Перенести в…» offers a Temperature only Illnesses, a Note Conditions too', async () => {
     const cold = illnessRow(me, 'ОРВИ');
+    const flu = illnessRow(me, 'Грипп');
+    const angina = ended(illnessRow(me, 'Ангина'));
     const asthma = conditionRow(me, 'Астма', 1);
     const teeth = ended(conditionRow(me, 'Зубы', 2));
-    syncServer.seed('illness', [cold, asthma, teeth]);
-    syncServer.seed('illness_event', [temperatureRow(cold, '2026-12-01', '08:00', 38.5)]);
+    syncServer.seed('illness', [cold, flu, angina, asthma, teeth]);
+    syncServer.seed('illness_event', [
+      temperatureRow(cold, '2026-12-01', '08:00', 38.5),
+      noteEventRow(cold, '2026-12-01', '09:00', 'Вырвало'),
+    ]);
     const user = userEvent.setup();
     await openIllness(cold);
 
-    await user.click(screen.getByRole('button', { name: /08:00 · 38,5\u00a0°C/ }));
-    const sheet = await screen.findByRole('dialog', { name: 'Температура' });
-    await user.click(within(sheet).getByRole('button', { name: 'Перенести в…' }));
-
-    expect(
-      within(screen.getByRole('dialog', { name: 'Перенести в…' }))
+    async function moveChoices(row: RegExp, sheetName: string) {
+      await user.click(screen.getByRole('button', { name: row }));
+      const sheet = await screen.findByRole('dialog', { name: sheetName });
+      await user.click(within(sheet).getByRole('button', { name: 'Перенести в…' }));
+      const choices = screen.getByRole('dialog', { name: 'Перенести в…' });
+      const labels = within(choices)
         .getAllByRole('button')
-        .map((button) => button.textContent),
-    ).toEqual(['Астма', 'Новая болезнь', 'Отменить']);
+        .map((button) => button.textContent);
+      await user.click(within(choices).getByRole('button', { name: 'Отменить' }));
+      await user.click(within(sheet).getByRole('button', { name: 'Отмена' }));
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog', { name: sheetName })).not.toBeInTheDocument();
+      });
+      return labels;
+    }
+
+    expect(await moveChoices(/38,5\u00a0°C/, 'Температура')).toEqual([
+      'Грипп',
+      'Новая болезнь',
+      'Отменить',
+    ]);
+    expect(await moveChoices(/Вырвало/, 'Заметка')).toEqual([
+      'Грипп',
+      'Астма',
+      'Новая болезнь',
+      'Отменить',
+    ]);
   });
 });

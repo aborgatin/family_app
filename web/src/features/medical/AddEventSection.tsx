@@ -23,15 +23,16 @@ interface AddEventSectionProps {
   /** The card's Documents of events (`useEventDocuments`), for the sheets' «Документ». */
   documents: EventDocuments;
   /**
-   * The rows' titles: «Добавить приём лекарства» on the card, «Приём лекарства» on an Illness;
-   * «Заметка» only on an Illness.
+   * The rows' titles, each row only given its title: «Добавить приём лекарства» and «Записать
+   * температуру» on the card; «Приём лекарства», «Температура» and «Заметка» on an Illness;
+   * «Заметка» alone on a Condition (it holds Note events only).
    */
-  titles: { dose: string; temperature: string; noteEvent?: string };
+  titles: { dose?: string; temperature?: string; noteEvent?: string };
 }
 
 /**
- * «Записать»: a row that opens the dose sheet, one that opens the Temperature sheet and, given its
- * title, one that opens the Note sheet, into `target`. Shared by the card and the Illness screen.
+ * «Записать»: given their titles, a row that opens the dose sheet, one that opens the Temperature
+ * sheet and one that opens the Note sheet, into `target`. Shared by the card and the Illness screen.
  */
 export function AddEventSection({ card, target, documents, titles }: AddEventSectionProps) {
   const { t } = useTranslation();
@@ -45,20 +46,24 @@ export function AddEventSection({ card, target, documents, titles }: AddEventSec
   return (
     <>
       <GroupedSection label={t('medical.log')}>
-        <ListRow
-          title={titles.dose}
-          accent
-          onClick={() => {
-            setAdding('dose');
-          }}
-        />
-        <ListRow
-          title={titles.temperature}
-          accent
-          onClick={() => {
-            setAdding('temperature');
-          }}
-        />
+        {titles.dose !== undefined && (
+          <ListRow
+            title={titles.dose}
+            accent
+            onClick={() => {
+              setAdding('dose');
+            }}
+          />
+        )}
+        {titles.temperature !== undefined && (
+          <ListRow
+            title={titles.temperature}
+            accent
+            onClick={() => {
+              setAdding('temperature');
+            }}
+          />
+        )}
         {titles.noteEvent !== undefined && (
           <ListRow
             title={titles.noteEvent}
