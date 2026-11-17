@@ -16,7 +16,7 @@ import {
   useAutoSaveText,
 } from '@/shared/ui';
 import { useCardRoute } from './cardRoute';
-import { eventsInOrder, firstDay, formatTemperature } from './illnessRules';
+import { eventsInOrder, firstDay, formatTemperature, takesEvent } from './illnessRules';
 import { EditEventSheet } from './EditEventSheet';
 import { CardMissing } from './MedicalCardPage';
 import {
@@ -91,15 +91,11 @@ function IllnessScreen({ person }: { person: Person }) {
           card={card}
           documents={eventDocuments}
           target={{ illnessId: illness.id }}
-          titles={
-            illness.kind === 'CONDITION'
-              ? { noteEvent: t('medical.noteEvent') }
-              : {
-                  dose: t('medical.dose'),
-                  temperature: t('medical.temperature'),
-                  noteEvent: t('medical.noteEvent'),
-                }
-          }
+          titles={{
+            ...(takesEvent(illness, 'MEDICINE_DOSE') && { dose: t('medical.dose') }),
+            ...(takesEvent(illness, 'TEMPERATURE') && { temperature: t('medical.temperature') }),
+            noteEvent: t('medical.noteEvent'),
+          }}
         />
         <GroupedSection
           label={t('medical.eventsLabel')}

@@ -51,12 +51,10 @@ interface Write {
   fields: Record<string, unknown>;
 }
 
-/** A new Condition's id, made on the device (S3) once when its sheet opens. */
-export function newConditionId(): string {
-  return crypto.randomUUID();
-}
-
-/** A new Illness's id («+ Новая болезнь»), made on the device (S3) once when its sheet opens. */
+/**
+ * A new Illness's or Condition's id («+ Новая болезнь», «+ Добавить»), made on the device (S3) once
+ * when its sheet opens.
+ */
 export function newIllnessId(): string {
   return crypto.randomUUID();
 }

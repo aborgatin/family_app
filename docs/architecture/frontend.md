@@ -868,7 +868,7 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   `position`), each the name and «последнее: 3 марта» (`medical.lastEvent`, the latest event's
   date, the year only when not this year) or «Нет событий», opening its screen; an accent
   «+ Добавить» (`after`) opens `NewConditionSheet` («Диагноз/наблюдение», «Название» required,
-  placeholder «Например: Зрение, Зубы»; the id made once when it opens, `newConditionId()`), which adds it
+  placeholder «Например: Зрение, Зубы»; the id made once when it opens, `newIllnessId()`), which adds it
   last. «Болезни» lists the Illnesses that aren't Ended, each a row with the name and «с 2 декабря
   · 4 события» (`medical.illnessSummary`, `medical.events_*` plurals; the year only when it isn't
   this year; «Нет событий» for an empty one), opening the Illness screen; «Болезней пока нет»

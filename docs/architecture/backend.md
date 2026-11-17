@@ -631,7 +631,7 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   (sync.md, Push), one `details(operation, current, errors)` for a new event and an edit (the
   carried fields over the stored ones, read through `Carried`, #131); a move checks the target
   Illness has the same `Person` (a move to a deleted one is `ignored`); a Condition takes Note
-  events only (`requireTakes`: a dose or Temperature added or moved into one is
+  events only (`requireConditionTakesNote`: a dose or Temperature added or moved into one is
   `illness.condition_takes_notes_only`); only a new dose publishes
   `MedicineDoseLogged`; `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted
   ones included) and leaves out those the Member can't see. A dose's `medicineId` must name a

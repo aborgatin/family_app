@@ -23,7 +23,7 @@ import { AddEventSection } from './AddEventSection';
 import { NewConditionSheet } from './NewConditionSheet';
 import { NewIllnessSheet } from './NewIllnessSheet';
 import { useDocumentCount, useEventDocuments } from './useDocuments';
-import { newConditionId, newIllnessId, useMedicalCard } from './useMedicalCard';
+import { newIllnessId, useMedicalCard } from './useMedicalCard';
 
 interface MedicalCardPageProps {
   /** Path of Home: the way back from the Member's own card. */
@@ -95,7 +95,7 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
               accent
               title={t('medical.addCondition')}
               onClick={() => {
-                setAddingId(newConditionId());
+                setAddingId(newIllnessId());
               }}
             />
           }

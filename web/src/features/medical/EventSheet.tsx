@@ -15,7 +15,7 @@ import {
   TextAreaRow,
   useFooterLines,
 } from '@/shared/ui';
-import { illnessToJoin } from './illnessRules';
+import { illnessToJoin, takesEvent } from './illnessRules';
 import { optionalText, type Illness, type IllnessEvent } from './medicalTypes';
 import {
   DOCUMENT_TYPES,
@@ -87,7 +87,7 @@ interface EventSheetProps extends EventTarget {
  * «Новая болезнь», named after the event's date; «Другая…» picks another of the person's Illnesses that isn't Ended. Saved only
  * with «Готово», once the kind's rows pass `check`. `editing` an event, its values fill the sheet,
  * «Готово» saves what changed, «Перенести в…» saves it into another of the person's Illnesses that
- * isn't Ended (a Note event: or Conditions) or a «Новая болезнь» named after its date, and «Удалить» deletes it after asking.
+ * isn't Ended and takes it (a Condition takes a Note only) or a «Новая болезнь» named after its date, and «Удалить» deletes it after asking.
  * «Документ» attaches a PDF or photo to the event once it is saved (replacing the one it carries),
  * which needs the internet: offline the event is saved and the sheet stays, saying so.
  */
@@ -271,10 +271,10 @@ export function EventSheet({
               actions={[
                 ...editing.illnesses
                   .filter(
-                    ({ id, kind, ended }) =>
-                      id !== editing.event.illnessId &&
-                      ended !== true &&
-                      (kind === 'ILLNESS' || editing.event.kind === 'NOTE'),
+                    (illness) =>
+                      illness.id !== editing.event.illnessId &&
+                      illness.ended !== true &&
+                      takesEvent(illness, editing.event.kind),
                   )
                   .map((illness) => ({
                     label: illness.name,

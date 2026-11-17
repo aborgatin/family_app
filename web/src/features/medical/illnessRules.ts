@@ -7,6 +7,11 @@ import type { Illness, IllnessEvent } from './medicalTypes';
  * The Medical card's rules (spec #128 "Client-side rules"), as pure functions.
  */
 
+/** Whether the Illness or Condition takes an event of this kind: a Condition holds Notes only. */
+export function takesEvent(illness: Illness, kind: IllnessEvent['kind']): boolean {
+  return illness.kind === 'ILLNESS' || kind === 'NOTE';
+}
+
 /** How far back a Temperature or dose still joins an Illness: 48 hours. */
 const JOIN_WINDOW_MS = 48 * 60 * 60 * 1000;
 

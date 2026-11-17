@@ -92,7 +92,7 @@ class IllnessEventService implements SyncableTable {
     if (illness.deleted()) {
       return Outcome.IGNORED;
     }
-    requireTakes(illness, details.kind());
+    requireConditionTakesNote(illness, details.kind());
     details = namingSurvivor(details);
     events.saveAndFlush(new IllnessEvent(operation.id(), illnessId, details));
     UUID childId = illness.person().childId();
@@ -125,7 +125,7 @@ class IllnessEventService implements SyncableTable {
       if (target.deleted()) {
         return Outcome.IGNORED;
       }
-      requireTakes(target, details.kind());
+      requireConditionTakesNote(target, details.kind());
     }
     event.change(illnessId, namingSurvivor(details));
     events.saveAndFlush(event);
@@ -136,7 +136,7 @@ class IllnessEventService implements SyncableTable {
    * A Condition holds Note events only: a Medicine dose or a Temperature added or moved into one is
    * {@code illness.condition_takes_notes_only}.
    */
-  private static void requireTakes(Illness illness, IllnessEvent.Kind kind) {
+  private static void requireConditionTakesNote(Illness illness, IllnessEvent.Kind kind) {
     if (illness.kind() == Illness.Kind.CONDITION && kind != IllnessEvent.Kind.NOTE) {
       throw new ApiException(HttpStatus.CONFLICT, "illness.condition_takes_notes_only");
     }
