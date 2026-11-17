@@ -20,7 +20,7 @@ import { cardPath, documentsPath, illnessPath } from './medicalPaths';
 import type { Illness, IllnessEvent, Person } from './medicalTypes';
 import { LogSection } from './LogSection';
 import { NewConditionSheet } from './NewConditionSheet';
-import { useDocumentCount } from './useDocuments';
+import { useDocumentCount, useEventDocuments } from './useDocuments';
 import { newConditionId, useMedicalCard } from './useMedicalCard';
 
 interface MedicalCardPageProps {
@@ -35,8 +35,8 @@ interface MedicalCardPageProps {
  * that aren't Ended, by their place: «+ Добавить» adds one last, «Изменить» reorders them),
  * «Болезни» (the Illnesses that aren't Ended, newest first), «Документы (n)» (the Documents
  * screen) and, while there are any, the collapsed «Завершённые» (both kinds, by latest event). Each
- * row opens its Illness or Condition screen. Data only through `useMedicalCard(person)` and
- * `useDocumentCount(person)`.
+ * row opens its Illness or Condition screen. Data only through `useMedicalCard(person)`,
+ * `useDocumentCount(person)` and `useEventDocuments(person)`.
  */
 export function MedicalCardPage({ homePath }: MedicalCardPageProps) {
   const route = useCardRoute(homePath);
@@ -63,6 +63,7 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
   const lines = useFooterLines();
   const card = useMedicalCard(person);
   const documentCount = useDocumentCount(person);
+  const eventDocuments = useEventDocuments(person);
   const { illnesses, conditions, ended, eventsOf, addCondition, moveCondition } = card;
   const list = useEditableList();
   // The id of the Condition being added, made once when its sheet opens (S3).
@@ -83,6 +84,7 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
         <LogSection
           card={card}
           target={current === undefined ? undefined : { addTo: { illnesses: current, eventsOf } }}
+          documents={eventDocuments}
           titles={{ dose: t('medical.logDose'), temperature: t('medical.logTemperature') }}
         />
         <GroupedSection

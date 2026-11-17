@@ -1,11 +1,19 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fieldMessageKey, type FieldMessages } from '@/shared/api';
+import {
+  asApiError,
+  failureMessages,
+  fieldMessageKey,
+  NETWORK_UNAVAILABLE,
+  type ErrorMessage,
+  type FieldMessages,
+} from '@/shared/api';
 import { dayOf, localDay, longDay, timeOf } from '@/shared/dates';
 import {
   ActionSheet,
   ConfirmRow,
   DateRow,
+  FileRow,
   GroupedSection,
   ListRow,
   SelectRow,
@@ -15,7 +23,16 @@ import {
 } from '@/shared/ui';
 import { illnessToJoin } from './illnessRules';
 import type { Illness, IllnessEvent } from './medicalTypes';
+import {
+  DOCUMENT_MAX_SIZE,
+  DOCUMENT_TYPES,
+  newDocumentId,
+  type EventDocuments,
+} from './useDocuments';
 import type { EventPlace, EventTiming, IllnessChoice } from './useMedicalCard';
+
+/** «Документ»'s field, for its footer lines and the upload's field errors. */
+const DOCUMENT_FIELDS = ['file'] as const;
 
 /** «Добавить к» choices besides an Illness's id. */
 const NEW = 'new';
@@ -37,6 +54,8 @@ export interface EventTarget {
   untimed?: boolean;
   /** The event the sheet edits, rather than adding one. */
   editing?: EventEditing;
+  /** The card's Documents of events: the edited event's, and attaching one («Документ»). */
+  documents: EventDocuments;
   /** Closes the sheet: after «Отмена», Esc, or once saved. */
   onClose: () => void;
 }
@@ -62,7 +81,7 @@ interface EventSheetProps extends EventTarget {
   /** Hints under those rows (already translated), shown while they have no error. */
   hints?: Partial<Record<string, string>>;
   /** Saves the event (`place.eventId` set when editing); the sheet closes once it resolves. */
-  save: (place: EventPlace, timing: EventTiming) => Promise<unknown>;
+  save: (place: EventPlace, timing: EventTiming) => Promise<string>;
 }
 
 /**
@@ -73,6 +92,8 @@ interface EventSheetProps extends EventTarget {
  * with «Готово», once the kind's rows pass `check`. `editing` an event, its values fill the sheet,
  * «Готово» saves what changed, «Перенести в…» saves it into another of the person's Illnesses that
  * isn't Ended or a «Новая болезнь» named after its date, and «Удалить» deletes it after asking.
+ * «Документ» attaches a PDF or photo to the event once it is saved (replacing the one it carries),
+ * which needs the internet: offline the event is saved and the sheet stays, saying so.
  */
 export function EventSheet({
   title,
@@ -85,6 +106,7 @@ export function EventSheet({
   illnessId,
   untimed = false,
   editing,
+  documents,
   onClose,
 }: EventSheetProps) {
   const { t } = useTranslation();
@@ -107,8 +129,18 @@ export function EventSheet({
   const [target, setTarget] = useState(joined?.id ?? NEW);
   const [other, setOther] = useState(others[0]?.id ?? '');
   const [fieldErrors, setFieldErrors] = useState<FieldMessages<string>>({});
+  const [formError, setFormError] = useState<ErrorMessage>();
   const [saving, setSaving] = useState(false);
   const [moving, setMoving] = useState(false);
+  // The event's id, made once when a new event's sheet opens (S3), so «Готово» again after a file
+  // that couldn't be attached changes the same event.
+  const [eventId] = useState(() => editing?.event.id ?? crypto.randomUUID());
+  // The Illness the event was saved into, once it was while its file couldn't be attached.
+  const [savedInto, setSavedInto] = useState<string>();
+  // The file chosen for «Документ», and the id of the Document it becomes (S3, kept for a retry).
+  const [file, setFile] = useState<File>();
+  const [documentId] = useState(newDocumentId);
+  const attached = documents.of(eventId);
 
   function newIllness(): IllnessChoice {
     return {
@@ -123,21 +155,47 @@ export function EventSheet({
     return { illnessId: target === OTHER ? other : target };
   }
 
-  /** Checks the rows, then saves the event into `choice` (moving an edited one there). */
-  async function done(choice: () => IllnessChoice = illnessChoice) {
+  /**
+   * Checks the rows, then saves the event into the chosen Illness, or into `moveTo` (moving an
+   * edited one there); then attaches the chosen file, which needs the internet: when it can't, the
+   * event stays saved and the sheet stays open, saying why.
+   */
+  async function done(moveTo?: () => IllnessChoice) {
     const errors: FieldMessages<string> = { ...check() };
     if (date === '') errors.date = fieldMessageKey('required');
+    if (file !== undefined && file.size > DOCUMENT_MAX_SIZE) {
+      errors.file = 'errors.documentTooLarge';
+    }
     setFieldErrors(errors);
+    setFormError(undefined);
     if (Object.keys(errors).length > 0) return;
     setSaving(true);
-    await save(
-      { ...choice(), ...(editing !== undefined && { eventId: editing.event.id }) },
+    const place =
+      moveTo?.() ?? (savedInto === undefined ? illnessChoice() : { illnessId: savedInto });
+    const savedIllnessId = await save(
+      { ...place, eventId },
       {
         date,
         time: time === '' ? null : time,
         description: description.trim() === '' ? null : description.trim(),
       },
     );
+    if (file !== undefined) {
+      setSavedInto(savedIllnessId);
+      try {
+        await documents.attach(documentId, eventId, file, date);
+      } catch (error: unknown) {
+        if (asApiError(error).code === NETWORK_UNAVAILABLE) {
+          setFormError({ key: 'medical.uploadNeedsInternet', values: {} });
+        } else {
+          const { fieldMessages, formMessage } = failureMessages(error, DOCUMENT_FIELDS);
+          setFieldErrors(fieldMessages);
+          setFormError(formMessage);
+        }
+        setSaving(false);
+        return;
+      }
+    }
     onClose();
   }
 
@@ -198,6 +256,18 @@ export function EventSheet({
           )}
         </GroupedSection>
       )}
+      <GroupedSection messages={lines.form({ fields: DOCUMENT_FIELDS, fieldErrors, formError })}>
+        <FileRow
+          label={t('medical.document')}
+          name="file"
+          accept={DOCUMENT_TYPES}
+          value={file?.name ?? attached?.title ?? t('medical.chooseFile')}
+          onChange={(chosen) => {
+            setFile(chosen);
+            setFormError(undefined);
+          }}
+        />
+      </GroupedSection>
       {editing !== undefined && (
         <GroupedSection>
           <ListRow

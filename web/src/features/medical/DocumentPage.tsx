@@ -16,26 +16,41 @@ interface DocumentPageProps {
 }
 
 /**
- * A Document open full screen (`…/medical/documents/:documentId`, back «Документы»): its file in
+ * A Document open full screen (`…/medical/documents/:documentId`, back «Документы»; or
+ * `…/illnesses/:illnessId/documents/:documentId`, back to that Illness's «Документы»): its file in
  * the browser's own viewer, from this device once opened here, so it opens again offline.
  * «Изменить» opens the Document sheet (title, date, description; «Удалить документ»). A file that
  * is gone from the server shows «Файл недоступен».
  */
 export function DocumentPage({ homePath }: DocumentPageProps) {
   const route = useCardRoute(homePath);
-  const { documentId = '' } = useParams();
+  const { documentId = '', illnessId } = useParams();
   if (route.status !== 'ready') return <CardMissing route={route} />;
   return (
-    <DocumentScreen key={cardPath(route.person)} person={route.person} documentId={documentId} />
+    <DocumentScreen
+      key={cardPath(route.person)}
+      person={route.person}
+      documentId={documentId}
+      illnessId={illnessId}
+    />
   );
 }
 
-function DocumentScreen({ person, documentId }: { person: Person; documentId: string }) {
+function DocumentScreen({
+  person,
+  documentId,
+  illnessId,
+}: {
+  person: Person;
+  documentId: string;
+  /** Opened from this Illness's Documents (or its event's 📎), which it goes back to. */
+  illnessId: string | undefined;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { documents, save, remove } = useDocuments(person);
   const [editing, setEditing] = useState(false);
-  const back = { to: documentsPath(person), title: t('medical.documents') };
+  const back = { to: documentsPath(person, illnessId), title: t('medical.documents') };
   const document = documents?.find((found) => found.id === documentId);
 
   if (document === undefined) {

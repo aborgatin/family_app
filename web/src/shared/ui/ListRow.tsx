@@ -47,12 +47,18 @@ export interface RowContentProps {
 type ListRowProps = RowAction &
   RowContentProps & {
     disabled?: boolean;
+    /**
+     * With `onClick`: a link of its own at the right end of the row, outside the row's button
+     * (an Illness event's 📎, which opens its Document). `label` names it (already translated),
+     * `symbol` is what it shows.
+     */
+    accessory?: { to: string; label: string; symbol: ReactNode };
   };
 
 /**
  * A row of a `GroupedSection` that shows something, opens a screen (`to`, chevron) or does
- * something (`onClick`, optionally `destructive`). Touch: at least 44px tall, grey while pressed;
- * fine pointer: tighter, hover tint.
+ * something (`onClick`, optionally `destructive`, optionally with an `accessory` link). Touch: at
+ * least 44px tall, grey while pressed; fine pointer: tighter, hover tint.
  */
 export function ListRow({
   title,
@@ -64,6 +70,7 @@ export function ListRow({
   busy = false,
   muted,
   disabled,
+  accessory,
   ...action
 }: ListRowProps) {
   const inside = (
@@ -90,6 +97,30 @@ export function ListRow({
       <RouterLink to={action.to} className={`${ROW} ${TAPPABLE}`}>
         {inside}
       </RouterLink>
+    );
+  }
+  if (action.onClick !== undefined && accessory !== undefined) {
+    // Two controls side by side in one cell: the row's button, then the accessory's link.
+    return (
+      <div
+        className={`${ROW_FRAME} flex items-stretch ${leading === undefined ? '' : LEADING_INSET}`}
+      >
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={action.onClick}
+          className={`${ROW_LAYOUT} ${TAPPABLE} -ml-4 min-w-0 flex-1 pl-4 text-left disabled:cursor-default disabled:opacity-40`}
+        >
+          {inside}
+        </button>
+        <RouterLink
+          to={accessory.to}
+          aria-label={accessory.label}
+          className={`${TAPPABLE} -mr-4 flex min-w-11 shrink-0 items-center justify-center px-3 text-body no-underline pointer-fine:min-w-9`}
+        >
+          <span aria-hidden="true">{accessory.symbol}</span>
+        </RouterLink>
+      </div>
     );
   }
   if (action.onClick !== undefined) {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { asApiError, type ApiError } from '@/shared/api';
 import { cachedFile, forgetFile, forgetFilesExcept, keepFile } from '@/shared/files';
-import { byId, deleteRow, requestSync, upsertRow, useRows } from '@/shared/sync';
+import { byId, deleteRow, flushOutbox, requestSync, upsertRow, useRows } from '@/shared/sync';
 import {
   documentFileUrl,
   documentIdOf,
@@ -73,19 +73,7 @@ export function useDocuments(person: Person) {
 
   const add = useCallback(
     async (id: string, file: File, details: DocumentDetails) => {
-      const form = new FormData();
-      form.append('id', id);
-      if (person.childId !== undefined) {
-        form.append('childId', person.childId);
-      } else {
-        form.append('memberId', person.memberId);
-      }
-      form.append('title', details.title.trim());
-      form.append('date', details.date);
-      const description = details.description.trim();
-      if (description !== '') form.append('description', description);
-      form.append('file', file);
-      await uploadDocument(form);
+      await uploadDocument(uploadForm(person, id, file, details));
       requestSync();
     },
     [person],
@@ -107,6 +95,103 @@ export function useDocuments(person: Person) {
   }, []);
 
   return { documents, add, save, remove };
+}
+
+/** A file's name without its extension, a Document's default title: «Анализ крови.pdf» → «Анализ крови». */
+export function titleOf(file: File): string {
+  const dot = file.name.lastIndexOf('.');
+  return dot > 0 ? file.name.slice(0, dot) : file.name;
+}
+
+/** The form of an upload of a new Document to the person's card. */
+function uploadForm(person: Person, id: string, file: File, details: DocumentDetails): FormData {
+  const form = new FormData();
+  form.append('id', id);
+  if (person.childId !== undefined) {
+    form.append('childId', person.childId);
+  } else {
+    form.append('memberId', person.memberId);
+  }
+  form.append('title', details.title.trim());
+  form.append('date', details.date);
+  const description = details.description.trim();
+  if (description !== '') form.append('description', description);
+  form.append('file', file);
+  return form;
+}
+
+/** What an event sheet needs of its event's Document (`useEventDocuments`). */
+export interface EventDocuments {
+  /** The Document the Illness event carries, if any. */
+  of: (eventId: string) => MedicalDocument | undefined;
+  /** The Documents these events carry (an Illness's), newest first by date. */
+  ofEvents: (events: readonly { id: string }[]) => MedicalDocument[];
+  /**
+   * Attaches a file to the Illness event as a new Document `id`, titled after the file and dated
+   * like the event, replacing the one the event carries. Online only: it first sends the Outbox,
+   * so the event is on the server; rejects with the `ApiError` (`network.unavailable` offline).
+   */
+  attach: (id: string, eventId: string, file: File, date: string) => Promise<void>;
+  /**
+   * Deletes the Documents these events carry, with their files kept on this device: what the
+   * server does when the events (or their Illness) are deleted, done here at once, offline too.
+   */
+  removeOfEvents: (events: readonly { id: string }[]) => Promise<void>;
+}
+
+/**
+ * The Documents of the person's Illness events (ticket #134): the one an event carries (one at
+ * most), and attaching a file to one.
+ */
+export function useEventDocuments(person: Person): EventDocuments {
+  const rows = useRows('document') as MedicalDocument[] | undefined;
+  const byEvent = useMemo(() => {
+    const documents = new Map<string, MedicalDocument>();
+    for (const document of rows ?? []) {
+      if (isOn(person, document) && document.illnessEventId != null) {
+        documents.set(document.illnessEventId, document);
+      }
+    }
+    return documents;
+  }, [rows, person]);
+  const of = useCallback((eventId: string) => byEvent.get(eventId), [byEvent]);
+  const ofEvents = useCallback(
+    (events: readonly { id: string }[]) =>
+      events
+        .flatMap(({ id }) => {
+          const document = byEvent.get(id);
+          return document === undefined ? [] : [document];
+        })
+        .sort(newestFirst),
+    [byEvent],
+  );
+  const attach = useCallback(
+    async (id: string, eventId: string, file: File, date: string) => {
+      const carried = byEvent.get(eventId);
+      const replaced = carried?.id === id ? undefined : carried;
+      await flushOutbox();
+      const form = uploadForm(person, id, file, { title: titleOf(file), date, description: '' });
+      form.append('illnessEventId', eventId);
+      if (replaced !== undefined) form.append('replaces', replaced.id);
+      await uploadDocument(form);
+      if (replaced !== undefined) await forgetFile(documentFileUrl(replaced.id));
+      requestSync();
+    },
+    [byEvent, person],
+  );
+  const removeOfEvents = useCallback(
+    async (events: readonly { id: string }[]) => {
+      for (const document of ofEvents(events)) {
+        await deleteRow('document', document.id);
+        await forgetFile(documentFileUrl(document.id));
+      }
+    },
+    [ofEvents],
+  );
+  return useMemo(
+    () => ({ of, ofEvents, attach, removeOfEvents }),
+    [of, ofEvents, attach, removeOfEvents],
+  );
 }
 
 /** A Document's file being opened: an object URL for the viewer once it is there. */

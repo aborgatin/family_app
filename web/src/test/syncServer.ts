@@ -58,7 +58,9 @@ type Rejecter = (
  * Child lists, whoever owns them, and its Child field values; a deleted Child field takes its
  * Child field values (spec #81); a deleted List takes its Items, Categories and Item history
  * (`ListService.deleteWithContent`), and its Mutes (`lists.ListUnshared`, #111); a deleted Child
- * takes their Illnesses, and a deleted Illness its events (`medical.IllnessService`, #129).
+ * takes their Illnesses, and a deleted Illness its events (`medical.IllnessService`, #129); a
+ * deleted Child takes their Documents, and a deleted event its Document (`medical.DocumentService`,
+ * #133, #134).
  */
 const CASCADES: readonly { parent: string; table: string; key: string }[] = [
   { parent: 'child', table: 'list', key: 'childId' },
@@ -71,6 +73,7 @@ const CASCADES: readonly { parent: string; table: string; key: string }[] = [
   { parent: 'child', table: 'illness', key: 'childId' },
   { parent: 'illness', table: 'illness_event', key: 'illnessId' },
   { parent: 'child', table: 'document', key: 'childId' },
+  { parent: 'illness_event', table: 'document', key: 'illnessEventId' },
 ];
 
 /** The rejection used when `rejectWhen`'s predicate just answers `true`. */
@@ -166,6 +169,13 @@ class FakeSyncServer {
   row(table: string, id: string): Record<string, unknown> | undefined {
     const row = this.stored.get(key(table, id));
     return row === undefined || row.deleted ? undefined : { id, ...row.fields };
+  }
+
+  /** The server's copies of the rows of `table` that aren't deleted (`{id, ...fields}`). */
+  rows(table: string): ({ id: string } & Record<string, unknown>)[] {
+    return [...this.stored.values()]
+      .filter((row) => row.table === table && !row.deleted)
+      .map((row) => ({ id: row.id, ...row.fields }));
   }
 
   /** Every operation pushed for `table`, in arrival order. */

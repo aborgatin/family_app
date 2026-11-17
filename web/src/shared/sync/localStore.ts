@@ -80,6 +80,7 @@ export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTabl
     { parent: 'child', table: 'illness', key: 'childId' },
     { parent: 'illness', table: 'illness_event', key: 'illnessId' },
     { parent: 'child', table: 'document', key: 'childId' },
+    { parent: 'illness_event', table: 'document', key: 'illnessEventId' },
   ];
 
 /**
@@ -118,6 +119,8 @@ export const STORE_SCHEMA: readonly Readonly<Record<string, string>>[] = [
   { medicine: 'id' },
   // Documents on Medical cards (ticket #133), dependent on their Child (none for a Member's card).
   { document: 'id, childId' },
+  // Documents indexed by their Illness event too (ticket #134), a dependent table of it.
+  { document: 'id, childId, illnessEventId' },
 ];
 
 interface Meta {

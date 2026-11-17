@@ -16,7 +16,7 @@ interface DoseSheetProps extends EventTarget {
   medicines: readonly Medicine[];
   /** The amount to prefill for a Medicine: the person's latest dose of it; none the first time. */
   lastAmountOf: (medicineId: string) => string | undefined;
-  save: (place: EventPlace, details: DoseDetails) => Promise<unknown>;
+  save: (place: EventPlace, details: DoseDetails) => Promise<string>;
   /** Editing a dose: its Medicine's name, a deleted one's too. */
   medicineName?: string;
 }

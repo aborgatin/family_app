@@ -20,9 +20,10 @@ import { useCardRoute } from './cardRoute';
 import { eventsInOrder, firstDay, formatTemperature } from './illnessRules';
 import { EditEventSheet } from './EditEventSheet';
 import { CardMissing } from './MedicalCardPage';
-import { cardPath } from './medicalPaths';
+import { cardPath, documentPath, documentsPath } from './medicalPaths';
 import { LogSection } from './LogSection';
-import type { Illness, IllnessEvent, Person } from './medicalTypes';
+import type { Illness, IllnessEvent, MedicalDocument, Person } from './medicalTypes';
+import { useEventDocuments } from './useDocuments';
 import { useMedicalCard } from './useMedicalCard';
 import { useMedicines } from './useMedicines';
 
@@ -33,11 +34,13 @@ interface IllnessPageProps {
 
 /**
  * An Illness or Condition screen (`…/medical/illnesses/:illnessId`), back to its card: titled with
- * its name, «с 2 декабря 2026» (an Illness only), «Приём лекарства», «Температура» and «Заметка»
- * (their sheets, into this one), then its events, newest first, under a header per day, and the
+ * its name, «с 2 декабря 2026» (an Illness only), «Документы (n)» (its events' Documents),
+ * «Приём лекарства», «Температура» and «Заметка»
+ * (their sheets, into this one), then its events, newest first, under a header per day (📎 opens
+ * the Document an event carries), and the
  * actions «Тип: Болезнь / Диагноз/наблюдение», «Завершить» or «Возобновить», and «Удалить». An Ended
  * one stays fully editable. One that is unknown, or is deleted while the screen is open, says so.
- * Data only through `useMedicalCard(person)`.
+ * Data only through `useMedicalCard(person)` and `useEventDocuments(person)`.
  */
 export function IllnessPage({ homePath }: IllnessPageProps) {
   const route = useCardRoute(homePath);
@@ -49,6 +52,7 @@ function IllnessScreen({ person }: { person: Person }) {
   const { t } = useTranslation();
   const { illnessId } = useParams();
   const card = useMedicalCard(person);
+  const eventDocuments = useEventDocuments(person);
   const navigate = useNavigate();
   const { all, eventsOf, rename, describe, removeIllness, changeKind, end, resume } = card;
   const { nameOf } = useMedicines();
@@ -71,19 +75,25 @@ function IllnessScreen({ person }: { person: Person }) {
 
   const events = eventsInOrder(eventsOf(illness.id));
   const first = firstDay(events);
+  const documents = eventDocuments.ofEvents(events);
   const days = [...new Set(events.map(({ date }) => date))];
   const opened = events.find(({ id }) => id === openedId);
   return (
     <Page title={illness.name} back={back}>
       <Sections>
         <IllnessFields key={illness.id} illness={illness} rename={rename} describe={describe} />
-        {first !== undefined && illness.kind === 'ILLNESS' && (
-          <GroupedSection>
+        <GroupedSection>
+          {first !== undefined && illness.kind === 'ILLNESS' && (
             <ListRow title={t('medical.since', { date: longDay(localDay(first), 'always') })} />
-          </GroupedSection>
-        )}
+          )}
+          <ListRow
+            title={t('medical.documentsCount', { n: documents.length })}
+            to={documentsPath(person, illness.id)}
+          />
+        </GroupedSection>
         <LogSection
           card={card}
+          documents={eventDocuments}
           target={{ illnessId: illness.id }}
           titles={{
             dose: t('medical.dose'),
@@ -100,6 +110,8 @@ function IllnessScreen({ person }: { person: Person }) {
                   key={event.id}
                   event={event}
                   nameOfMedicine={nameOf}
+                  document={eventDocuments.of(event.id)}
+                  documentPath={(id) => documentPath(person, id, illness.id)}
                   onOpen={() => {
                     setOpenedId(event.id);
                   }}
@@ -115,13 +127,20 @@ function IllnessScreen({ person }: { person: Person }) {
           confirmDelete={{
             title: t('medical.confirmDeleteIllness', { name: illness.name }),
             ...(events.length > 0 && {
-              message: t('medical.deleteIllnessEvents', { count: events.length }),
+              message:
+                documents.length > 0
+                  ? t('medical.deleteIllnessEventsAndDocuments', {
+                      count: events.length,
+                      documents: t('medical.documentCount', { count: documents.length }),
+                    })
+                  : t('medical.deleteIllnessEvents', { count: events.length }),
             }),
             action: t('ui.delete'),
           }}
           onDelete={() => {
             // Leave first: the Illness is gone from the local store as soon as it is deleted.
             void navigate(back.to, { replace: true });
+            void eventDocuments.removeOfEvents(events);
             void removeIllness(illness);
           }}
         />
@@ -131,6 +150,7 @@ function IllnessScreen({ person }: { person: Person }) {
           key={opened.id}
           event={opened}
           card={card}
+          documents={eventDocuments}
           onClose={() => {
             setOpenedId(undefined);
           }}
@@ -230,10 +250,16 @@ function IllnessFields({ illness, rename, describe }: IllnessFieldsProps) {
 function EventRow({
   event,
   nameOfMedicine,
+  document,
+  documentPath,
   onOpen,
 }: {
   event: IllnessEvent;
   nameOfMedicine: (medicineId: string) => string | undefined;
+  /** The Document the event carries: 📎 at the right opens its file. */
+  document: MedicalDocument | undefined;
+  /** Where a Document opens. */
+  documentPath: (documentId: string) => string;
   /** Opens the event's sheet. */
   onOpen: () => void;
 }) {
@@ -254,6 +280,13 @@ function EventRow({
       wrapTitle
       subtitle={event.description ?? undefined}
       onClick={onOpen}
+      {...(document !== undefined && {
+        accessory: {
+          to: documentPath(document.id),
+          label: t('medical.openDocument', { title: document.title }),
+          symbol: '📎',
+        },
+      })}
     />
   );
 }

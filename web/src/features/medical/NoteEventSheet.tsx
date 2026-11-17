@@ -6,7 +6,7 @@ import { EventSheet, type EventTarget } from './EventSheet';
 import type { EventPlace, NoteEventDetails } from './useMedicalCard';
 
 interface NoteEventSheetProps extends EventTarget {
-  save: (place: EventPlace, details: NoteEventDetails) => Promise<unknown>;
+  save: (place: EventPlace, details: NoteEventDetails) => Promise<string>;
 }
 
 const FIELDS = ['title'] as const;

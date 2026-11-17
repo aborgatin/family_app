@@ -187,6 +187,30 @@ export function documentsServer() {
       if (file === undefined || typeof file === 'string') {
         return HttpResponse.json({ code: 'validation.failed', params: {} }, { status: 400 });
       }
+      // An Illness event's upload, as the server checks it: the event must be there (pushed), and
+      // carry no Document but the one it `replaces`, which goes.
+      const eventId = text('illnessEventId');
+      if (eventId !== null) {
+        if (syncServer.row('illness_event', eventId) === undefined) {
+          return HttpResponse.json(
+            { code: 'medical.not_found', params: { illnessEventId: eventId } },
+            { status: 404 },
+          );
+        }
+        const carried = syncServer
+          .rows('document')
+          .find((document) => document.illnessEventId === eventId);
+        if (carried !== undefined && carried.id !== text('replaces')) {
+          return HttpResponse.json(
+            { code: 'document.event_has_document', params: { illnessEventId: eventId } },
+            { status: 409 },
+          );
+        }
+        if (carried !== undefined) {
+          syncServer.change('document', carried.id, 'deleted');
+          files.delete(carried.id);
+        }
+      }
       const row = {
         id: text('id') ?? '',
         memberId: text('memberId'),

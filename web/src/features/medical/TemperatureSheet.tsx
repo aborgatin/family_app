@@ -5,7 +5,7 @@ import { DEFAULT_TEMPERATURE, TemperatureRow, wheelValue } from './TemperatureRo
 import type { EventPlace, TemperatureDetails } from './useMedicalCard';
 
 interface TemperatureSheetProps extends EventTarget {
-  save: (place: EventPlace, details: TemperatureDetails) => Promise<unknown>;
+  save: (place: EventPlace, details: TemperatureDetails) => Promise<string>;
 }
 
 const NO_FIELDS: readonly never[] = [];

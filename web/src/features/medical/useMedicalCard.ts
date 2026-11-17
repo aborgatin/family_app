@@ -65,13 +65,14 @@ export function newConditionId(): string {
  *   ILLNESS that aren't Ended (`illnessesInOrder`); `ended`: the Ended ones of both kinds, by
  *   latest event. Each `undefined` until the first local read;
  * - `eventsOf(illnessId)`: the Illness's events, unordered;
+ * - `illnessOfEvent(eventId)`: the Illness or Condition on the card the event is in, if any;
  * - `lastAmountOf(medicineId)`: the amount to prefill for a dose of it (`lastAmount` over every
  *   event on the card); `undefined` the first time;
  * - `saveTemperature(place, details)`, `saveDose(place, details)`, `saveNoteEvent(place,
  *   details)`: add the event to an Illness, or create the Illness and the event in one Outbox
  *   batch; a dose of a Medicine typed in the picker adds the Medicine first, in the same batch.
  *   With the place's `eventId`, they change that event instead: only the fields that differ are
- *   written and sent (`upsertRows`);
+ *   written and sent (`upsertRows`). Each resolves with the id of the event's Illness;
  * - `rename(illness, name)`, `describe(illness, description)` (both trimmed, a blank Description
  *   is none): resolve with the value as saved; `removeIllness(illness)`: deletes it with its events;
  *   `removeEvent(event)`;
@@ -135,12 +136,25 @@ export function useMedicalCard(person: Person) {
     [illnessRows, eventsOf, person],
   );
 
+  const illnessOfEvent = useCallback(
+    (eventId: string) => {
+      const event = eventRows?.find(({ id }) => id === eventId);
+      return event === undefined
+        ? undefined
+        : sections?.all.find(({ id }) => id === event.illnessId);
+    },
+    [eventRows, sections],
+  );
+
   const lastAmountOf = useCallback(
     (medicineId: string) => lastAmount(cardEvents, medicineId),
     [cardEvents],
   );
 
-  /** Writes the event, after the rows it needs first, in one Outbox batch. */
+  /**
+   * Writes the event, after the rows it needs first, in one Outbox batch; resolves with the id of
+   * its Illness (a new one's too).
+   */
   const saveEvent = useCallback(
     async (
       { eventId = crypto.randomUUID(), ...target }: EventPlace,
@@ -165,6 +179,7 @@ export function useMedicalCard(person: Person) {
         fields: { illnessId, ...event },
       });
       await upsertRows(writes);
+      return illnessId;
     },
     [person],
   );
@@ -271,6 +286,7 @@ export function useMedicalCard(person: Person) {
     end,
     resume,
     eventsOf,
+    illnessOfEvent,
     lastAmountOf,
     saveTemperature,
     saveDose,

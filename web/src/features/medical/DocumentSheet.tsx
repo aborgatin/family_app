@@ -22,7 +22,7 @@ import {
   useFooterLines,
 } from '@/shared/ui';
 import { fileKind, type MedicalDocument } from './medicalTypes';
-import { DOCUMENT_MAX_SIZE, DOCUMENT_TYPES, type DocumentDetails } from './useDocuments';
+import { DOCUMENT_MAX_SIZE, DOCUMENT_TYPES, titleOf, type DocumentDetails } from './useDocuments';
 
 type Field = 'file' | 'title' | 'date';
 const FIELDS: readonly Field[] = ['file', 'title', 'date'];
@@ -78,7 +78,7 @@ export function DocumentSheet({ mode, onClose }: DocumentSheetProps) {
     delete others.file;
     setFieldErrors(others);
     if (chosen === undefined) return;
-    const fromFile = withoutExtension(chosen.name);
+    const fromFile = titleOf(chosen);
     if (title.trim() === '' || title === titleFromFile) {
       setTitle(fromFile);
       setTitleFromFile(fromFile);
@@ -173,12 +173,6 @@ export function DocumentSheet({ mode, onClose }: DocumentSheetProps) {
       )}
     </Sheet>
   );
-}
-
-/** A file's name without its extension: «Анализ крови.pdf» → «Анализ крови». */
-function withoutExtension(name: string): string {
-  const dot = name.lastIndexOf('.');
-  return dot > 0 ? name.slice(0, dot) : name;
 }
 
 const SIZE = new Intl.NumberFormat('ru', { maximumFractionDigits: 1 });
