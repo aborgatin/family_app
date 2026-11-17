@@ -9,6 +9,7 @@ import {
   FileRow,
   GroupedSection,
   ListRow,
+  Sections,
   SelectRow,
   Sheet,
   TextAreaRow,
@@ -72,8 +73,6 @@ interface EventSheetProps extends EventTarget {
   fields: readonly string[];
   /** Checks those rows on «Готово»: an error key per row that isn't right; empty when all are. */
   check: () => FieldMessages<string>;
-  /** Hints under those rows (already translated), shown while they have no error. */
-  hints?: Partial<Record<string, string>>;
   /** Saves the event (`place.eventId` set when editing); the sheet closes once it resolves. */
   save: (place: EventPlace, timing: EventTiming) => Promise<string>;
 }
@@ -94,7 +93,6 @@ export function EventSheet({
   children,
   fields,
   check,
-  hints,
   save,
   addTo,
   illnessId,
@@ -204,92 +202,90 @@ export function EventSheet({
       onDone={() => void done()}
       busy={saving}
     >
-      <GroupedSection
-        messages={lines.form({ fields, fieldErrors, ...(hints !== undefined && { hints }) })}
-      >
-        {children}
-      </GroupedSection>
-      <GroupedSection messages={lines.form({ fields: ['date'], fieldErrors })}>
-        <DateRow label={t('medical.date')} name="date" value={date} onChange={setDate} />
-        <DateRow
-          label={t('medical.time')}
-          name="time"
-          type="time"
-          value={time}
-          onChange={setTime}
-        />
-        <TextAreaRow
-          label={t('medical.description')}
-          name="description"
-          value={description}
-          onChange={setDescription}
-        />
-      </GroupedSection>
-      {addTo !== undefined && (
-        <GroupedSection>
-          <SelectRow
-            label={t('medical.addTo')}
-            name="addTo"
-            options={targets}
-            value={target}
-            onChange={setTarget}
+      <Sections>
+        <GroupedSection messages={lines.form({ fields, fieldErrors })}>{children}</GroupedSection>
+        <GroupedSection messages={lines.form({ fields: ['date'], fieldErrors })}>
+          <DateRow label={t('medical.date')} name="date" value={date} onChange={setDate} />
+          <DateRow
+            label={t('medical.time')}
+            name="time"
+            type="time"
+            value={time}
+            onChange={setTime}
           />
-          {target === OTHER && (
+          <TextAreaRow
+            label={t('medical.description')}
+            name="description"
+            value={description}
+            onChange={setDescription}
+          />
+        </GroupedSection>
+        {addTo !== undefined && (
+          <GroupedSection>
             <SelectRow
-              label={t('medical.illness')}
-              name="other"
-              options={others.map((illness) => ({ value: illness.id, label: illness.name }))}
-              value={other}
-              onChange={setOther}
+              label={t('medical.addTo')}
+              name="addTo"
+              options={targets}
+              value={target}
+              onChange={setTarget}
             />
-          )}
-        </GroupedSection>
-      )}
-      <GroupedSection messages={lines.form({ fields: DOCUMENT_FIELDS, fieldErrors, formError })}>
-        <FileRow
-          label={t('medical.document')}
-          name="file"
-          accept={DOCUMENT_TYPES}
-          value={file?.name ?? attached?.title ?? t('medical.chooseFile')}
-          onChange={(chosen) => {
-            setFile(chosen);
-            setFormError(undefined);
-          }}
-        />
-      </GroupedSection>
-      {editing !== undefined && (
-        <GroupedSection>
-          <ListRow
-            title={t('medical.moveTo')}
-            accent
-            onClick={() => {
-              setMoving(true);
-            }}
-          />
-          <ActionSheet
-            open={moving}
-            onOpenChange={setMoving}
-            title={t('medical.moveTo')}
-            actions={[
-              ...editing.illnesses
-                .filter(({ id, ended }) => id !== editing.event.illnessId && ended !== true)
-                .map((illness) => ({
-                  label: illness.name,
-                  onSelect: () => void done(() => ({ illnessId: illness.id })),
-                })),
-              { label: t('medical.newIllness'), onSelect: () => void done(newIllness) },
-            ]}
-          />
-          <ConfirmRow
-            title={t('ui.delete')}
-            confirm={{ title: t('medical.confirmDeleteEvent'), action: t('ui.delete') }}
-            onConfirm={() => {
-              void editing.remove();
-              onClose();
+            {target === OTHER && (
+              <SelectRow
+                label={t('medical.illness')}
+                name="other"
+                options={others.map((illness) => ({ value: illness.id, label: illness.name }))}
+                value={other}
+                onChange={setOther}
+              />
+            )}
+          </GroupedSection>
+        )}
+        <GroupedSection messages={lines.form({ fields: DOCUMENT_FIELDS, fieldErrors, formError })}>
+          <FileRow
+            label={t('medical.document')}
+            name="file"
+            accept={DOCUMENT_TYPES}
+            value={file?.name ?? attached?.title ?? t('medical.chooseFile')}
+            onChange={(chosen) => {
+              setFile(chosen);
+              setFormError(undefined);
             }}
           />
         </GroupedSection>
-      )}
+        {editing !== undefined && (
+          <GroupedSection>
+            <ListRow
+              title={t('medical.moveTo')}
+              accent
+              onClick={() => {
+                setMoving(true);
+              }}
+            />
+            <ActionSheet
+              open={moving}
+              onOpenChange={setMoving}
+              title={t('medical.moveTo')}
+              actions={[
+                ...editing.illnesses
+                  .filter(({ id, ended }) => id !== editing.event.illnessId && ended !== true)
+                  .map((illness) => ({
+                    label: illness.name,
+                    onSelect: () => void done(() => ({ illnessId: illness.id })),
+                  })),
+                { label: t('medical.newIllness'), onSelect: () => void done(newIllness) },
+              ]}
+            />
+            <ConfirmRow
+              title={t('ui.delete')}
+              confirm={{ title: t('medical.confirmDeleteEvent'), action: t('ui.delete') }}
+              onConfirm={() => {
+                void editing.remove();
+                onClose();
+              }}
+            />
+          </GroupedSection>
+        )}
+      </Sections>
     </Sheet>
   );
 }

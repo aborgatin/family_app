@@ -1761,7 +1761,7 @@ export default {
       ],
     },
     {
-      // Ибупрофен picked: «Количество» is what Маша got last time, «как в прошлый раз».
+      // Ибупрофен picked: «Количество» is what Маша got last time.
       name: "medical-dose-sheet-prefilled",
       path: "/",
       fullPage: false,
@@ -1771,7 +1771,7 @@ export default {
         { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
         { click: 'role=button[name="Добавить приём лекарства"]' },
         { click: 'role=dialog >> role=button[name="Ибупрофен 20 мг/мл"]' },
-        { waitFor: "role=dialog >> text=как в прошлый раз" },
+        { waitFor: 'role=dialog >> role=textbox[name="Количество"]' },
         { wait: 400 },
       ],
     },
@@ -1915,7 +1915,7 @@ export default {
         { click: 'role=button[name="Записать температуру"]' },
         { click: 'role=dialog >> role=button[name="Готово"]' },
         { click: `${section("Болезни")} >> role=link[name=/Болезнь/]` },
-        { click: "role=button[name=/37,0 °C/]" },
+        { click: "role=button[name=/37,0\\s°C/]" },
         { click: 'role=dialog >> role=button[name="Удалить"]' },
         {
           click:

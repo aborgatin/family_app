@@ -894,8 +894,8 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   «Вместе с ней удалятся 6 событий.» (`medical.deleteIllnessEvents_*`; no message without events),
   goes back to the card and deletes the Illness (its events go with it). An Illness left without
   events stays. An unknown or deleted Illness: «Такой болезни нет: возможно, её удалили.».
-- **Event sheets** (`EventSheet`, a `Sheet` titled by the kind): the kind's own rows first, in
-  their own group (so a hint such as «как в прошлый раз» sits under them), then a group of
+- **Event sheets** (`EventSheet`, a `Sheet` titled by the kind, its groups in `Sections`): the kind's own rows first, in
+  their own group, then a group of
   «Дата» and «Время» (`DateRow`s) defaulting to when the sheet opened, the time may be cleared;
   «Описание» (`TextAreaRow`). From the card, «Добавить к» preselects `illnessToJoin` or «Новая
   болезнь» (never a Condition or an Ended Illness: the card passes only those that aren't Ended,
@@ -904,7 +904,7 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
 - **Editing an event** (`EditEventSheet`, #131): the sheet of its kind with `editing` (an
   `EventEditing`: the event, the person's Illnesses, `remove`): every row filled with its values
   (a dose: its Medicine's name, a deleted one's too, kept while the name is left as it is; its
-  amount, no «как в прошлый раз»), no «Добавить к». «Готово» saves through the same `save…`,
+  amount, no prefill), no «Добавить к». «Готово» saves through the same `save…`,
   the `EventPlace` carrying the event's id (`EventSheet` adds it), so only the changed fields are
   sent. «Перенести в…» (an accent `ListRow`) opens
   an `ActionSheet` of the person's other Illnesses and Conditions that aren't Ended (never an Ended
@@ -928,7 +928,7 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   typed in any letter case picks that Medicine (`medicineNamed`) and closes the rows, as «+ …»
   does; otherwise «Готово» adds the typed name as a new Medicine in the same Outbox batch as the
   dose (and the new Illness). «Количество» (`InputRow`, placeholder «например, 5 мл», required)
-  shows `lastAmountOf(medicine)` with the hint «как в прошлый раз» until the Member types their
+  shows `lastAmountOf(medicine)` (no hint under it) until the Member types their
   own; empty the first time. «Температура» is the optional wheel. Both «Лекарство» and
   «Количество» are required («Заполните это поле»).
 - **Medicines in Settings** (`MedicinesSettings`, «Лекарства», built like «Поля профиля» without

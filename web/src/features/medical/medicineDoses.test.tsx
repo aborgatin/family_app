@@ -99,10 +99,10 @@ describe('The dose sheet', () => {
       .getAllByRole('option')
       .map((option) => option.textContent);
     expect(options).toHaveLength(92);
-    expect(options[0]).toBe('34,0 °C');
-    expect(options.at(-1)).toBe('43,0 °C');
+    expect(options[0]).toBe('34,0\u00a0°C');
+    expect(options.at(-1)).toBe('43,0\u00a0°C');
     // «—» sits between 36,9 and 37,0, not above 34,0: one turn down lands on 37,0, one up on 36,9.
-    expect(options.slice(29, 32)).toEqual(['36,9 °C', '—', '37,0 °C']);
+    expect(options.slice(29, 32)).toEqual(['36,9\u00a0°C', '—', '37,0\u00a0°C']);
   });
 
   it('asks for the Medicine and the amount without saving anything', async () => {
@@ -145,7 +145,7 @@ describe('Picking the Medicine', () => {
     expect(medicineField(sheet)).toHaveValue('Ибупрофен 20 мг/мл');
     expect(pickerRows(sheet)).toEqual([]);
     await user.type(amountField(sheet), ' 5 мл ');
-    await user.selectOptions(wheel(sheet), '38,5 °C');
+    await user.selectOptions(wheel(sheet), '38.5');
     await done(user, sheet);
 
     await waitFor(() => {
@@ -247,7 +247,6 @@ describe('The prefilled amount', () => {
     const sheet = await amountFor('Ибупрофен');
 
     expect(amountField(sheet)).toHaveValue('');
-    expect(within(sheet).queryByText('как в прошлый раз')).not.toBeInTheDocument();
   });
 
   it('is the amount of this person’s latest dose of it, by its own date and time', async () => {
@@ -269,7 +268,8 @@ describe('The prefilled amount', () => {
 
     // An untimed dose counts as 00:00 of its day: still after 30 November, 23:00.
     expect(amountField(sheet)).toHaveValue('7,5 мл');
-    expect(amountField(sheet)).toHaveAccessibleDescription('как в прошлый раз');
+    // Prefilled without a hint under it.
+    expect(amountField(sheet)).not.toHaveAccessibleDescription();
   });
 
   it('goes to the dose the server got last when two have the same date and time', async () => {
@@ -297,7 +297,6 @@ describe('The prefilled amount', () => {
     await user.click(await within(sheet).findByRole('button', { name: 'Ибупрофен' }));
     await user.clear(amountField(sheet));
     await user.type(amountField(sheet), '7,5 мл');
-    expect(amountField(sheet)).not.toHaveAccessibleDescription('как в прошлый раз');
     await done(user, sheet);
 
     await user.click(await screen.findByRole('button', { name: 'Добавить приём лекарства' }));

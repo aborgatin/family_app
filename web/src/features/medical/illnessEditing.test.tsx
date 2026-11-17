@@ -216,11 +216,11 @@ describe('The events of an Illness', () => {
         .map((row) => row.textContent);
     expect(rows('2 декабря')).toEqual([
       '21:00 · Купили лекарства',
-      '09:30 · 37,8 °C',
-      expect.stringMatching(/^(Сходили к доктору|37,1 °C)$/),
-      expect.stringMatching(/^(Сходили к доктору|37,1 °C)$/),
+      '09:30 · 37,8\u00a0°C',
+      expect.stringMatching(/^(Сходили к доктору|37,1\u00a0°C)$/),
+      expect.stringMatching(/^(Сходили к доктору|37,1\u00a0°C)$/),
     ]);
-    expect(rows('1 декабря')).toEqual(['07:00 · 38,0 °C', 'Вызвали врача']);
+    expect(rows('1 декабря')).toEqual(['07:00 · 38,0\u00a0°C', 'Вызвали врача']);
     expect(
       screen
         .getByRole('region', { name: '2 декабря' })
@@ -238,18 +238,18 @@ describe('Editing an event', () => {
     const user = userEvent.setup();
     await openIllness(cold);
 
-    await user.click(screen.getByRole('button', { name: /08:00 · 38,5 °C/ }));
+    await user.click(screen.getByRole('button', { name: /08:00 · 38,5\u00a0°C/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Температура' });
-    expect(selectedText(wheel(sheet))).toBe('38,5 °C');
+    expect(selectedText(wheel(sheet))).toBe('38,5\u00a0°C');
     expect(within(sheet).getByLabelText('Дата')).toHaveValue('2026-12-01');
     expect(within(sheet).getByLabelText('Время')).toHaveValue('08:00');
     expect(within(sheet).getByRole('textbox', { name: 'Описание' })).toHaveValue('Ночью');
     expect(within(sheet).queryByRole('combobox', { name: 'Добавить к' })).not.toBeInTheDocument();
-    await user.selectOptions(wheel(sheet), '37,2 °C');
+    await user.selectOptions(wheel(sheet), '37.2');
     await user.clear(within(sheet).getByLabelText('Время'));
     await done(user, sheet);
 
-    expect(await screen.findByRole('button', { name: /^37,2 °C/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^37,2\u00a0°C/ })).toBeInTheDocument();
     await waitFor(() => {
       expect(syncServer.operations('illness_event')).toEqual([
         {
@@ -370,7 +370,7 @@ describe('«Перенести в…»', () => {
   }
 
   async function openMove(user: User) {
-    await user.click(screen.getByRole('button', { name: /08:00 · 38,5 °C/ }));
+    await user.click(screen.getByRole('button', { name: /08:00 · 38,5\u00a0°C/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Температура' });
     await user.click(within(sheet).getByRole('button', { name: 'Перенести в…' }));
     return screen.getByRole('dialog', { name: 'Перенести в…' });
@@ -442,7 +442,7 @@ describe('Deleting an event', () => {
     const user = userEvent.setup();
     await openIllness(cold);
 
-    await user.click(screen.getByRole('button', { name: /08:00 · 38,5 °C/ }));
+    await user.click(screen.getByRole('button', { name: /08:00 · 38,5\u00a0°C/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Температура' });
     await user.click(within(sheet).getByRole('button', { name: 'Удалить' }));
     const question = screen.getByRole('dialog', { name: 'Удалить событие?' });

@@ -25,8 +25,8 @@ interface DoseSheetProps extends EventTarget {
  * «Приём лекарства»: a Medicine dose, saved only with «Готово». «Лекарство» is a picker with
  * search: the Medicines whose name has the typed text, then «+ <text>» to add it to the list; the
  * name of one typed in any letter case picks it. «Количество» is free text, required, prefilled
- * with the person's latest amount of that Medicine («как в прошлый раз») until the Member types
- * their own. «Температура» is optional (the wheel shows «—»). Editing a dose, its values fill the
+ * with the person's latest amount of that Medicine until the Member types their own.
+ * «Температура» is optional (the wheel shows «—»). Editing a dose, its values fill the
  * rows (no prefill), and its Medicine stays while its name does, deleted or not. The rest is
  * `EventSheet`'s.
  */
@@ -83,9 +83,6 @@ export function DoseSheet({
       title={t('medical.dose')}
       fields={FIELDS}
       check={check}
-      hints={{
-        ...(prefilled !== undefined && amount === prefilled && { amount: t('medical.asLastTime') }),
-      }}
       save={(place, timing) =>
         save(place, {
           medicine,

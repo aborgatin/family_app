@@ -10,6 +10,7 @@ import {
   GroupedSection,
   InputRow,
   ListRow,
+  Sections,
   Sheet,
   TextAreaRow,
   useFooterLines,
@@ -127,45 +128,47 @@ export function DocumentSheet({ mode, onClose }: DocumentSheetProps) {
       onDone={() => void done()}
       busy={saving}
     >
-      <GroupedSection messages={lines.form({ fields: FIELDS, fieldErrors, formError })}>
-        {current === undefined ? (
-          <FileRow
-            label={t('medical.file')}
-            name="file"
-            accept={DOCUMENT_TYPES}
-            value={file?.name ?? t('medical.chooseFile')}
-            onChange={choose}
+      <Sections>
+        <GroupedSection messages={lines.form({ fields: FIELDS, fieldErrors, formError })}>
+          {current === undefined ? (
+            <FileRow
+              label={t('medical.file')}
+              name="file"
+              accept={DOCUMENT_TYPES}
+              value={file?.name ?? t('medical.chooseFile')}
+              onChange={choose}
+            />
+          ) : (
+            <ListRow title={t('medical.file')} value={fileSummary(t, current)} />
+          )}
+          <InputRow
+            label={t('medical.name')}
+            name="title"
+            autoComplete="off"
+            value={title}
+            onChange={setTitle}
           />
-        ) : (
-          <ListRow title={t('medical.file')} value={fileSummary(t, current)} />
-        )}
-        <InputRow
-          label={t('medical.name')}
-          name="title"
-          autoComplete="off"
-          value={title}
-          onChange={setTitle}
-        />
-        <DateRow label={t('medical.date')} name="date" value={date} onChange={setDate} />
-        <TextAreaRow
-          label={t('medical.description')}
-          name="description"
-          value={description}
-          onChange={setDescription}
-        />
-      </GroupedSection>
-      {mode.editing !== undefined && current !== undefined && (
-        <GroupedSection>
-          <ConfirmRow
-            title={t('medical.deleteDocument')}
-            confirm={{
-              title: t('medical.confirmDeleteDocument', { title: current.title }),
-              action: t('ui.delete'),
-            }}
-            onConfirm={mode.editing.remove}
+          <DateRow label={t('medical.date')} name="date" value={date} onChange={setDate} />
+          <TextAreaRow
+            label={t('medical.description')}
+            name="description"
+            value={description}
+            onChange={setDescription}
           />
         </GroupedSection>
-      )}
+        {mode.editing !== undefined && current !== undefined && (
+          <GroupedSection>
+            <ConfirmRow
+              title={t('medical.deleteDocument')}
+              confirm={{
+                title: t('medical.confirmDeleteDocument', { title: current.title }),
+                action: t('ui.delete'),
+              }}
+              onConfirm={mode.editing.remove}
+            />
+          </GroupedSection>
+        )}
+      </Sections>
     </Sheet>
   );
 }

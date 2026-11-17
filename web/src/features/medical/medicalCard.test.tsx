@@ -108,7 +108,7 @@ describe('The Temperature sheet', () => {
     const sheet = await openTemperatureSheet(user);
 
     const wheel = within(sheet).getByRole('combobox', { name: 'Температура' });
-    expect(selectedText(wheel)).toBe('37,0 °C');
+    expect(selectedText(wheel)).toBe('37,0\u00a0°C');
     const options = within(wheel).getAllByRole('option');
     expect(options).toHaveLength(91);
     expect(options[0]).toHaveTextContent('34,0 °C');
@@ -135,10 +135,7 @@ describe('The Temperature sheet', () => {
 
     const sheet = await openTemperatureSheet(user);
     expect(selectedText(addTo(sheet))).toBe('ОРВИ');
-    await user.selectOptions(
-      within(sheet).getByRole('combobox', { name: 'Температура' }),
-      '38,5 °C',
-    );
+    await user.selectOptions(within(sheet).getByRole('combobox', { name: 'Температура' }), '38.5');
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     await waitFor(() => {
@@ -375,7 +372,7 @@ describe('The Illness screen', () => {
       within(today)
         .getAllByText(/°C/)
         .map((row) => row.textContent),
-    ).toEqual(['22:00 · 38,5 °C', '09:30 · 37,8 °C', '37,1 °C']);
+    ).toEqual(['22:00 · 38,5\u00a0°C', '09:30 · 37,8\u00a0°C', '37,1\u00a0°C']);
     expect(
       within(screen.getByRole('region', { name: '1 декабря' })).getByText('08:00 · 38,0 °C'),
     ).toBeInTheDocument();
