@@ -7,7 +7,9 @@ import Dexie, { type Table } from 'dexie';
  *
  * Adding a syncable table: add its name to `SYNCED_TABLES` and a new `this.version(n).stores()`
  * below that declares it (keep every older version as it is). Dexie upgrades keep every table not
- * declared `null`, so the Outbox and unsent changes survive the upgrade.
+ * declared `null`, so the Outbox and unsent changes survive the upgrade. The first pull after the
+ * update is a full one (`storedVersionCoversEveryTable`), for the new table's rows the older app
+ * skipped.
  */
 
 /** The syncable tables the client keeps, named as the server's sync API names them. */
@@ -156,8 +158,28 @@ export async function storedVersion(): Promise<number> {
   return typeof meta?.value === 'number' ? meta.value : 0;
 }
 
+/**
+ * Stores the high-water Version with the tables it covers: an app version that doesn't know a table
+ * skips its rows in a pull, yet stores the Version past them.
+ */
 export async function storeVersion(version: number): Promise<void> {
-  await localStore.meta.put({ key: VERSION_KEY, value: version });
+  await localStore.meta.bulkPut([
+    { key: VERSION_KEY, value: version },
+    { key: TABLES_KEY, value: [...SYNCED_TABLES] },
+  ]);
+}
+
+const TABLES_KEY = 'tables';
+
+/**
+ * Whether the stored Version covers every table this app version keeps. When an update adds a
+ * table, it doesn't (nor in a store from before the tables were recorded): only a full pull brings
+ * the rows the older app skipped.
+ */
+export async function storedVersionCoversEveryTable(): Promise<boolean> {
+  const meta = await localStore.meta.get(TABLES_KEY);
+  const covered = Array.isArray(meta?.value) ? (meta.value as unknown[]) : [];
+  return SYNCED_TABLES.every((table) => covered.includes(table));
 }
 
 /** The Member whose data the store holds (set when they log in on this device). */

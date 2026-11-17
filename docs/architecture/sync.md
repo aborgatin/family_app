@@ -428,11 +428,16 @@ auth.required` without one) tells open apps when to pull:
 - **Applying a pull**: pulled rows replace local ones, tombstones (a deleted or hidden row: id and
   Version, no fields) delete them, then the Outbox operations still pending for those ids are
   applied again on top, so a pull never reverts an unsent local edit. Pending upserts of a
-  tombstoned row are not re-applied (delete wins). A full pull (first sync, or after a rejection)
-  replaces every row and leaves deleted ones out without tombstones: of the rows it didn't send,
+  tombstoned row are not re-applied (delete wins). A full pull (first sync, after a rejection, or
+  when the app has a table the stored Version doesn't cover) replaces every row and leaves deleted ones out without tombstones: of the rows it didn't send,
   pending upserts come back only when the Outbox still holds the one that creates the row (an
   unsent new row, marked `creates`), never onto a row the server deleted or hid, which would come
   back with only the pending fields.
+- **A new table after an update**: an app version skips the pulled rows of a table it doesn't know
+  yet, but still stores the Version past them, so a pull since that Version would never send them
+  to the updated app. The store therefore records, with the Version, the tables it covers
+  (`storeVersion`); when the app keeps a table that list lacks (an update added it, or the store
+  predates the list), its next pull is a full one.
 - **Gone rows take their dependents**: a row removed locally because it is gone on the server (a
   tombstone, or `ignored` below) takes the rows that belong to it, declared with the tables in
   `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history, a Child's
