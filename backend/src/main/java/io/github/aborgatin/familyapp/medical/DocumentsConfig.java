@@ -10,8 +10,8 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * The {@link FileStore} the configuration selects: a folder when {@code DOCUMENTS_FOLDER} is set
- * (local development). Without one, until the R2 store comes (ticket #135), no store: uploads fail
- * and every file is missing, and the app says so at startup.
+ * (local development), otherwise the bucket of the {@code DOCUMENTS_S3_*} settings (production,
+ * Cloudflare R2), which {@link DocumentsProperties} then requires.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(DocumentsProperties.class)
@@ -26,22 +26,8 @@ class DocumentsConfig {
       log.info("Document files are stored in the folder {}", folder.get());
       return new FolderFileStore(folder.get());
     }
-    log.warn("No file store is configured (DOCUMENTS_FOLDER): Documents can't be uploaded");
-    return new FileStore() {
-      @Override
-      public void put(String key, byte[] bytes) {
-        throw new IllegalStateException("No file store is configured (DOCUMENTS_FOLDER)");
-      }
-
-      @Override
-      public Optional<byte[]> get(String key) {
-        return Optional.empty();
-      }
-
-      @Override
-      public void delete(String key) {
-        // Nothing is ever stored.
-      }
-    };
+    S3FileStore bucket = properties.s3FileStore();
+    log.info("Document files are stored in the bucket {}", bucket);
+    return bucket;
   }
 }

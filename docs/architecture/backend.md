@@ -34,6 +34,11 @@ step with the headings).
 - `processResources` copies `web/src/shared/palette/childColors.json` and `childAvatars.json` into
   the jar under `palette/` (the Child color palette and the Avatar set are defined once, in the web
   app; `ChildColorPalette`, `ChildAvatarSet`).
+- AWS SDK for Java v2, only its `s3` module, for Document files in Cloudflare R2 (#135): the
+  S3-compatible client R2 documents, maintained by AWS and versioned by one BOM. It comes with the
+  JDK's `URLConnection` HTTP client (`url-connection-client`); the Apache and Netty clients it would
+  bring are excluded. MinIO's Java client was the alternative: it pulls OkHttp and Kotlin's
+  standard library for the same three calls.
 
 ## Configuration
 
@@ -53,6 +58,8 @@ step with the headings).
 | `REMINDER_MORNING_TIME`                                             | `09:00`           | when a Due date without a time is due, in `TZ`            |
 | `DOCUMENTS_ENCRYPTION_KEY`                                          | none (required)   | AES-256 key of Document files, 32 bytes in base64 (`DocumentFiles`) |
 | `DOCUMENTS_FOLDER`                                                  | empty             | keeps Document files in this folder (`FolderFileStore`; `scripts/dev.sh`) |
+| `DOCUMENTS_S3_ENDPOINT`, `DOCUMENTS_S3_BUCKET`                      | none (required without `DOCUMENTS_FOLDER`) | the S3-compatible bucket of Document files: R2's `https://<account id>.r2.cloudflarestorage.com` and the bucket's name (`S3FileStore`) |
+| `DOCUMENTS_S3_ACCESS_KEY_ID`, `DOCUMENTS_S3_SECRET_ACCESS_KEY`      | none (required without `DOCUMENTS_FOLDER`) | the bucket's API token (`S3FileStore`) |
 
 The `notifications.*` keys bind to `notifications.push.NotificationsProperties`. A missing or
 blank VAPID variable, a subject that is not `mailto:`, or keys that are not one P-256 pair stop the
@@ -63,9 +70,11 @@ test-only pair from `src/test/resources/config/application.yml` (loaded on top o
 The `documents.*` keys bind to `medical.DocumentsProperties`. A missing or blank
 `DOCUMENTS_ENCRYPTION_KEY`, or one that is not 32 bytes in base64, stops the app at startup with a
 message naming it (`medical.DocumentsConfigurationTest`); tests and local runs get theirs from the
-same files as the VAPID pair. `DOCUMENTS_FOLDER` selects the folder store; without it, until the R2
-store (#135), there is no store: an upload fails (`500`) and every file is `document.file_missing`,
-and the app logs a warning at startup. Uploads (`spring.servlet.multipart`): a file over 20 MB is
+same files as the VAPID pair. `DOCUMENTS_FOLDER` selects the folder store; without it (production)
+the bucket store, and a missing or blank `DOCUMENTS_S3_*` value stops the app at startup with a
+message naming it. The app reaches the bucket only on an upload, a download or a delete, so it
+starts while the bucket is down, and the image tests run with a bucket nothing serves
+(`scripts/lib/dev-secrets.env`). Uploads (`spring.servlet.multipart`): a file over 20 MB is
 refused while the body is read (`max-file-size`), and a body over 22 MB from its `Content-Length`
 before it is read (`max-request-size`; the connection then closes); the body is read lazily
 (`resolve-lazily`), when the controller's `file` argument is resolved, so `DocumentsController`'s
@@ -658,12 +667,15 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   random 12-byte nonce per file stored in front of the ciphertext, the object key as associated
   data; its `delete` logs a failure and never throws. Implementations: `FolderFileStore` (a file per
   object under `DOCUMENTS_FOLDER`, written to a temporary file and moved into place), the tests'
-  `InMemoryFileStore`, and the R2 adapter of #135, which `DocumentsConfig` will select the same way.
+  `InMemoryFileStore`, and `S3FileStore` (production, #135: Cloudflare R2 through the S3 API, path-style
+  addressing, region `auto`; a missing object is empty, any other failure throws). `DocumentsConfig`
+  selects the folder when `DOCUMENTS_FOLDER` is set, otherwise the bucket.
 - Tested by `medical.MedicalCardSyncTest`, `medical.MedicineSyncTest`, `medical.DocumentsTest`
   (the upload and download, retries, limits, types, visibility, editing, deletion and the Child
   cascade removing files), `medical.DocumentUploadOverHttpTest` (on a real port: the multipart
-  limit, no plaintext in the temporary folder) and `medical.DocumentsConfigurationTest` (the key,
-  the folder store).
+  limit, no plaintext in the temporary folder), `medical.DocumentsConfigurationTest` (the key, the
+  folder store, the required `DOCUMENTS_S3_*` values, the bucket store end to end against MinIO) and
+  `medical.S3FileStoreTest` (put, get, delete, a missing key, a failing store, against MinIO).
 
 ### `command`
 
@@ -1006,6 +1018,7 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   | `TestClock` | a test whose answer depends on today or now: fix the server's clock |
   | `FakePushGateway` | a test that checks push messages: records each push, answers `GONE`/`FAILED` on request |
   | `medical.InMemoryFileStore` | a test that uploads Documents: the file store in memory, to read what was stored, lose an object or fail deletes |
+  | `medical.Minio` | a test of the bucket store: an S3-compatible server in a container |
 
 - Shared helpers, public, in the root test package `src/test/java/io/github/aborgatin/familyapp/`
   (every module's tests import them):
@@ -1040,6 +1053,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `@Import(InMemoryFileStore.Config.class)` puts it in place of the configured store
     (`@Primary`); `keys()`, `object(key)`, `lose(key)`, `failDeletes()`, `reset()` (call it in
     `@BeforeEach`). See `medical.DocumentsTest`.
+  - `medical.Minio`: `container()` is a new MinIO Testcontainer (`pgsty/minio`, as the
+    `minio/minio` images are no longer published), `createBucket(container, name)` creates a
+    bucket with the image's `mc`. See `medical.S3FileStoreTest`.
   - `MedicalOperations`: the Medical card operations the `medical` tests and
     `notifications.DoseNotificationTest` push, statically imported: `illnessOf(personField,
     person, id, name)`, `temperature(id, illness, date, time, value)`, `dose(id, illness,
