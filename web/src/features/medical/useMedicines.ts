@@ -6,11 +6,11 @@ import type { Medicine } from './medicalTypes';
 /** The rejection of a name the list already has (the server's code, checked here first). */
 export const MEDICINE_DUPLICATE = 'medicine.duplicate';
 
-const COLLATOR = new Intl.Collator('ru', { sensitivity: 'base' });
+const byName = new Intl.Collator('ru');
 
-/** Every Medicine, deleted ones too, by name (ties by id). */
+/** Every Medicine, deleted ones too, by name (ties by id); names are unique by `medicineKey`. */
 function inOrder(medicines: Medicine[]): Medicine[] {
-  return [...medicines].sort((a, b) => COLLATOR.compare(a.name, b.name) || byId(a, b));
+  return [...medicines].sort((a, b) => byName.compare(a.name, b.name) || byId(a, b));
 }
 
 /** A name as uniqueness compares it: trimmed, ignoring letter case. */
@@ -32,7 +32,8 @@ export function newMedicineId(): string {
 }
 
 /**
- * The Family's Medicines and every change to them: the only data access to them. It reads the
+ * The Family's Medicines and every change to them (but a dose's new Medicine, which
+ * `useMedicalCard`'s `saveDose` adds with the dose). It reads the
  * local store and writes through the Outbox (S4), so it works the same offline.
  *
  * - `load`: the list (deleted ones left out), by name;

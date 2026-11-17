@@ -28,7 +28,7 @@ import {
   documentsPath,
   illnessBack,
 } from './medicalPaths';
-import { LogSection } from './LogSection';
+import { AddEventSection } from './AddEventSection';
 import type { Illness, IllnessEvent, MedicalDocument, Person } from './medicalTypes';
 import { useEventDocuments } from './useDocuments';
 import { useMedicalCard } from './useMedicalCard';
@@ -90,7 +90,7 @@ function IllnessScreen({ person }: { person: Person }) {
             to={documentsPath(person, illness.id)}
           />
         </GroupedSection>
-        <LogSection
+        <AddEventSection
           card={card}
           documents={eventDocuments}
           target={{ illnessId: illness.id }}

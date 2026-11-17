@@ -344,8 +344,9 @@ the camera). The `<input type="file">` itself is visually hidden and named by `l
 focus on it outlines the row. Errors about it (`name`) show in the group footer, and the label
 turns red. Like a `ListRow` in height and hover. «Документ» at the end of an Illness event's
 sheet (#134) is one too, showing the chosen file's name, else the title of the Document the event
-carries: there is no title or date to fill in, the upload is titled after the file and dated like
-the event.
+carries: there is no title or date to fill in, the upload takes the event's date and the file's
+name (without its extension) as its title; both are edited later on the Documents screen, like
+any Document's.
 
 ### FileViewer
 

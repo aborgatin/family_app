@@ -9,14 +9,14 @@ import type { EventDocuments } from './useDocuments';
 import type { useMedicalCard } from './useMedicalCard';
 import { useMedicines } from './useMedicines';
 
-interface LogSectionProps {
+interface AddEventSectionProps {
   /** The card's `useMedicalCard`, which saves the events. */
   card: Pick<
     ReturnType<typeof useMedicalCard>,
     'lastAmountOf' | 'saveTemperature' | 'saveDose' | 'saveNoteEvent'
   >;
   /**
-   * Where the logged event goes: «Добавить к» from the card, or the open Illness; `undefined` while
+   * Where the new event goes: «Добавить к» from the card, or the open Illness; `undefined` while
    * the card loads (the rows show, the sheets wait).
    */
   target: Omit<EventTarget, 'onClose' | 'documents'> | undefined;
@@ -33,13 +33,13 @@ interface LogSectionProps {
  * «Записать»: a row that opens the dose sheet, one that opens the Temperature sheet and, given its
  * title, one that opens the Note sheet, into `target`. Shared by the card and the Illness screen.
  */
-export function LogSection({ card, target, documents, titles }: LogSectionProps) {
+export function AddEventSection({ card, target, documents, titles }: AddEventSectionProps) {
   const { t } = useTranslation();
   const { lastAmountOf, saveTemperature, saveDose, saveNoteEvent } = card;
   const medicines = useMedicines().load;
-  const [logging, setLogging] = useState<'dose' | 'temperature' | 'noteEvent'>();
+  const [adding, setAdding] = useState<'dose' | 'temperature' | 'noteEvent'>();
   const close = () => {
-    setLogging(undefined);
+    setAdding(undefined);
   };
 
   return (
@@ -49,14 +49,14 @@ export function LogSection({ card, target, documents, titles }: LogSectionProps)
           title={titles.dose}
           accent
           onClick={() => {
-            setLogging('dose');
+            setAdding('dose');
           }}
         />
         <ListRow
           title={titles.temperature}
           accent
           onClick={() => {
-            setLogging('temperature');
+            setAdding('temperature');
           }}
         />
         {titles.noteEvent !== undefined && (
@@ -64,15 +64,15 @@ export function LogSection({ card, target, documents, titles }: LogSectionProps)
             title={titles.noteEvent}
             accent
             onClick={() => {
-              setLogging('noteEvent');
+              setAdding('noteEvent');
             }}
           />
         )}
       </GroupedSection>
-      {logging === 'noteEvent' && target !== undefined && (
+      {adding === 'noteEvent' && target !== undefined && (
         <NoteEventSheet {...target} documents={documents} save={saveNoteEvent} onClose={close} />
       )}
-      {logging === 'temperature' && target !== undefined && (
+      {adding === 'temperature' && target !== undefined && (
         <TemperatureSheet
           {...target}
           documents={documents}
@@ -80,7 +80,7 @@ export function LogSection({ card, target, documents, titles }: LogSectionProps)
           onClose={close}
         />
       )}
-      {logging === 'dose' && target !== undefined && medicines.status === 'ready' && (
+      {adding === 'dose' && target !== undefined && medicines.status === 'ready' && (
         <DoseSheet
           {...target}
           documents={documents}

@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { deleteRow, upsertRow, upsertRows, useRows, type SyncedTable } from '@/shared/sync';
 import { positionAfterMove } from '@/shared/ui';
 import { conditionsInOrder, illnessesInOrder, lastAmount, positionsOf } from './illnessRules';
-import { isOn, type Illness, type IllnessEvent, type Person } from './medicalTypes';
+import { isOn, optionalText, type Illness, type IllnessEvent, type Person } from './medicalTypes';
 
 /** When an event happened, and its Description, as every event sheet saves them. */
 export interface EventTiming {
@@ -57,7 +57,8 @@ export function newConditionId(): string {
 }
 
 /**
- * One person's Medical card on the local store: the only data access of this feature. It reads
+ * One person's Medical card on the local store: its Illnesses, Conditions and their events (the
+ * Medicines are `useMedicines`', the Documents `useDocuments`' and `useEventDocuments`'). It reads
  * the local store and writes through the Outbox (S4), so it works the same offline.
  *
  * - `all`: every Illness and Condition on the card, Ended ones too; `conditions`: those of kind
@@ -225,9 +226,9 @@ export function useMedicalCard(person: Person) {
   }, []);
 
   const describe = useCallback(async (illness: Illness, description: string) => {
-    const text = description.trim();
-    await upsertRow('illness', illness.id, { description: text === '' ? null : text });
-    return text;
+    const text = optionalText(description);
+    await upsertRow('illness', illness.id, { description: text });
+    return text ?? '';
   }, []);
 
   const removeIllness = useCallback((illness: Illness) => deleteRow('illness', illness.id), []);

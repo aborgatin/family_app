@@ -1,18 +1,6 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  asApiError,
-  errorMessageKey,
-  failureMessages,
-  fieldMessageKey,
-  type ErrorMessage,
-  type FieldMessages,
-} from '@/shared/api';
-import { GroupedSection, InputRow, Sheet, useFooterLines } from '@/shared/ui';
+import { NewNameSheet } from './NewNameSheet';
 import { MEDICINE_DUPLICATE } from './useMedicines';
-
-type Field = 'name';
-const FIELDS: readonly Field[] = ['name'];
 
 interface NewMedicineSheetProps {
   /** The new Medicine's id, made once when the sheet opened, so a retried save repeats it. */
@@ -23,58 +11,21 @@ interface NewMedicineSheetProps {
   onClose: () => void;
 }
 
-/** «Новое лекарство»: its name with its strength («Ибупрофен 20 мг/мл»), saved with «Готово». */
+/**
+ * «Новое лекарство»: its name with its strength («Ибупрофен 20 мг/мл»), saved with «Готово»; a
+ * name the list already has is said under «Название».
+ */
 export function NewMedicineSheet({ id, add, onClose }: NewMedicineSheetProps) {
   const { t } = useTranslation();
-  const lines = useFooterLines();
-  const [name, setName] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<FieldMessages<Field>>({});
-  const [formError, setFormError] = useState<ErrorMessage>();
-  const [saving, setSaving] = useState(false);
-
-  async function done() {
-    setFormError(undefined);
-    if (name.trim() === '') {
-      setFieldErrors({ name: fieldMessageKey('required') });
-      return;
-    }
-    setFieldErrors({});
-    setSaving(true);
-    try {
-      await add(id, name.trim());
-      onClose();
-    } catch (error: unknown) {
-      const { code } = asApiError(error);
-      if (code === MEDICINE_DUPLICATE) {
-        setFieldErrors({ name: errorMessageKey(code) });
-      } else {
-        const { fieldMessages, formMessage } = failureMessages(error, FIELDS);
-        setFieldErrors(fieldMessages);
-        setFormError(formMessage);
-      }
-      setSaving(false);
-    }
-  }
-
   return (
-    <Sheet
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
+    <NewNameSheet
+      id={id}
+      add={add}
+      onClose={onClose}
       title={t('medicines.newTitle')}
-      onDone={() => void done()}
-      busy={saving}
-    >
-      <GroupedSection messages={lines.form({ fields: FIELDS, fieldErrors, formError })}>
-        <InputRow
-          label={t('medicines.name')}
-          name="name"
-          placeholder={t('medicines.namePlaceholder')}
-          value={name}
-          onChange={setName}
-        />
-      </GroupedSection>
-    </Sheet>
+      label={t('medicines.name')}
+      placeholder={t('medicines.namePlaceholder')}
+      nameCodes={[MEDICINE_DUPLICATE]}
+    />
   );
 }

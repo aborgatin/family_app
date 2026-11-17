@@ -83,8 +83,9 @@ web/src/
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
                         ChildProfileSection («Профиль» on the Child page), useChildFieldValues(childId)
     medical/            MedicalCardRow («Медкарта» on Home and the Child page), MedicalCardPage,
-                        IllnessPage, LogSection, EventSheet, TemperatureSheet, DoseSheet, TemperatureRow,
-                        MedicinesSettings, NewMedicineSheet, cardRoute (whose card the route
+                        IllnessPage, AddEventSection, EventSheet, TemperatureSheet, DoseSheet, TemperatureRow,
+                        MedicinesSettings, NewMedicineSheet, NewConditionSheet (both a
+                        NewNameSheet: one «Название», trimmed), cardRoute (whose card the route
                         names), medicalPaths, medicalTypes, illnessRules (the pure rules),
                         useMedicalCard(person), useMedicines(), DocumentsPage, DocumentPage,
                         DocumentSheet, documentsApi, useDocuments(person), useDocumentFile
@@ -860,7 +861,7 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
 - **Card** (`MedicalCardPage`, titled «Медкарта»): `useCardRoute(homePath)` picks the person
   (the session's Member without `:id`, back «Семья»; the Child of `:id`, back to the Child page,
   «Такого ребёнка нет» when missing). «Добавить приём лекарства» and «Записать температуру»
-  (accent `ListRow`s of `LogSection`, which the Illness screen shares) open the dose and
+  (accent `ListRow`s of `AddEventSection`, which the Illness screen shares) open the dose and
   Temperature sheets. Then (#132) «Диагнозы/наблюдения»: the Conditions that aren't Ended, by
   `position` (`conditionsInOrder`), an edit-mode list of `EditableRow`s in a `SortableList` as
   Child fields (no delete: «Изменить» only shows the drag handles; a move writes only the
@@ -1008,7 +1009,8 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   «Документ» (`FileRow`; the chosen file's name, else the title of the Document the event carries,
   else «Выбрать»). «Готово» saves the event through the Outbox as before, then, with a file,
   attaches it (`useEventDocuments(person).attach`): `flushOutbox()` first, so the event is on the
-  server, then the upload with `illnessEventId`, titled after the file and dated like the event, and
+  server, then the upload with `illnessEventId`, taking the event's date and the file's name
+  (`titleOf`) as its title, which the Documents screen edits later like any Document's, and
   `replaces` the Document the event carried, which the server deletes in the same request. Offline
   (or any failure) the event stays saved and the sheet stays open with «Нужен интернет, чтобы
   прикрепить файл» (or the error); «Готово» again changes the same event (its id is made once when
@@ -1027,7 +1029,12 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   at once (`removeOfEvents`, through the Outbox, files forgotten), so they are gone offline too;
   the server does the same in the same operation. «Перенести в…» needs nothing more: a Document
   names its event, which moves. `useEventDocuments(person)` → `{of(eventId), ofEvents(events)
-  (newest first), attach(id, eventId, file, date), removeOfEvents(events)}` on `useRows('document')`.
+  (newest first), attach(id, eventId, file, date), removeOfEvents(events)}`. `useDocumentCount`,
+  `useDocuments` and `useEventDocuments` read the card's rows one way (`useDocumentRows`, over
+  `useRows('document')`) and delete one way (`removeDocument`: `deleteRow`, then `forgetFile`);
+  `uploadFailureMessages(error, fields)` is what both `DocumentSheet` and `EventSheet` show for a
+  failed upload («Нужен интернет…» offline, else the server's message). Optional text is saved
+  through `optionalText` (`medicalTypes`: trimmed, blank as `null`).
   `documentFileError(file)` is the check both sheets make before uploading (over 20 MB).
   `IllnessMissing` is the unknown-Illness screen both the Illness screen and its Documents show.
 - Store: `illness` depends on `child` (`childId`), `illness_event` on `illness` (`illnessId`),

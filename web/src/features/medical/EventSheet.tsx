@@ -1,13 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  asApiError,
-  failureMessages,
-  fieldMessageKey,
-  NETWORK_UNAVAILABLE,
-  type ErrorMessage,
-  type FieldMessages,
-} from '@/shared/api';
+import { fieldMessageKey, type ErrorMessage, type FieldMessages } from '@/shared/api';
 import { dayOf, localDay, longDay, timeOf } from '@/shared/dates';
 import {
   ActionSheet,
@@ -22,11 +15,12 @@ import {
   useFooterLines,
 } from '@/shared/ui';
 import { illnessToJoin } from './illnessRules';
-import type { Illness, IllnessEvent } from './medicalTypes';
+import { optionalText, type Illness, type IllnessEvent } from './medicalTypes';
 import {
   DOCUMENT_TYPES,
   documentFileError,
   newDocumentId,
+  uploadFailureMessages,
   type EventDocuments,
 } from './useDocuments';
 import type { EventPlace, EventTiming, IllnessChoice } from './useMedicalCard';
@@ -176,7 +170,7 @@ export function EventSheet({
       {
         date,
         time: time === '' ? null : time,
-        description: description.trim() === '' ? null : description.trim(),
+        description: optionalText(description),
       },
     );
     if (file !== undefined) {
@@ -184,13 +178,9 @@ export function EventSheet({
       try {
         await documents.attach(documentId, eventId, file, date);
       } catch (error: unknown) {
-        if (asApiError(error).code === NETWORK_UNAVAILABLE) {
-          setFormError({ key: 'medical.uploadNeedsInternet', values: {} });
-        } else {
-          const { fieldMessages, formMessage } = failureMessages(error, DOCUMENT_FIELDS);
-          setFieldErrors(fieldMessages);
-          setFormError(formMessage);
-        }
+        const { fieldMessages, formMessage } = uploadFailureMessages(error, DOCUMENT_FIELDS);
+        setFieldErrors(fieldMessages);
+        setFormError(formMessage);
         setSaving(false);
         return;
       }

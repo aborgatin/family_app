@@ -1,14 +1,7 @@
 import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  asApiError,
-  failureMessages,
-  fieldMessageKey,
-  NETWORK_UNAVAILABLE,
-  type ErrorMessage,
-  type FieldMessages,
-} from '@/shared/api';
+import { fieldMessageKey, type ErrorMessage, type FieldMessages } from '@/shared/api';
 import { dayOf } from '@/shared/dates';
 import {
   ConfirmRow,
@@ -22,7 +15,13 @@ import {
   useFooterLines,
 } from '@/shared/ui';
 import { fileKind, type MedicalDocument } from './medicalTypes';
-import { DOCUMENT_TYPES, documentFileError, titleOf, type DocumentDetails } from './useDocuments';
+import {
+  DOCUMENT_TYPES,
+  documentFileError,
+  titleOf,
+  uploadFailureMessages,
+  type DocumentDetails,
+} from './useDocuments';
 
 type Field = 'file' | 'title' | 'date';
 const FIELDS: readonly Field[] = ['file', 'title', 'date'];
@@ -111,13 +110,9 @@ export function DocumentSheet({ mode, onClose }: DocumentSheetProps) {
       }
       onClose();
     } catch (error: unknown) {
-      if (asApiError(error).code === NETWORK_UNAVAILABLE) {
-        setFormError({ key: 'medical.uploadNeedsInternet', values: {} });
-      } else {
-        const { fieldMessages, formMessage } = failureMessages(error, FIELDS);
-        setFieldErrors(fieldMessages);
-        setFormError(formMessage);
-      }
+      const { fieldMessages, formMessage } = uploadFailureMessages(error, FIELDS);
+      setFieldErrors(fieldMessages);
+      setFormError(formMessage);
       setSaving(false);
     }
   }

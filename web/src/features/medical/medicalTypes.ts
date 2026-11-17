@@ -1,12 +1,21 @@
 /** Whose Medical card: a Member's own, or a Child's. */
 export type Person = { memberId: string; childId?: never } | { childId: string; memberId?: never };
 
+/**
+ * A row on a card as the pull brings it: its person, exactly one of the two ids set (the other
+ * `null` or absent).
+ */
+type OnCard = { [K in keyof Person]?: string | null };
+
+/** Text as saved: trimmed, and `null` when blank (an optional field left empty). */
+export function optionalText(text: string): string | null {
+  const trimmed = text.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 /** An Illness or Condition as the sync pull returns its fields (`illness`). */
-export interface Illness {
+export interface Illness extends OnCard {
   id: string;
-  /** The person: exactly one of these two is set. */
-  memberId?: string | null;
-  childId?: string | null;
   kind: 'ILLNESS' | 'CONDITION';
   name: string;
   description?: string | null;
@@ -49,11 +58,8 @@ export interface Medicine {
  * A Document as the sync pull returns its fields (`document`): never the file itself, which is
  * downloaded when opened.
  */
-export interface MedicalDocument {
+export interface MedicalDocument extends OnCard {
   id: string;
-  /** The person: exactly one of these two is set. */
-  memberId?: string | null;
-  childId?: string | null;
   /** The Illness event it was added to, if any. */
   illnessEventId?: string | null;
   title: string;
@@ -72,10 +78,7 @@ export function fileKind(document: Pick<MedicalDocument, 'contentType'>): 'pdf' 
 }
 
 /** Whether the row (an Illness, a Document) is on `person`'s card. */
-export function isOn(
-  person: Person,
-  row: { memberId?: string | null; childId?: string | null },
-): boolean {
+export function isOn(person: Person, row: OnCard): boolean {
   return person.childId !== undefined
     ? row.childId === person.childId
     : row.memberId === person.memberId;

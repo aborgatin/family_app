@@ -1,15 +1,5 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  failureMessages,
-  fieldMessageKey,
-  type ErrorMessage,
-  type FieldMessages,
-} from '@/shared/api';
-import { GroupedSection, InputRow, Sheet, useFooterLines } from '@/shared/ui';
-
-type Field = 'name';
-const FIELDS: readonly Field[] = ['name'];
+import { NewNameSheet } from './NewNameSheet';
 
 interface NewConditionSheetProps {
   /** The new Condition's id, made once when the sheet opened, so a retried save repeats it. */
@@ -26,51 +16,14 @@ interface NewConditionSheetProps {
  */
 export function NewConditionSheet({ id, add, onClose }: NewConditionSheetProps) {
   const { t } = useTranslation();
-  const lines = useFooterLines();
-  const [name, setName] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<FieldMessages<Field>>({});
-  const [formError, setFormError] = useState<ErrorMessage>();
-  const [saving, setSaving] = useState(false);
-
-  async function done() {
-    setFormError(undefined);
-    if (name.trim() === '') {
-      setFieldErrors({ name: fieldMessageKey('required') });
-      return;
-    }
-    setFieldErrors({});
-    setSaving(true);
-    try {
-      await add(id, name);
-      onClose();
-    } catch (error: unknown) {
-      const { fieldMessages, formMessage } = failureMessages(error, FIELDS);
-      setFieldErrors(fieldMessages);
-      setFormError(formMessage);
-      setSaving(false);
-    }
-  }
-
   return (
-    <Sheet
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
+    <NewNameSheet
+      id={id}
+      add={add}
+      onClose={onClose}
       title={t('medical.condition')}
-      onDone={() => void done()}
-      busy={saving}
-    >
-      <GroupedSection messages={lines.form({ fields: FIELDS, fieldErrors, formError })}>
-        <InputRow
-          label={t('medical.name')}
-          name="name"
-          autoComplete="off"
-          placeholder={t('medical.conditionPlaceholder')}
-          value={name}
-          onChange={setName}
-        />
-      </GroupedSection>
-    </Sheet>
+      label={t('medical.name')}
+      placeholder={t('medical.conditionPlaceholder')}
+    />
   );
 }

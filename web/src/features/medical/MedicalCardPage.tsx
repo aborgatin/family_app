@@ -18,7 +18,7 @@ import { useCardRoute, type CardRoute } from './cardRoute';
 import { firstDay, lastDay } from './illnessRules';
 import { cardPath, documentsPath, illnessPath } from './medicalPaths';
 import type { Illness, IllnessEvent, Person } from './medicalTypes';
-import { LogSection } from './LogSection';
+import { AddEventSection } from './AddEventSection';
 import { NewConditionSheet } from './NewConditionSheet';
 import { useDocumentCount, useEventDocuments } from './useDocuments';
 import { newConditionId, useMedicalCard } from './useMedicalCard';
@@ -81,7 +81,7 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
   return (
     <Page title={t('medical.title')} back={back}>
       <Sections>
-        <LogSection
+        <AddEventSection
           card={card}
           target={current === undefined ? undefined : { addTo: { illnesses: current, eventsOf } }}
           documents={eventDocuments}

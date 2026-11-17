@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { asApiError, type ApiError } from '@/shared/api';
+import {
+  asApiError,
+  failureMessages,
+  NETWORK_UNAVAILABLE,
+  type ApiError,
+  type ErrorMessage,
+  type FieldMessages,
+} from '@/shared/api';
 import { cachedFile, forgetFile, forgetFilesExcept, keepFile } from '@/shared/files';
 import { byId, deleteRow, flushOutbox, requestSync, upsertRow, useRows } from '@/shared/sync';
 import {
@@ -8,7 +15,7 @@ import {
   downloadDocumentFile,
   uploadDocument,
 } from './documentsApi';
-import { isOn, type MedicalDocument, type Person } from './medicalTypes';
+import { isOn, optionalText, type MedicalDocument, type Person } from './medicalTypes';
 
 /** The largest file a Document may have: 20 MB (the server's limit, checked here first). */
 export const DOCUMENT_MAX_SIZE = 20 * 1024 * 1024;
@@ -34,17 +41,46 @@ export function newDocumentId(): string {
   return crypto.randomUUID();
 }
 
-const COLLATOR = new Intl.Collator('ru', { sensitivity: 'base' });
+const byName = new Intl.Collator('ru');
 
 /** Newest first by date; one day's by title, then id. */
 function newestFirst(a: MedicalDocument, b: MedicalDocument): number {
-  return b.date.localeCompare(a.date) || COLLATOR.compare(a.title, b.title) || byId(a, b);
+  return b.date.localeCompare(a.date) || byName.compare(a.title, b.title) || byId(a, b);
+}
+
+/**
+ * The Document rows of the store (`all`, every card's) and of the person's card (`on`, unsorted);
+ * both `undefined` until read. The one read of the `document` table.
+ */
+function useDocumentRows(person: Person) {
+  const all = useRows('document') as MedicalDocument[] | undefined;
+  const on = useMemo(() => all?.filter((document) => isOn(person, document)), [all, person]);
+  return { all, on };
+}
+
+/** Deletes the Document through the Outbox, and its file kept on this device. */
+async function removeDocument(document: MedicalDocument): Promise<void> {
+  await deleteRow('document', document.id);
+  await forgetFile(documentFileUrl(document.id));
+}
+
+/**
+ * The messages a failed upload shows: offline, that it needs the internet (the form's); else the
+ * server's, under `fields` when one of them is named, or the form's.
+ */
+export function uploadFailureMessages<F extends string>(
+  error: unknown,
+  fields: readonly F[],
+): { fieldMessages: FieldMessages<F>; formMessage: ErrorMessage | undefined } {
+  if (asApiError(error).code === NETWORK_UNAVAILABLE) {
+    return { fieldMessages: {}, formMessage: { key: 'medical.uploadNeedsInternet', values: {} } };
+  }
+  return failureMessages(error, fields);
 }
 
 /** How many Documents the card has (its «Документы (n)» row); `undefined` until read. */
 export function useDocumentCount(person: Person): number | undefined {
-  const rows = useRows('document') as MedicalDocument[] | undefined;
-  return useMemo(() => rows?.filter((document) => isOn(person, document)).length, [rows, person]);
+  return useDocumentRows(person).on?.length;
 }
 
 /**
@@ -61,11 +97,8 @@ export function useDocumentCount(person: Person): number | undefined {
  * their Child) are forgotten.
  */
 export function useDocuments(person: Person) {
-  const rows = useRows('document') as MedicalDocument[] | undefined;
-  const documents = useMemo(
-    () => rows?.filter((document) => isOn(person, document)).sort(newestFirst),
-    [rows, person],
-  );
+  const { all: rows, on } = useDocumentRows(person);
+  const documents = useMemo(() => on && [...on].sort(newestFirst), [on]);
 
   useEffect(() => {
     if (rows === undefined) return;
@@ -89,17 +122,12 @@ export function useDocuments(person: Person) {
       upsertRow('document', document.id, {
         title: details.title.trim(),
         date: details.date,
-        description: details.description.trim() === '' ? null : details.description.trim(),
+        description: optionalText(details.description),
       }),
     [],
   );
 
-  const remove = useCallback(async (document: MedicalDocument) => {
-    await deleteRow('document', document.id);
-    await forgetFile(documentFileUrl(document.id));
-  }, []);
-
-  return { documents, add, save, remove };
+  return { documents, add, save, remove: removeDocument };
 }
 
 /** A file's name without its extension, a Document's default title: «Анализ крови.pdf» → «Анализ крови». */
@@ -119,8 +147,8 @@ function uploadForm(person: Person, id: string, file: File, details: DocumentDet
   }
   form.append('title', details.title.trim());
   form.append('date', details.date);
-  const description = details.description.trim();
-  if (description !== '') form.append('description', description);
+  const description = optionalText(details.description);
+  if (description !== null) form.append('description', description);
   form.append('file', file);
   return form;
 }
@@ -149,16 +177,14 @@ export interface EventDocuments {
  * most), and attaching a file to one.
  */
 export function useEventDocuments(person: Person): EventDocuments {
-  const rows = useRows('document') as MedicalDocument[] | undefined;
+  const { on } = useDocumentRows(person);
   const byEvent = useMemo(() => {
     const documents = new Map<string, MedicalDocument>();
-    for (const document of rows ?? []) {
-      if (isOn(person, document) && document.illnessEventId != null) {
-        documents.set(document.illnessEventId, document);
-      }
+    for (const document of on ?? []) {
+      if (document.illnessEventId != null) documents.set(document.illnessEventId, document);
     }
     return documents;
-  }, [rows, person]);
+  }, [on]);
   const of = useCallback((eventId: string) => byEvent.get(eventId), [byEvent]);
   const ofEvents = useCallback(
     (events: readonly { id: string }[]) =>
@@ -186,10 +212,7 @@ export function useEventDocuments(person: Person): EventDocuments {
   );
   const removeOfEvents = useCallback(
     async (events: readonly { id: string }[]) => {
-      for (const document of ofEvents(events)) {
-        await deleteRow('document', document.id);
-        await forgetFile(documentFileUrl(document.id));
-      }
+      for (const document of ofEvents(events)) await removeDocument(document);
     },
     [ofEvents],
   );
