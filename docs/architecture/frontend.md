@@ -18,8 +18,9 @@ step with the headings).
 - [Data access](#data-access): one hook per synced feature, what each hook reads and writes, online-only screens
 - [i18n](#i18n): the `ru` resource file, key naming, plurals and gendered verbs (I2)
 - [Look and theme](#look-and-theme): Tailwind tokens, light and dark theme, where the UI kit is specified
-- [Settings](#settings): the Settings screen: Members, Invites, profile, password, Notifications and this device's push subscription, theme, Child fields
+- [Settings](#settings): the Settings screen: Members, Invites, profile, password, Notifications and this device's push subscription, theme, Child fields, Medicines
 - [Home «Дети» and the Child page](#home-дети-and-the-child-page): Child cards on Home, the Child page, Child lists and fields
+- [Medical cards](#medical-cards): «Медкарта» on Home and the Child page, the card, the Illness screen, the Temperature and dose sheets and their rules, Documents (upload, viewer, file cache), «Лекарства» in Settings
 - [PWA](#pwa): manifest, icons, the service worker (precache, push, tap), the push payload contract, updates
 - [iOS and macOS](#ios-and-macos): installed-app cookies, ITP, Safari quirks
 - [Testing](#testing): shared test helpers, `renderApp`, the fake sync server, store-upgrade tests, clock and time zone, flaky tests
@@ -81,6 +82,13 @@ web/src/
                         `updateProfile` from `features/members`; this device), usePushDevice
     child-fields/       ChildFieldsSettings («Поля профиля»), NewChildFieldSheet, useChildFields(),
                         ChildProfileSection («Профиль» on the Child page), useChildFieldValues(childId)
+    medical/            MedicalCardRow («Медкарта» on Home and the Child page), MedicalCardPage,
+                        IllnessPage, AddEventSection, EventSheet, TemperatureSheet, DoseSheet, TemperatureRow,
+                        MedicinesSettings, NewMedicineSheet, NewConditionSheet, NewIllnessSheet
+                        (each a NewNameSheet: one «Название», trimmed), cardRoute (whose card the route
+                        names), medicalPaths, medicalTypes, illnessRules (the pure rules),
+                        useMedicalCard(person), useMedicines(), DocumentsPage, DocumentPage,
+                        DocumentSheet, documentsApi, useDocuments(person), useDocumentFile
   shared/
     api/                API client, error-code mapping, form error helpers
     i18n/               i18next set-up, typed keys, locales/ru.json
@@ -90,15 +98,19 @@ web/src/
     push/               this device and push: readPushState, subscribeThisDevice,
                         resyncSubscription (launch), forgetSubscription (logout), pushApi
     pwa/                startAppUpdates(): a new version without a force-close (see PWA, Updates)
+    files/              opened Document files kept on the device (Cache Storage): cachedFile,
+                        keepFile, forgetFile, forgetFilesExcept, clearFileCache (logout)
     palette/            Child color palette (childColors.json), Avatar set (childAvatars.json)
     dates/              days written YYYY-MM-DD: dayParts(day), localDay(day) (also for tests),
-                        daysFromToday(day, now), shortDay(date, now) («15 нояб.»)
+                        daysFromToday(day, now), shortDay(date, now) («15 нояб.»), longDay(date,
+                        year) («2 декабря 2026»), localMoment(day, time), dayOf(date), timeOf(date)
     ui/                 the only place that draws (U1; docs/design.md): theme.css (tokens),
                         AppShell, Page (nav bar), CenteredPage, StatusScreen, Button, Link, Icon
                         (lucide), EmptyState, OfflineIndicator, Form, Sections, GroupedSection,
-                        InputRow, TextAreaRow (+ LinkedText, not exported), DateRow,
+                        InputRow, TextAreaRow (+ LinkedText, not exported), DateRow, FileRow,
+                        FileViewer,
                         SegmentedControl, SwitchRow, SelectRow, ColorChoice, Swatch, ListRow,
-                        LoadingRow, EditableRow, AddRow (+ SuggestionRows, not exported), SortableList (dnd-kit), SwipeToDelete,
+                        LoadingRow, EditableRow, AddRow, SuggestionRows, SortableList (dnd-kit), SwipeToDelete,
                         RowContextMenu, Initials, ChildAvatar, PictureChoice, ActionSheet, ConfirmRow, Sheet (Radix), Spinner, Toast,
                         CardGrid + Card,
                         auto-save hooks (autoSave.ts), useFooterLines(), useEditableList()
@@ -148,6 +160,12 @@ frame around every screen and the place a sidebar goes later.
 | `/settings/password`     | `PasswordPage`      | logged in                      |
 | `/settings/children/:id` | `ChildSettingsPage` | logged in                      |
 | `/children/:id`          | `ChildPage`         | logged in                      |
+| `/medical`               | `MedicalCardPage` (the Member's own) | logged in     |
+| `/children/:id/medical`  | `MedicalCardPage` (the Child's) | logged in          |
+| `/medical/illnesses/:illnessId` | `IllnessPage` | logged in                    |
+| `/children/:id/medical/illnesses/:illnessId` | `IllnessPage` | logged in       |
+| `/medical/documents`, `/children/:id/medical/documents` | `DocumentsPage` | logged in |
+| `/medical/documents/:documentId`, `/children/:id/medical/documents/:documentId` | `DocumentPage` (the file full screen) | logged in |
 
 The guard calls `GET /api/auth/session` once at start (and again only on «retry» after a failure,
 or after an offline cold start, below;
@@ -205,7 +223,9 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 
 - `api.get/post/put/patch/delete<T>(path, body?)`: `fetch` with `credentials: 'same-origin'`, JSON
   in and out, `204` → `undefined`. Every non-GET sends the `XSRF-TOKEN` cookie's value as
-  `X-XSRF-TOKEN`.
+  `X-XSRF-TOKEN`. `api.postForm<T>(path, formData)` sends `multipart/form-data` (a Document
+  upload), JSON back; `api.file(path)` answers the whole successful `Response` (`Accept: */*`), to
+  read as a `Blob` or keep in Cache Storage. Both fail the same way.
 - Every failure rejects with `ApiError` (`status`, `code`, `params`, `fieldErrors`).
   `asApiError(error)` turns whatever a `catch` got into an `ApiError` (`unknown`, status 0, when it
   isn't one already); use it instead of writing the check again. A fetch that
@@ -217,7 +237,8 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
   `navigator.onLine` is not used (unreliable on iOS, and says nothing about our server).
 - `errorMessageKey(code)` maps an API code to an i18n key through `ERROR_KEYS` in
   `errorMessages.ts`; anything unmapped → `errors.generic` (I3). Add a line there for every new
-  code the user may see. Never render `error.code`.
+  code the user may see. Never render `error.code`. A hook may throw an `ApiError` of a server
+  code itself, to refuse a change before the Outbox (`useMedicines`: `medicine.duplicate`).
 - `errorMessage(apiError)` returns `{key, values}` for `t(key, values)`; it fills params, e.g.
   minutes to wait for `auth.too_many_attempts` (plural keys `_one/_few/_many/_other`), or
   `errors.authTooManyAttemptsNoWait`.
@@ -233,12 +254,15 @@ returns `index.html` for any non-API path ([`backend.md`](backend.md#webapp)).
 code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
-  (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`, `mute`; `child_field`
+  (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`, `mute`, `illness`,
+  `illness_event`, `medicine`, `document`; `child_field`
   and `list` came with store version 2, `item`, indexed by `listId`, with version 3, `category`,
   indexed by `listId`, with version 4, `item_history`, indexed by `listId`, with version 5;
   version 6 indexes `list` by `childId`, for Child lists; `child_field_value`, indexed by
-  `childId` and `childFieldId`, came with version 7; `mute`, indexed by `listId`, with version 8).
-  A row holds the
+  `childId` and `childFieldId`, came with version 7; `mute`, indexed by `listId`, with version 8;
+  the Medical card tables with version 9: `illness`, indexed by `childId`, `illness_event`,
+  indexed by `illnessId`, `medicine`, and `document`, indexed by `childId` and `illnessEventId`). A row of `KEPT_WHEN_DELETED` (`medicine`) stays when deleted, here
+  or on the server, marked `deleted: true` (sync.md, Client). A row holds the
   fields the pull sent and `version`, the Version it was pulled with (none on a row created here
   until the pull brings it back). Also there:
   `outbox` (`++seq`) and `meta` (the stored Version, the owner: the Member whose data it holds,
@@ -261,7 +285,8 @@ code that touches IndexedDB or the sync API:
   session already gone), opens the unsent-changes warning; «Выйти» there goes on without them.
   After the server's logout (`auth.required` counts as logged out), or when the logout itself
   can't reach the server (then a pending logout, see the auth guard), `stopSyncAndWipe()` stops
-  the engine and wipes the store: an explicit logout always wipes, owner copy included.
+  the engine and wipes the store: an explicit logout always wipes, owner copy included; then
+  `clearFileCache()` (`@/shared/files`) deletes the opened Document files.
 - `liveUpdates.ts`: `openLiveUpdates(onNewerVersion)`, opened by `startSync` and closed by
   `stopSync`. One `EventSource` on `/api/sync/events`; a `changed` event whose Version is above
   the stored one calls `requestSync()`, any other causes no pull. When the browser gives up on the
@@ -279,14 +304,17 @@ code that touches IndexedDB or the sync API:
     of which only those that differ from the local row are written and sent (read in the same
     transaction; nothing differs, nothing written), so a screen passes just the changed field and
     a change the other Member made meanwhile stays; `local` fields go only into the local row and the Outbox entry, never to the server,
-    until the server's copy replaces them (an Item's `doneHereAt`); `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
+    until the server's copy replaces them (an Item's `doneHereAt`); `upsertRows(writes)`: several
+    upserts in one transaction, so their Outbox operations go together and in order (a new Illness,
+    then its first event); `deleteRow(table, id)`. Both write the row and the Outbox in one transaction and resolve at
     once, online or not;
   - `useSaveRejection()` → `{message, dismiss}`: the message about the last operation the server
     rejected (`saveRejection.ts`, I3: `list.not_found`, `list.owner_only`, `list.kind_immutable`,
     `list.wish_shared_only`, `child_field.value_type_immutable`, `sync.read_only`,
     `item.list_not_todo`, `item.due_time_without_due_date`, `item.repeat_without_due_date`,
     `item.assignee_on_private_list`,
-    `item.assignee_not_found`, `list.hide_done_not_todo`, `mute.private_list` map to
+    `item.assignee_not_found`, `list.hide_done_not_todo`, `mute.private_list`, `medical.not_found`,
+    `medicine.duplicate`, `illness.condition_takes_notes_only` map to
     `sync.rejected.*`, «Не удалось сохранить: …» with the reason; any other code to
     `sync.saveRejected`, plain «Не удалось сохранить»). It is recorded whatever screen is open and
     cleared by the Member's next change, `dismiss()` or a logout. Its one user is
@@ -302,7 +330,10 @@ its List, a Child field value to its Child and to its Child field, a Mute to its
 
 ## Data access
 
-Each synced data feature has one hook that is its only data access. Components never call `api`,
+`useMedicalCard(person)` and `useDocuments(person)` (`features/medical`) are described under [Medical cards](#medical-cards).
+
+Each synced data feature has one hook that is its only data access (Documents, read for
+several screens, split it by use: `useDocuments`, `useDocumentCount` and `useEventDocuments`). Components never call `api`,
 Dexie or `@/shared/sync`'s writers directly; ESLint enforces it (`data-access/components-use-hooks`
 in `web/eslint.config.js`: no sync writers, `@/shared/sync/*` internals or Dexie in a `.tsx`).
 Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hooks:
@@ -320,7 +351,7 @@ Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hoo
   `useChildren()`: every write resolves at once, offline too, and sends only what it changes
   (`rename` the name, `move` the position, `add` all three fields). `newChildFieldId()` makes the
   id once when the «Новое поле» sheet opens. `move` takes the field's index after the move;
-  `positionAfterMove(fields, id, to)` gives it the midpoint between its new neighbours, or one past
+  `positionAfterMove(positions, from, to)` (`@/shared/ui`, shared with Categories and Conditions) gives it the midpoint between its new neighbours, or one past
   either end, so a reorder is a single-record change. A new field goes one past the last.
   Ordering is `position`, then id.
 - `useChildFieldValues(childId)` → `{values, save(field, value)}` (#91; `child-fields`): the
@@ -677,6 +708,7 @@ row per Member: initial, name, email, «(вы)» on the own one; not tappable; t
 взрослого…»), «Приглашения» (an edit-mode list, see Invites above), «Ваш профиль» (Имя as an auto-saved `InputRow`, «Пол» as an auto-saved
 `SegmentedControl`; each change `PATCH`es only its own field and updates the session and the
 Members list; then the «Изменить пароль» chevron row), «Дети» (below), «Поля профиля» (below),
+«Лекарства» (`MedicinesSettings` from `features/medical`, see [Medical cards](#medical-cards)),
 «Уведомления» (untitled, below), «Оформление», and the red «Выйти» row (`LogoutSection` from `features/auth`, a `ConfirmRow`;
 after logging out the guard shows `/login`). Logout sends the Outbox first; when that fails
 (other than `401`) a second `ActionSheet` warns «Нет соединения с сервером. Несохранённые
@@ -748,8 +780,8 @@ current password empties that field). `app/routes.tsx` passes `SETTINGS_PATH` in
 or before it; `i18n` plurals `children.age.years_*` / `months_*`, computed from the device's
 date) and a chevron to `/settings/children/:id` (`childSettingsPath(id)`). Edit mode deletes only
 (Children have no order); a swipe and right-click delete too; each asks first, «Удалить „Маша“?»
-with the message «Списки и профиль ребёнка тоже будут удалены.» (`children.deleteTakesAll`; the
-server deletes the Child lists with the Child, #90). «Добавить ребёнка»
+with the message «Списки, профиль и медкарта ребёнка тоже будут удалены.» (`children.deleteTakesAll`; the
+server deletes the Child lists and the Medical card with the Child, #90, #129). «Добавить ребёнка»
 (the section's `after` row) opens `NewChildSheet`: a `Sheet` «Новый ребёнок» with the same rows
 as the Child screen (`ChildRows`), name and colour required, saved only with «Готово» (at once, also offline);
 the Child appears in the list in order. With no Children the footer says «Детей пока нет». A
@@ -778,12 +810,12 @@ The Child screen `/settings/children/:id` (`ChildSettingsPage`, `CHILD_SETTINGS_
 none). Each change saves only that field through `useChildren().save` (local store + Outbox), so
 it shows at once offline too; after a rejection («Не удалось сохранить» app-wide) the rows show
 the server's value again. Then a red «Удалить ребёнка» `ConfirmRow`: the `ActionSheet`
-«Удалить „Маша“?» with the same message «Списки и профиль ребёнка тоже будут удалены.», then back to Settings (replacing the history entry). An unknown id shows «Такого ребёнка
+«Удалить „Маша“?» with the same message «Списки, профиль и медкарта ребёнка тоже будут удалены.», then back to Settings (replacing the history entry). An unknown id shows «Такого ребёнка
 нет: возможно, его удалили.».
 
 ## Home «Дети» and the Child page
 
-Home (`HomePage`) is `Sections` of `ChildrenCards` and `ListsSection`. `ChildrenCards`
+Home (`HomePage`) is `Sections` of `ChildrenCards`, `MedicalCardRow` («Медкарта», see [Medical cards](#medical-cards)) and `ListsSection`. `ChildrenCards`
 (`features/children`, tickets #89, #124) reads `useChildren()` and shows «Дети» as a `CardGrid` above
 the Lists: a `Card` per Child in the Children order (oldest first), led by their `ChildAvatarOf` (the
 `ChildAvatar` from the stored codes: `childColor(code)?.hex`, grey for an unknown colour;
@@ -816,6 +848,212 @@ An unknown id, or a Child deleted while the page is open, shows «Такого �
 (Child lists on the page and off Home, «Новый список» there, a Child list's screen and settings,
 the delete warning, the store upgrade to version 6),
 `child-fields/childFieldValues.test.tsx` (the profile's values, and the store upgrade to version 7).
+
+## Medical cards
+
+Spec #128, tickets #129, #130, #131, #132, #133, #134. A Medical card is every Member's and every Child's; its rows name their
+person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards the Member may see
+(their own and the Children's); the client still filters by person (`isOn`).
+
+- **Rows**: `MedicalCardRow` is a `GroupedSection` with one `ListRow` «Медкарта»: on Home, under
+  «Дети», to `/medical`; on the Child page, under «Профиль», to `/children/:id/medical` (the
+  routes pass it into `ChildPage` as `medical`, like `lists`, since `medical` imports `children`).
+- **Card** (`MedicalCardPage`, titled «Медкарта»): `useCardRoute(homePath)` picks the person
+  (the session's Member without `:id`, back «Семья»; the Child of `:id`, back to the Child page,
+  «Такого ребёнка нет» when missing). «Добавить приём лекарства» and «Записать температуру»
+  (accent `ListRow`s of `AddEventSection`, which the Illness screen shares) open the dose and
+  Temperature sheets. Then (#132) «Диагнозы/наблюдения»: the Conditions that aren't Ended, by
+  `position` (`conditionsInOrder`), an edit-mode list of `EditableRow`s in a `SortableList` as
+  Child fields (no delete: «Изменить» only shows the drag handles; a move writes only the
+  `position`), each the name and «последнее: 3 марта» (`medical.lastEvent`, the latest event's
+  date, the year only when not this year) or «Нет событий», opening its screen; an accent
+  «+ Добавить» (`after`) opens `NewConditionSheet` («Диагноз/наблюдение», «Название» required,
+  placeholder «Например: Зрение, Зубы»; the id made once when it opens, `newIllnessId()`), which adds it
+  last. «Болезни» lists the Illnesses that aren't Ended, each a row with the name and «с 2 декабря
+  · 4 события» (`medical.illnessSummary`, `medical.events_*` plurals; the year only when it isn't
+  this year; «Нет событий» for an empty one), opening the Illness screen; «Болезней пока нет»
+  with none. Its last row, always there, is an accent «+ Новая болезнь» (`medical.addIllness`):
+  `NewIllnessSheet` («Новая болезнь», «Название» required, placeholder «Например: ОРВИ, Отит»; the
+  id made once when it opens, `newIllnessId()`) adds an empty Illness (`addIllness`, offline too)
+  and opens its screen. Last, while any is Ended, «Завершённые»: both kinds by latest event, newest first
+  (`illnessesInOrder`), rows as above (`IllnessOrConditionRow` by kind), collapsed on every visit: the header's
+  «Показать» / «Скрыть» (`action` with `expanded`) shows or hides them.
+- **Illness screen** (`IllnessPage`, `…/illnesses/:illnessId`, back «Медкарта»), an Illness's or
+  a Condition's, Ended or not (it looks one up in `all`): titled with the
+  name; «Название» (`InputRow`, required) and «Описание» (`TextAreaRow`), auto-saved like an
+  Item's (#131); for an Illness only, «с 2 декабря 2026» (the first event's date, its own section), «Приём лекарства»,
+  «Температура» and «Заметка» (in «Записать»: the sheets, into this Illness, without «Добавить
+  к»; a Condition only «Заметка»: it holds Note events only), then the events in one
+  `GroupedSection` (no header; labelled «События» for assistive technology), newest first
+  (`eventsInOrder`), or «Нет событий» with none. Each row's title is what happened, the parts
+  joined by « · » (`medical.eventSeparator`; the title wraps, `wrapTitle`): «38,5 °C», a dose
+  «Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» (`medical.doseValue`; the Medicine's name from
+  `useMedicines().nameOf`, a deleted one's too), a Note its title («Сходили к доктору»); its
+  subtitle (one line, cut with «…») the date «2 декабря, 22:00» (`medical.eventWhen`, `longDay`
+  with the year only when not this year, no time when untimed), then « · » and the Description.
+  Each row is a button opening the event's sheet (`EditEventSheet`); a 📎 accessory opens the
+  Document it carries. Its kind is fixed (no switch); then «Завершить» or
+  «Возобновить» (an accent `ListRow`, `end`). An Ended one keeps every row and sheet. Last, «Удалить» (`ConfirmRow`) asks «Удалить «ОРВИ»?» with
+  «Вместе с ней удалятся 6 событий.» (`medical.deleteIllnessEvents_*`; no message without events),
+  goes back to the card and deletes the Illness (its events go with it). An Illness left without
+  events stays. An unknown or deleted Illness: «Такой болезни нет: возможно, её удалили.».
+- **Event sheets** (`EventSheet`, a `Sheet` titled by the kind, its groups in `Sections`): the kind's own rows first, in
+  their own group, then a group of
+  «Дата» and «Время» (`DateRow`s) defaulting to when the sheet opened, the time may be cleared;
+  «Описание» (`TextAreaRow`). From the card, «Добавить к» preselects `illnessToJoin` or «Новая
+  болезнь» (never a Condition or an Ended Illness: the card passes only its Illnesses that
+  aren't Ended); «Другая…» shows a second `SelectRow` «Болезнь» with the person's other
+  Illnesses that aren't Ended (a Medicine dose or Temperature never goes into a Condition). «Готово» checks the kind's rows (`check`), then saves through `useMedicalCard`.
+- **Editing an event** (`EditEventSheet`, #131): the sheet of its kind with `editing` (an
+  `EventEditing`: the event, the person's Illnesses, `remove`): every row filled with its values
+  (a dose: its Medicine's name, a deleted one's too, kept while the name is left as it is; its
+  amount, no prefill), no «Добавить к». «Готово» saves through the same `save…`,
+  the `EventPlace` carrying the event's id (`EventSheet` adds it), so only the changed fields are
+  sent. «Перенести в…» (an accent `ListRow`) opens
+  an `ActionSheet` of the person's other Illnesses that aren't Ended, and for a Note event their
+  Conditions too (a Condition holds Note events only; never an Ended
+  one, spec D15, so nothing is moved into one; an Ended one's own events can still be moved out)
+  and «Новая болезнь» (named
+  after the event's date); a choice checks and saves the sheet into that Illness (a new one in
+  the same Outbox batch). «Удалить» asks «Удалить событие?», then deletes it.
+- **Note sheet** (`NoteEventSheet`, «Заметка», #131; identifiers and i18n keys say «Note event»,
+  `medical.noteEvent`, since GLOSSARY lists a bare «note» under Description's _Avoid_ and the lint
+  guard rejects it): «Название» (required), then `EventSheet`'s rows with «Время» empty
+  (`untimed`).
+- **Temperature wheel** (`TemperatureRow`): «Температура» as a `SelectRow` (a native `<select>`:
+  the iPhone's wheel, the Mac's menu) from 34,0 to 43,0 °C in 0,1 steps. `optional` adds «—»
+  (`medical.noTemperature`, value `''`) right before 37,0, selected at first, so the wheel shows
+  «—» until turned and then goes on from 37,0.
+- **Temperature sheet** (`TemperatureSheet`, «Температура»): the wheel, default 37,0.
+- **Dose sheet** (`DoseSheet`, «Приём лекарства», #130): «Лекарство» is an `InputRow` with
+  `SuggestionRows` under it: the Medicines (not deleted) whose name has the typed text, ignoring
+  case, then «+ <text>» (`medical.addMedicine`), told apart by its place (a Medicine may be named
+  «+ …»); picking a row puts its name in the field. A name
+  typed in any letter case picks that Medicine (`medicineNamed`) and closes the rows, as «+ …»
+  does; otherwise «Готово» adds the typed name as a new Medicine in the same Outbox batch as the
+  dose (and the new Illness). «Количество» (`InputRow`, placeholder «например, 5 мл», required)
+  shows `lastAmountOf(medicine)` (no hint under it) until the Member types their
+  own; empty the first time. «Температура» is the optional wheel. Both «Лекарство» and
+  «Количество» are required («Заполните это поле»).
+- **Medicines in Settings** (`MedicinesSettings`, «Лекарства», built like «Поля профиля» without
+  reordering): an edit-mode list of `EditableRow`s by name (`Intl.Collator('ru')`), each renamed in
+  place (auto-saved, «Название лекарства «…»»); every delete asks («Удалить лекарство „…“?»).
+  «Добавить лекарство» opens `NewMedicineSheet` («Новое лекарство», «Название» with the
+  placeholder «Ибупрофен 20 мг/мл»). A name the list already has, ignoring case, is refused
+  before anything is written: «Такое лекарство уже есть» under the field (the sheet, or the
+  renamed row's footer line). With none, the footer says «Лекарств пока нет».
+- **Rules** (`illnessRules.ts`, pure): `eventMoment` (date at time, 00:00 without one; `localMoment`
+  from `@/shared/dates`, which `isOverdue` uses too);
+  `illnessToJoin` (the not-Ended ILLNESS with the latest event, if that is at or after now − 48 h);
+  `illnessesInOrder` (latest event, newest first; an empty one by `createdAt`, or now before the
+  pull brings it); `eventsInOrder` (date newest first, timed ones latest first, then untimed);
+  `conditionsInOrder` (`position`, one without last, ties by id); `positionsOf`; `firstDay`, `lastDay`;
+  `formatTemperature(t, value)` («38,5 °C», `medical.temperatureValue`, the decimal
+  comma from `Intl.NumberFormat('ru')`); `lastAmount(events, medicineId)`: the amount of the
+  latest dose of it by its own date and time (00:00 without one), the higher `version` on a tie
+  (one not pulled back yet counts as the newest), so a dose backfilled for an earlier time doesn't
+  change it. The new Illness's name is «Болезнь » + the event's
+  date as «2 декабря 2026» (`medical.newIllnessName`, `longDay` from `@/shared/dates`).
+- **Data**: `useMedicalCard(person)` → `{all, conditions, illnesses, ended, addIllness(id, name),
+  addCondition(id, name), moveCondition(condition, to), end(illness), resume(illness),
+  eventsOf(illnessId), lastAmountOf(medicineId),
+  saveTemperature(place, details), saveDose(…), saveNoteEvent(…), rename(illness, name),
+  describe(illness, description), removeIllness(illness), removeEvent(event)}` on
+  `useRows('illness')` and `useRows('illness_event')`; `all` (every row on the card),
+  `conditions`, `illnesses` and `ended` (the sections) are `undefined` until both are read. `addIllness` writes an
+  empty ILLNESS (its kind, like every row's, never changes later). A
+  Condition added goes one past the largest `position` of the card's Conditions
+  (1 for the first); `moveCondition` writes only the `position` (`positionAfterMove` over `positionsOf`, where one without a `position` counts as one past
+  the one before it); `end` and `resume` write only `ended`; `lastAmountOf` looks at every event on the card (any Illness or Condition); `illnessOfEvent(eventId)` is the Illness or Condition on the card an event is in. The `save…`
+  add the event to `{illnessId}`, or, for `{newIllnessName}` (an `IllnessChoice`), create the Illness
+  (`memberId` or `childId`, `kind`, `name`) and the event in one Outbox batch (`upsertRows`); a
+  dose of `{newMedicineName}` (a `MedicineChoice`) puts the Medicine first in that batch. They
+  resolve at once, offline too, with the id of the event's Illness (a new one's too). `useMedicines()` → `{load (not deleted, by name), all, nameOf(id),
+  add, rename, remove}` on `useSyncedRows('medicine')`; `add` and `rename` reject with
+  `ApiError` `medicine.duplicate` for a name the list has (ignoring case), writing nothing.
+- **Documents** (#133): the card's row «Документы (n)» (its own `GroupedSection`, after
+  «Болезни») opens `DocumentsPage` (`…/medical/documents`, «Документы», back «Медкарта»): the
+  card's Documents newest first by date (one day's by title), each a row with the title and the
+  date («2 декабря», the year only when not this year), opening the file; «Документов пока нет»
+  with none; an accent «+ Документ» (`after`) opens `DocumentSheet` for a new one, its id made once
+  when it opens (`newDocumentId()`), so a retried upload repeats it. The sheet («Документ»):
+  «Файл» (`FileRow`, PDFs and photos), «Название» (required; choosing a file fills it with the
+  file's name without its extension, unless the Member typed their own), «Дата» (today), «Описание».
+  «Готово» checks the file (none: «Выберите файл»; over 20 MB: «Файл больше 20 МБ», before
+  uploading), then uploads; offline it says «Нужен интернет, чтобы прикрепить файл» and keeps the
+  sheet; the server's `document.too_large` and `document.unsupported_type` show as «Файл больше 20
+  МБ» and «Можно прикрепить PDF или фото» (`ERROR_KEYS`); `document.event_has_document` (an
+  Illness event that carries a Document this device didn't know of, e.g. one just attached on
+  another device) as «К этой записи уже прикреплён документ». Each row's date is followed by the
+  Illness or Condition the Document's event is in, when it is on one: «2 декабря · ОРВИ»
+  (`medical.documentOfIllness`, `useMedicalCard().illnessOfEvent`).
+  `DocumentPage` (`…/documents/:documentId`) shows the file in a `FileViewer`: a photo fitted
+  full screen; a PDF behind «Открыть PDF», which opens its object URL with `window.open(url,
+  '_blank')` in a window of its own. Why not embedded: Safari on an iPhone (and a Home Screen app)
+  renders a PDF in an `iframe`, `object` or `embed` as its first page only, while a window of its
+  own gets the full viewer (every page, zoom, share). The URL is a `blob:` of the decrypted
+  download or the cached copy, so it opens offline too, and the tap is a real gesture, so no popup
+  blocker stops it. Back «Документы», «Изменить» opening the same sheet with the file shown as
+  «PDF, 47 КБ» (`fileSummary`) and its fields saved through sync on «Готово», and «Удалить документ» (asks «Удалить «…»?», goes back to the Documents, deletes it). A file the
+  server lost: «Файл недоступен» (`document.file_missing`); an unknown Document: «Такого
+  документа нет: возможно, его удалили.».
+- **Documents data**: `useDocuments(person)` → `{documents, add(id, file, details), save(document,
+  details), remove(document)}` on `useRows('document')`. `add` uploads (`documentsApi.uploadDocument`,
+  `FormData` with `memberId` or `childId`) and then `requestSync()`: the row arrives with the pull,
+  never written locally first; it rejects offline. `save` is `upsertRow` (only changed fields
+  go), `remove` `deleteRow` and `forgetFile`. While it is mounted (the Documents and Document
+  screens) it also forgets kept files of Documents no longer in the store (deleted elsewhere, or
+  with their Child; `documentIdOf(url)` reads the id back from a kept URL). The card's row counts
+  with `useDocumentCount(person)`, which reads only. `fileKind(document)` (`medicalTypes`) is
+  `'pdf'` or `'photo'`, for the viewer and the sheet's summary. `useDocumentFile(document)`
+  opens the file: the copy in the `family-app-documents` cache (keyed by the file's URL,
+  `/api/documents/<id>/file`), else `api.file` and `keepFile`, then an object URL (revoked on
+  unmount); `{status: 'loading' | 'ready' | 'failed'}`. `titleOf(file)` is a file's name without
+  its extension, a new Document's default title.
+- **Documents on events** (#134): the dose, Temperature and Note sheets (`EventSheet`) end with
+  «Документ» (`FileRow`; the chosen file's name, else the title of the Document the event carries,
+  else «Выбрать»). «Готово» saves the event through the Outbox as before, then, with a file,
+  attaches it (`useEventDocuments(person).attach`): `flushOutbox()` first, so the event is on the
+  server, then the upload with `illnessEventId`, taking the event's date and the file's name
+  (`titleOf`) as its title, which the Documents screen edits later like any Document's, and
+  `replaces` the Document the event carried, which the server deletes in the same request. Offline
+  (or any failure) the event stays saved and the sheet stays open with «Нужен интернет, чтобы
+  прикрепить файл» (or the error); «Готово» again changes the same event (its id is made once when
+  the sheet opens, and it stays in the Illness it was saved into, a new one included) and retries
+  the upload with the same Document id. An event's row on the Illness screen shows a paperclip (📎, `Icon` `paperclip`) at its right
+  end when it carries a Document (`ListRow`'s `accessory`, a link of its own beside the row's
+  button, named «Открыть «…»»), opening it at `…/illnesses/:illnessId/documents/:documentId`
+  (`DocumentPage`) with the Illness screen in the history state (`documentOpenedFrom`), so back
+  (and «Удалить документ») returns to the Illness; opened from the Illness's Documents (no state,
+  or a deep link) it goes back to them. The Illness screen's «Документы (n)» (after
+  «с …») opens `DocumentsPage` under the Illness (`…/illnesses/:illnessId/documents`, back to the
+  Illness): only its events' Documents, with no «+ Документ» (they are added from the events). Its
+  delete confirmation adds the Documents: «Вместе с ней удалятся 6 событий и 2 документа.»
+  (`medical.deleteIllnessEventsAndDocuments` with `medical.documentCount`), the plain events line
+  when there are none. Deleting an event or an Illness also deletes their events' Documents here
+  at once (`removeOfEvents`, through the Outbox, files forgotten), so they are gone offline too;
+  the server does the same in the same operation. «Перенести в…» needs nothing more: a Document
+  names its event, which moves. `useEventDocuments(person)` → `{of(eventId), ofEvents(events)
+  (newest first), attach(id, eventId, file, date), removeOfEvents(events)}`. `useDocumentCount`,
+  `useDocuments` and `useEventDocuments` read the card's rows one way (`useDocumentRows`, over
+  `useRows('document')`) and delete one way (`removeDocument`: `deleteRow`, then `forgetFile`);
+  `uploadFailureMessages(error, fields)` is what both `DocumentSheet` and `EventSheet` show for a
+  failed upload («Нужен интернет…» offline, else the server's message). Optional text is saved
+  through `optionalText` (`medicalTypes`: trimmed, blank as `null`).
+  `documentFileError(file)` is the check both sheets make before uploading (over 20 MB).
+  `IllnessMissing` is the unknown-Illness screen both the Illness screen and its Documents show.
+- Store: `illness` depends on `child` (`childId`), `illness_event` on `illness` (`illnessId`),
+  `document` on `child` (`childId`) and on `illness_event` (`illnessEventId`, #134), in
+  `DEPENDENT_TABLES` and in the fake sync server's `CASCADES`.
+- Tests: `features/medical/medicalCard.test.tsx`, `medicines.test.tsx` (Settings, the store
+  upgrade from version 8), `medicineDoses.test.tsx`, `illnessEditing.test.tsx` (#131),
+  `endedConditions.test.tsx` (#132), `documents.test.tsx` (#133: adding, listing, opening,
+  reopening offline from the cache, logout clearing it, editing, deleting, the messages, the store
+  upgrade from version 8), `eventDocuments.test.tsx` (#134: attaching in each sheet, offline and
+  again online, replacing, 📎, an Illness's Documents, the card's labels, the confirmation,
+  deleting, moving, the store upgrade from version 8). `documentsServer()` (`@/test/medical`)
+  checks an event upload as the server does: the event must be on the fake sync server, and carry
+  no Document but the one it `replaces`, which it deletes.
 
 ## PWA
 
@@ -866,6 +1104,11 @@ a Vite native-config-loader warning).
     Announcement is hand-written text with nothing to compose, and finished text keeps it readable
     by any worker that knows the type, whatever the text says. A missing or wrong-typed field
     gives «Семья», as for the other types.
+  - `type: 'dose'` (spec #128, ticket #136; title «Медкарта», `medical.title`): `actorName`,
+    `actorGrammaticalGender` (as in a `notification`), `childName`, `url` (the Illness,
+    `/children/:id/medical/illnesses/:illnessId`). The body is `push.dose`, «Даша записала приём
+    лекарства: Миша» («записал» for `MASCULINE`, «записал(а)» for `null`). There is no Medicine
+    name or amount in the payload, so a lock screen shows nothing medical.
 - **Push texts** come from the `push.*` keys of `ru.json` through the worker's own i18next
   instance (the app's `@/shared/i18n` also loads react-i18next). Added Items are named in
   quotes when `itemNames` holds them all (1–3); more are counted with the names sent
@@ -922,7 +1165,11 @@ helper a second test file needs moves here.
 | `FakeEventSource` (`@/test/eventSource`) | live updates: `latest().emit('changed', …)`, a dropped connection |
 | `fakePushDevice({permission, answer, subscribedAt})`, `pushServer()` (`@/test/pushDevice`) | a device that can receive push (jsdom has none: without it every test is a device without push): fake `Notification`, `PushManager`, `serviceWorker.ready`; the server's VAPID key and subscription endpoints, recording `posted` / `deleted` |
 | `upgradeStoreFrom(version, seed)` (`@/test/olderStore`) | a store-upgrade test: an older store with rows or Outbox operations, then the current one opened over it (lint rejects store versions declared anywhere else) |
-| `anna`, `boris`, `masha`, `petya`, `weight`, `height`, `sessionHandler`, `membersHandler`, `invitesHandler` (`@/test/fixtures`) | Members, Children, Child fields and the auth/settings handlers every test needs |
+| `anna`, `boris`, `masha`, `petya`, `weight`, `height`, `sessionHandler`, `membersHandler`, `invitesHandler`, `fixtureId` (`@/test/fixtures`) | Members, Children, Child fields, the auth/settings handlers every test needs, and ids for seeded rows |
+| `illnessRow`, `temperatureRow`, `doseRow`, `medicineRow`, `selectedText` (`@/test/medical`) | Medical card rows to seed (Illnesses, Temperatures, Medicine doses, Medicines), each with a fresh id; the chosen option of a wheel |
+| `documentRow`, `documentsServer()` (`@/test/medical`) | Documents to seed, and the document endpoints for one test: uploads add the row to `syncServer` and keep the file; `uploads`, `fileRequests`, `keep(document, bytes)`, `failUploadsWith(status, code)` |
+| `fakeCaches` (`@/test/cacheStorage`) | Cache Storage (jsdom has none), installed as `caches` and emptied for every test: `cacheNames()`, `urls(name)` |
+| `readMultipart(request)` (`@/test/multipart`) | an MSW handler reading a `multipart/form-data` upload; `network.ts` encodes a `FormData` body as a browser does (jsdom's `FormData` is not Node's) |
 | `dayParts`, `localDay` (`@/shared/dates`, app code) | a `YYYY-MM-DD` day in a test or in code: lint rejects parsing one by hand elsewhere |
 
 Run one file with `../scripts/with-toolchain.sh npx vitest run <file>` from `web/`; a test that
@@ -937,12 +1184,14 @@ fails only sometimes, with `scripts/repeat-test.sh <file> [n]`.
 - The sync API is always answered by the fake sync server `syncServer` (`@/test/syncServer`,
   installed in `server.ts`, emptied after each test). It behaves like the real one (Versions,
   per-field Last write wins, delete wins, tombstones; a deleted row takes the rows that belong to
-  it, in `CASCADES`, as the server does: a Child its Child lists and Child field values, a Child
-  field its Child field values, a List its Items, Categories and Item history; a Child field value is stamped with `recordedAt`, never
+  it, in `CASCADES`, as the server does: a Child its Child lists, Child field values,
+  Illnesses and Documents, a Child field its Child field values, a List its Items, Categories, Item history and
+  Mutes, an Illness its Illness events; a Child field value is stamped with `recordedAt`, never
   changes once recorded, and is `ignored` for a deleted or unknown Child or Child field; a List
   made Private loses its Items' Assignees; a repeating Item turned Done (created Done or changed), pushed or by `change`,
   loses its Repeat to a new open Item, its next occurrence, counted as the server does from the
-  device's date, #87):
+  device's date, #87; a Medicine's name is unique ignoring case, `medicine.duplicate` on rename
+  while a new one with a taken name is kept deleted and `ignored`, and a deleted one stays a row with `deleted: true`, never a tombstone, #130):
   `seed(table, rows)`, `change(table, id,
 fields | 'deleted')` (the other Member's change), `row(table, id)` (the server's copy),
   `operations(table)` / `pushes` (with `csrf`) / `pulls`, `goOffline()` / `goOnline()` (MSW network

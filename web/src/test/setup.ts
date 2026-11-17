@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest';
 import { reportServerReachable } from '@/shared/api/serverReachable';
 import { stopSync } from '@/shared/sync/engine';
 import { localStore } from '@/shared/sync/localStore';
+import { fakeCaches, installCacheStorage } from './cacheStorage';
 import { FakeEventSource } from './eventSource';
 import { installNetwork, network } from './network';
 import { server } from './server';
@@ -24,6 +25,8 @@ Element.prototype.scrollIntoView = () => undefined;
 
 beforeEach(() => {
   globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+  // jsdom has no Cache Storage: every test gets an empty one.
+  installCacheStorage();
 });
 afterEach(async () => {
   cleanup();
@@ -38,6 +41,7 @@ afterEach(async () => {
   syncServer.reset();
   network.goOnline();
   FakeEventSource.reset();
+  fakeCaches.reset();
   // Reachability is module state: a test that ended offline must not leave the next one offline.
   reportServerReachable(true);
 });

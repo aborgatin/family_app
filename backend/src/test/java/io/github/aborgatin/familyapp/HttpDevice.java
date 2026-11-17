@@ -50,7 +50,16 @@ public final class HttpDevice {
 
   public HttpResponse<String> send(String method, String path, String json)
       throws IOException, InterruptedException {
-    HttpResponse<String> response = http.send(request(method, path, json), BodyHandlers.ofString());
+    BodyPublisher body = json == null ? BodyPublishers.noBody() : BodyPublishers.ofString(json);
+    return send(method, path, "application/json", body);
+  }
+
+  /** A request with a body of any type, such as {@code multipart/form-data} (a file upload). */
+  public HttpResponse<String> send(
+      String method, String path, String contentType, BodyPublisher body)
+      throws IOException, InterruptedException {
+    HttpResponse<String> response =
+        http.send(request(method, path, contentType, body), BodyHandlers.ofString());
     for (String setCookie : response.headers().allValues("Set-Cookie")) {
       String pair = setCookie.split(";", 2)[0];
       int eq = pair.indexOf('=');
@@ -65,15 +74,15 @@ public final class HttpDevice {
    */
   public HttpResponse<Stream<String>> openLines(String path)
       throws IOException, InterruptedException {
-    return http.send(request("GET", path, null), BodyHandlers.ofLines());
+    return http.send(
+        request("GET", path, "application/json", BodyPublishers.noBody()), BodyHandlers.ofLines());
   }
 
-  private HttpRequest request(String method, String path, String json) {
-    BodyPublisher body = json == null ? BodyPublishers.noBody() : BodyPublishers.ofString(json);
+  private HttpRequest request(String method, String path, String contentType, BodyPublisher body) {
     HttpRequest.Builder request =
         HttpRequest.newBuilder(URI.create(base + path))
             .method(method, body)
-            .header("Content-Type", "application/json");
+            .header("Content-Type", contentType);
     if (!cookies.isEmpty()) {
       request.header(
           "Cookie",

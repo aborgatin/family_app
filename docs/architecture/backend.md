@@ -12,7 +12,7 @@ step with the headings).
 
 - [Stack](#stack): Spring Boot, Java 21, Error Prone, Spotless, what the build copies from the web app
 - [Configuration](#configuration): the environment variables `application.yml` reads and their defaults
-- [Modules](#modules): the Modulith modules (`family`, `sync`, `lists`, `notifications`, `command`, `webapp`), their public API and internals
+- [Modules](#modules): the Modulith modules (`family`, `sync`, `lists`, `notifications`, `medical`, `command`, `webapp`), their public API and internals
 - [API conventions](#api-conventions): JSON shape, timestamps and dates, which resources are REST and which go through sync
 - [Errors](#errors): `ApiException`, `FieldErrors`, the error-code catalogue (I1, I3)
 - [Security, sessions, CSRF](#security-sessions-csrf): the security chains, public endpoints, sessions, CSRF, login limits
@@ -34,6 +34,11 @@ step with the headings).
 - `processResources` copies `web/src/shared/palette/childColors.json` and `childAvatars.json` into
   the jar under `palette/` (the Child color palette and the Avatar set are defined once, in the web
   app; `ChildColorPalette`, `ChildAvatarSet`).
+- AWS SDK for Java v2, only its `s3` module, for Document files in Cloudflare R2 (#135): the
+  S3-compatible client R2 documents, maintained by AWS and versioned by one BOM. It comes with the
+  JDK's `URLConnection` HTTP client (`url-connection-client`); the Apache and Netty clients it would
+  bring are excluded. MinIO's Java client was the alternative: it pulls OkHttp and Kotlin's
+  standard library for the same three calls.
 
 ## Configuration
 
@@ -51,12 +56,30 @@ step with the headings).
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`                             | none (required)   | Web Push key pair, P-256 in base64url (`WebPushGateway`)  |
 | `VAPID_SUBJECT`                                                     | none (required)   | `mailto:` contact sent to the push services               |
 | `REMINDER_MORNING_TIME`                                             | `09:00`           | when a Due date without a time is due, in `TZ`            |
+| `DOCUMENTS_ENCRYPTION_KEY`                                          | none (required)   | AES-256 key of Document files, 32 bytes in base64 (`DocumentFiles`) |
+| `DOCUMENTS_FOLDER`                                                  | empty             | keeps Document files in this folder (`FolderFileStore`; `scripts/dev.sh`) |
+| `DOCUMENTS_S3_ENDPOINT`, `DOCUMENTS_S3_BUCKET`                      | none (required without `DOCUMENTS_FOLDER`) | the S3-compatible bucket of Document files: R2's `https://<account id>.r2.cloudflarestorage.com` and the bucket's name (`S3FileStore`) |
+| `DOCUMENTS_S3_ACCESS_KEY_ID`, `DOCUMENTS_S3_SECRET_ACCESS_KEY`      | none (required without `DOCUMENTS_FOLDER`) | the bucket's API token (`S3FileStore`) |
 
 The `notifications.*` keys bind to `notifications.push.NotificationsProperties`. A missing or
 blank VAPID variable, a subject that is not `mailto:`, or keys that are not one P-256 pair stop the
 app at startup with a message naming the variable (`NotificationsConfigurationTest`). Tests get a
 test-only pair from `src/test/resources/config/application.yml` (loaded on top of the main
-`application.yml`); local runs and the image tests from `scripts/lib/dev-vapid-keys.env`.
+`application.yml`); local runs and the image tests from `scripts/lib/dev-secrets.env`.
+
+The `documents.*` keys bind to `medical.DocumentsProperties`. A missing or blank
+`DOCUMENTS_ENCRYPTION_KEY`, or one that is not 32 bytes in base64, stops the app at startup with a
+message naming it (`medical.DocumentsConfigurationTest`); tests and local runs get theirs from the
+same files as the VAPID pair. `DOCUMENTS_FOLDER` selects the folder store; without it (production)
+the bucket store, and a missing or blank `DOCUMENTS_S3_*` value stops the app at startup with a
+message naming it. The app reaches the bucket only on an upload, a download or a delete, so it
+starts while the bucket is down, and the image tests run with a bucket nothing serves
+(`scripts/lib/dev-secrets.env`). Uploads (`spring.servlet.multipart`): a file over 20 MB is
+refused while the body is read (`max-file-size`), and a body over 22 MB from its `Content-Length`
+before it is read (`max-request-size`; the connection then closes); the body is read lazily
+(`resolve-lazily`), when the controller's `file` argument is resolved, so `DocumentsController`'s
+own handler answers `document.too_large`. Parts stay in memory up to 22 MB
+(`file-size-threshold`): an uploaded file is never written in plaintext to the temporary folder.
 
 Durations use Spring's format (`180d`, `15m`, `1h`). `spring.jpa.hibernate.ddl-auto` is `validate`
 and `open-in-view` is off. A new setting needs a line in `deploy/.env.example` and in the `app`
@@ -73,14 +96,17 @@ sub-packages are internal (M1). `ModularityTest` runs `ApplicationModules.verify
 | `family`  | `Members`, `MemberSummary`, `PasswordResets`, `Sessions`, `FamilyLock`, `Family`, `FirstMemberRegistered`, `Children`, `ChildDeleted` | `family.auth`, `family.member`, `family.child`, `family.childfield`    |
 | `sync`    | `SyncableTable`, `SyncedRecord`, `Operation`, `Outcome`, `SyncRow`, `SyncLock`, `SyncableWriteStarted` | `sync.internal` (`SyncController`, `SyncService`, `LiveUpdates`, `LiveUpdatesController`) |
 | `lists`   | `Lists` (with `ListSummary`, `ItemSummary`, `DueItem`), `ItemAdded`, `ItemAssigned`, `ListUnshared`, `ListKind`, `Visibility` | `lists.list`                                                                              |
-| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `PushMessage`, `Urgency`, `SchedulerStep`, `AnnouncementCatalog`, `Announcement` | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule`, `notifications.announcement` |
+| `notifications` | `Pushes`, `PushGateway`, `PushSubscription`, `PushResult`, `PushMessage`, `Urgency`, `SchedulerStep`, `AnnouncementCatalog`, `Announcement` | `notifications.push`, `notifications.batch`, `notifications.reminder`, `notifications.schedule`, `notifications.announcement`, `notifications.dose` |
+| `medical` | `MedicineDoseLogged`                                                                                   | `Person` (the card's visibility rule), `Illness`, `IllnessEvent`, `Medicine`, `Document`, their repositories, `IllnessService` (`illness`), `IllnessEventService` (`illness_event`), `MedicineService` (`medicine`), `DocumentService` (`document`, the upload and the file), `DocumentsController`, the file store (`FileStore`, `FolderFileStore`, `DocumentFiles`, `DocumentsConfig`, `DocumentsProperties`), `DocumentType` |
 | `error`   | `ApiException`, `ApiError`, `FieldErrors`                                                              | `error.internal.ApiExceptionHandler`                                                      |
 | `command` | `Commands` (called from `FamilyAppApplication.main`)                                                   | `PasswordResetCommand` (package-private)                                                  |
 | `webapp`  | none                                                                                                   | `WebBundleConfig`                                                                         |
 
 Dependencies: `family → error`, `family → sync`, `lists → sync`, `lists → error`, `lists → family`,
 `sync → error`, `command → family`, `notifications → family`, `notifications → lists`,
-`notifications → sync` (the `mute` table), `notifications → error`. (`lists` reaches Members through `Operation.memberId()`, and
+`notifications → sync` (the `mute` table), `notifications → medical` (`MedicineDoseLogged`),
+`notifications → error`, `medical → sync`, `medical → family`
+(`Children`, `ChildDeleted`, `Members`, `FamilyLock`), `medical → error`. (`lists` reaches Members through `Operation.memberId()`, and
 `family` for the `FirstMemberRegistered` and `ChildDeleted` events, for `Children` (Child
 lists, #90) and for `Members.byId` (an Item's Assignee must be a Member, #85); the spec also
 allows `FamilyLock` when a ticket needs it.) The Version
@@ -176,14 +202,15 @@ Shared patterns inside `family`:
   rolls back with the Member: `lists.list.ShoppingListDefaults` creates the Default Shopping lists
   (see `lists` below and "Defaults" under Flyway).
 - **`Children`** (public): `known(id)` (a Child with this id was ever created, deleted or not)
-  and `present(id)` (created and not deleted), for another module's rows that are about a Child.
-  `lists` checks a new Child list's `childId` with it. It reads `child` with `JdbcTemplate`, like
+  and `present(id)` (created and not deleted), for another module's rows that are about a Child,
+  and `notFound(id)`, the `child.not_found` rejection. `lists` checks a new Child list's `childId` with it. It reads `child` with `JdbcTemplate`, like
   `Family`, so the `family.child` types stay internal.
 - **`ChildDeleted(childId)`** (public): `ChildService` publishes it when a delete operation
   soft-deletes a Child, inside that push operation (its savepoint, under `FamilyLock`). Listeners
   are plain synchronous `@EventListener`s that soft-delete what their module keeps about the
   Child, each named `onChildDeleted`: `family.childfield.ChildFieldValueService` deletes the
-  Child field values, `lists.list.ListService` the Child lists (see `lists` below). A
+  Child field values, `lists.list.ListService` the Child lists (see `lists` below),
+  `medical.IllnessService` the Child's Illnesses and their events. A
   listener that throws rejects the delete operation.
 - **One-time tokens** (`OneTimeTokens`): 32 random bytes, base64url without padding. Only the
   SHA-256 hash is stored (`token_hash BYTEA`). Used by Invites and Password resets.
@@ -193,7 +220,9 @@ Shared patterns inside `family`:
   `ChildFieldRequest.validate()` and `ChildRequest.validate(palette)` (a bean the check needs is
   passed in) return the normalized values or throw. Services call it before taking `FamilyLock`.
   Shared values are read one way, by `FieldErrors` (see Errors): an enum, a UUID, a
-  `YYYY-MM-DD` day.
+  `YYYY-MM-DD` day; optional text by `FieldErrors.trimmed` (trimmed, blank as `null`; a push
+  operation's through `Operation.trimmedText`). An `HH:MM` time of day is `sync.TimeOfDay`
+  (`parse`, read through `FieldErrors.parsed`, and `format`, which pulls write it with).
 
 ### `sync`
 
@@ -360,7 +389,7 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
   stored `DueDate`; a `dueDate` of `null` drops the stored time. Then, in this order:
   `item.list_not_todo` (`params.listId`) unless the List is `TODO`; `validation.failed` /
   `value.invalid` for a day that isn't ISO `YYYY-MM-DD` (`FieldErrors.date`) or a time that isn't
-  strict `HH:mm` (`DueDate.parseTime`; the one `HH:mm` format, which the pull writes too);
+  strict `HH:mm` (`sync.TimeOfDay`; the one `HH:mm` format, which the pull writes too);
   `item.due_time_without_due_date` when a time is left without a day. An upsert carrying neither
   field leaves the Due date alone on every kind of List.
 - Repeat (#86; `repeat`, when carried; `ItemService.repeat` → `ItemEntity.repeat`): column
@@ -436,13 +465,15 @@ Item history is in the same package: `ItemHistoryEntity` (`list_id`, `normalized
 
 Push messages (spec #104). Ticket #107 built the module's base: the Notifications switch's effect,
 push subscriptions and the push gateway. #109 added Batches and the scheduler step, #110 Reminders,
-#111 Mute, #121 Announcements (spec #120).
+#111 Mute, #121 Announcements (spec #120), #136 the dose Notification (spec #128).
 
 - **`Pushes.sendTo(memberId, payload, ttl, urgency)`** (public) is the one way out: if the
   Member's Notifications switch is on (`family.Members.notificationsEnabled`), it sends the payload
   to each of their live subscriptions, one push each, outside any transaction. `GONE` deletes the
   subscription; `FAILED` is logged and not retried. Turning the switch off keeps the
-  subscriptions. Callers decide recipients and payloads.
+  subscriptions. Callers decide recipients and payloads. `Pushes.send(PushMessage)` sends one
+  message that way and logs a failure that throws (a database call on the way out), so a caller
+  sending several (the scheduler step, the dose Notification) loses only that one.
 - **`PushGateway`** (public, the test seam): `send(subscription, payload, ttl, urgency)` →
   `DELIVERED | GONE | FAILED`, never throws. The real one, `notifications.push.WebPushGateway`, has
   `nl.martijndwars:web-push` build the request (VAPID `Authorization`, payload encrypted as
@@ -488,7 +519,7 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   minutes old, constants; `Batches` turns them into Notifications) and records the catalog's new
   Announcements. All come back as `PushMessage`s (recipient, payload, urgency, TTL: each message
   carries its own, `PushMessage.notification` `NORMAL` 24 h, `reminder` `HIGH` 24 h,
-  `announcement` `NORMAL` 7 days); after the commit each goes out through `Pushes.sendTo` with its
+  `announcement` `NORMAL` 7 days); after the commit each goes out through `Pushes.send` with its
   TTL and urgency, Notifications first, then Reminders, then Announcements in catalog order. A
   push that throws (a database call on the way out) is logged and costs only itself; the rest of
   the step is still sent. A crash between the commit and the sending loses those pushes rather
@@ -557,6 +588,106 @@ push subscriptions and the push gateway. #109 added Batches and the scheduler st
   `dueTime` (`HH:mm` or `null`), `url` `/lists/:id/items/:itemId`. Tested by
   `notifications.RemindersTest`, which runs with `REMINDER_MORNING_TIME=08:30` (so the setting is
   seen to be read) and switches the JVM's default zone for one test (so `TZ` is).
+- **The dose Notification** (spec #128 "Notification", ticket #136;
+  `notifications.dose.DoseNotifications`): `medical` publishes `MedicineDoseLogged(childId,
+  illnessId, byMemberId)` when a push operation creates a `MEDICINE_DOSE` on a Child's card (not
+  for an edit, a Member's card, another kind, or a dose ignored for a deleted Illness). A
+  `@TransactionalEventListener` (after commit, so a rolled-back push sends nothing; once per
+  commit, so sent once) reads the recipients and payload and hands the sends to the class's own
+  single-thread executor (`dose-push`, a daemon, as `sync`'s `LiveUpdates` has for heartbeats), so
+  a slow push service (the gateway's 30 s timeouts) never delays the sync answer. One thread sends
+  them one at a time in the order the doses were logged. Not batched, not through the scheduler
+  step (that would wait up to a minute), Mute does not apply. Recipients: `family.Members.all()`
+  but the actor; `Pushes.sendTo` leaves out those whose switch is off. One
+  `PushMessage.notification` (`NORMAL`, 24 h) per recipient and dose; a push that throws is logged
+  and costs only itself (the sync push already succeeded). As with the step, a crash or stop
+  before a queued push is sent loses it rather than sending it twice. Nothing is sent
+  when the actor or the Child is gone by then (`family.Children.name`). The payload is the `dose`
+  of the contract in `web/src/serviceWorker/pushPayload.ts`: `actorName`, `actorGrammaticalGender`,
+  `childName`, `url` (`PushPayloads.childIllnessUrl`, `/children/:id/medical/illnesses/:illnessId`);
+  never the Medicine or the amount. A dose logged offline notifies when its push reaches the
+  server. Tested by `notifications.DoseNotificationTest`.
+
+### `medical`
+
+Medical cards (spec #128, tickets #129, #130, #131, #132, #133, #136): everything goes through the
+sync push and pull, except uploading and downloading a Document's file (`/api/documents`); the one
+public type is the event `MedicineDoseLogged`, published by `IllnessEventService`
+for a new dose on a Child's card, never for an edit or a move (`notifications` sends the dose
+Notification). A card is not a row: `illness` and `illness_event` rows name their person. The
+Family's Medicines (`medicine`) belong to no card: every Member sees them.
+
+- `Person(memberId, childId)`: exactly one is set. The one place of the visibility rule:
+  `visibleTo(viewer)` (a Child's card: every Member; a Member's: that Member) and `notFound(…)`,
+  the `medical.not_found` rejection.
+- `IllnessService` (the `illness` `SyncableTable`): an operation on a row the pusher can't see is
+  `medical.not_found`; creating checks the person (not another Member, a Child that exists) and
+  stamps `createdAt` from the `Clock`; an edit renames and describes (#131), ends or resumes (`ended`) and moves (`position`)
+  (#132), and refuses a different `kind` (`value.invalid`: the kind is fixed at creation); a delete also soft-deletes its events
+  (`IllnessEventRepository.markDeletedOfIllness`); `onChildDeleted` (`ChildDeleted`) soft-deletes
+  the Child's events and Illnesses in two bulk updates; `changesSince` leaves out, without
+  tombstones, the rows of cards the Member can't see.
+- `IllnessEventService` (`illness_event`): the event's card is its Illness's; validation by kind
+  (sync.md, Push), one `details(operation, current, errors)` for a new event and an edit (the
+  carried fields over the stored ones, read through `Carried`, #131); a move checks the target
+  Illness has the same `Person` (a move to a deleted one is `ignored`); a Condition takes Note
+  events only (`requireConditionTakesNote`: a dose or Temperature added or moved into one is
+  `illness.condition_takes_notes_only`); only a new dose publishes
+  `MedicineDoseLogged`; `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted
+  ones included) and leaves out those the Member can't see. A dose's `medicineId` must name a
+  Medicine that exists, deleted or not, else `medical.not_found` (`params.medicineId`,
+  `Medicine.notFound`); `MedicineService.forDose` swaps a merged Medicine for its survivor.
+- `MedicineService` (`medicine`, #130): an upsert creates or renames (`name` required, trimmed);
+  a rename to a name another Medicine that isn't deleted has, ignoring case, is
+  `medicine.duplicate` (`MedicineRepository.findNamed`; the partial unique index on `lower(name)`
+  backs it up), while a create with such a name is stored deleted, merged into that Medicine
+  (`Medicine.mergeInto`, column `merged_into`), and `ignored`: the doses naming it are applied
+  naming the survivor ([sync.md](sync.md#push-the-only-write-path)). A
+  delete soft-deletes it only. `changesSince` sends every changed Medicine as a row with `name` and
+  `deleted`, **never a tombstone**, so past doses keep its name on every device.
+- **Documents** (#133): `DocumentService` is the `document` `SyncableTable` and the upload and
+  download behind `DocumentsController` (`/api/documents`, the one REST part of the module).
+  `upload(uploader, Upload)` checks the fields (`FieldErrors`), a retry (an id already there
+  answers that Document, stores nothing; a deleted one, or one on another Member's card, is
+  `medical.not_found`), the card (`memberId` the uploader's own, `childId` a Child that is there,
+  `illnessEventId` an event, not deleted, of an Illness on the same card that carries no Document
+  but the one `replaces` names (#134: that one is soft-deleted in the same transaction, its file
+  after the commit, so a sheet replaces an event's Document in one request), else
+  `document.event_has_document` 409 (one the uploader didn't know of, e.g. just added on another
+  device), so the partial unique index is never what refuses
+  it), the size (the multipart `max-file-size`, 20 MB, `document.too_large`
+  413) and the type by content (the enum `DocumentType.of`: `%PDF-`, JPEG, PNG,
+  an ISO base media `ftyp` box with a HEIC or HEIF brand; else `document.unsupported_type` 415).
+  It then stores the file and inserts the row in a `TransactionTemplate` under the `FamilyLock`
+  (live updates go out), checking again; when that refuses it (the event deleted meanwhile, or
+  given a Document), the stored object is deleted before the error answers, unless a Document
+  with that id exists. `file(reader, id)` answers the decrypted bytes with the
+  stored `contentType` and a name (the title and the `DocumentType` extension),
+  sent as `Content-Disposition: attachment` (a browser opening the URL itself downloads it rather
+  than showing it as a page of the site): a deleted or invisible Document is `medical.not_found`
+  (`params.documentId`), a missing object `document.file_missing` (404). Through sync an upsert
+  edits `title`, `date`, `description` (an unknown id is `medical.not_found`: only the upload
+  creates); a delete, `deleteOfEvent` (called by `IllnessEventService` when it deletes an event,
+  #134), `deleteOfIllness` (by `IllnessService` when it deletes an Illness: its events' Documents,
+  `DocumentRepository.markDeletedOfIllness`) and `onChildDeleted`
+  (`DocumentRepository.markDeletedOfChild`) register a
+  `TransactionSynchronization` that deletes the files after the commit, each only when its row is
+  then deleted (a rejected operation's savepoint may have undone it).
+- **File store** (spec #128 "File store port", ADR-0010): `FileStore` is `put`, `get` (empty when
+  missing) and `delete` by object key, holding bytes it never reads; `Document.objectKey(id)` is
+  `documents/<id>`. `DocumentFiles` sits above it: AES-256-GCM with `DOCUMENTS_ENCRYPTION_KEY`, a
+  random 12-byte nonce per file stored in front of the ciphertext, the object key as associated
+  data; its `delete` logs a failure and never throws. Implementations: `FolderFileStore` (a file per
+  object under `DOCUMENTS_FOLDER`, written to a temporary file and moved into place), the tests'
+  `InMemoryFileStore`, and `S3FileStore` (production, #135: Cloudflare R2 through the S3 API, path-style
+  addressing, region `auto`; a missing object is empty, any other failure throws). `DocumentsConfig`
+  selects the folder when `DOCUMENTS_FOLDER` is set, otherwise the bucket.
+- Tested by `medical.MedicalCardSyncTest`, `medical.MedicineSyncTest`, `medical.DocumentsTest`
+  (the upload and download, retries, limits, types, visibility, editing, deletion and the Child
+  cascade removing files), `medical.DocumentUploadOverHttpTest` (on a real port: the multipart
+  limit, no plaintext in the temporary folder), `medical.DocumentsConfigurationTest` (the key, the
+  folder store, the required `DOCUMENTS_S3_*` values, the bucket store end to end against MinIO) and
+  `medical.S3FileStoreTest` (put, get, delete, a missing key, a failing store, against MinIO).
 
 ### `command`
 
@@ -617,6 +748,8 @@ there):
 | `POST /api/members/me/password`                                | `204`; other sessions stay                                                         |
 | `POST /api/sync/push`                                          | `{operations}` → `{results, version}`; see [`sync.md`](sync.md)                    |
 | `GET /api/sync/pull?since=N`                                   | `{changes, version}`; see [`sync.md`](sync.md)                                     |
+| `POST /api/documents`                                          | multipart: `id`, `memberId` or `childId`, `illnessEventId`?, `replaces`? (the id of the Document that event carries, which the new one replaces), `title`, `date`, `description`?, `file` (≤ 20 MB; PDF, JPEG, PNG, HEIC/HEIF by content) → `201` the Document (its pulled fields and `version`), also for a retry of the same `id` |
+| `GET /api/documents/{id}/file`                                 | the decrypted file with its stored `Content-Type`, `Content-Disposition: attachment` (the title and extension), `Cache-Control: no-store`, `X-Content-Type-Options: nosniff` |
 | `GET /api/sync/events`                                         | SSE: `changed` `{version}` on connect and after each syncable commit; heartbeats   |
 | `GET /api/password-resets/by-token/{token}` (public)           | `{expiresAt}` or the reset's state error                                           |
 | `POST /api/password-resets/by-token/{token}/complete` (public) | `200 Member`; ends all the Member's sessions (same transaction), then logs in      |
@@ -661,8 +794,13 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 | 404    | `not_found`                                       | added: no handler for the path                                                |
 | 404    | `invite.not_found`                                | unknown Invite id or token                                                    |
 | 404    | `password_reset.not_found`                        | unknown reset token                                                           |
+| 404    | `medical.not_found`                               | Documents API: a card the Member doesn't see, a Child or Illness event not there, a deleted or unknown Document (`params.memberId`, `childId`, `illnessEventId` or `documentId`) |
+| 404    | `document.file_missing`                           | `GET /api/documents/{id}/file`: the Document is there, its object is gone (`params.documentId`) |
 | 405    | `method.not_allowed`                              | added: wrong HTTP method                                                      |
 | 409    | `auth.bootstrap_closed`                           | bootstrap after the first Member exists                                       |
+| 409    | `document.event_has_document`                     | an upload to an Illness event that already carries a Document other than the one it `replaces` (`params.illnessEventId`) |
+| 413    | `document.too_large`                              | a Document's file over 20 MB                                                  |
+| 415    | `document.unsupported_type`                       | a Document's file that is not a PDF, JPEG, PNG or HEIC/HEIF by its content    |
 | 409    | `member.email_taken`                              | Invite acceptance with an email any Member row has (removed ones included)    |
 | 410    | `invite.used`, `invite.revoked`, `invite.expired` | Invite link no longer works (checked in that order)                           |
 | 410    | `password_reset.used`, `password_reset.expired`   | reset link no longer works                                                    |
@@ -680,7 +818,7 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
 (`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field (a Due date, a Repeat or an Assignee) on an Item of a Shopping
 or Wish list; its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.repeat_without_due_date` (a Repeat without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
-`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute). An operation on a deleted Child, Child field, List,
+`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute), and for Medical cards `medical.not_found` (404, `params.illnessId` or `params.illnessEventId`: a row on another Member's card, or an Illness that never existed; `params.medicineId`: a dose of a Medicine that never existed; `params.documentId`: another Member's Document, or an upsert of a Document no upload created), `medicine.duplicate` (409: a Medicine renamed to a name the list already has, ignoring case) and `illness.condition_takes_notes_only` (409: a Medicine dose or Temperature added to, or moved into, a Condition). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
 (`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a
@@ -717,14 +855,14 @@ A new code the user may see needs an entry in the web's `ERROR_KEYS` (see
   `401 auth.required`, never a redirect or HTML. Form login, HTTP Basic, Security's logout and the
   request cache are disabled.
 - **CSRF**: `CookieCsrfTokenRepository.withHttpOnlyFalse()` (cookie `XSRF-TOKEN`, path `/`,
-  `Secure`, `SameSite=Lax`) with a plain `CsrfTokenRequestAttributeHandler`, so the raw token comes
+  `Secure` unless `COOKIES_SECURE=false`, which only `scripts/dev.sh` sets, `SameSite=Lax`) with a plain `CsrfTokenRequestAttributeHandler`, so the raw token comes
   back in the `X-XSRF-TOKEN` header on every non-GET request, login and bootstrap included.
   `GET /api/auth/session` loads the deferred token, which writes the cookie.
 
 **Sessions** are server-side in PostgreSQL (Spring Session JDBC; tables `spring_session` and
 `spring_session_attributes` from `V1`, `initialize-schema: never`), so they survive redeploys.
 
-- Cookie `SESSION`: `HttpOnly`, `Secure`, `SameSite=Lax`, `Max-Age` = `SESSION_TIMEOUT`.
+- Cookie `SESSION`: `HttpOnly`, `Secure` (as the CSRF cookie), `SameSite=Lax`, `Max-Age` = `SESSION_TIMEOUT`.
 - Sliding expiry: Spring Session renews the session on each request but only writes the cookie when
   the id changes, so `SlidingSessionCookieFilter` (order `SessionRepositoryFilter.DEFAULT_ORDER + 1`)
   re-sends the cookie with a fresh `Max-Age` on every request with a valid session.
@@ -796,6 +934,9 @@ Migrations are in `backend/src/main/resources/db/migration`:
 | `V18__mute.sql`                 | `mute` (syncable; → `list`, Member → `member`; indexed by List): a Member's Mute of a Shared list |
 | `V19__announcement_sent.sql`    | `announcement_sent` (`id` text primary key, `sent_at`): each catalog Announcement the scheduler step has handled |
 | `V20__child_avatar.sql`         | `child.avatar` (nullable code of the Avatar set, checked in Java): a Child's Аватар (#124) |
+| `V21__illness.sql`              | `illness` (syncable; person: `member_id` → `member` or `child_id` → `child`, exactly one; `kind`, `name`, `description`, `ended`, `position`, `created_at`; indexed by Child) and `illness_event` (syncable; → `illness`; `kind`, `date`, `time`, `medicine_id`, `amount`, `temperature NUMERIC(3,1)`, `title`, `description`; indexed by Illness): Medical cards (#129) |
+| `V22__medicine.sql`             | `medicine` (syncable; `name`, unique ignoring case among rows not deleted: partial unique index on `lower(name)`), and the `illness_event.medicine_id` → `medicine` foreign key V21 left out: Medicines (#130) |
+| `V23__document.sql`             | `document` (syncable; person: `member_id` → `member` or `child_id` → `child`, exactly one; `illness_event_id` → `illness_event`, unique among rows not deleted (#134); `title`, `date`, `description`, `content_type`, `size`; indexed by Child): Documents (#133), their files in the file store |
 
 - **Append-only** (S5): never edit a migration merged to `main`; add a new one with a version higher
   than the highest on `main`. `scripts/check-migrations.sh` (CI job `migrations`, also part of
@@ -883,17 +1024,21 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   | `FreshInstallation` | `@BeforeEach` of a test that needs an empty Family, or adds Members by JDBC |
   | `SyncRequests` | any sync test: push/pull operations, read a pulled change, the two usual devices |
   | `ListOperations` | a `lists.*SyncTest`: the List and Item operations it pushes |
+  | `MedicalOperations` | a test that pushes Illnesses, Illness events or Medicines |
   | `HttpDevice` | a real port: restarts, SSE streams |
   | `LockWaits` | proving a request waits on the Family lock |
   | `TestClock` | a test whose answer depends on today or now: fix the server's clock |
   | `FakePushGateway` | a test that checks push messages: records each push, answers `GONE`/`FAILED` on request |
+  | `medical.InMemoryFileStore` | a test that uploads Documents: the file store in memory, to read what was stored, lose an object or fail deletes |
+  | `medical.Minio` | a test of the bucket store: an S3-compatible server in a container |
 
 - Shared helpers, public, in the root test package `src/test/java/io/github/aborgatin/familyapp/`
   (every module's tests import them):
   - `Browser`: one device on MockMvc. Keeps cookies, sends `X-XSRF-TOKEN` on writes, and has its own
     client IP (`new Browser(mvc)`; `new Browser(mvc, ip)` to share one; `Browser.newDeviceIp()`).
     Methods: `openApp()` (`GET /api/auth/session`), `get`, `post(path)` (no body), `postJson`,
-    `putJson`, `patchJson`, `delete`, `deleteJson`. Login-limit counters live for the whole cached context, so
+    `putJson`, `patchJson`, `delete`, `deleteJson`, `postMultipart(path, fields, file)` (a
+    `FormData` upload). Login-limit counters live for the whole cached context, so
     tests that fail logins use unique emails.
   - `FreshInstallation`: `reset(jdbc)` in `@BeforeEach` truncates sessions, `child` and `member`
     (both cascading: Invites, resets, Lists, Items, Categories, Item history and Child field values) but keeps `child_field` Defaults; `removeChildFields(jdbc)` (with their values);
@@ -908,11 +1053,26 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     gateway (`@Primary`). `pushes()` (subscription, payload, TTL, urgency), `endpoints()`,
     `answer(endpoint, GONE | FAILED)`, `reset()` (call it in `@BeforeEach`: the context is shared);
     `Push.payloadJson()` and the static `json(text)` parse a payload, or its expected value, to
-    compare.
+    compare. For a push sent off the request's thread (the dose Notification):
+    `awaitPush(predicate)` waits up to `PATIENCE` (10 s) for one, and `holdSends()` /
+    `releaseSends()` make the gateway slow, as a push service can be; `DoseNotificationTest`'s
+    `sentBefore()` waits for a marker push to prove that nothing else was sent.
     See `notifications.PushSubscriptionsTest`.
   - `ListOperations`: the Lists' operations most `lists.*SyncTest`s push, statically imported:
     `list(id, name, kind, visibility)`, `add(id, listId, text)` (an open Item), `done(id, done)`,
-    `mute(id, listId)` (a Mute of the List, used by the `notifications` tests). A helper one test class needs stays in it; one a second class needs moves here.
+    `mute(id, listId)` (a Mute of the List, used by the `notifications` tests).
+  - `medical.InMemoryFileStore` (package `medical`, as `FileStore` is package-private):
+    `@Import(InMemoryFileStore.Config.class)` puts it in place of the configured store
+    (`@Primary`); `keys()`, `object(key)`, `lose(key)`, `failDeletes()`, `reset()` (call it in
+    `@BeforeEach`). See `medical.DocumentsTest`.
+  - `medical.Minio`: `container()` is a new MinIO Testcontainer (`pgsty/minio`, pinned by
+    release tag: neither `minio/minio` on Docker Hub nor `quay.io/minio/minio` can be pulled any
+    more, checked 2026-11-17), `createBucket(container, name)` creates a
+    bucket with the image's `mc`. See `medical.S3FileStoreTest`.
+  - `MedicalOperations`: the Medical card operations the `medical` tests and
+    `notifications.DoseNotificationTest` push, statically imported: `illnessOf(personField,
+    person, id, name)`, `temperature(id, illness, date, time, value)`, `dose(id, illness,
+    medicine, amount, temperature)`, `medicine(id, name)`. A helper one test class needs stays in it; one a second class needs moves here.
 - Concurrency (`PullNeverSkipsASlowerWriteTest`, `MemberWritesTakeTheFamilyLockTest`): a raw JDBC
   connection holds a row lock, a request runs on another thread, and the test waits until it is
   blocked (`LockWaits.transactionsWaitingOnALock(jdbc)` reads `pg_stat_activity`,
@@ -952,6 +1112,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
   (`bootRun` against it, port 8080) and Vite (port 5173) with the toolchain, waits until both
   answer and prints the local and network URLs; Ctrl-C stops the backend and Vite (the database
   keeps running).
+- `dev.sh` keeps Document files in `~/.cache/family-app/dev-documents` (`DOCUMENTS_FOLDER`),
+  shared by every checkout as the dev database is; `--fresh-db` leaves them (rows that no longer
+  exist just leave their files behind).
 - `scripts/dev.sh --fresh-db` first backs up the dev database to a printed path
   (`~/.cache/family-app/dev-db-backups/`), then empties it, so the app starts as a fresh install.
 - When the branch has a Flyway migration not on `origin/main`, `dev.sh` refuses to start (the dev

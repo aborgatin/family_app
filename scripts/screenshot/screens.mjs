@@ -25,6 +25,13 @@ const listSettings = (name) => [
   { click: 'role=link[name="Настройки списка"]' },
   { waitFor: 'role=textbox[name="Название"]' },
 ];
+/** Steps from Home to the Documents of Маша's Medical card. */
+const mashasDocuments = [
+  { click: childCard("Маша") },
+  { click: 'role=link[name="Медкарта"]' },
+  { click: 'role=link[name="Документы (3)"]' },
+  { waitFor: 'role=heading[level=1][name="Документы"]' },
+];
 /** Steps on /setup of a fresh installation: Анна registers and lands on Home with the Defaults. */
 const registerFirstMember = [
   { fill: 'role=textbox[name="Электронная почта"]', value: "anna@example.com" },
@@ -1118,6 +1125,59 @@ export default {
       fullPage: false,
       steps: [editIn("Поля профиля"), toSection("Поля профиля", 120)],
     },
+    {
+      name: "settings-medicines-edit",
+      path: "/settings",
+      fullPage: false,
+      steps: [editIn("Лекарства"), toSection("Лекарства", 120)],
+    },
+    {
+      // «Новое лекарство»: the placeholder shows what to type.
+      name: "settings-medicines-new",
+      path: "/settings",
+      fullPage: false,
+      steps: [
+        {
+          click: `${section("Лекарства")} >> role=button[name="Добавить лекарство"]`,
+        },
+        { waitFor: 'role=dialog >> role=textbox[name="Название"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A name the list has, in another letter case.
+      name: "settings-medicines-duplicate",
+      path: "/settings",
+      fullPage: false,
+      steps: [
+        {
+          click: `${section("Лекарства")} >> role=button[name="Добавить лекарство"]`,
+        },
+        {
+          fill: 'role=dialog >> role=textbox[name="Название"]',
+          value: "ибупрофен 20 мг/мл",
+        },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "role=dialog >> text=Такое лекарство уже есть" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // Both Medicines deleted: «Лекарств пока нет».
+      name: "settings-medicines-empty",
+      path: "/settings",
+      isolate: true,
+      fullPage: false,
+      steps: [
+        editIn("Лекарства"),
+        { click: 'role=button[name="Удалить «Ибупрофен 20 мг/мл»"]' },
+        { click: 'role=dialog >> role=button[name="Удалить"]' },
+        { click: 'role=button[name="Удалить «Парацетамол 120 мг/5 мл»"]' },
+        { click: 'role=dialog >> role=button[name="Удалить"]' },
+        { waitFor: "text=Лекарств пока нет" },
+        toSection("Лекарства", 120),
+      ],
+    },
     // Touch variants show the swipe, mouse variants the context menu.
     {
       name: "settings-row-actions",
@@ -1406,6 +1466,565 @@ export default {
     {
       name: "child-page-not-found",
       path: "/children/00000000-0000-4000-8000-000000000000",
+      steps: [{ waitFor: "role=alert" }],
+    },
+
+    // Medical cards (spec #128)
+    {
+      // Анна's own card from the «Медкарта» row on Home: no Illnesses yet.
+      name: "medical-card-empty",
+      path: "/",
+      steps: [
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: "text=Болезней пока нет" },
+      ],
+    },
+    {
+      // Маша's card from her Child page: «Зрение» and «Зубы», «ОРВИ» (this year) and «Отит» (last
+      // year), and the collapsed «Завершённые».
+      name: "medical-card-child",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/Отит/]` },
+      ],
+    },
+    {
+      // Маша's card with «Диагнозы/наблюдения» («Зрение», «Зубы»), «Болезни» and «Завершённые»
+      // opened: an Ended Illness and an Ended Condition, by latest event (ticket #132).
+      name: "medical-card-ended",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Завершённые")} >> role=button[name="Показать"]` },
+        { waitFor: `${section("Завершённые")} >> role=link[name=/Аденоиды/]` },
+      ],
+    },
+    {
+      // Маша's Documents from «Документы (3)» on her card, newest first (ticket #133).
+      name: "medical-documents",
+      path: "/",
+      steps: [
+        ...mashasDocuments,
+        { waitFor: "role=link[name=/Выписка из поликлиники/]" },
+      ],
+    },
+    {
+      // Анна's own card has no Documents: the empty state, «+ Документ» still there.
+      name: "medical-documents-empty",
+      path: "/",
+      steps: [
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=link[name="Документы (0)"]' },
+        { waitFor: "text=Документов пока нет" },
+      ],
+    },
+    {
+      // «+ Документ»: the Document sheet, «Файл» not chosen yet, «Дата» today.
+      name: "medical-document-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: 'role=button[name="+ Документ"]' },
+        { waitFor: 'role=dialog[name="Документ"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Готово» without a file: «Выберите файл», nothing uploaded.
+      name: "medical-document-sheet-required",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: 'role=button[name="+ Документ"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "text=Выберите файл" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A file chosen («Название» from its name), then «Готово» offline: the upload needs the
+      // internet, the sheet stays.
+      name: "medical-document-sheet-offline",
+      path: "/",
+      offline: "afterLoad",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: 'role=button[name="+ Документ"]' },
+        async (page) => {
+          await page
+            .locator('role=dialog >> input[type="file"]')
+            .setInputFiles({
+              name: "Анализ мочи.pdf",
+              mimeType: "application/pdf",
+              buffer: Buffer.from("%PDF-1.4\n%%EOF"),
+            });
+        },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "text=Нужен интернет, чтобы прикрепить файл" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A photo Document open full screen, fitted.
+      name: "medical-document-photo",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: "role=link[name=/Заключение ЛОРа/]" },
+        { waitFor: 'img[title="Заключение ЛОРа"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A PDF Document: «Открыть PDF» opens it in a window of its own (every page on an iPhone).
+      name: "medical-document-pdf",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: "role=link[name=/Общий анализ крови/]" },
+        { waitFor: 'role=button[name="Открыть PDF"]' },
+        { wait: 1000 },
+      ],
+    },
+    {
+      // A Document whose file the store has lost: «Файл недоступен».
+      name: "medical-document-missing",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: "role=link[name=/Выписка из поликлиники/]" },
+        { waitFor: "role=alert" },
+      ],
+    },
+    {
+      // «Изменить» on an open Document: the sheet with its file, fields and «Удалить документ».
+      name: "medical-document-edit",
+      path: "/",
+      fullPage: false,
+      steps: [
+        ...mashasDocuments,
+        { click: "role=link[name=/Заключение ЛОРа/]" },
+        { click: 'role=button[name="Изменить"]' },
+        { waitFor: 'role=dialog[name="Документ"] >> text=Удалить документ' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Изменить» on «Диагнозы/наблюдения»: the drag handles.
+      name: "medical-conditions-editing",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        {
+          click: `${section("Диагнозы/наблюдения")} >> role=button[name="Изменить"]`,
+        },
+        { waitFor: 'role=button[name="Переместить «Зубы»"]' },
+      ],
+    },
+    {
+      // «+ Добавить»: the new Condition's sheet, with its placeholder.
+      name: "medical-condition-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=button[name="+ Добавить"]' },
+        { waitFor: 'role=dialog[name="Диагноз/наблюдение"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Готово» with no name: refused, nothing saved.
+      name: "medical-condition-sheet-required",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=button[name="+ Добавить"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "role=dialog >> text=Заполните это поле" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A Condition's screen: no start date, only «Заметка» to add, its Note in the list with its
+      // date, «Завершить»; no «Тип» (review follow-up C1, C2).
+      name: "medical-condition",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        {
+          click: `${section("Диагнозы/наблюдения")} >> role=link[name=/Зрение/]`,
+        },
+        { waitFor: 'role=button[name="Завершить"]' },
+      ],
+    },
+    {
+      // «+ Новая болезнь» at the end of «Болезни»: the new Illness's sheet, with its placeholder
+      // (review follow-up C4).
+      name: "medical-new-illness-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=button[name="+ Новая болезнь"]` },
+        { waitFor: 'role=dialog[name="Новая болезнь"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // An Ended Illness: still editable, with «Возобновить».
+      name: "medical-illness-ended",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Завершённые")} >> role=button[name="Показать"]` },
+        { click: `${section("Завершённые")} >> role=link[name=/Ангина/]` },
+        { waitFor: 'role=button[name="Возобновить"]' },
+      ],
+    },
+    {
+      name: "medical-card-not-found",
+      path: "/children/00000000-0000-4000-8000-000000000000/medical",
+      steps: [{ waitFor: "role=alert" }],
+    },
+    {
+      // The Temperature sheet from Маша's card: «ОРВИ» had a Temperature yesterday, so it's
+      // preselected in «Добавить к».
+      name: "medical-temperature-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Записать температуру"]' },
+        { waitFor: 'role=dialog >> role=combobox[name="Добавить к"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Другая…» shows the other Illnesses to pick from.
+      name: "medical-temperature-sheet-other",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Записать температуру"]' },
+        {
+          select: 'role=dialog >> role=combobox[name="Добавить к"]',
+          value: "Другая…",
+        },
+        { waitFor: 'role=dialog >> role=combobox[name="Болезнь"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A Temperature logged on Анна's empty card starts «Болезнь <today>».
+      name: "medical-card-new-illness",
+      path: "/",
+      isolate: true,
+      steps: [
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=button[name="Записать температуру"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/Болезнь/]` },
+      ],
+    },
+    {
+      // «ОРВИ»: its name and Description, its first day, «Приём лекарства», «Температура»,
+      // «Заметка», the events in one list, newest first (a day's untimed ones last), each with its
+      // date (and time) under what happened, and «Удалить» (review follow-up C5).
+      name: "medical-illness",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { waitFor: 'role=button[name="Температура"]' },
+        { waitFor: "text=/Ибупрофен 20 мг\\/мл — 5 мл/" },
+      ],
+    },
+    {
+      // The dose sheet from Маша's card: the picker lists the Family's Medicines.
+      name: "medical-dose-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Добавить приём лекарства"]' },
+        { waitFor: 'role=dialog >> role=button[name="Ибупрофен 20 мг/мл"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // Ибупрофен picked: «Количество» is what Маша got last time.
+      name: "medical-dose-sheet-prefilled",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Добавить приём лекарства"]' },
+        { click: 'role=dialog >> role=button[name="Ибупрофен 20 мг/мл"]' },
+        { waitFor: 'role=dialog >> role=textbox[name="Количество"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A name not in the list: «+ Нурофен» adds it.
+      name: "medical-dose-sheet-new-medicine",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { waitFor: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Добавить приём лекарства"]' },
+        { fill: 'role=dialog >> role=textbox[name="Лекарство"]', value: "Нур" },
+        { waitFor: 'role=dialog >> role=button[name="+ Нур"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Готово» with nothing filled in: «Лекарство» and «Количество» are required.
+      name: "medical-dose-sheet-required",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=button[name="Добавить приём лекарства"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "role=dialog >> text=Заполните это поле" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «ОРВИ» from the Illness screen: the dose sheet without «Добавить к».
+      name: "medical-illness-dose-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Приём лекарства"]' },
+        { waitFor: 'role=dialog >> role=textbox[name="Количество"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Название» emptied on the Illness screen: refused, nothing saved.
+      name: "medical-illness-name-required",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { fill: 'role=textbox[name="Название"]', value: "" },
+        { press: "Enter" },
+        { waitFor: "text=Заполните это поле" },
+      ],
+    },
+    {
+      // «Удалить» on «ОРВИ» asks, with the number of its events and Documents.
+      name: "medical-illness-delete-confirm",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Удалить"]' },
+        { waitFor: 'role=dialog[name="Удалить «ОРВИ»?"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // The Note sheet: «Название», «Дата» today, «Время» empty, «Описание».
+      name: "medical-note-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Заметка"]' },
+        { waitFor: 'role=dialog[name="Заметка"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Готово» on an empty Note: «Название» is required.
+      name: "medical-note-sheet-required",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Заметка"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "role=dialog >> text=Заполните это поле" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A dose tapped on «ОРВИ»: its sheet filled with its values, «Перенести в…» and «Удалить».
+      name: "medical-event-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: "role=button[name=/Ибупрофен 20 мг.мл — 5 мл/]" },
+        { waitFor: 'role=dialog >> role=button[name="Перенести в…"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Перенести в…» on a Note: Маша's other Illnesses and Conditions that aren't Ended, and
+      // «Новая болезнь» (a dose or Temperature is offered Illnesses only).
+      name: "medical-event-move",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: "role=button[name=/^Сходили к доктору/]" },
+        { click: 'role=dialog >> role=button[name="Перенести в…"]' },
+        {
+          waitFor:
+            'role=dialog[name="Перенести в…"] >> role=button[name="Новая болезнь"]',
+        },
+        { wait: 400 },
+      ],
+    },
+    {
+      // An Illness whose only event was deleted stays, empty («Нет событий»), until it is deleted
+      // itself.
+      name: "medical-illness-empty",
+      path: "/",
+      isolate: true,
+      steps: [
+        { click: 'role=link[name="Медкарта"]' },
+        { click: 'role=button[name="Записать температуру"]' },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { click: `${section("Болезни")} >> role=link[name=/Болезнь/]` },
+        { click: "role=button[name=/37,0\\s°C/]" },
+        { click: 'role=dialog >> role=button[name="Удалить"]' },
+        {
+          click:
+            'role=dialog[name="Удалить событие?"] >> role=button[name="Удалить"]',
+        },
+        { waitFor: 'role=button[name="Заметка"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Документы (1)» on «ОРВИ»: only its events' Documents, back to «ОРВИ» (ticket #134).
+      name: "medical-illness-documents",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=link[name="Документы (1)"]' },
+        { waitFor: "role=link[name=/Заключение ЛОРа/]" },
+      ],
+    },
+    {
+      // «Документы (0)» on «Отит»: none, and no «+ Документ» (they come from the events).
+      name: "medical-illness-documents-empty",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/Отит/]` },
+        { click: 'role=link[name="Документы (0)"]' },
+        { waitFor: "text=Документов пока нет" },
+      ],
+    },
+    {
+      // The paperclip on «Сходили к доктору» opens its Document, back to «ОРВИ».
+      name: "medical-illness-document",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=link[name="Открыть «Заключение ЛОРа»"]' },
+        { waitFor: 'img[title="Заключение ЛОРа"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A Note that carries a Document: «Документ» shows its title; choosing a file replaces it.
+      name: "medical-event-sheet-document",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: "role=button[name=/^Сходили к доктору/]" },
+        { waitFor: "role=dialog >> text=Заключение ЛОРа" },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A Temperature with a file, «Готово» offline: the Temperature is saved, the sheet stays and
+      // says the file needs the internet.
+      name: "medical-temperature-sheet-offline-file",
+      path: "/",
+      offline: "afterLoad",
+      isolate: true,
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Температура"]' },
+        async (page) => {
+          await page
+            .locator('role=dialog >> input[type="file"]')
+            .setInputFiles({
+              name: "Анализ мочи.pdf",
+              mimeType: "application/pdf",
+              buffer: Buffer.from("%PDF-1.4\n%%EOF"),
+            });
+        },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "text=Нужен интернет, чтобы прикрепить файл" },
+        { wait: 400 },
+      ],
+    },
+    {
+      name: "medical-illness-not-found",
+      path: "/medical/illnesses/00000000-0000-4000-8000-000000000000",
       steps: [{ waitFor: "role=alert" }],
     },
 

@@ -33,7 +33,7 @@ docker run -d --name "$db" --network "$network" \
 docker run -d --name "$app" --network "$network" -p 127.0.0.1::8080 \
   -e DATASOURCE_URL="jdbc:postgresql://$db:5432/family" \
   -e DATASOURCE_USERNAME=family -e DATASOURCE_PASSWORD=smoke \
-  --env-file "$(dirname "$0")/lib/dev-vapid-keys.env" \
+  --env-file "$(dirname "$0")/lib/dev-secrets.env" \
   "$image" >/dev/null
 
 base="http://$(docker port "$app" 8080/tcp | sed -n 1p)"

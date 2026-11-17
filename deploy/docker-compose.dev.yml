@@ -5,9 +5,10 @@
 #
 # then the backend against it, from backend/ (the wrapper finds JDK 21 and Node 22):
 #
-#   set -a; source ../scripts/lib/dev-vapid-keys.env; set +a   # the local-only VAPID key pair
+#   set -a; source ../scripts/lib/dev-secrets.env; set +a   # the local-only keys
 #   DATASOURCE_URL=jdbc:postgresql://localhost:5432/family \
-#   DATASOURCE_USERNAME=family DATASOURCE_PASSWORD=family ../scripts/with-toolchain.sh ./gradlew bootRun
+#   DATASOURCE_USERNAME=family DATASOURCE_PASSWORD=family \
+#   DOCUMENTS_FOLDER=~/.cache/family-app/dev-documents ../scripts/with-toolchain.sh ./gradlew bootRun
 #
 # and the web dev server (`../scripts/with-toolchain.sh npm run dev` in web/), which proxies /api to
 # the backend. DEV_DB_PORT moves the published port (default 5432). The credentials below are

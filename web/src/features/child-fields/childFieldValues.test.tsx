@@ -5,6 +5,7 @@ import { FakeEventSource } from '@/test/eventSource';
 import {
   anna,
   boris,
+  fixtureId,
   height,
   invitesHandler,
   masha,
@@ -41,7 +42,7 @@ const lastVisit = {
 /** An entry of a value's timeline as the sync pull returns its fields. */
 function entry(n: number, child: { id: string }, field: { id: string }, value: string) {
   return {
-    id: `9b4e5f60-0000-4000-8000-${String(n).padStart(12, '0')}`,
+    id: fixtureId('9b4e5f60', n),
     childId: child.id,
     childFieldId: field.id,
     value,

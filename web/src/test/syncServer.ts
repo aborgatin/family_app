@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import { dayParts } from '@/shared/dates';
+import { dayOf, dayParts } from '@/shared/dates';
+import { medicineKey } from '@/features/medical/useMedicines';
 import { network } from './network';
 
 /*
@@ -7,14 +8,15 @@ import { network } from './network';
  * for every test by `server.ts` and emptied after each. It behaves like the real one where the
  * client can tell: a global Version, per-field Last write wins by arrival, delete wins, tombstones
  * after a first sync, and the table rules a screen relies on: a deleted row takes the rows that
- * belong to it (`CASCADES`: a Child its Child lists and Child field values, a List its Items,
+ * belong to it (`CASCADES`: a Child its Child lists, Child field values, Illnesses and Documents, a List its Items,
  * Categories and Item history), and a Child field value is a timeline entry (stamped with `recordedAt`, never
  * changed, ignored for a deleted Child or Child field), a List made Private loses the Assignee
  * of every one of its Items, and a repeating Item turned Done (pushed, or by `change`) hands its
  * Repeat on to its next occurrence, a new open Item (ADR-0009); a pushed `done` change stamps
  * `doneAt` with the server's clock (`now()`), and a List upsert carrying `hideDone` (a press's id)
  * stamps the List's `doneHiddenAt` once per press (only on a Todo list:
- * `list.hide_done_not_todo`; ticket #93), the press not stored itself; a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
+ * `list.hide_done_not_todo`; ticket #93), the press not stored itself, and a Medicine's name is
+ * unique ignoring case (`medicine.duplicate`, or kept deleted when new) and a deleted one stays a row marked `deleted`; a seeded row is stored as it is. Tests seed rows, read what was pushed, and switch it offline or make it
  * reject operations.
  *
  *   syncServer.seed('child', [masha, petya]);   // rows the next pull returns
@@ -55,7 +57,10 @@ type Rejecter = (
  * whose `key` field holds the deleted `parent` row's id, and so on down. A deleted Child takes its
  * Child lists, whoever owns them, and its Child field values; a deleted Child field takes its
  * Child field values (spec #81); a deleted List takes its Items, Categories and Item history
- * (`ListService.deleteWithContent`), and its Mutes (`lists.ListUnshared`, #111).
+ * (`ListService.deleteWithContent`), and its Mutes (`lists.ListUnshared`, #111); a deleted Child
+ * takes their Illnesses, and a deleted Illness its events (`medical.IllnessService`, #129); a
+ * deleted Child takes their Documents, and a deleted event its Document (`medical.DocumentService`,
+ * #133, #134).
  */
 const CASCADES: readonly { parent: string; table: string; key: string }[] = [
   { parent: 'child', table: 'list', key: 'childId' },
@@ -65,6 +70,10 @@ const CASCADES: readonly { parent: string; table: string; key: string }[] = [
   { parent: 'list', table: 'category', key: 'listId' },
   { parent: 'list', table: 'item_history', key: 'listId' },
   { parent: 'list', table: 'mute', key: 'listId' },
+  { parent: 'child', table: 'illness', key: 'childId' },
+  { parent: 'illness', table: 'illness_event', key: 'illnessId' },
+  { parent: 'child', table: 'document', key: 'childId' },
+  { parent: 'illness_event', table: 'document', key: 'illnessEventId' },
 ];
 
 /** The rejection used when `rejectWhen`'s predicate just answers `true`. */
@@ -162,6 +171,13 @@ class FakeSyncServer {
     return row === undefined || row.deleted ? undefined : { id, ...row.fields };
   }
 
+  /** The server's copies of the rows of `table` that aren't deleted (`{id, ...fields}`). */
+  rows(table: string): ({ id: string } & Record<string, unknown>)[] {
+    return [...this.stored.values()]
+      .filter((row) => row.table === table && !row.deleted)
+      .map((row) => ({ id: row.id, ...row.fields }));
+  }
+
   /** Every operation pushed for `table`, in arrival order. */
   operations(table: string): PushedOperation[] {
     return this.pushes.flatMap((push) => push.operations.filter((op) => op.table === table));
@@ -218,6 +234,7 @@ class FakeSyncServer {
       return { status: 'rejected', code, params };
     }
     const current = this.stored.get(key(operation.table, operation.id));
+    if (operation.table === 'medicine') return this.applyToMedicine(operation, current);
     if (current?.deleted === true || (operation.op === 'delete' && current === undefined)) {
       return { status: 'ignored' };
     }
@@ -268,6 +285,46 @@ class FakeSyncServer {
     } else {
       this.write(operation.table, operation.id, { ...current?.fields, ...operation.fields }, false);
     }
+    return { status: 'applied' };
+  }
+
+  /**
+   * A Medicine (ticket #130): its name unique ignoring case among those not deleted
+   * (`medicine.duplicate` on rename; a new one with a taken name is kept deleted); deleted, it stays a row with its name and `deleted: true`, never a
+   * tombstone, and anything more on it is ignored.
+   */
+  private applyToMedicine(operation: PushedOperation, current: StoredRow | undefined) {
+    if (current?.fields.deleted === true || (operation.op === 'delete' && current === undefined)) {
+      return { status: 'ignored' };
+    }
+    if (operation.op === 'delete') {
+      this.write('medicine', operation.id, { ...current?.fields, deleted: true }, false);
+      return { status: 'applied' };
+    }
+    const name = operation.fields?.name;
+    if (typeof name === 'string') {
+      const taken = [...this.stored.values()].some(
+        (row) =>
+          row.table === 'medicine' &&
+          row.id !== operation.id &&
+          row.fields.deleted !== true &&
+          medicineKey(String(row.fields.name)) === medicineKey(name),
+      );
+      if (taken && current !== undefined) {
+        return { status: 'rejected', code: 'medicine.duplicate', params: {} };
+      }
+      if (taken) {
+        // Both Members added the name offline: the second is kept deleted, so its doses stay.
+        this.write('medicine', operation.id, { ...operation.fields, deleted: true }, false);
+        return { status: 'ignored' };
+      }
+    }
+    this.write(
+      'medicine',
+      operation.id,
+      { deleted: false, ...current?.fields, ...operation.fields },
+      false,
+    );
     return { status: 'applied' };
   }
 
@@ -385,8 +442,7 @@ function nextDueDate(dueDate: string, repeat: string, now: Date): string {
   do {
     next = step(next, repeat);
   } while (order(next) <= order(today));
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${String(next.year)}-${pad(next.month)}-${pad(next.day)}`;
+  return dayOf(new Date(next.year, next.month - 1, next.day));
 }
 
 /** One Repeat period on from a day. */

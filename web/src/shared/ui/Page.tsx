@@ -2,11 +2,17 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from './Link';
 import { OfflineIndicator, useRegisterNavBar } from './OfflineIndicator';
 
+/** The previous screen of a `Page`: where its back button goes, and the title it shows. */
+export interface PageBack {
+  to: string;
+  title: string;
+}
+
 interface PageProps {
   /** Already translated screen title: the large title, and the small one in the bar. */
   title: string;
   /** The previous screen: the back button shows its title. */
-  back?: { to: string; title: string };
+  back?: PageBack;
   /** The nav bar's trailing slot: one or two icon `Button`s / `Link`s. */
   actions?: ReactNode;
   children: ReactNode;

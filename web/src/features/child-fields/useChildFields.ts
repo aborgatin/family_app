@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useSyncedRows, type LocalLoad } from '@/shared/sync';
+import { positionAfterMove } from '@/shared/ui';
 import type { ChildField, ValueType } from './childFieldTypes';
 
 export type ChildFieldsLoad = LocalLoad<ChildField>;
@@ -9,27 +10,6 @@ function inOrder(fields: ChildField[]): ChildField[] {
   return [...fields].sort((a, b) =>
     a.position === b.position ? (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) : a.position - b.position,
   );
-}
-
-/**
- * The position a field gets when moved to index `to` of the list (counted after the move): the
- * midpoint between its new neighbours, or one past the end neighbour at the top or bottom. Only
- * the moved field is written, so a reorder is a single-record change (Last write wins). Returns
- * `undefined` when it doesn't move.
- */
-export function positionAfterMove(
-  fields: readonly ChildField[],
-  id: string,
-  to: number,
-): number | undefined {
-  const index = fields.findIndex((f) => f.id === id);
-  if (index === -1 || to === index || to < 0 || to >= fields.length) return undefined;
-  const others = fields.filter((f) => f.id !== id);
-  const before = others[to - 1];
-  const after = others[to];
-  if (before === undefined) return (after as ChildField).position - 1;
-  if (after === undefined) return before.position + 1;
-  return (before.position + after.position) / 2;
 }
 
 /** A new Child field's id, made on the device (S3) once when its sheet opens. */
@@ -65,7 +45,11 @@ export function useChildFields() {
 
   /** Moves a field to index `to` of the list. */
   async function move(field: ChildField, to: number) {
-    const position = positionAfterMove(fields, field.id, to);
+    const position = positionAfterMove(
+      fields.map((f) => f.position),
+      fields.findIndex((f) => f.id === field.id),
+      to,
+    );
     if (position === undefined) return;
     await save(field.id, { position });
   }

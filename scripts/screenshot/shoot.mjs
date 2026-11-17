@@ -198,9 +198,9 @@ async function buildBackend() {
   return path.join(libs, jar);
 }
 
-// The local-only VAPID key pair (the app requires one), as KEY=VALUE lines.
-function devVapidKeys() {
-  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'dev-vapid-keys.env');
+// The local-only keys the app requires (VAPID, Document encryption), as KEY=VALUE lines.
+function devSecrets() {
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'dev-secrets.env');
   return Object.fromEntries(
     fs
       .readFileSync(file, 'utf8')
@@ -213,12 +213,14 @@ function devVapidKeys() {
 function backendEnv(pg, port) {
   return {
     ...process.env,
-    ...devVapidKeys(),
+    ...devSecrets(),
     DATASOURCE_URL: `jdbc:postgresql://127.0.0.1:${pg.port}/${DB.name}`,
     DATASOURCE_USERNAME: DB.user,
     DATASOURCE_PASSWORD: DB.password,
     SERVER_PORT: String(port),
     DOMAIN: 'localhost',
+    // Document files of this run, next to its logs (the folder store, as `scripts/dev.sh` uses).
+    DOCUMENTS_FOLDER: path.join(logDir, 'documents'),
   };
 }
 
@@ -416,7 +418,70 @@ export const SEED = {
       ['Последний визит к врачу', '2026-10-03'],
     ],
   },
+  /** The Family's Medicines (ticket #130). */
+  medicines: ['Ибупрофен 20 мг/мл', 'Парацетамол 120 мг/5 мл'],
+  /**
+   * Illnesses on Маша's Medical card, each with its Temperatures (`[daysAgo, time or null, °C]`)
+   * and Medicine doses (`[daysAgo, time or null, Medicine, amount, °C or null]`). «ОРВИ» had one
+   * yesterday, so a new Temperature or dose joins it. `kind` CONDITION with a `position` makes a
+   * Condition; `ended` an Ended one (ticket #132).
+   */
+  illnesses: {
+    Маша: [
+      {
+        name: 'ОРВИ',
+        description: 'Лечим дома, педиатр — в пятницу',
+        temperatures: [
+          [2, '20:00', 38.5],
+          [1, '08:00', 37.8],
+          [1, '22:00', 38.2],
+          [1, null, 37.4],
+        ],
+        doses: [
+          [2, '20:00', 'Ибупрофен 20 мг/мл', '5 мл', 38.5],
+          [1, '22:00', 'Парацетамол 120 мг/5 мл', '1 таблетка', null],
+        ],
+        noteEvents: [[1, null, 'Сходили к доктору']],
+      },
+      { name: 'Отит', temperatures: [[400, '09:30', 37.6]] },
+      {
+        name: 'Зрение',
+        kind: 'CONDITION',
+        position: 1,
+        temperatures: [],
+        noteEvents: [[60, '10:00', 'Окулист: −0,5, очки не нужны']],
+      },
+      { name: 'Зубы', kind: 'CONDITION', position: 2, temperatures: [] },
+      { name: 'Ангина', ended: true, temperatures: [[30, '21:00', 39.1], [28, '09:00', 37.2]] },
+      {
+        name: 'Аденоиды',
+        kind: 'CONDITION',
+        position: 3,
+        ended: true,
+        temperatures: [],
+        noteEvents: [[200, null, 'ЛОР: удалять не нужно']],
+      },
+    ],
+  },
 };
+
+/**
+ * Documents on Маша's card (ticket #133), newest first: a photo of a doctor's report (drawn on a
+ * canvas, a PNG), a PDF, and one whose file the store has lost (`lost`: its row only, put straight
+ * in the database), which opens as «Файл недоступен». `event`: the title of the Note on «ОРВИ» the
+ * Document belongs to (ticket #134).
+ */
+SEED.documents = [
+  {
+    title: 'Заключение ЛОРа',
+    daysAgo: 1,
+    kind: 'photo',
+    description: 'Повторный приём через неделю',
+    event: 'Сходили к доктору',
+  },
+  { title: 'Общий анализ крови', daysAgo: 12, kind: 'pdf' },
+  { title: 'Выписка из поликлиники', daysAgo: 400, kind: 'pdf', lost: true },
+];
 
 /** Calls the API from inside the page, the way the app does (same origin, XSRF header). */
 async function api(page, method, url, body) {
@@ -539,8 +604,145 @@ async function pushChildFieldValues(page) {
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed values: ${JSON.stringify(pushed.results)}`);
 }
 
+/**
+ * `SEED.medicines`, then the Illnesses of `SEED.illnesses` on the Children's Medical cards, each
+ * with its Description and events (Temperatures, doses, Notes).
+ */
+async function pushIllnesses(page, childIds) {
+  // The ids of the Notes, by title, for Documents that belong to one (`SEED.documents`' `event`).
+  const noteIds = {};
+  const medicineIds = Object.fromEntries(SEED.medicines.map((name) => [name, crypto.randomUUID()]));
+  const medicines = SEED.medicines.map((name) => ({
+    table: 'medicine',
+    id: medicineIds[name],
+    op: 'upsert',
+    fields: { name },
+  }));
+  const operations = medicines.concat(Object.entries(SEED.illnesses).flatMap(([child, illnesses]) =>
+    illnesses.flatMap(({
+      name,
+      description = null,
+      kind = 'ILLNESS',
+      position = null,
+      ended = false,
+      temperatures,
+      doses = [],
+      noteEvents = [],
+    }) => {
+      const illnessId = crypto.randomUUID();
+      return [
+        {
+          table: 'illness',
+          id: illnessId,
+          op: 'upsert',
+          fields: { childId: childIds[child], kind, name, description, position },
+        },
+        ...(ended
+          ? [{ table: 'illness', id: illnessId, op: 'upsert', fields: { ended: true } }]
+          : []),
+        ...temperatures.map(([daysAgo, time, temperature]) => ({
+          table: 'illness_event',
+          id: crypto.randomUUID(),
+          op: 'upsert',
+          fields: { illnessId, kind: 'TEMPERATURE', date: dayFromToday(-daysAgo), time, temperature },
+        })),
+        ...doses.map(([daysAgo, time, medicine, amount, temperature]) => ({
+          table: 'illness_event',
+          id: crypto.randomUUID(),
+          op: 'upsert',
+          fields: {
+            illnessId,
+            kind: 'MEDICINE_DOSE',
+            date: dayFromToday(-daysAgo),
+            time,
+            medicineId: medicineIds[medicine],
+            amount,
+            temperature,
+          },
+        })),
+        ...noteEvents.map(([daysAgo, time, title]) => ({
+          table: 'illness_event',
+          id: (noteIds[title] = crypto.randomUUID()),
+          op: 'upsert',
+          fields: { illnessId, kind: 'NOTE', date: dayFromToday(-daysAgo), time, title },
+        })),
+      ];
+    }),
+  ));
+  const pushed = await api(page, 'POST', '/api/sync/push', { operations });
+  if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed illnesses: ${JSON.stringify(pushed.results)}`);
+  return noteIds;
+}
+
+/** Uploads `SEED.documents` to Маша's card through `POST /api/documents`, as the app does. */
+async function uploadDocuments(page, pg, childIds, noteIds) {
+  for (const { title, daysAgo, kind, description = '', lost = false, event } of SEED.documents) {
+    const illnessEventId = event === undefined ? undefined : noteIds[event];
+    const id = crypto.randomUUID();
+    const date = dayFromToday(-daysAgo);
+    if (lost) {
+      await psql(
+        pg,
+        `INSERT INTO document (id, child_id, title, date, content_type, size)
+         VALUES ('${id}', '${childIds['Маша']}', '${title}', '${date}', 'application/pdf', 182044);`,
+      );
+      continue;
+    }
+    await page.evaluate(
+      async ({ id, childId, illnessEventId, title, date, description, kind }) => {
+        let file;
+        if (kind === 'photo') {
+          // A photographed page: paper, a heading and lines of text.
+          const canvas = document.createElement('canvas');
+          canvas.width = 900;
+          canvas.height = 1200;
+          const g = canvas.getContext('2d');
+          g.fillStyle = '#f4f1ea';
+          g.fillRect(0, 0, 900, 1200);
+          g.fillStyle = '#222';
+          g.font = 'bold 44px sans-serif';
+          g.fillText('Заключение', 80, 140);
+          for (let line = 0; line < 22; line += 1) g.fillRect(80, 220 + line * 40, 520 + ((line * 97) % 220), 8);
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+          file = new File([blob], 'IMG_2041.png', { type: 'image/png' });
+        } else {
+          const text = 'BT /F1 24 Tf 72 720 Td (Complete blood count) Tj ET';
+          const pdf = [
+            '%PDF-1.4',
+            '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+            '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+            '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj',
+            `4 0 obj << /Length ${text.length} >> stream\n${text}\nendstream endobj`,
+            '5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
+            'trailer << /Root 1 0 R >>',
+            '%%EOF',
+          ].join('\n');
+          file = new File([pdf], `${title}.pdf`, { type: 'application/pdf' });
+        }
+        const form = new FormData();
+        form.append('id', id);
+        form.append('childId', childId);
+        if (illnessEventId) form.append('illnessEventId', illnessEventId);
+        form.append('title', title);
+        form.append('date', date);
+        if (description) form.append('description', description);
+        form.append('file', file);
+        const xsrf = decodeURIComponent((document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1] || '');
+        const r = await fetch('/api/documents', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'X-XSRF-TOKEN': xsrf },
+          body: form,
+        });
+        if (!r.ok) throw new Error(`POST /api/documents -> ${r.status} ${await r.text()}`);
+      },
+      { id, childId: childIds['Маша'], illnessEventId, title, date, description, kind },
+    );
+  }
+}
+
 async function seed(browser, baseUrl, pg) {
-  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, Child lists, active Invite');
+  log('seed: bootstrap Member, second Member via Invite, Children, Lists, Child fields, Child lists, Illnesses, Documents, active Invite');
   const ctx = await browser.newContext({ baseURL: baseUrl });
   const page = await ctx.newPage();
   await page.goto('/api/auth/session');
@@ -573,6 +775,8 @@ async function seed(browser, baseUrl, pg) {
     SEED.lists.children.map(({ child, ...list }) => ({ ...list, childId: childIds[child] })),
   );
   await pushChildFieldValues(page);
+  const noteIds = await pushIllnesses(page, childIds);
+  await uploadDocuments(page, pg, childIds, noteIds);
   const inv2 = await api(page, 'POST', '/api/invites'); // stays active: shows in Settings, used as {inviteToken}
   const storageState = await ctx.storageState();
   await ctx.close();
@@ -581,7 +785,8 @@ async function seed(browser, baseUrl, pg) {
 
 // ---------- shooting ---------------------------------------------------------------------------
 /**
- * Step forms (JSON): {"click": sel}, {"tap": sel}, {"fill": sel, "value": str}, {"press": key},
+ * Step forms (JSON): {"click": sel}, {"tap": sel}, {"fill": sel, "value": str}, {"select": sel,
+ * "value": option label}, {"press": key},
  * {"hover": sel}, {"waitFor": sel}, {"wait": ms}, {"eval": "js expression"}, {"scroll": sel}.
  * Selectors are Playwright selectors, e.g. `role=button[name="Добавить ребёнка"]`, `text=Дети`.
  * In a .mjs config a step may also be `async (page, ctx) => {...}`.
@@ -592,6 +797,7 @@ async function runStep(page, step, ctx) {
   if (step.click) return page.locator(step.click).first().click(t);
   if (step.tap) return page.locator(step.tap).first().tap(t);
   if (step.fill) return page.locator(step.fill).first().fill(step.value ?? '', t);
+  if (step.select) return page.locator(step.select).first().selectOption({ label: step.value }, t);
   if (step.press) return page.keyboard.press(step.press);
   if (step.hover) return page.locator(step.hover).first().hover(t);
   if (step.waitFor) return page.locator(step.waitFor).first().waitFor(t);

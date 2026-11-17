@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { LogoutSection } from '@/features/auth';
 import { ChildFieldsSettings } from '@/features/child-fields';
 import { ChildrenSettings } from '@/features/children';
+import { MedicinesSettings } from '@/features/medical';
 import { MembersSettings } from '@/features/members';
 import { NotificationsSection } from '@/features/notifications';
 import { Page, Sections } from '@/shared/ui';
@@ -24,6 +25,7 @@ export function SettingsPage({ homePath }: SettingsPageProps) {
         <MembersSettings />
         <ChildrenSettings />
         <ChildFieldsSettings />
+        <MedicinesSettings />
         <NotificationsSection />
         <AppearanceSection />
         <LogoutSection />

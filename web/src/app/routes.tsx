@@ -23,6 +23,25 @@ import {
   ListSettingsPage,
   ListsSection,
 } from '@/features/lists';
+import {
+  CHILD_CARD_PATH,
+  CHILD_DOCUMENT_PATH,
+  CHILD_DOCUMENTS_PATH,
+  CHILD_ILLNESS_DOCUMENT_PATH,
+  CHILD_ILLNESS_DOCUMENTS_PATH,
+  CHILD_ILLNESS_PATH,
+  DocumentPage,
+  DocumentsPage,
+  IllnessPage,
+  MedicalCardPage,
+  MedicalCardRow,
+  MY_CARD_PATH,
+  MY_DOCUMENT_PATH,
+  MY_DOCUMENTS_PATH,
+  MY_ILLNESS_DOCUMENT_PATH,
+  MY_ILLNESS_DOCUMENTS_PATH,
+  MY_ILLNESS_PATH,
+} from '@/features/medical';
 import { PASSWORD_PATH, PasswordPage } from '@/features/members';
 import { SettingsPage, SETTINGS_PATH } from '@/features/settings';
 import { AppShell } from '@/shared/ui';
@@ -45,7 +64,24 @@ export const routes: RouteObject[] = [
         element: <AuthGuard />,
         children: [
           { path: HOME_PATH, element: <HomePage /> },
-          { path: CHILD_PATH, element: <ChildPage homePath={HOME_PATH} lists={ListsSection} /> },
+          {
+            path: CHILD_PATH,
+            element: (
+              <ChildPage homePath={HOME_PATH} lists={ListsSection} medical={MedicalCardRow} />
+            ),
+          },
+          { path: MY_CARD_PATH, element: <MedicalCardPage homePath={HOME_PATH} /> },
+          { path: CHILD_CARD_PATH, element: <MedicalCardPage homePath={HOME_PATH} /> },
+          { path: MY_ILLNESS_PATH, element: <IllnessPage homePath={HOME_PATH} /> },
+          { path: CHILD_ILLNESS_PATH, element: <IllnessPage homePath={HOME_PATH} /> },
+          { path: MY_DOCUMENTS_PATH, element: <DocumentsPage homePath={HOME_PATH} /> },
+          { path: CHILD_DOCUMENTS_PATH, element: <DocumentsPage homePath={HOME_PATH} /> },
+          { path: MY_DOCUMENT_PATH, element: <DocumentPage homePath={HOME_PATH} /> },
+          { path: CHILD_DOCUMENT_PATH, element: <DocumentPage homePath={HOME_PATH} /> },
+          { path: MY_ILLNESS_DOCUMENTS_PATH, element: <DocumentsPage homePath={HOME_PATH} /> },
+          { path: CHILD_ILLNESS_DOCUMENTS_PATH, element: <DocumentsPage homePath={HOME_PATH} /> },
+          { path: MY_ILLNESS_DOCUMENT_PATH, element: <DocumentPage homePath={HOME_PATH} /> },
+          { path: CHILD_ILLNESS_DOCUMENT_PATH, element: <DocumentPage homePath={HOME_PATH} /> },
           { path: LIST_PATH, element: <ListPage homePath={HOME_PATH} /> },
           { path: LIST_SETTINGS_PATH, element: <ListSettingsPage homePath={HOME_PATH} /> },
           { path: LIST_CATEGORIES_PATH, element: <CategoriesPage homePath={HOME_PATH} /> },

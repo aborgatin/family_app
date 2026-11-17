@@ -17,6 +17,16 @@ spring:
     jdbc:
       # The tables come from Flyway (V1).
       initialize-schema: never
+  # Document uploads (spec #128): a file up to 20 MB. The file's limit is checked while the body
+  # is read (document.too_large, DocumentsController); a body far over it is refused from its
+  # Content-Length before it is read. Parts stay in memory up to the limit, so an uploaded file is
+  # never written in plaintext to the temporary folder: only DocumentFiles stores it, encrypted.
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 22MB
+      file-size-threshold: 22MB
+      resolve-lazily: true
 
 # Push messages (spec #104). The VAPID key pair and subject are required: an empty value stops the
 # app at startup with a message naming the variable (NotificationsProperties). Generate a pair
@@ -29,6 +39,19 @@ notifications:
   # When a Due date without a time is due, in the installation's TZ.
   reminder-morning-time: ${REMINDER_MORNING_TIME:09:00}
 
+# Documents on Medical cards (spec #128, ADR-0010). The encryption key (32 bytes, base64) is
+# required: an empty one stops the app at startup (DocumentsProperties). DOCUMENTS_FOLDER keeps the
+# files in a local folder (scripts/dev.sh); without it they go to the S3-compatible bucket
+# (production: Cloudflare R2, ticket #135), and every DOCUMENTS_S3_* value is required.
+documents:
+  encryption-key: ${DOCUMENTS_ENCRYPTION_KEY:}
+  folder: ${DOCUMENTS_FOLDER:}
+  s3:
+    endpoint: ${DOCUMENTS_S3_ENDPOINT:}
+    name: ${DOCUMENTS_S3_BUCKET:}
+    access-key-id: ${DOCUMENTS_S3_ACCESS_KEY_ID:}
+    secret-access-key: ${DOCUMENTS_S3_SECRET_ACCESS_KEY:}
+
 server:
   # Sessions live in PostgreSQL (Spring Session JDBC), so they survive redeploys. The lifetime
   # slides: every request with the session renews it on the server and re-sends the cookie.
@@ -37,7 +60,8 @@ server:
       timeout: ${SESSION_TIMEOUT:180d}
       cookie:
         http-only: true
-        secure: true
+        # false only for scripts/dev.sh, so a browser keeps the cookies on plain http.
+        secure: ${COOKIES_SECURE:true}
         same-site: lax
         max-age: ${SESSION_TIMEOUT:180d}
   # Behind Caddy: X-Forwarded-For/-Proto give the real client IP and scheme, but only on

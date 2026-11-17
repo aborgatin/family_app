@@ -1,0 +1,215 @@
+package io.github.aborgatin.familyapp.medical;
+
+import static io.github.aborgatin.familyapp.MedicalOperations.dose;
+import static io.github.aborgatin.familyapp.MedicalOperations.illnessOf;
+import static io.github.aborgatin.familyapp.MedicalOperations.medicine;
+import static io.github.aborgatin.familyapp.SyncRequests.pushApplied;
+import static io.github.aborgatin.familyapp.medical.MedicalCardSyncTest.EVENT;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.MAP;
+import static org.hamcrest.Matchers.contains;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+
+import io.github.aborgatin.familyapp.Browser;
+import io.github.aborgatin.familyapp.FreshInstallation;
+import io.github.aborgatin.familyapp.PostgresTestcontainer;
+import io.github.aborgatin.familyapp.SyncRequests;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
+
+/**
+ * The Family's Medicines through the sync push and pull (spec #128, ticket #130): the {@code
+ * medicine} table, and Medicine doses that name one. Anna's phone and Boris's phone; every test
+ * starts with the Child Маша and an Illness on her card.
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@Import(PostgresTestcontainer.class)
+class MedicineSyncTest {
+
+  static final String MEDICINE = "medicine";
+
+  @Autowired MockMvc mvc;
+  @Autowired JdbcTemplate jdbc;
+
+  Browser anna;
+  Browser boris;
+  final UUID masha = UUID.randomUUID();
+  final UUID cold = UUID.randomUUID();
+
+  @BeforeEach
+  void annaAndBorisHaveMashaWithACold() throws Exception {
+    FreshInstallation.reset(jdbc);
+    anna = SyncRequests.bootstrapAnna(mvc);
+    boris = SyncRequests.loginBoris(mvc, jdbc);
+    pushApplied(
+        anna,
+        SyncRequests.upsert("child", masha, "{\"name\":\"Маша\",\"color\":\"coral\"}"),
+        illnessOf("childId", masha, cold, "ОРВИ"));
+  }
+
+  @Test
+  void aMedicineReachesEveryMemberWithItsNameTrimmed() throws Exception {
+    UUID ibuprofen = UUID.randomUUID();
+
+    pushApplied(anna, medicine(ibuprofen, "  Ибупрофен 20 мг/мл "));
+
+    for (Browser member : new Browser[] {anna, boris}) {
+      assertThat(SyncRequests.fields(member, MEDICINE, ibuprofen))
+          .containsEntry("name", "Ибупрофен 20 мг/мл")
+          .containsEntry("deleted", false);
+    }
+  }
+
+  @Test
+  void aMedicineNeedsAName() throws Exception {
+    SyncRequests.push(anna, medicine(UUID.randomUUID(), "   "))
+        .andExpect(jsonPath("$.results[0].code").value("validation.failed"))
+        .andExpect(
+            jsonPath("$.results[0].params.errors[?(@.field=='name')].code").value("required"));
+  }
+
+  @Test
+  void aNameIsUniqueIgnoringCaseAmongMedicinesThatArentDeleted() throws Exception {
+    UUID ibuprofen = UUID.randomUUID();
+    UUID paracetamol = UUID.randomUUID();
+    pushApplied(anna, medicine(ibuprofen, "Ибупрофен"), medicine(paracetamol, "Парацетамол"));
+
+    // A rename to a taken name is rejected; a new one is kept deleted (the next test).
+    SyncRequests.push(
+            boris,
+            medicine(UUID.randomUUID(), " ибупрофен "),
+            SyncRequests.upsert(MEDICINE, paracetamol, "{\"name\":\"ИБУПРОФЕН\"}"),
+            SyncRequests.upsert(MEDICINE, ibuprofen, "{\"name\":\"ибупрофен\"}"))
+        .andExpect(jsonPath("$.results[*].status", contains("ignored", "rejected", "applied")))
+        .andExpect(jsonPath("$.results[1].code").value("medicine.duplicate"));
+    assertThat(SyncRequests.fields(anna, MEDICINE, paracetamol))
+        .containsEntry("name", "Парацетамол");
+    assertThat(SyncRequests.fields(anna, MEDICINE, ibuprofen)).containsEntry("name", "ибупрофен");
+
+    // Deleted, the name is free again.
+    UUID again = UUID.randomUUID();
+    pushApplied(anna, SyncRequests.delete(MEDICINE, ibuprofen), medicine(again, "Ибупрофен"));
+    assertThat(SyncRequests.fields(boris, MEDICINE, again)).containsEntry("name", "Ибупрофен");
+  }
+
+  @Test
+  void theSameNewNameAddedOfflineByBothMembersPutsTheSecondOnesDoseOnTheFirst() throws Exception {
+    UUID annas = UUID.randomUUID();
+    UUID boriss = UUID.randomUUID();
+    UUID dose = UUID.randomUUID();
+    pushApplied(anna, medicine(annas, "Нурофен"));
+
+    // Boris added «нурофен» inline at night, offline, with a dose: the dose is never lost.
+    SyncRequests.push(boris, medicine(boriss, "нурофен"), dose(dose, cold, boriss, "5 мл", null))
+        .andExpect(jsonPath("$.results[*].status", contains("ignored", "applied")));
+
+    // His Medicine is kept deleted, with its name, so the picker doesn't show it; the dose names
+    // Anna's, which survived, so prefill, the dose's name and «Лекарства» agree on every device.
+    for (Browser member : new Browser[] {anna, boris}) {
+      assertThat(SyncRequests.fields(member, MEDICINE, boriss))
+          .containsEntry("name", "нурофен")
+          .containsEntry("deleted", true);
+      assertThat(SyncRequests.fields(member, MEDICINE, annas)).containsEntry("deleted", false);
+      assertThat(SyncRequests.fields(member, EVENT, dose))
+          .containsEntry("medicineId", annas.toString());
+    }
+
+    // A dose of his Medicine arriving later, and an edit naming it, name Anna's too.
+    UUID later = UUID.randomUUID();
+    UUID edited = UUID.randomUUID();
+    pushApplied(
+        boris,
+        dose(later, cold, boriss, "5 мл", null),
+        dose(edited, cold, annas, "5 мл", null),
+        SyncRequests.upsert(EVENT, edited, "{\"medicineId\":\"%s\"}".formatted(boriss)));
+    assertThat(SyncRequests.fields(anna, EVENT, later))
+        .containsEntry("medicineId", annas.toString());
+    assertThat(SyncRequests.fields(anna, EVENT, edited))
+        .containsEntry("medicineId", annas.toString());
+  }
+
+  @Test
+  void aRenameReachesEveryMemberAndEveryDose() throws Exception {
+    UUID ibuprofen = UUID.randomUUID();
+    UUID dose = UUID.randomUUID();
+    pushApplied(anna, medicine(ibuprofen, "Ибупрофен"), dose(dose, cold, ibuprofen, "5 мл", 38.5));
+    long before = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    pushApplied(
+        boris, SyncRequests.upsert(MEDICINE, ibuprofen, "{\"name\":\"Ибупрофен 20 мг/мл\"}"));
+
+    assertThat(SyncRequests.change(anna, before, MEDICINE, ibuprofen))
+        .extractingByKey("fields")
+        .asInstanceOf(MAP)
+        .containsEntry("name", "Ибупрофен 20 мг/мл");
+    assertThat(SyncRequests.fields(anna, EVENT, dose))
+        .containsEntry("kind", "MEDICINE_DOSE")
+        .containsEntry("medicineId", ibuprofen.toString())
+        .containsEntry("amount", "5 мл")
+        .containsEntry("temperature", 38.5);
+  }
+
+  @Test
+  void deletingAMedicineKeepsItsNameForTheDosesThatNameIt() throws Exception {
+    UUID ibuprofen = UUID.randomUUID();
+    UUID dose = UUID.randomUUID();
+    pushApplied(anna, medicine(ibuprofen, "Ибупрофен"), dose(dose, cold, ibuprofen, "5 мл", null));
+    long before = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    pushApplied(anna, SyncRequests.delete(MEDICINE, ibuprofen));
+
+    // Not a tombstone: the row comes with its name, marked deleted, in every pull.
+    assertThat(SyncRequests.change(boris, before, MEDICINE, ibuprofen))
+        .containsEntry("deleted", false)
+        .extractingByKey("fields")
+        .asInstanceOf(MAP)
+        .containsEntry("name", "Ибупрофен")
+        .containsEntry("deleted", true);
+    assertThat(SyncRequests.fields(boris, MEDICINE, ibuprofen))
+        .containsEntry("name", "Ибупрофен")
+        .containsEntry("deleted", true);
+    assertThat(SyncRequests.fields(boris, EVENT, dose))
+        .containsEntry("medicineId", ibuprofen.toString());
+    // A dose logged offline before the delete arrived still names it; a rename is ignored.
+    SyncRequests.push(
+            boris,
+            dose(UUID.randomUUID(), cold, ibuprofen, "5 мл", null),
+            SyncRequests.upsert(MEDICINE, ibuprofen, "{\"name\":\"Нурофен\"}"))
+        .andExpect(jsonPath("$.results[*].status", contains("applied", "ignored")));
+  }
+
+  @Test
+  void aDoseNeedsAnAmount() throws Exception {
+    UUID ibuprofen = UUID.randomUUID();
+    UUID dose = UUID.randomUUID();
+    pushApplied(anna, medicine(ibuprofen, "Ибупрофен"), dose(dose, cold, ibuprofen, "5 мл", null));
+
+    SyncRequests.push(
+            anna,
+            dose(UUID.randomUUID(), cold, ibuprofen, "  ", null),
+            SyncRequests.upsert(EVENT, dose, "{\"amount\":null}"))
+        .andExpect(
+            jsonPath("$.results[*].code", contains("validation.failed", "validation.failed")))
+        .andExpect(
+            jsonPath("$.results[0].params.errors[?(@.field=='amount')].code").value("required"))
+        .andExpect(
+            jsonPath("$.results[1].params.errors[?(@.field=='amount')].code").value("required"));
+  }
+
+  @Test
+  void aDoseNeedsAMedicineThatExists() throws Exception {
+    UUID unknown = UUID.randomUUID();
+
+    SyncRequests.push(anna, dose(UUID.randomUUID(), cold, unknown, "5 мл", null))
+        .andExpect(jsonPath("$.results[0].code").value("medical.not_found"))
+        .andExpect(jsonPath("$.results[0].params.medicineId").value(unknown.toString()));
+  }
+}

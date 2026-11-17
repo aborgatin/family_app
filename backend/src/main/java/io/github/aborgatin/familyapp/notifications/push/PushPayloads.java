@@ -37,4 +37,9 @@ public class PushPayloads {
   public static String itemUrl(UUID listId, UUID itemId) {
     return listUrl(listId) + "/items/" + itemId;
   }
+
+  /** An Illness on a Child's Medical card: {@code /children/:id/medical/illnesses/:illnessId}. */
+  public static String childIllnessUrl(UUID childId, UUID illnessId) {
+    return "/children/" + childId + "/medical/illnesses/" + illnessId;
+  }
 }

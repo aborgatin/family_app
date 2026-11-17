@@ -1,13 +1,17 @@
 package io.github.aborgatin.familyapp.family;
 
+import io.github.aborgatin.familyapp.error.ApiException;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
  * Children for the other packages and modules: whether a Child exists, for rows that are about a
- * Child (a Child list, a Child field value). The Children themselves are written by the push and
- * read by the pull.
+ * Child (a Child list, a Child field value), and its name, for a push that names it. The Children
+ * themselves are written by the push and read by the pull.
  */
 @Component
 public class Children {
@@ -26,6 +30,20 @@ public class Children {
   /** Whether the Child with this id is there: created and not deleted. */
   public boolean present(UUID id) {
     return count("SELECT count(*) FROM child WHERE id = ? AND NOT deleted", id) > 0;
+  }
+
+  /** The name of the Child with this id while it is there (created and not deleted). */
+  public Optional<String> name(UUID id) {
+    return jdbc
+        .queryForList("SELECT name FROM child WHERE id = ? AND NOT deleted", String.class, id)
+        .stream()
+        .findFirst();
+  }
+
+  /** The rejection of a row about a Child that was never created: {@code child.not_found}. */
+  public static ApiException notFound(UUID id) {
+    return new ApiException(
+        HttpStatus.NOT_FOUND, "child.not_found", Map.of("childId", id.toString()));
   }
 
   private int count(String sql, UUID id) {

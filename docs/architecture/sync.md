@@ -37,6 +37,10 @@ table adds it here.
 | `item_history` | `V9__item_history.sql`         | server, when an Item is written (push: delete) | M3    |
 | `child_field_value` | `V11__child_field_value.sql` | client (`crypto.randomUUID()`)              | M4    |
 | `mute`        | `V18__mute.sql`                 | client (`crypto.randomUUID()`)                 | M5    |
+| `illness`     | `V21__illness.sql`              | client (`crypto.randomUUID()`)                 | M5.5  |
+| `illness_event` | `V21__illness.sql`            | client (`crypto.randomUUID()`)                 | M5.5  |
+| `medicine`    | `V22__medicine.sql`             | client (`crypto.randomUUID()`)                 | M5.5  |
+| `document`    | `V23__document.sql`             | client (`newDocumentId()`), sent with the upload, which creates the row (#133) | M5.5  |
 
 Not syncable (server-only, no sync columns, may be hard-deleted): `family` (one row, not exposed
 through the API; it would become syncable, with a migration adding the columns, if it is ever
@@ -72,7 +76,7 @@ the time), so Items added on one device and not yet pulled back keep the order t
 
 **Ordering keys.** `child_field.position` is `DOUBLE PRECISION`. A move is one upsert carrying
 only the moved field's `position` (midpoint between its new neighbours, computed by the client in
-`positionAfterMove`), so a reorder is a single-record change. The client sorts by position, ties
+`positionAfterMove` from `@/shared/ui`, which Categories and Conditions use too), so a reorder is a single-record change. The client sorts by position, ties
 by id (`useChildFields`); the pull sends rows in Version order. Children have no manual order (birthday, then name, then id).
 `category.position` works the same way; the Unnamed category is not a row, and its place is the
 List's `unnamedCategoryPosition` (0 for a new List), ordered with the Categories' positions (on a
@@ -250,6 +254,64 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   Mutes, everyone's, so their Members pull tombstones; made Shared again, nobody is Muted. The
   pull sends a Mute, `listId` only, **to its own Member only**: the other Member's pull leaves it
   out, not even as a tombstone.
+- **Medical cards** (`illness`, `illness_event`, ticket #129; owned by `medical`): a card's rows
+  name their person, exactly one of `memberId` and `childId` (`medical.Person`, the one place of
+  the visibility rule, and of that check: `Person.of`, for the sync rows and the upload alike). An `illness` upsert of an unknown id carries the person, `kind`
+  (`ILLNESS` | `CONDITION`) and `name` (trimmed, required); `description` and `position` are
+  optional, `ended` starts `false`, and `createdAt` is the server's clock. No person, or both, is
+  `validation.failed` (`memberId` `required`, or `childId` `value.invalid`); an unknown Child is
+  `child.not_found`, a deleted one `ignored` (stored as deleted, so the events pushed with it are
+  `ignored` too). An `illness_event` upsert of an unknown id carries
+  `illnessId`, `kind` (`MEDICINE_DOSE` | `TEMPERATURE` | `NOTE`) and `date` (`YYYY-MM-DD`), with
+  `time` (`HH:MM`) optional; a CONDITION takes NOTE events only (a dose or TEMPERATURE into one is
+  `illness.condition_takes_notes_only`, 409); a TEMPERATURE needs `temperature`, a NOTE `title`, a dose
+  `medicineId` and `amount` (trimmed, non-blank; a push missing it shows plain «Не удалось
+  сохранить», as any `validation.failed` does: the dose sheet requires it before saving); `temperature` is 34.0–43.0 with at most one decimal (`value.invalid` otherwise);
+  an event for a deleted Illness is `ignored`. **Editing** (#131): an upsert of a known `illness`
+  changes the `name` (trimmed, required) and `description` (blank is none) it carries; its person
+  never changes, nor does its `kind` (a different one is `value.invalid`, as an event's is; the
+  app never sends one). It also changes `ended` (a boolean, «Завершить» / «Возобновить»; `null` is
+  `required`) and `position` (a number or `null`; the client sends one with a reorder of
+  Conditions, #132). Ending touches neither the events nor who sees the row. An upsert of a known `illness_event` changes the fields it carries, checked as a
+  new event's are against the result (clearing a Temperature's `temperature` is `required`); its
+  `kind` never changes (`value.invalid`). A new `illnessId` **moves** the event: the Illness must
+  be on the same card (any other card, one the Member sees included, or an unknown Illness, is
+  `medical.not_found`); a move to a deleted one is `ignored`, and a dose's or TEMPERATURE's to a
+  Condition is `illness.condition_takes_notes_only`. **Visibility**: a Member's card is only that Member's: creating a row
+  on another Member's card, or any operation on a row there, is `medical.not_found`
+  (`params.illnessId` / `params.illnessEventId`), and the pull leaves those rows out of the other
+  Member's changes entirely, not even as tombstones (like a Mute). A Child's card is every
+  Member's. **Deleting an Illness** soft-deletes its events and their Documents; **deleting an
+  event** soft-deletes its Document (files after the commit, #134); **deleting a Child** soft-deletes their
+  Illnesses and those Illnesses' events, in the same operation. A dose's `medicineId` must name a
+  Medicine that exists, a deleted one included; one that never existed is `medical.not_found`
+  (`params.medicineId`); one merged into another (below) is stored as that other one.
+- **Medicines** (`medicine`, ticket #130; owned by `medical`): the Family's list, seen by every
+  Member. An upsert creates or renames: `name` (trimmed, required). A name is unique ignoring
+  letter case among Medicines that aren't deleted; the app checks its own list first, so a clash
+  comes only from the other Member's Medicine of the same name pushed first. A **rename** to a
+  taken name is `medicine.duplicate` (409). A **create** with a taken name (both Members added it
+  offline, maybe inline with a dose at night) is `ignored` and stored as a deleted Medicine with
+  its name, **merged into** the first one (`merged_into`, server-only): a dose naming it, pushed
+  with it or later, a new one or an edit, is applied naming the first one instead, so the
+  device that sent it gets the dose back with the surviving `medicineId` on its next pull, and
+  the next dose's prefill, the dose's name and «Лекарства» all count it on the surviving Medicine.
+  The picker shows only the first one. A delete soft-deletes the Medicine and nothing else: doses keep
+  naming it, and anything later on it is `ignored`. **The pull never tombstones a Medicine**: a
+  deleted one comes as a row with its `name` and `deleted: true` (a live one with `deleted:
+  false`), in a full pull too, so a past dose shows its name on every device, a new one included.
+- **Documents** (`document`, ticket #133; owned by `medical`): created only by the upload, `POST
+  /api/documents` (not sync: it needs a connection; backend.md "API conventions"), never by a
+  push: an upsert of an unknown id is `medical.not_found` (`params.documentId`). An upsert of a
+  known one changes the `title` (trimmed, required), `date` (`YYYY-MM-DD`, required) and
+  `description` it carries; the person, `illnessEventId`, `contentType` and `size` never change.
+  A delete soft-deletes it, and **after the commit** the server deletes its file from the file
+  store (a failure is logged, never a rejection). A Document on an Illness event (`illnessEventId`,
+  one per event, #134) goes with the event, and moves with it (it names the event, not the
+  Illness); an upload that `replaces` the event's Document deletes that one. Seen as the card is (`Person`): another
+  Member's Document is `medical.not_found` and left out of their pull. **Deleting a Child**
+  soft-deletes their Documents in the same operation, and their files after the commit. The pull
+  carries the fields only, never the file.
 - **Deleting a Child** soft-deletes its Child field values in the same operation; **deleting a
   Child field** soft-deletes its values for every Child. They get new Versions, so devices pull
   their tombstones.
@@ -336,7 +398,7 @@ auth.required` without one) tells open apps when to pull:
 
 - **Local store** (Dexie, `web/src/shared/sync/localStore.ts`): one IndexedDB table per syncable
   table (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`,
-  `item_history`, `mute`), the Outbox (`++seq`) and the stored
+  `item_history`, `mute`, `illness`, `illness_event`, `medicine`, `document`), the Outbox (`++seq`) and the stored
   Version. A row is the fields the pull sent plus `version`, the Version it was pulled with (absent
   on a row created here and not pulled back yet): what tells the latest Child field value. The app asks for persistent storage at start. Dexie upgrades keep every table not
   dropped, so the Outbox survives
@@ -375,20 +437,24 @@ auth.required` without one) tells open apps when to pull:
   tombstone, or `ignored` below) takes the rows that belong to it, declared with the tables in
   `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history, a Child's
   Child lists (which take their Items in turn; #90), and the Child field values of a Child and of
-  a Child field (#91). So a tombstoned List
+  a Child field (#91), a Child's Illnesses and Documents, an Illness's events and an event's Document
+  (#129, #133, #134). So a tombstoned List
   (deleted, or made Private by its Owner) takes its local Items, Categories and Item history, and the engine
   names no table. A Category is not a parent: its tombstone leaves its Items, which then show in
   the Unnamed category.
 - **Ignored operation** (delete wins): dropped from the Outbox, and the local row is removed with
   its dependents: the record is deleted on the server, and a pull may not send its tombstone
   again (it was already pulled, or a full pull left it out).
+- **Rows kept when deleted** (`KEPT_WHEN_DELETED` in `localStore.ts`: `medicine`): a delete here,
+  and an `ignored` operation on one, keep the local row marked `deleted: true` instead of removing
+  it, as the server's pull sends it, so a deleted Medicine's name stays on past doses offline too.
 - **Rejected operation**: dropped from the Outbox; «Не удалось сохранить» shows once, app-wide,
   wherever the Member is by then (`useSaveRejection`, a `Toast` placed by the app), with the
   reason for the codes the Member can cause (`list.not_found`, `list.owner_only`,
   `list.kind_immutable`, `list.wish_shared_only`, the four `list.child_*` codes,
   `list.hide_done_not_todo`,
   `child_field.value_type_immutable`, `sync.read_only`, `item.list_not_todo`,
-  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`, `mute.private_list`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping`,
+  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`, `mute.private_list`, `medical.not_found`, `medicine.duplicate`, `illness.condition_takes_notes_only`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping`,
   `item.category_not_found` and `mute.not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.

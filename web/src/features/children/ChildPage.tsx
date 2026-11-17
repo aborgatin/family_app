@@ -25,17 +25,20 @@ interface ChildPageProps {
    * `lists` feature already imports this one (a Child list's screen goes back to the Child page).
    */
   lists: ComponentType<{ childId: string }>;
+  /** «Медкарта»: the row opening the Child's Medical card. Passed in by the routes, as `lists`. */
+  medical: ComponentType<{ childId: string }>;
 }
 
 /**
  * The Child page (`/children/:id`): the one place for everything about a Child, titled with the
  * Child's name, back to Home. «Изменить» opens the Child's screen in Settings (name, colour,
  * birthday); «Профиль» shows the birthday with the age, read-only, then the Child's value for
- * every Child field, edited in place (`ChildProfileSection`); «Списки» has the Child lists. A
+ * every Child field, edited in place (`ChildProfileSection`); «Медкарта» opens the Child's Medical card;
+ * «Списки» has the Child lists. A
  * Child that is unknown, or is deleted while the page is open, shows «Такого ребёнка нет». Data
  * only through `useChild(id)`.
  */
-export function ChildPage({ homePath, lists: ChildLists }: ChildPageProps) {
+export function ChildPage({ homePath, lists: ChildLists, medical: MedicalCard }: ChildPageProps) {
   const { t } = useTranslation();
   const { id } = useParams();
   const { load, child } = useChild(id);
@@ -50,6 +53,7 @@ export function ChildPage({ homePath, lists: ChildLists }: ChildPageProps) {
       >
         <Sections>
           <ProfileSection child={child} />
+          <MedicalCard childId={child.id} />
           <ChildLists childId={child.id} />
         </Sections>
       </Page>

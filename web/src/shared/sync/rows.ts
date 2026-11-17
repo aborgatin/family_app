@@ -29,6 +29,11 @@ export function useRows(table: SyncedTable): Row[] | undefined {
   return rows;
 }
 
+/** The last tie-break of a synced table's order: by id, so every device agrees. */
+export function byId(a: { id: string }, b: { id: string }): number {
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 /** The rows of a synced table in the feature's order: `loading` until the first local read. */
 export type LocalLoad<T> = { status: 'loading' } | { status: 'ready'; value: T[] };
 
@@ -68,16 +73,48 @@ export async function upsertRow(
   fields: Record<string, unknown>,
   local?: Record<string, unknown>,
 ): Promise<void> {
-  await write(table, id, (existing): Operation | undefined => {
-    const changed =
-      existing === undefined
-        ? fields
-        : Object.fromEntries(
-            Object.entries(fields).filter(([field, value]) => existing[field] !== value),
-          );
-    if (Object.keys(changed).length === 0) return undefined;
-    return { table, id, op: 'upsert', fields: changed, ...(local !== undefined && { local }) };
+  await write(table, id, (existing) => upsertOperation(table, id, fields, existing, local));
+}
+
+/** The upsert that sets `fields` on the local row: only those that differ (`undefined`: none). */
+function upsertOperation(
+  table: SyncedTable,
+  id: string,
+  fields: Record<string, unknown>,
+  existing: Row | undefined,
+  local?: Record<string, unknown>,
+): Operation | undefined {
+  const changed =
+    existing === undefined
+      ? fields
+      : Object.fromEntries(
+          Object.entries(fields).filter(([field, value]) => existing[field] !== value),
+        );
+  if (Object.keys(changed).length === 0) return undefined;
+  return { table, id, op: 'upsert', fields: changed, ...(local !== undefined && { local }) };
+}
+
+/**
+ * Several `upsertRow`s in one transaction: their Outbox operations are written together, in this
+ * order, or not at all, so the push sends them together (e.g. a new Illness, then its first event).
+ */
+export async function upsertRows(
+  writes: readonly { table: SyncedTable; id: string; fields: Record<string, unknown> }[],
+): Promise<void> {
+  dismissSaveRejection();
+  const tables = [...new Set(writes.map(({ table }) => table))].map((table) =>
+    localStore.rows(table),
+  );
+  const written = await localStore.transaction('rw', [...tables, localStore.outbox], async () => {
+    let any = false;
+    for (const { table, id, fields } of writes) {
+      any =
+        (await writeIn(table, id, (existing) => upsertOperation(table, id, fields, existing))) ||
+        any;
+    }
+    return any;
   });
+  if (written) requestSync();
 }
 
 /** Deletes the row, locally and in the Outbox. */
@@ -99,16 +136,23 @@ async function write(
   const written = await localStore.transaction(
     'rw',
     [localStore.rows(table), localStore.outbox],
-    async () => {
-      const existing = await localStore.rows(table).get(id);
-      const operation = operationFor(existing);
-      if (operation === undefined) return false;
-      await applyLocally(operation);
-      // An upsert with no local row creates it (`Operation.creates`).
-      const creates = operation.op === 'upsert' && existing === undefined;
-      await localStore.outbox.add(creates ? { ...operation, creates } : operation);
-      return true;
-    },
+    () => writeIn(table, id, operationFor),
   );
   if (written) requestSync();
+}
+
+/** The body of `write`, inside a transaction over the row's table and the Outbox. */
+async function writeIn(
+  table: SyncedTable,
+  id: string,
+  operationFor: (existing: Row | undefined) => Operation | undefined,
+): Promise<boolean> {
+  const existing = await localStore.rows(table).get(id);
+  const operation = operationFor(existing);
+  if (operation === undefined) return false;
+  await applyLocally(operation);
+  // An upsert with no local row creates it (`Operation.creates`).
+  const creates = operation.op === 'upsert' && existing === undefined;
+  await localStore.outbox.add(creates ? { ...operation, creates } : operation);
+  return true;
 }

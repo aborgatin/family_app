@@ -1,5 +1,5 @@
 export { AppShell } from './AppShell';
-export { Page } from './Page';
+export { Page, type PageBack } from './Page';
 export { Button } from './Button';
 export { Link } from './Link';
 export { Icon, type IconName } from './Icon';
@@ -22,6 +22,7 @@ export { ConfirmRow } from './ConfirmRow';
 export { EditableRow, type RowCaptionPart } from './EditableRow';
 export { MenuChip, type MenuChipChoice, type MenuChipProps } from './MenuChip';
 export { AddRow } from './AddRow';
+export { SuggestionRows } from './SuggestionRows';
 export { DoneToggle } from './DoneToggle';
 export { SwipeToDelete } from './SwipeToDelete';
 export {
@@ -38,7 +39,10 @@ export { useEditableList } from './editableList';
 export { Swatch } from './Swatch';
 export { ColorChoice } from './ColorChoice';
 export { DateRow } from './DateRow';
+export { FileRow } from './FileRow';
+export { FileViewer } from './FileViewer';
 export { Sheet } from './Sheet';
+export { positionAfterMove } from './positionAfterMove';
 export { SortableList, type SortableRow } from './SortableList';
 export { Toast } from './Toast';
 export { Card, CardGrid } from './CardGrid';

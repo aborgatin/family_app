@@ -267,13 +267,13 @@ describe('A Child list', () => {
 
 describe('Deleting a Child in Settings', () => {
   const QUESTION = 'Удалить „Маша“?';
-  const WARNING = 'Списки и профиль ребёнка тоже будут удалены.';
+  const WARNING = 'Списки, профиль и медкарта ребёнка тоже будут удалены.';
 
   beforeEach(() => {
     server.use(membersHandler([anna, boris]), invitesHandler([]));
   });
 
-  it('warns on the Child’s screen that the lists and the profile go too, then deletes them', async () => {
+  it('warns on the Child’s screen that the lists, the profile and the Medical card go too, then deletes them', async () => {
     syncServer.seed('list', [school, { ...wishes, ownerId: boris.id }, chores]);
     syncServer.seed('item', [item(1, 'Уроки', school.id), item(4, 'Посуда', chores.id)]);
     const user = userEvent.setup();

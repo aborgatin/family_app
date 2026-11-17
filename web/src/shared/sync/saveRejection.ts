@@ -48,6 +48,14 @@ const REJECTION_KEYS = {
   'child_field.not_found': 'sync.saveRejected',
   // Another Member's Mute: the pull never brings one, so the app never sends it.
   'mute.not_found': 'sync.saveRejected',
+  // A row on another Member's Medical card: the pull never brings one, so the app sends none.
+  'medical.not_found': 'sync.rejected.medicalNotFound',
+  // A Medicine renamed like one the other Member added meanwhile (the app checks its own list; a
+  // new one with a taken name is kept deleted instead, so its doses stay).
+  'medicine.duplicate': 'sync.rejected.medicineDuplicate',
+  // A dose or Temperature into a Condition: never offered (they go to Illnesses only), but its own
+  // reason, like `list.hide_done_not_todo`.
+  'illness.condition_takes_notes_only': 'sync.rejected.conditionTakesNotesOnly',
 } as const satisfies Readonly<Record<string, ErrorMessage['key']>>;
 
 export function rejectionMessage(code: string): ErrorMessage {

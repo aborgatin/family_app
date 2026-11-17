@@ -46,4 +46,16 @@ public class Pushes {
       }
     }
   }
+
+  /**
+   * Sends a message as {@link #sendTo} does. A failure on the way (a database call that throws) is
+   * logged and not retried, and costs only this message: the caller goes on with its next one.
+   */
+  public void send(PushMessage message) {
+    try {
+      sendTo(message.recipientId(), message.payload(), message.ttl(), message.urgency());
+    } catch (RuntimeException e) {
+      log.warn("A push to Member {} failed; it is not retried", message.recipientId(), e);
+    }
+  }
 }

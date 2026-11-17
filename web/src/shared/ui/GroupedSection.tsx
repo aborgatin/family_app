@@ -59,9 +59,9 @@ interface GroupedSectionProps {
   edit?: { editing: boolean; onEditingChange: (editing: boolean) => void };
   /**
    * A small text button at the right of the header, before «Изменить» (e.g. «Очистить»). Needs a
-   * `header`.
+   * `header`. `expanded`: it shows or hides the group's rows (`aria-expanded`).
    */
-  action?: { label: string; onClick: () => void };
+  action?: { label: string; onClick: () => void; expanded?: boolean };
   /**
    * Rows after an edit-mode list's rows, on the same cell but not part of the list (e.g.
    * «Добавить ребёнка»).
@@ -154,7 +154,11 @@ export function GroupedSection({
           {(action !== undefined || edit !== undefined) && (
             <div className="flex gap-4">
               {action !== undefined && (
-                <Button size="small" onClick={action.onClick}>
+                <Button
+                  size="small"
+                  onClick={action.onClick}
+                  {...(action.expanded !== undefined && { expanded: action.expanded })}
+                >
                   {action.label}
                 </Button>
               )}

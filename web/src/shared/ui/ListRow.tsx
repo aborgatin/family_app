@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router';
 import { ROW_FRAME } from './GroupedSection';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { Spinner } from './Spinner';
 
 type RowAction =
@@ -27,6 +27,11 @@ export interface RowContentProps {
    */
   wrapSubtitle?: boolean;
   /**
+   * Shows the whole title, wrapped between words, instead of cutting it with «…»: for a line made
+   * of several parts that all count (an Illness event, «22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C»).
+   */
+  wrapTitle?: boolean;
+  /**
    * Before the text: an `Initials`, a colour dot. Centred in a slot as wide as an `Initials`, so the
    * texts and the hairlines between rows line up.
    */
@@ -42,22 +47,30 @@ export interface RowContentProps {
 type ListRowProps = RowAction &
   RowContentProps & {
     disabled?: boolean;
+    /**
+     * With `onClick`: a link of its own at the right end of the row, outside the row's button
+     * (an Illness event's paperclip, which opens its Document). `label` names it (already
+     * translated), `icon` is what it shows, `state` goes into the history entry it opens.
+     */
+    accessory?: { to: string; label: string; icon: IconName; state?: unknown };
   };
 
 /**
  * A row of a `GroupedSection` that shows something, opens a screen (`to`, chevron) or does
- * something (`onClick`, optionally `destructive`). Touch: at least 44px tall, grey while pressed;
- * fine pointer: tighter, hover tint.
+ * something (`onClick`, optionally `destructive`, optionally with an `accessory` link). Touch: at
+ * least 44px tall, grey while pressed; fine pointer: tighter, hover tint.
  */
 export function ListRow({
   title,
   subtitle,
   wrapSubtitle,
+  wrapTitle,
   leading,
   value,
   busy = false,
   muted,
   disabled,
+  accessory,
   ...action
 }: ListRowProps) {
   const inside = (
@@ -65,6 +78,7 @@ export function ListRow({
       title={title}
       subtitle={subtitle}
       wrapSubtitle={wrapSubtitle}
+      wrapTitle={wrapTitle}
       leading={leading}
       value={value}
       busy={busy}
@@ -83,6 +97,31 @@ export function ListRow({
       <RouterLink to={action.to} className={`${ROW} ${TAPPABLE}`}>
         {inside}
       </RouterLink>
+    );
+  }
+  if (action.onClick !== undefined && accessory !== undefined) {
+    // Two controls side by side in one cell: the row's button, then the accessory's link.
+    return (
+      <div
+        className={`${ROW_FRAME} flex items-stretch ${leading === undefined ? '' : LEADING_INSET}`}
+      >
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={action.onClick}
+          className={`${ROW_LAYOUT} ${TAPPABLE} -ml-4 min-w-0 flex-1 pl-4 text-left disabled:cursor-default disabled:opacity-40`}
+        >
+          {inside}
+        </button>
+        <RouterLink
+          to={accessory.to}
+          state={accessory.state}
+          aria-label={accessory.label}
+          className={`${TAPPABLE} -mr-4 flex min-w-11 shrink-0 items-center justify-center px-3 text-body no-underline pointer-fine:min-w-9`}
+        >
+          <Icon name={accessory.icon} size={20} secondary />
+        </RouterLink>
+      </div>
     );
   }
   if (action.onClick !== undefined) {
@@ -121,6 +160,7 @@ export function RowInside({
   title,
   subtitle,
   wrapSubtitle = false,
+  wrapTitle = false,
   leading,
   value,
   busy = false,
@@ -147,7 +187,9 @@ export function RowInside({
       <span
         className={`min-w-0 flex-1 py-2.5 pointer-fine:py-1.5 ${muted ? 'text-secondary-label' : TONES[tone]}`}
       >
-        <span className={field ? 'block' : 'block truncate'}>{title}</span>
+        <span className={field ? 'block' : wrapTitle ? 'block wrap-break-word' : 'block truncate'}>
+          {title}
+        </span>
         {below}
         {subtitle !== undefined && (
           <span

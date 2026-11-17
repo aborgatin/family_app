@@ -23,6 +23,11 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   'invite.used': 'errors.inviteUsed',
   'invite.revoked': 'errors.inviteRevoked',
   'member.email_taken': 'errors.memberEmailTaken',
+  'medicine.duplicate': 'errors.medicineDuplicate',
+  'document.too_large': 'errors.documentTooLarge',
+  'document.unsupported_type': 'errors.documentUnsupportedType',
+  'document.file_missing': 'errors.documentFileMissing',
+  'document.event_has_document': 'errors.documentEventHasDocument',
   'validation.failed': 'errors.validationFailed',
 };
 

@@ -1,0 +1,92 @@
+package io.github.aborgatin.familyapp.notifications.dose;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.github.aborgatin.familyapp.family.Children;
+import io.github.aborgatin.familyapp.family.MemberSummary;
+import io.github.aborgatin.familyapp.family.Members;
+import io.github.aborgatin.familyapp.medical.MedicineDoseLogged;
+import io.github.aborgatin.familyapp.notifications.PushMessage;
+import io.github.aborgatin.familyapp.notifications.Pushes;
+import io.github.aborgatin.familyapp.notifications.push.PushPayloads;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionalEventListener;
+
+/**
+ * The dose Notification (spec #128 "Notification", ticket #136): a new Medicine dose on a Child's
+ * card goes at once to every other Member, one push each, after the push that logged it commits,
+ * from a thread of its own: a slow push service never delays the sync answer. Not batched and Mute
+ * doesn't apply; {@link Pushes#sendTo} leaves out those whose switch is off. The payload names the
+ * actor and the Child, never the Medicine or the amount, so a lock screen shows nothing medical.
+ */
+@Component
+class DoseNotifications {
+
+  /** The push payload of a dose Notification, as the service worker reads it. */
+  record DosePayload(
+      String actorName, String actorGrammaticalGender, String childName, String url) {
+
+    @JsonProperty
+    String type() {
+      return "dose";
+    }
+  }
+
+  private final Members members;
+  private final Children children;
+  private final PushPayloads payloads;
+  private final Pushes pushes;
+
+  /** One thread, so pushes go out one at a time in the order the doses were logged. */
+  private final ExecutorService sender =
+      Executors.newSingleThreadExecutor(
+          runnable -> {
+            Thread thread = new Thread(runnable, "dose-push");
+            thread.setDaemon(true);
+            return thread;
+          });
+
+  DoseNotifications(Members members, Children children, PushPayloads payloads, Pushes pushes) {
+    this.members = members;
+    this.children = children;
+    this.payloads = payloads;
+    this.pushes = pushes;
+  }
+
+  /**
+   * After the commit, outside any transaction: a rolled-back push sends nothing. The recipients and
+   * payload are read here; the sending is handed to {@link #sender}, so the request answers at
+   * once. A failed push is logged and costs only itself; the sync push has already succeeded.
+   */
+  @TransactionalEventListener
+  void onDoseLogged(MedicineDoseLogged dose) {
+    Optional<MemberSummary> actor = members.byId(dose.byMemberId());
+    Optional<String> child = children.name(dose.childId());
+    if (actor.isEmpty() || child.isEmpty()) {
+      return;
+    }
+    String payload =
+        payloads.write(
+            new DosePayload(
+                actor.get().displayName(),
+                actor.get().grammaticalGender(),
+                child.get(),
+                PushPayloads.childIllnessUrl(dose.childId(), dose.illnessId())));
+    for (MemberSummary member : members.all()) {
+      if (!member.id().equals(dose.byMemberId())) {
+        PushMessage message = PushMessage.notification(member.id(), payload);
+        sender.execute(() -> pushes.send(message));
+      }
+    }
+  }
+
+  /** Stops taking new sends when the app stops; the queued ones may still go, or be lost. */
+  @EventListener(ContextClosedEvent.class)
+  void shutDown() {
+    sender.shutdown();
+  }
+}

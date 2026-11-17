@@ -17,7 +17,7 @@ step with the headings).
 - [Theme](#theme): «Авто», light and dark, the stored choice and the theme script
 - [Rules every component follows](#rules-every-component-follows): touch vs pointer, narrow vs wide, keyboard and focus, motion, text and names
 - [Saving and deleting](#saving-and-deleting): auto-save, spinners, rejected changes, delete with undo or confirmation
-- [Components](#components): one `###` per `shared/ui` component: AppShell, Page, Button, Link, Icon, EmptyState, StatusScreen, OfflineIndicator, CenteredPage, Form, GroupedSection, ColorChoice, DateRow, Sheet, Swatch, Sections, InputRow, TextAreaRow, SegmentedControl, SwitchRow, SelectRow, ListRow, LoadingRow, EditableRow, AddRow, SuggestionRows, DoneToggle, SortableList, SwipeToDelete, MenuChip, RowContextMenu, Initials, ChildAvatar, PictureChoice, ConfirmRow, ActionSheet, CardGrid and Card, Toast, Spinner
+- [Components](#components): one `###` per `shared/ui` component: AppShell, Page, Button, Link, Icon, EmptyState, StatusScreen, OfflineIndicator, CenteredPage, Form, GroupedSection, ColorChoice, DateRow, FileRow, FileViewer, Sheet, Swatch, Sections, InputRow, TextAreaRow, SegmentedControl, SwitchRow, SelectRow, ListRow, LoadingRow, EditableRow, AddRow, SuggestionRows, DoneToggle, SortableList, SwipeToDelete, MenuChip, RowContextMenu, Initials, ChildAvatar, PictureChoice, ConfirmRow, ActionSheet, CardGrid and Card, Toast, Spinner
 
 ## Tokens
 
@@ -136,8 +136,9 @@ spacing `n`).
   for each of its auto-saved fields (cleared when the row goes). No screen writes its own saving
   state.
 - **Explicit confirm** only for: auth forms (full-width primary button), creating something
-  (a «Новый …» sheet with «Отмена» / «Готово», so a half-filled item is never saved), and the
-  password screen («Готово» in the nav bar).
+  (a «Новый …» sheet with «Отмена» / «Готово», so a half-filled item is never saved), an Illness
+  event's sheet, which edits the event with the same rows it was logged with, and the password
+  screen («Готово» in the nav bar).
 - **Deleting always asks**, with an action sheet («Удалить „Маша“?» / «Удалить» / «Отменить»),
   whether it starts from a swipe, edit mode ⊖, right-click or a «Удалить …» row. A full swipe only
   reveals «Удалить». The one exception: the × on a suggestion (`SuggestionRows`) removes the name
@@ -146,8 +147,8 @@ spacing `n`).
 ## Components
 
 All in `web/src/shared/ui`, exported from its `index.ts` (except `OfflineIndicator`,
-`Spinner`, `RowContextMenu`, `SuggestionRows` and `LinkedText`, which only other components
-place). Text fields
+`Spinner`, `RowContextMenu` and `LinkedText`, which only other components place; `SuggestionRows`
+is exported for the dose sheet's picker, #130). Text fields
 share their focus sign (`FIELD_FOCUS`), and rows their hairline (`ROW_SEPARATOR`, part of
 `ROW_FRAME`). Feature code uses nothing
 else to draw: no raw `button` / `input` / `select` / `textarea` / `form` / `a`, no `className` or
@@ -193,7 +194,8 @@ Does something. `variant`: `plain` (accent text, default), `destructive` (red te
 (filled, full width, for the one confirm action of an auth form). Text, an icon before text
 (`icon`), or an icon alone with a translated `label`. `type="submit"` inside a form.
 `size="small"`: footnote-sized, for a section footer («Повторить»); it keeps its touch target
-without pushing the lines apart. Touch: 44px target; primary is 50px tall. Fine pointer: 28px (primary 36px). Hover dims it; disabled is 40%
+without pushing the lines apart. `expanded` marks a button that shows or hides something
+(`aria-expanded`). Touch: 44px target; primary is 50px tall. Fine pointer: 28px (primary 36px). Hover dims it; disabled is 40%
 opacity.
 
 ### Link
@@ -206,7 +208,7 @@ navigating.
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
 `check` (the chosen colour), `chevron`, `clear` (a circled ×), `description` (left-aligned lines, `AddRow`'s «Добавить описание»), `home`, `minus` (edit mode's ⊖),
-`expand` (a small ⌄ on a `MenuChip`), `offline` (crossed globe), `private` (a lock: a Private List), `reorder` (≡, a drag handle), `settings`, `shared` (two people: a Shared List), `spinner`; a new icon is added to the
+`expand` (a small ⌄ on a `MenuChip`), `file` (a page with lines: a PDF in `FileViewer`), `offline` (crossed globe), `paperclip` (an Illness event's Document, 📎 in the spec), `private` (a lock: a Private List), `reorder` (≡, a drag handle), `settings`, `shared` (two people: a Shared List), `spinner`; a new icon is added to the
 map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
 colour, or `secondary-label` with `secondary`; default size 22px.
 
@@ -300,7 +302,9 @@ named by `label` (the Unnamed category's Items).
 `action` (`{label, onClick}`) puts one more small text `Button` at the right of the header,
 before «Изменить»: «Очистить» on a Shopping list's «Куплено», which asks with an `ActionSheet`
 first, and «Скрыть» on a Todo list's «Выполнено» while it has Items, which acts at once (it
-deletes nothing: the Items move to «Выполненные ранее»).
+deletes nothing: the Items move to «Выполненные ранее»). With `expanded` it shows or hides the
+group's rows (`aria-expanded`): «Показать» / «Скрыть» on a Medical card's collapsed «Завершённые»,
+which shows only its header until opened.
 `after` puts rows on the same cell after the list but outside it (an accent «Добавить …» row):
 they stay when the list is empty, and the «Изменить» button is left out then (pass no `edit`).
 
@@ -330,6 +334,30 @@ be set yet («Время» while there is no «Срок»). Auto-saved like an `
 leaving the field or Enter saves, Esc puts the saved date back, clearing saves at once; not on
 every change, since typing a year digit by digit is a valid date at each step. Without
 `onCommit` (in a `Sheet`) Enter submits. Touch: the ⊗ has a 44px target. Fine pointer: 28px.
+
+### FileRow
+
+A file field as a row (#133, «Файл» in the Document sheet): `label` at the left, `value` at the
+right in the secondary colour (the chosen file's name, or «Выбрать»), the whole row a tap target
+that opens the system's picker (`accept`: PDFs and photos, so the iPhone offers Files, Photos and
+the camera). The `<input type="file">` itself is visually hidden and named by `label`; keyboard
+focus on it outlines the row. Errors about it (`name`) show in the group footer, and the label
+turns red. Like a `ListRow` in height and hover. «Документ» at the end of an Illness event's
+sheet (#134) is one too, showing the chosen file's name, else the title of the Document the event
+carries: there is no title or date to fill in, the upload takes the event's date and the file's
+name (without its extension) as its title; both are edited later on the Documents screen, like
+any Document's.
+
+### FileViewer
+
+A file full screen (#133, a Document): a slim nav bar (back link, the title as the screen's `h1`
+in the centre, `actions` such as «Изменить», the offline indicator), then the file filling the
+rest of the window: a photo as an `img` fitted inside (`object-contain`). A PDF is not embedded
+(an iPhone shows only the first page of an embedded PDF): an `EmptyState` with the `file` icon,
+«PDF откроется в отдельном окне, со всеми страницами» and a `primary` «Открыть PDF», which opens
+the file in a window of its own, where the browser's viewer zooms, scrolls, shares and prints every
+page. Instead of the file, `message` shows a loading `status` or an `alert` («Файл недоступен») as
+an `EmptyState`. No large title: the file gets the room.
 
 ### Sheet
 
@@ -364,6 +392,8 @@ Touch: 44px row, the caret is the only focus sign, as on iOS. Fine pointer: 36px
 focused field gets the accent outline. Enter submits the surrounding `Form`, unless the row
 auto-saves: with `onCommit` (from `useAutoSaveText()`), leaving the field or Enter saves, Esc
 (`onRevert`) puts the saved value back, and `busy` shows the `Spinner` at the right of the row.
+`placeholder` shows an example of what to type in `tertiary-label` while the field is empty
+(«Ибупрофен 20 мг/мл», «например, 5 мл»); the label stays the field's name.
 
 ### TextAreaRow
 
@@ -419,7 +449,11 @@ to footer messages. Auto-saved with `useAutoSaveChoice()` (spread `control`): a 
 once, `busy` shows the `Spinner` left of the pill, and a failed pick goes back to the previous
 choice. `disabled` dims the label and the pill to 40%. Touch: the pill is 32px tall in a 44px
 row. Fine pointer: tighter, like a `DateRow`'s pill; the focused pill gets the accent outline.
-A todo item's «Повтор» (#86, disabled without a «Срок») and «Ответственный» are two.
+A todo item's «Повтор» (#86, disabled without a «Срок») and «Ответственный» are two. The
+**temperature wheel** of the Temperature sheet (#129) is one too: 91 options from «34,0 °C» to
+«43,0 °C», so the iPhone shows its wheel and the Mac a menu; «Добавить к» there is another. On
+a Medicine dose (#130) the wheel is optional: «—» sits right before «37,0 °C» and is chosen at
+first, so the wheel shows «—» until turned and then goes on from 37,0.
 
 ### ListRow
 
@@ -437,7 +471,14 @@ Touch: at least 44px tall, grey while pressed. Fine pointer: 36px, hover tint. K
 Enter / Space activate them.
 
 `wrapSubtitle` shows the whole subtitle, wrapped, instead of cutting it with «…» (a link to copy
-by hand). A `Button` can go in `value` (the «Скопировать» of a link that wasn't copied).
+by hand). `wrapTitle` does the same for the title, wrapping between words: an Illness event's
+title, whose parts all count («Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» on a phone), its date and Description in the subtitle under it, cut with «…». A `Button` can go in `value` (the «Скопировать» of a link that wasn't copied).
+
+`accessory` (with `onClick`): a second control in the same cell, a link at the right end beside
+the row's button, with its own name and press tint, as wide as a touch target (44px; 36px with a
+fine pointer), showing an `Icon` (`icon`, in `secondary-label`); `state` goes into the history
+entry it opens. An Illness event's paperclip («Открыть «Анализ крови»») opens its Document while a tap on
+the rest of the row opens the event's sheet.
 
 ### LoadingRow
 
@@ -512,7 +553,7 @@ layer (`data-highlighted`); unset, the tint fades out over 0.7 s. The caller uns
 Children use it for delete only (`to` their screen), Child fields and Categories with `input` and
 `sortable`, Items with `input`, `secondary` (the Description), `details` («Подробнее»), on a Todo list a `caption` (the Due date, the repeat mark and the Assignee), on a Shopping list with named Categories a
 `chip` (the Category), and a `DoneToggle` as `leading` (Done Items `muted`, without `input`, with `textTo`),
-Invites plain.
+Invites plain, a Medical card's Conditions for reordering only (`to`, `subtitle`, `sortable`).
 
 `muted` (on `ListRow` and `EditableRow`) shows the title in `secondary-label`: something set
 aside, like a Done Item.
@@ -548,8 +589,11 @@ suggestions hide while the line has the focus, and picking one adds just the nam
 ### SuggestionRows
 
 Up to 5 plain rows directly under the focused `AddRow` (it places them; a List's autocomplete
-from the Item history): each a name in `label`, a hairline above every row as in any group.
-Tapping or clicking a row picks it; pressing it with the mouse doesn't take the focus from the
+from the Item history), or every choice under an `InputRow` that is a picker with search (the
+dose sheet's «Лекарство», #130: the matching Medicines and «+ <typed text>», shown until one is
+picked): each a name in `label`, a hairline above every row as in any group.
+Tapping or clicking a row picks it (`onPick(name, index)`: the index tells two rows of one name
+apart, as a Medicine named «+ Нурофен» and the «+ Нурофен» that adds the typed text); pressing it with the mouse doesn't take the focus from the
 field. With `onRemove` (`AddRow` `onRemoveSuggestion`), each row ends with a × (`clear` icon,
 `tertiary-label`, darker on hover; 44px target on touch, 36px with a mouse) named «Удалить
 подсказку „Малоко“» (`ui.removeSuggestion`): it removes the name at once, with no action sheet,
@@ -569,7 +613,8 @@ pointer: 28×28 around 20px. Same on narrow and wide windows. Used by the List s
 
 ### SortableList
 
-The rows of an edit-mode list that can be reordered (Child fields), on dnd-kit (used nowhere else):
+The rows of an edit-mode list that can be reordered (Child fields, Categories, a Medical card's
+Conditions, which can't be deleted there: no ⊖), on dnd-kit (used nowhere else):
 `items` in order, `itemId`, `itemTitle` (names the handle «Переместить «<title>»» and the
 announcements), `onMove(item, to)` with the index after the move, and a render function that gets
 each item and its `sortable` for an `EditableRow`. Goes inside a `GroupedSection` with `edit`,

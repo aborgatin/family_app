@@ -22,7 +22,7 @@ import org.springframework.lang.Nullable;
  * name ({@link #choice}, {@link #requiredChoice}), an id ({@link #uuid}, {@link #requiredUuid}), a
  * {@code YYYY-MM-DD} day ({@link #date}), a JSON boolean ({@link #requiredBoolean}), anything else
  * with a parser ({@link #parsed}, {@link #requiredParsed}). Each returns {@code null} for a missing
- * value or a failure it added.
+ * value or a failure it added. Text is stored {@link #trimmed}.
  */
 public final class FieldErrors {
 
@@ -93,6 +93,12 @@ public final class FieldErrors {
   @Nullable
   public LocalDate date(String field, @Nullable String value) {
     return parsed(field, value, LocalDate::parse);
+  }
+
+  /** Text as stored: trimmed, and {@code null} when it is {@code null} or blank. */
+  @Nullable
+  public static String trimmed(@Nullable String text) {
+    return text == null || text.isBlank() ? null : text.strip();
   }
 
   /**

@@ -21,6 +21,10 @@ export const SYNCED_TABLES = [
   'category',
   'item_history',
   'mute',
+  'illness',
+  'illness_event',
+  'medicine',
+  'document',
 ] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 
@@ -73,7 +77,19 @@ export const DEPENDENT_TABLES: readonly { parent: SyncedTable; table: SyncedTabl
     { parent: 'list', table: 'category', key: 'listId' },
     { parent: 'list', table: 'item_history', key: 'listId' },
     { parent: 'list', table: 'mute', key: 'listId' },
+    { parent: 'child', table: 'illness', key: 'childId' },
+    { parent: 'illness', table: 'illness_event', key: 'illnessId' },
+    { parent: 'child', table: 'document', key: 'childId' },
+    { parent: 'illness_event', table: 'document', key: 'illnessEventId' },
   ];
+
+/**
+ * Tables whose rows stay when deleted, marked `deleted: true`, because other rows still show them:
+ * a deleted Medicine keeps its name on past doses. The server pulls such a row with its fields and
+ * `deleted`, never as a tombstone; deleting it here, or the server ignoring a change to it, marks
+ * the local row the same way until the pull brings the server's copy.
+ */
+const KEPT_WHEN_DELETED: readonly SyncedTable[] = ['medicine'];
 
 /**
  * The store's schema, one entry per Dexie version (the first is version 1), each with the tables
@@ -96,6 +112,15 @@ export const STORE_SCHEMA: readonly Readonly<Record<string, string>>[] = [
   { child_field_value: 'id, childId, childFieldId' },
   // The Member's own Mutes (spec #104), dependent on their List.
   { mute: 'id, listId' },
+  // Medical cards (spec #128): Illnesses, dependent on their Child (none for a Member's card);
+  // their Illness events, dependent on their Illness; the Family's Medicines, which Medicine doses
+  // name; Documents, dependent on their Child and on their Illness event.
+  {
+    illness: 'id, childId',
+    illness_event: 'id, illnessId',
+    medicine: 'id',
+    document: 'id, childId, illnessEventId',
+  },
 ];
 
 interface Meta {
@@ -191,10 +216,15 @@ export async function ownerCopy(): Promise<unknown> {
 
 /**
  * Removes local rows of `table` that are gone on the server, and the rows that depend on them
- * (`DEPENDENT_TABLES`). Needs a surrounding transaction over the synced tables.
+ * (`DEPENDENT_TABLES`); rows of a `KEPT_WHEN_DELETED` table stay, marked `deleted: true`. Needs a
+ * surrounding transaction over the synced tables.
  */
 export async function removeLocally(table: SyncedTable, ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return;
+  if (KEPT_WHEN_DELETED.includes(table)) {
+    for (const id of ids) await localStore.rows(table).update(id, { deleted: true });
+    return;
+  }
   await localStore.rows(table).bulkDelete([...ids]);
   for (const dependent of DEPENDENT_TABLES.filter(({ parent }) => parent === table)) {
     const rows = await localStore.rows(dependent.table).where(dependent.key).anyOf(ids).toArray();
@@ -209,7 +239,10 @@ export async function removeLocally(table: SyncedTable, ids: readonly string[]):
 export async function applyLocally(operation: Operation): Promise<void> {
   const rows = localStore.rows(operation.table);
   if (operation.op === 'delete') {
-    await rows.delete(operation.id);
+    // A `KEPT_WHEN_DELETED` row stays, marked deleted (as `removeLocally` does).
+    if (KEPT_WHEN_DELETED.includes(operation.table))
+      await rows.update(operation.id, { deleted: true });
+    else await rows.delete(operation.id);
     return;
   }
   const existing = await rows.get(operation.id);
