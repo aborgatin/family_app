@@ -14,11 +14,11 @@ interface FileViewerProps {
   /** The bar's trailing slot, e.g. «Изменить». */
   actions?: ReactNode;
   /**
-   * The file to show: an object URL and its content type. An image is fitted to the screen. A PDF
+   * The file to show: an object URL and what it is. A photo is fitted to the screen. A PDF
    * opens in a window of its own («Открыть PDF»), where the browser's viewer shows every page: an
    * iPhone shows only the first page of a PDF embedded in a page.
    */
-  file?: { url: string; contentType: string };
+  file?: { url: string; kind: 'pdf' | 'photo' };
   /** Instead of the file: a loading message (`status`) or why it can't be shown (`alert`). */
   message?: { text: string; role: 'status' | 'alert' };
 }
@@ -50,7 +50,7 @@ export function FileViewer({ title, back, actions, file, message }: FileViewerPr
       <main className="flex min-h-0 flex-1 flex-col pb-safe-0">
         {file === undefined ? (
           <EmptyState role={message?.role}>{message?.text}</EmptyState>
-        ) : file.contentType.startsWith('image/') ? (
+        ) : file.kind === 'photo' ? (
           <img src={file.url} alt={title} title={title} className="min-h-0 flex-1 object-contain" />
         ) : (
           <EmptyState

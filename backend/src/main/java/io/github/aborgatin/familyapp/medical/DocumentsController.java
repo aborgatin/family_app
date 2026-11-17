@@ -5,6 +5,8 @@ import io.github.aborgatin.familyapp.family.Members;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.CacheControl;
@@ -42,11 +44,11 @@ class DocumentsController {
   }
 
   /**
-   * Adds a Document ({@code multipart/form-data}): {@code 201} with the Document, also when a retry
-   * finds it already added.
+   * Adds a Document ({@code multipart/form-data}): {@code 201} with the Document (its id, the
+   * fields the pull sends and its Version), also when a retry finds it already added.
    */
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  ResponseEntity<DocumentResponse> upload(
+  ResponseEntity<Map<String, Object>> upload(
       @RequestParam(required = false) @Nullable String id,
       @RequestParam(required = false) @Nullable String memberId,
       @RequestParam(required = false) @Nullable String childId,
@@ -68,7 +70,11 @@ class DocumentsController {
                 date,
                 description,
                 file == null ? null : uploaded(file)));
-    return ResponseEntity.status(HttpStatus.CREATED).body(DocumentResponse.of(document));
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("id", document.id());
+    DocumentService.putFields(document, body);
+    body.put("version", document.version());
+    return ResponseEntity.status(HttpStatus.CREATED).body(body);
   }
 
   /**
@@ -79,7 +85,7 @@ class DocumentsController {
    */
   @GetMapping("/{id}/file")
   ResponseEntity<byte[]> file(@PathVariable UUID id) {
-    DocumentService.File file = documents.file(members.current().id(), id);
+    DocumentService.Download file = documents.file(members.current().id(), id);
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType(file.contentType()))
         .header(
@@ -119,34 +125,5 @@ class DocumentsController {
         }
       }
     };
-  }
-
-  /** A Document as the upload answers it: the fields the pull sends, and its Version. */
-  record DocumentResponse(
-      UUID id,
-      @Nullable UUID memberId,
-      @Nullable UUID childId,
-      @Nullable UUID illnessEventId,
-      String title,
-      String date,
-      @Nullable String description,
-      String contentType,
-      long size,
-      long version) {
-
-    static DocumentResponse of(Document document) {
-      Document.Details details = document.details();
-      return new DocumentResponse(
-          document.id(),
-          document.person().memberId(),
-          document.person().childId(),
-          document.illnessEventId(),
-          details.title(),
-          details.date().toString(),
-          details.description(),
-          document.contentType(),
-          document.size(),
-          document.version());
-    }
   }
 }

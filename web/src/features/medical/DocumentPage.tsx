@@ -7,7 +7,7 @@ import { useCardRoute } from './cardRoute';
 import { DocumentSheet } from './DocumentSheet';
 import { CardMissing } from './MedicalCardPage';
 import { cardPath, documentsPath } from './medicalPaths';
-import type { MedicalDocument, Person } from './medicalTypes';
+import { fileKind, type MedicalDocument, type Person } from './medicalTypes';
 import { useDocumentFile, useDocuments, type DocumentDetails } from './useDocuments';
 
 interface DocumentPageProps {
@@ -101,7 +101,7 @@ function OpenFile({
         title={document.title}
         back={back}
         actions={actions}
-        file={{ url: file.url, contentType: file.contentType }}
+        file={{ url: file.url, kind: fileKind(document) }}
       />
     );
   }

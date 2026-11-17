@@ -25,13 +25,7 @@ record DocumentsProperties(String encryptionKey, @Nullable String folder) {
     if (encryptionKey == null || encryptionKey.isBlank()) {
       throw new IllegalArgumentException("DOCUMENTS_ENCRYPTION_KEY is required." + HOW_TO_GENERATE);
     }
-    byte[] key;
-    try {
-      key = Base64.getDecoder().decode(encryptionKey.strip());
-    } catch (IllegalArgumentException e) {
-      key = new byte[0];
-    }
-    if (key.length != 32) {
+    if (decoded(encryptionKey).length != 32) {
       throw new IllegalArgumentException(
           "DOCUMENTS_ENCRYPTION_KEY must be 32 bytes in base64." + HOW_TO_GENERATE);
     }
@@ -43,6 +37,15 @@ record DocumentsProperties(String encryptionKey, @Nullable String folder) {
   }
 
   byte[] encryptionKeyBytes() {
-    return Base64.getDecoder().decode(encryptionKey.strip());
+    return decoded(encryptionKey);
+  }
+
+  /** The key's bytes; none when it is not base64. */
+  private static byte[] decoded(String key) {
+    try {
+      return Base64.getDecoder().decode(key.strip());
+    } catch (IllegalArgumentException e) {
+      return new byte[0];
+    }
   }
 }

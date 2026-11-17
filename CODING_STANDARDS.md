@@ -126,7 +126,8 @@ store, refreshed by the sync pull (triggered by SSE).
 _Exception_: auth, Invites, Member account changes and push subscriptions (bootstrap, login, logout,
 creating/revoking/accepting an Invite, display name, password, the Notifications switch, this device's
 push subscription) call their REST endpoints directly and are online-only by design,
-because they need the server's answer immediately. Logout alone also works offline: the device logs
+because they need the server's answer immediately. So does a Document upload (`POST
+/api/documents`): its file never goes through sync, and the row arrives with the next pull. Logout alone also works offline: the device logs
 out at once and tells the server when it can (pending logout, `frontend.md`).
 
 **S5 — Migrations are append-only.** A change to a Flyway migration file already merged to `main` is a

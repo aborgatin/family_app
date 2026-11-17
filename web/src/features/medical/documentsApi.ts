@@ -12,6 +12,15 @@ export function documentFileUrl(id: string): string {
   return `/api/documents/${encodeURIComponent(id)}/file`;
 }
 
+/** The id of the Document whose file is at `url` (a `documentFileUrl`, made absolute), if any. */
+export function documentIdOf(url: string): string | undefined {
+  const match = /^\/api\/documents\/([^/]+)\/file$/.exec(
+    new URL(url, window.location.origin).pathname,
+  );
+  const id = match?.[1];
+  return id === undefined ? undefined : decodeURIComponent(id);
+}
+
 /** Uploads a new Document: `POST /api/documents` (multipart). A retry with the same id is safe. */
 export function uploadDocument(form: FormData): Promise<MedicalDocument> {
   return api.postForm<MedicalDocument>('/api/documents', form);

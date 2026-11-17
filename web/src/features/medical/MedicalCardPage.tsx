@@ -20,7 +20,7 @@ import { cardPath, documentsPath, illnessPath } from './medicalPaths';
 import type { Illness, IllnessEvent, Person } from './medicalTypes';
 import { LogSection } from './LogSection';
 import { NewConditionSheet } from './NewConditionSheet';
-import { useDocuments } from './useDocuments';
+import { useDocumentCount } from './useDocuments';
 import { newConditionId, useMedicalCard } from './useMedicalCard';
 
 interface MedicalCardPageProps {
@@ -33,9 +33,10 @@ interface MedicalCardPageProps {
  * (`/children/:id/medical`, back to the Child page). «Добавить приём лекарства» opens the dose
  * sheet, «Записать температуру» the Temperature sheet. Then «Диагнозы/наблюдения» (the Conditions
  * that aren't Ended, by their place: «+ Добавить» adds one last, «Изменить» reorders them),
- * «Болезни» (the Illnesses that aren't Ended, newest first), «Документы (n)» (the Documents screen)
- * and, while there are any, the collapsed «Завершённые» (both kinds, by latest event). Each row opens its Illness or Condition screen.
- * Data only through `useMedicalCard(person)`.
+ * «Болезни» (the Illnesses that aren't Ended, newest first), «Документы (n)» (the Documents
+ * screen) and, while there are any, the collapsed «Завершённые» (both kinds, by latest event). Each
+ * row opens its Illness or Condition screen. Data only through `useMedicalCard(person)` and
+ * `useDocumentCount(person)`.
  */
 export function MedicalCardPage({ homePath }: MedicalCardPageProps) {
   const route = useCardRoute(homePath);
@@ -61,7 +62,7 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
   const { t } = useTranslation();
   const lines = useFooterLines();
   const card = useMedicalCard(person);
-  const { documents } = useDocuments(person);
+  const documentCount = useDocumentCount(person);
   const { illnesses, conditions, ended, eventsOf, addCondition, moveCondition } = card;
   const list = useEditableList();
   // The id of the Condition being added, made once when its sheet opens (S3).
@@ -131,7 +132,7 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
         </GroupedSection>
         <GroupedSection>
           <ListRow
-            title={t('medical.documentsCount', { n: documents?.length ?? 0 })}
+            title={t('medical.documentsCount', { n: documentCount ?? 0 })}
             to={documentsPath(person)}
           />
         </GroupedSection>

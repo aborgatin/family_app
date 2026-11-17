@@ -1571,14 +1571,14 @@ export default {
       ],
     },
     {
-      // A PDF Document open full screen, in the browser's own PDF viewer.
+      // A PDF Document: «Открыть PDF» opens it in a window of its own (every page on an iPhone).
       name: "medical-document-pdf",
       path: "/",
       fullPage: false,
       steps: [
         ...mashasDocuments,
         { click: 'role=link[name=/Общий анализ крови/]' },
-        { waitFor: 'iframe[title="Общий анализ крови"]' },
+        { waitFor: 'role=button[name="Открыть PDF"]' },
         { wait: 1000 },
       ],
     },

@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.unit.DataSize;
 
 /**
  * Documents (spec #128 "Documents API", ticket #133): the upload that creates one, reading its
@@ -31,8 +33,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 class DocumentService implements SyncableTable {
 
-  /** The largest file a Document may have: 20 MB. */
-  static final long MAX_SIZE = 20L * 1024 * 1024;
+  /**
+   * The largest file a Document may have: 20 MB, the multipart limit of {@code application.yml},
+   * which the servlet container checks while it reads an upload; checked here again for an upload
+   * that reaches the service another way (MockMvc reads no body).
+   */
+  private final DataSize maxSize;
 
   private final DocumentRepository documents;
   private final IllnessEventRepository events;
@@ -49,7 +55,9 @@ class DocumentService implements SyncableTable {
       DocumentFiles files,
       Children children,
       FamilyLock lock,
-      TransactionTemplate transaction) {
+      TransactionTemplate transaction,
+      @Value("${spring.servlet.multipart.max-file-size}") DataSize maxSize) {
+    this.maxSize = maxSize;
     this.documents = documents;
     this.events = events;
     this.illnesses = illnesses;
@@ -82,7 +90,7 @@ class DocumentService implements SyncableTable {
    * type's extension) and the bytes.
    */
   @SuppressWarnings("ArrayRecordComponent") // Never compared: handed straight to the response.
-  record File(String contentType, String name, byte[] bytes) {}
+  record Download(String contentType, String name, byte[] bytes) {}
 
   /**
    * Adds a Document to a card: checks the fields, that the uploader sees the card (and the Illness
@@ -117,12 +125,12 @@ class DocumentService implements SyncableTable {
     if (earlier.isPresent()) {
       return earlier.get();
     }
-    checkCard(person, uploader, illnessEventId);
-    if (file.size() > MAX_SIZE) {
+    checkCanAdd(person, uploader, illnessEventId);
+    if (file.size() > maxSize.toBytes()) {
       throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "document.too_large");
     }
     byte[] bytes = file.bytes();
-    String contentType =
+    DocumentType type =
         DocumentType.of(bytes)
             .orElseThrow(
                 () ->
@@ -136,9 +144,9 @@ class DocumentService implements SyncableTable {
           if (meanwhile.isPresent()) {
             return meanwhile.get();
           }
-          checkCard(person, uploader, illnessEventId);
+          checkCanAdd(person, uploader, illnessEventId);
           return documents.saveAndFlush(
-              new Document(id, person, illnessEventId, details, contentType, bytes.length));
+              new Document(id, person, illnessEventId, details, type.contentType(), bytes.length));
         });
   }
 
@@ -160,7 +168,7 @@ class DocumentService implements SyncableTable {
    * there; and the Illness event, when given, is one on that card that is there and carries no
    * Document yet ({@code document.event_has_document}: replacing one is ticket #134's).
    */
-  private void checkCard(Person person, UUID uploader, @Nullable UUID illnessEventId) {
+  private void checkCanAdd(Person person, UUID uploader, @Nullable UUID illnessEventId) {
     if (person.memberId() != null && !person.visibleTo(uploader)) {
       throw Person.notFound("memberId", person.memberId());
     }
@@ -189,7 +197,7 @@ class DocumentService implements SyncableTable {
    * reader doesn't see, is {@code medical.not_found}; a Document whose object is gone is {@code
    * document.file_missing}.
    */
-  File file(UUID reader, UUID id) {
+  Download file(UUID reader, UUID id) {
     Document document =
         documents
             .findById(id)
@@ -204,8 +212,9 @@ class DocumentService implements SyncableTable {
                         HttpStatus.NOT_FOUND,
                         "document.file_missing",
                         Map.of("documentId", id.toString())));
-    String name = document.details().title() + DocumentType.extension(document.contentType());
-    return new File(document.contentType(), name, bytes);
+    String name =
+        document.details().title() + DocumentType.ofContentType(document.contentType()).extension();
+    return new Download(document.contentType(), name, bytes);
   }
 
   private static ApiException notFound(UUID id) {
@@ -316,16 +325,21 @@ class DocumentService implements SyncableTable {
         documents.findByVersionGreaterThan(version).stream()
             .filter(document -> document.person().visibleTo(memberId))
             .toList(),
-        (document, fields) -> {
-          Document.Details details = document.details();
-          fields.put("memberId", document.person().memberId());
-          fields.put("childId", document.person().childId());
-          fields.put("illnessEventId", document.illnessEventId());
-          fields.put("title", details.title());
-          fields.put("date", details.date().toString());
-          fields.put("description", details.description());
-          fields.put("contentType", document.contentType());
-          fields.put("size", document.size());
-        });
+        DocumentService::putFields);
+  }
+
+  /**
+   * The fields of a Document as the pull sends them, and the upload answers them: never the file.
+   */
+  static void putFields(Document document, Map<String, Object> fields) {
+    Document.Details details = document.details();
+    fields.put("memberId", document.person().memberId());
+    fields.put("childId", document.person().childId());
+    fields.put("illnessEventId", document.illnessEventId());
+    fields.put("title", details.title());
+    fields.put("date", details.date().toString());
+    fields.put("description", details.description());
+    fields.put("contentType", document.contentType());
+    fields.put("size", document.size());
   }
 }

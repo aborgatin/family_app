@@ -21,7 +21,7 @@ import {
   TextAreaRow,
   useFooterLines,
 } from '@/shared/ui';
-import type { MedicalDocument } from './medicalTypes';
+import { fileKind, type MedicalDocument } from './medicalTypes';
 import { DOCUMENT_MAX_SIZE, DOCUMENT_TYPES, type DocumentDetails } from './useDocuments';
 
 type Field = 'file' | 'title' | 'date';
@@ -184,8 +184,8 @@ function withoutExtension(name: string): string {
 const SIZE = new Intl.NumberFormat('ru', { maximumFractionDigits: 1 });
 
 /** What the file is and how big: «PDF, 47 КБ», «Фото, 2,4 МБ». */
-export function fileSummary(t: TFunction, document: MedicalDocument): string {
-  const kind = document.contentType === 'application/pdf' ? t('medical.pdf') : t('medical.photo');
+function fileSummary(t: TFunction, document: MedicalDocument): string {
+  const kind = fileKind(document) === 'pdf' ? t('medical.pdf') : t('medical.photo');
   const kilobytes = document.size / 1024;
   const size =
     kilobytes < 1024

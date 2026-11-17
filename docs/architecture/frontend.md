@@ -991,8 +991,11 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   details), remove(document)}` on `useRows('document')`. `add` uploads (`documentsApi.uploadDocument`,
   `FormData` with `memberId` or `childId`) and then `requestSync()`: the row arrives with the pull,
   never written locally first; it rejects offline. `save` is `upsertRow` (only changed fields
-  go), `remove` `deleteRow` and `forgetFile`. While it is mounted it also forgets kept files of
-  Documents no longer in the store (deleted elsewhere, or with their Child). `useDocumentFile(document)`
+  go), `remove` `deleteRow` and `forgetFile`. While it is mounted (the Documents and Document
+  screens) it also forgets kept files of Documents no longer in the store (deleted elsewhere, or
+  with their Child; `documentIdOf(url)` reads the id back from a kept URL). The card's row counts
+  with `useDocumentCount(person)`, which reads only. `fileKind(document)` (`medicalTypes`) is
+  `'pdf'` or `'photo'`, for the viewer and the sheet's summary. `useDocumentFile(document)`
   opens the file: the copy in the `family-app-documents` cache (keyed by the file's URL,
   `/api/documents/<id>/file`), else `api.file` and `keepFile`, then an object URL (revoked on
   unmount); `{status: 'loading' | 'ready' | 'failed'}`.

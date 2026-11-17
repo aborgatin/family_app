@@ -22,7 +22,7 @@ interface DocumentRepository extends Repository<Document, UUID> {
   /** Every Document written after this Version, deleted ones included (for the pull). */
   List<Document> findByVersionGreaterThan(long version);
 
-  /** The ids of the Child's card-level Documents that aren't deleted. */
+  /** The ids of the Child's Documents that aren't deleted (their Illness events' included). */
   @Query("SELECT d.id FROM Document d WHERE d.childId = :childId AND d.deleted = FALSE")
   List<UUID> idsOfChild(@Param("childId") UUID childId);
 

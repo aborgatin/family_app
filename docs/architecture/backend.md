@@ -639,12 +639,12 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   `medical.not_found`), the card (`memberId` the uploader's own, `childId` a Child that is there,
   `illnessEventId` an event, not deleted, of an Illness on the same card that carries no Document
   yet, else `document.event_has_document` 409, so the partial unique index is never what refuses
-  it; replacing one is #134's), the size (`MAX_SIZE`,
-  20 MB, `document.too_large` 413) and the type by content (`DocumentType.of`: `%PDF-`, JPEG, PNG,
+  it; replacing one is #134's), the size (the multipart `max-file-size`, 20 MB, `document.too_large`
+  413) and the type by content (the enum `DocumentType.of`: `%PDF-`, JPEG, PNG,
   an ISO base media `ftyp` box with a HEIC or HEIF brand; else `document.unsupported_type` 415).
   It then stores the file and inserts the row in a `TransactionTemplate` under the `FamilyLock`
   (live updates go out), checking again. `file(reader, id)` answers the decrypted bytes with the
-  stored `contentType` and a name (the title and the type's extension, `DocumentType.extension`),
+  stored `contentType` and a name (the title and the `DocumentType` extension),
   sent as `Content-Disposition: attachment` (a browser opening the URL itself downloads it rather
   than showing it as a page of the site): a deleted or invisible Document is `medical.not_found`
   (`params.documentId`), a missing object `document.file_missing` (404). Through sync an upsert

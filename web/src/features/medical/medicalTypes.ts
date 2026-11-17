@@ -66,6 +66,11 @@ export interface MedicalDocument {
   size: number;
 }
 
+/** What a Document's file is: a PDF, or else a photo (JPEG, PNG, HEIC/HEIF). */
+export function fileKind(document: Pick<MedicalDocument, 'contentType'>): 'pdf' | 'photo' {
+  return document.contentType === 'application/pdf' ? 'pdf' : 'photo';
+}
+
 /** Whether the row (an Illness, a Document) is on `person`'s card. */
 export function isOn(
   person: Person,

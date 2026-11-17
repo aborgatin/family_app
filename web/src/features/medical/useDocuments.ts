@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { asApiError, type ApiError } from '@/shared/api';
 import { cachedFile, forgetFile, forgetFilesExcept, keepFile } from '@/shared/files';
 import { byId, deleteRow, requestSync, upsertRow, useRows } from '@/shared/sync';
-import { documentFileUrl, downloadDocumentFile, uploadDocument } from './documentsApi';
+import {
+  documentFileUrl,
+  documentIdOf,
+  downloadDocumentFile,
+  uploadDocument,
+} from './documentsApi';
 import { isOn, type MedicalDocument, type Person } from './medicalTypes';
 
 /** The largest file a Document may have: 20 MB (the server's limit, checked here first). */
@@ -31,17 +36,15 @@ function newestFirst(a: MedicalDocument, b: MedicalDocument): number {
   return b.date.localeCompare(a.date) || COLLATOR.compare(a.title, b.title) || byId(a, b);
 }
 
-/** The id of the Document whose file was downloaded from `url`, if it is one. */
-function documentIdOf(url: string): string | undefined {
-  const match = /\/api\/documents\/([^/]+)\/file$/.exec(
-    new URL(url, window.location.origin).pathname,
-  );
-  const id = match?.[1];
-  return id === undefined ? undefined : decodeURIComponent(id);
+/** How many Documents the card has (its «Документы (n)» row); `undefined` until read. */
+export function useDocumentCount(person: Person): number | undefined {
+  const rows = useRows('document') as MedicalDocument[] | undefined;
+  return useMemo(() => rows?.filter((document) => isOn(person, document)).length, [rows, person]);
 }
 
 /**
- * The Documents of a card and every change to them: the only data access to them.
+ * The Documents of a card and every change to them: the data access to them (beside
+ * `useDocumentCount`).
  *
  * - `documents`: the card's Documents, newest first by date; `undefined` until read;
  * - `add(id, file, details)`: uploads a new one (online only: rejects with the `ApiError`, e.g.
@@ -109,7 +112,7 @@ export function useDocuments(person: Person) {
 /** A Document's file being opened: an object URL for the viewer once it is there. */
 export type DocumentFile =
   | { status: 'loading' }
-  | { status: 'ready'; url: string; contentType: string }
+  | { status: 'ready'; url: string }
   | { status: 'failed'; error: ApiError };
 
 /**
@@ -118,10 +121,11 @@ export type DocumentFile =
  */
 export function useDocumentFile(document: MedicalDocument): DocumentFile {
   const [file, setFile] = useState<DocumentFile>({ status: 'loading' });
-  const { id, contentType } = document;
+  const { id } = document;
 
   useEffect(() => {
-    const opened = { current: true };
+    // An object, not a boolean: TypeScript would narrow a `let` to its first value in the closure.
+    const mounted = { current: true };
     let objectUrl: string | undefined;
     void (async () => {
       try {
@@ -133,18 +137,18 @@ export function useDocumentFile(document: MedicalDocument): DocumentFile {
           response = downloaded;
         }
         const blob = await response.blob();
-        if (!opened.current) return;
+        if (!mounted.current) return;
         objectUrl = URL.createObjectURL(blob);
-        setFile({ status: 'ready', url: objectUrl, contentType });
+        setFile({ status: 'ready', url: objectUrl });
       } catch (failure: unknown) {
-        if (opened.current) setFile({ status: 'failed', error: asApiError(failure) });
+        if (mounted.current) setFile({ status: 'failed', error: asApiError(failure) });
       }
     })();
     return () => {
-      opened.current = false;
+      mounted.current = false;
       if (objectUrl !== undefined) URL.revokeObjectURL(objectUrl);
     };
-  }, [id, contentType]);
+  }, [id]);
 
   return file;
 }
