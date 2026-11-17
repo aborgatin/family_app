@@ -146,6 +146,10 @@ function IllnessScreen({ person }: { person: Person }) {
           event={opened}
           card={card}
           documents={eventDocuments}
+          openDocument={(id) => ({
+            to: documentPath(person, id, illness.id),
+            state: documentOpenedFrom(illnessBack(person, illness)),
+          })}
           onClose={() => {
             setOpenedId(undefined);
           }}

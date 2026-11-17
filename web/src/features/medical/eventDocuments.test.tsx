@@ -207,9 +207,9 @@ describe('«Документ» in the event sheets', () => {
     await openIllness(cold);
     await user.click(screen.getByRole('button', { name: /^38,5\u00a0°C/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Температура' });
-    expect(within(sheet).getByLabelText('Документ').closest('label')).toHaveTextContent('Анализ');
+    expect(within(sheet).getByRole('link', { name: 'Открыть «Анализ»' })).toBeInTheDocument();
 
-    await user.upload(within(sheet).getByLabelText('Документ'), pdf('Новый анализ.pdf'));
+    await user.upload(within(sheet).getByLabelText('Заменить файл'), pdf('Новый анализ.pdf'));
     await done(user, sheet);
 
     await closed();
@@ -269,6 +269,40 @@ describe('The paperclip on an event’s row', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'ОРВИ' })).toBeInTheDocument();
     expect(app.location()).toBe(`/medical/illnesses/${cold.id}`);
+  });
+});
+
+describe('The Document in an event’s sheet', () => {
+  it('opens from its name, and the Illness is where back goes', async () => {
+    const { cold, analysis } = orviWithADocument();
+    const documents = documentsServer();
+    documents.keep(analysis, PDF_BYTES);
+    const user = userEvent.setup();
+    const app = await openIllness(cold);
+    await user.click(screen.getByRole('button', { name: /^38,5\u00a0°C/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Температура' });
+
+    await user.click(within(sheet).getByRole('link', { name: 'Открыть «Анализ крови»' }));
+
+    expect(app.location()).toBe(`/medical/illnesses/${cold.id}/documents/${analysis.id}`);
+    expect(screen.queryByRole('dialog', { name: 'Температура' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(documents.fileRequests).toEqual([analysis.id]);
+    });
+    await user.click(within(screen.getByRole('banner')).getByRole('link', { name: 'ОРВИ' }));
+    expect(app.location()).toBe(`/medical/illnesses/${cold.id}`);
+  });
+
+  it('is chosen with «Документ» while the event has none', async () => {
+    const { cold } = orviWithADocument();
+    documentsServer();
+    const user = userEvent.setup();
+    await openIllness(cold);
+    await user.click(screen.getByRole('button', { name: /^38,0\u00a0°C/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Температура' });
+
+    expect(within(sheet).getByLabelText('Документ')).toBeInTheDocument();
+    expect(within(sheet).queryByRole('link', { name: /^Открыть/ })).not.toBeInTheDocument();
   });
 });
 

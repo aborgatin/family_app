@@ -16,6 +16,8 @@ interface EditEventSheetProps {
   >;
   /** The card's Documents of events (`useEventDocuments`), for «Документ». */
   documents: EventDocuments;
+  /** Where the Document the event carries opens (`EventEditing.openDocument`). */
+  openDocument: EventEditing['openDocument'];
   onClose: () => void;
 }
 
@@ -23,11 +25,18 @@ interface EditEventSheetProps {
  * The sheet of an event opened from its row on the Illness screen: the sheet of its kind
  * («Температура», «Приём лекарства», «Заметка»), filled with its values.
  */
-export function EditEventSheet({ event, card, documents, onClose }: EditEventSheetProps) {
+export function EditEventSheet({
+  event,
+  card,
+  documents,
+  openDocument,
+  onClose,
+}: EditEventSheetProps) {
   const { load, nameOf } = useMedicines();
   const editing: EventEditing = {
     event,
     illnesses: card.all ?? [],
+    openDocument,
     remove: async () => {
       await documents.removeOfEvents([event]);
       await card.removeEvent(event);

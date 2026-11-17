@@ -1982,7 +1982,7 @@ export default {
       ],
     },
     {
-      // A Note that carries a Document: «Документ» shows its title; choosing a file replaces it.
+      // A Note that carries a Document: «Документ» shows its title and opens it; its 📎 replaces it.
       name: "medical-event-sheet-document",
       path: "/",
       fullPage: false,
