@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.medical;
 
+import io.github.aborgatin.familyapp.error.ApiException;
 import io.github.aborgatin.familyapp.error.FieldErrors;
 import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
@@ -17,6 +18,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
@@ -52,10 +54,11 @@ class IllnessEventService implements SyncableTable {
    * An upsert of an unknown id adds an event to the Illness it carries ({@code illnessId}, {@code
    * kind} and {@code date} required). An upsert of a known one edits or moves it (its Document goes
    * with it). A delete deletes it with its Document. Delete wins: an event for a deleted Illness is
-   * ignored. An Illness that never existed, or is on another Member's card, and an event on such a
-   * card, is {@code medical.not_found}; so is a dose of a Medicine that never existed (a deleted
-   * one is fine). A new dose on a Child's card publishes {@link MedicineDoseLogged}; an edit or a
-   * move publishes nothing.
+   * ignored. A Condition takes Note events only ({@code illness.condition_takes_notes_only}). An
+   * Illness that never existed, or is on another Member's card, and an event on such a card, is
+   * {@code medical.not_found}; so is a dose of a Medicine that never existed (a deleted one is
+   * fine). A new dose on a Child's card publishes {@link MedicineDoseLogged}; an edit or a move
+   * publishes nothing.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -89,6 +92,7 @@ class IllnessEventService implements SyncableTable {
     if (illness.deleted()) {
       return Outcome.IGNORED;
     }
+    requireTakes(illness, details.kind());
     details = namingSurvivor(details);
     events.saveAndFlush(new IllnessEvent(operation.id(), illnessId, details));
     UUID childId = illness.person().childId();
@@ -101,7 +105,8 @@ class IllnessEventService implements SyncableTable {
   /**
    * Changes the fields the upsert carries, checked as a new event's are; its {@code kind} never
    * changes. A new {@code illnessId} moves it to that Illness, which must be on the same card
-   * ({@code medical.not_found} else); a move to a deleted one is ignored (delete wins).
+   * ({@code medical.not_found} else) and, unless it is a Note, not a Condition; a move to a deleted
+   * one is ignored (delete wins).
    */
   private Outcome edit(Operation operation, IllnessEvent event) {
     FieldErrors errors = new FieldErrors();
@@ -120,10 +125,21 @@ class IllnessEventService implements SyncableTable {
       if (target.deleted()) {
         return Outcome.IGNORED;
       }
+      requireTakes(target, details.kind());
     }
     event.change(illnessId, namingSurvivor(details));
     events.saveAndFlush(event);
     return Outcome.APPLIED;
+  }
+
+  /**
+   * A Condition holds Note events only: a Medicine dose or a Temperature added or moved into one is
+   * {@code illness.condition_takes_notes_only}.
+   */
+  private static void requireTakes(Illness illness, IllnessEvent.Kind kind) {
+    if (illness.kind() == Illness.Kind.CONDITION && kind != IllnessEvent.Kind.NOTE) {
+      throw new ApiException(HttpStatus.CONFLICT, "illness.condition_takes_notes_only");
+    }
   }
 
   /**

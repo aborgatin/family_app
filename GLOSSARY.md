@@ -162,11 +162,11 @@ One file on a Medical card (a doctor's report, a test result), as a PDF or a pho
 _Avoid_: Attachment, file, scan, record
 
 **Illness** — «Болезнь»:
-A bout of being ill (a cold, an otitis): a group of Illness events on a Medical card, for a Child or a Member. It lasts from its first event to its last. One made by adding a Medicine dose or Temperature is named after the day it was created («Болезнь 2 декабря 2026») until renamed; it stays, even with no events, until deleted. It can be turned into a Condition and back.
+A bout of being ill (a cold, an otitis): a group of Illness events on a Medical card, for a Child or a Member. It lasts from its first event to its last. One made by adding a Medicine dose or Temperature is named after the day it was created («Болезнь 2 декабря 2026») until renamed; one can also be added by hand («+ Новая болезнь»). It stays, even with no events, until deleted.
 _Avoid_: Episode, case, sickness, disease
 
 **Condition** — «Диагноз/наблюдение»:
-A long-running health matter on a Medical card (vision, teeth, asthma, a chronic illness), holding Illness events like an Illness does. Always added by hand, and never offered when a Medicine dose or Temperature picks its Illness.
+A long-running health matter on a Medical card (vision, teeth, asthma, a chronic illness), holding Note events only. Always added by hand, and never offered when a Medicine dose or Temperature picks or changes its Illness. It never becomes an Illness, nor an Illness a Condition.
 _Avoid_: Chronic illness, diagnosis, observation, topic, area
 
 **Ended** — «Завершена» / «Завершено»:
@@ -174,7 +174,7 @@ An Illness or Condition a Member has marked as over («Завершить»). It
 _Avoid_: Closed, archived, recovered, finished, cured
 
 **Illness event** — «Событие»:
-One dated entry in an Illness or Condition: a Medicine dose, a Temperature or a Note event. Its date has an optional time of day, both as written, not a moment in a time zone. Any event can carry a Description and one Document, and can be moved to another Illness or Condition.
+One dated entry in an Illness or Condition: a Medicine dose, a Temperature or a Note event. Its date has an optional time of day, both as written, not a moment in a time zone. Any event can carry a Description and one Document, and can be moved to another Illness (a Note event to a Condition too).
 _Avoid_: Record, entry, log item
 
 **Medicine dose** — «Приём лекарства»:

@@ -16,7 +16,7 @@ import org.springframework.lang.Nullable;
 /**
  * An Illness or a Condition on a Medical card (GLOSSARY), holding Illness events. Syncable (S1):
  * the client generates the id (S3); {@code version} and {@code updatedAt} are set by the database
- * trigger. Its person never changes.
+ * trigger. Its person and kind never change.
  */
 @Entity
 @Table(name = "illness")
@@ -88,11 +88,6 @@ class Illness implements SyncedRecord {
 
   void describe(@Nullable String description) {
     this.description = description;
-  }
-
-  /** Switches it between an Illness and a Condition. */
-  void changeKind(Kind kind) {
-    this.kind = kind;
   }
 
   /** Ends it («Завершить»): it moves to «Завершённые»; its events and who sees it stay. */

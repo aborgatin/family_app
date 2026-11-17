@@ -622,15 +622,17 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   the `medical.not_found` rejection.
 - `IllnessService` (the `illness` `SyncableTable`): an operation on a row the pusher can't see is
   `medical.not_found`; creating checks the person (not another Member, a Child that exists) and
-  stamps `createdAt` from the `Clock`; an edit renames and describes (#131), and switches the
-  `kind`, ends or resumes (`ended`) and moves (`position`) (#132); a delete also soft-deletes its events
+  stamps `createdAt` from the `Clock`; an edit renames and describes (#131), ends or resumes (`ended`) and moves (`position`)
+  (#132), and refuses a different `kind` (`value.invalid`: the kind is fixed at creation); a delete also soft-deletes its events
   (`IllnessEventRepository.markDeletedOfIllness`); `onChildDeleted` (`ChildDeleted`) soft-deletes
   the Child's events and Illnesses in two bulk updates; `changesSince` leaves out, without
   tombstones, the rows of cards the Member can't see.
 - `IllnessEventService` (`illness_event`): the event's card is its Illness's; validation by kind
   (sync.md, Push), one `details(operation, current, errors)` for a new event and an edit (the
   carried fields over the stored ones, read through `Carried`, #131); a move checks the target
-  Illness has the same `Person` (a move to a deleted one is `ignored`); only a new dose publishes
+  Illness has the same `Person` (a move to a deleted one is `ignored`); a Condition takes Note
+  events only (`requireTakes`: a dose or Temperature added or moved into one is
+  `illness.condition_takes_notes_only`); only a new dose publishes
   `MedicineDoseLogged`; `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted
   ones included) and leaves out those the Member can't see. A dose's `medicineId` must name a
   Medicine that exists, deleted or not, else `medical.not_found` (`params.medicineId`,
@@ -816,7 +818,7 @@ upsert changing an existing Child field's `valueType`) and for Lists `list.not_f
 `category.list_not_shopping` (`params.listId`), and for Items `item.category_not_found`
 (`params.categoryId`), `item.list_not_todo` (`params.listId`: a todo field (a Due date, a Repeat or an Assignee) on an Item of a Shopping
 or Wish list; its client message names no field), `item.due_time_without_due_date` (a time of day without a Due date), `item.repeat_without_due_date` (a Repeat without a Due date), `item.assignee_on_private_list` (`params.listId`: an Assignee on an Item of a Private list) and
-`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute), and for Medical cards `medical.not_found` (404, `params.illnessId` or `params.illnessEventId`: a row on another Member's card, or an Illness that never existed; `params.medicineId`: a dose of a Medicine that never existed; `params.documentId`: another Member's Document, or an upsert of a Document no upload created) and `medicine.duplicate` (409: a Medicine renamed to a name the list already has, ignoring case). An operation on a deleted Child, Child field, List,
+`item.assignee_not_found` (`params.assigneeId`: an Assignee who is no Member), and for Mutes `mute.private_list` (`params.listId`: Muting a Private list) and `mute.not_found` (`params.muteId`: another Member's Mute), and for Medical cards `medical.not_found` (404, `params.illnessId` or `params.illnessEventId`: a row on another Member's card, or an Illness that never existed; `params.medicineId`: a dose of a Medicine that never existed; `params.documentId`: another Member's Document, or an upsert of a Document no upload created) `medicine.duplicate` (409: a Medicine renamed to a name the list already has, ignoring case) and `illness.condition_takes_notes_only` (409: a Medicine dose or Temperature added to, or moved into, a Condition). An operation on a deleted Child, Child field, List,
 Item or Category, and creating an Item or Category in a deleted List, is `ignored`, not `409 child.deleted` / `child_field.deleted` any more.
 For Child field values: `child.not_found` (`params.childId`) and `child_field.not_found`
 (`params.childFieldId`) for an entry naming a Child or Child field that never existed; one naming a

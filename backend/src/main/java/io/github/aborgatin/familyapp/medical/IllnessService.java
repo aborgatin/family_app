@@ -46,9 +46,10 @@ class IllnessService implements SyncableTable {
    * An upsert of an unknown id creates an Illness or Condition on the card of the person it carries
    * (exactly one of {@code memberId} and {@code childId}), with {@code kind} and {@code name}
    * required, {@code position} optional. An upsert of a known one changes the {@code name}
-   * (required), {@code description}, {@code kind}, {@code ended} and {@code position} it carries;
-   * its person never changes. A delete deletes it with its events and their Documents. Delete wins.
-   * Another Member's card, and a row on it, is {@code medical.not_found}.
+   * (required), {@code description}, {@code ended} and {@code position} it carries; its person and
+   * its {@code kind} never change (a different {@code kind} is {@code value.invalid}, like an
+   * event's). A delete deletes it with its events and their Documents. Delete wins. Another
+   * Member's card, and a row on it, is {@code medical.not_found}.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -111,7 +112,12 @@ class IllnessService implements SyncableTable {
     if (operation.has("name") && name == null) {
       errors.add("name", FieldErrors.REQUIRED);
     }
-    Illness.Kind kind = operation.has("kind") ? kindOf(operation, errors) : null;
+    if (operation.has("kind")) {
+      Illness.Kind kind = kindOf(operation, errors);
+      if (kind != null && kind != illness.kind()) {
+        errors.add("kind", FieldErrors.VALUE_INVALID);
+      }
+    }
     Boolean ended = operation.has("ended") ? operation.bool("ended") : null;
     if (operation.has("ended") && ended == null) {
       errors.add("ended", FieldErrors.REQUIRED);
@@ -123,9 +129,6 @@ class IllnessService implements SyncableTable {
     }
     if (operation.has("description")) {
       illness.describe(operation.trimmedText("description"));
-    }
-    if (kind != null) {
-      illness.changeKind(kind);
     }
     if (Boolean.TRUE.equals(ended)) {
       illness.end();

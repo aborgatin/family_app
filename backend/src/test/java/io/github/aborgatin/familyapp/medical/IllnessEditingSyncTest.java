@@ -1,12 +1,16 @@
 package io.github.aborgatin.familyapp.medical;
 
+import static io.github.aborgatin.familyapp.MedicalOperations.dose;
 import static io.github.aborgatin.familyapp.MedicalOperations.illnessOf;
+import static io.github.aborgatin.familyapp.MedicalOperations.medicine;
 import static io.github.aborgatin.familyapp.MedicalOperations.temperature;
 import static io.github.aborgatin.familyapp.SyncRequests.pushApplied;
 import static io.github.aborgatin.familyapp.medical.MedicalCardSyncTest.EVENT;
 import static io.github.aborgatin.familyapp.medical.MedicalCardSyncTest.ILLNESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 import io.github.aborgatin.familyapp.Browser;
@@ -77,7 +81,7 @@ class IllnessEditingSyncTest {
   }
 
   @Test
-  void anIllnessBecomesAConditionIsEndedResumedAndMoved() throws Exception {
+  void aConditionIsEndedResumedAndMoved() throws Exception {
     UUID vision = UUID.randomUUID();
     pushApplied(
         anna,
@@ -93,37 +97,95 @@ class IllnessEditingSyncTest {
 
     pushApplied(
         boris,
-        SyncRequests.upsert(ILLNESS, orvi, "{\"kind\":\"CONDITION\",\"position\":0.5}"),
-        SyncRequests.upsert(ILLNESS, vision, "{\"ended\":true}"));
-    assertThat(SyncRequests.fields(anna, ILLNESS, orvi))
-        .containsEntry("kind", "CONDITION")
-        .containsEntry("position", 0.5)
-        .containsEntry("name", "ОРВИ")
-        .containsEntry("ended", false);
+        SyncRequests.upsert(ILLNESS, vision, "{\"ended\":true,\"position\":0.5}"),
+        SyncRequests.upsert(ILLNESS, orvi, "{\"ended\":true}"));
     assertThat(SyncRequests.fields(anna, ILLNESS, vision))
         .containsEntry("ended", true)
         .containsEntry("kind", "CONDITION")
-        .containsEntry("position", 1.0);
+        .containsEntry("position", 0.5);
+    assertThat(SyncRequests.fields(anna, ILLNESS, orvi))
+        .containsEntry("ended", true)
+        .containsEntry("kind", "ILLNESS");
 
-    pushApplied(
-        anna,
-        SyncRequests.upsert(ILLNESS, orvi, "{\"kind\":\"ILLNESS\"}"),
-        SyncRequests.upsert(ILLNESS, vision, "{\"ended\":false}"));
-    assertThat(SyncRequests.fields(boris, ILLNESS, orvi)).containsEntry("kind", "ILLNESS");
+    pushApplied(anna, SyncRequests.upsert(ILLNESS, vision, "{\"ended\":false}"));
     assertThat(SyncRequests.fields(boris, ILLNESS, vision)).containsEntry("ended", false);
 
     SyncRequests.push(
             anna,
-            SyncRequests.upsert(ILLNESS, orvi, "{\"kind\":\"TOPIC\"}"),
             SyncRequests.upsert(ILLNESS, orvi, "{\"ended\":null}"),
             SyncRequests.upsert(ILLNESS, orvi, "{\"position\":\"top\"}"))
         .andExpect(
+            jsonPath("$.results[0].params.errors[?(@.field=='ended')].code").value("required"))
+        .andExpect(
+            jsonPath("$.results[1].params.errors[?(@.field=='position')].code")
+                .value("value.invalid"));
+  }
+
+  @Test
+  void itsKindNeverChanges() throws Exception {
+    UUID vision = UUID.randomUUID();
+    pushApplied(
+        anna,
+        SyncRequests.upsert(
+            ILLNESS,
+            vision,
+            "{\"childId\":\"%s\",\"kind\":\"CONDITION\",\"name\":\"Зрение\"}".formatted(masha)));
+
+    pushApplied(
+        boris, SyncRequests.upsert(ILLNESS, orvi, "{\"kind\":\"ILLNESS\",\"name\":\"Грипп\"}"));
+    SyncRequests.push(
+            boris,
+            SyncRequests.upsert(ILLNESS, orvi, "{\"kind\":\"CONDITION\",\"position\":0.5}"),
+            SyncRequests.upsert(ILLNESS, vision, "{\"kind\":\"ILLNESS\"}"),
+            SyncRequests.upsert(ILLNESS, orvi, "{\"kind\":\"TOPIC\"}"))
+        .andExpect(jsonPath("$.results[*].code", everyItem(is("validation.failed"))))
+        .andExpect(
             jsonPath("$.results[0].params.errors[?(@.field=='kind')].code").value("value.invalid"))
         .andExpect(
-            jsonPath("$.results[1].params.errors[?(@.field=='ended')].code").value("required"))
+            jsonPath("$.results[1].params.errors[?(@.field=='kind')].code").value("value.invalid"))
         .andExpect(
-            jsonPath("$.results[2].params.errors[?(@.field=='position')].code")
-                .value("value.invalid"));
+            jsonPath("$.results[2].params.errors[?(@.field=='kind')].code").value("value.invalid"));
+
+    assertThat(SyncRequests.fields(anna, ILLNESS, orvi))
+        .containsEntry("kind", "ILLNESS")
+        .containsEntry("name", "Грипп");
+    assertThat(SyncRequests.fields(anna, ILLNESS, vision)).containsEntry("kind", "CONDITION");
+  }
+
+  @Test
+  void aConditionTakesNotesOnly() throws Exception {
+    UUID vision = UUID.randomUUID();
+    UUID medicine = UUID.randomUUID();
+    UUID note = UUID.randomUUID();
+    UUID event = UUID.randomUUID();
+    pushApplied(
+        anna,
+        SyncRequests.upsert(
+            ILLNESS,
+            vision,
+            "{\"childId\":\"%s\",\"kind\":\"CONDITION\",\"name\":\"Зрение\"}".formatted(masha)),
+        medicine(medicine, "Ибупрофен"),
+        temperature(event, orvi, "2026-12-02", "22:00", 38.5),
+        SyncRequests.upsert(
+            EVENT,
+            note,
+            "{\"illnessId\":\"%s\",\"kind\":\"NOTE\",\"date\":\"2026-12-02\",\"title\":\"Врач\"}"
+                .formatted(orvi)));
+
+    SyncRequests.push(
+            boris,
+            temperature(UUID.randomUUID(), vision, "2026-12-02", "22:00", 38.5),
+            dose(UUID.randomUUID(), vision, medicine, "5 мл", null),
+            SyncRequests.upsert(EVENT, event, "{\"illnessId\":\"%s\"}".formatted(vision)))
+        .andExpect(jsonPath("$.results[*].status", everyItem(is("rejected"))))
+        .andExpect(
+            jsonPath("$.results[*].code", everyItem(is("illness.condition_takes_notes_only"))));
+    assertThat(SyncRequests.fields(anna, EVENT, event)).containsEntry("illnessId", orvi.toString());
+
+    pushApplied(
+        boris, SyncRequests.upsert(EVENT, note, "{\"illnessId\":\"%s\"}".formatted(vision)));
+    assertThat(SyncRequests.fields(anna, EVENT, note))
+        .containsEntry("illnessId", vision.toString());
   }
 
   @Test

@@ -263,19 +263,21 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `child.not_found`, a deleted one `ignored` (stored as deleted, so the events pushed with it are
   `ignored` too). An `illness_event` upsert of an unknown id carries
   `illnessId`, `kind` (`MEDICINE_DOSE` | `TEMPERATURE` | `NOTE`) and `date` (`YYYY-MM-DD`), with
-  `time` (`HH:MM`) optional; a TEMPERATURE needs `temperature`, a NOTE `title`, a dose
+  `time` (`HH:MM`) optional; a CONDITION takes NOTE events only (a dose or TEMPERATURE into one is
+  `illness.condition_takes_notes_only`, 409); a TEMPERATURE needs `temperature`, a NOTE `title`, a dose
   `medicineId` and `amount` (trimmed, non-blank; a push missing it shows plain «Не удалось
   сохранить», as any `validation.failed` does: the dose sheet requires it before saving); `temperature` is 34.0–43.0 with at most one decimal (`value.invalid` otherwise);
   an event for a deleted Illness is `ignored`. **Editing** (#131): an upsert of a known `illness`
   changes the `name` (trimmed, required) and `description` (blank is none) it carries; its person
-  never changes. It also changes `kind` (`ILLNESS` ⇄ `CONDITION`; another value is
-  `value.invalid`), `ended` (a boolean, «Завершить» / «Возобновить»; `null` is `required`) and
-  `position` (a number or `null`; the client sends one with a switch to CONDITION and with a
-  reorder of Conditions, #132). Ending touches neither the events nor who sees the row. An upsert of a known `illness_event` changes the fields it carries, checked as a
+  never changes, nor does its `kind` (a different one is `value.invalid`, as an event's is; the
+  app never sends one). It also changes `ended` (a boolean, «Завершить» / «Возобновить»; `null` is
+  `required`) and `position` (a number or `null`; the client sends one with a reorder of
+  Conditions, #132). Ending touches neither the events nor who sees the row. An upsert of a known `illness_event` changes the fields it carries, checked as a
   new event's are against the result (clearing a Temperature's `temperature` is `required`); its
   `kind` never changes (`value.invalid`). A new `illnessId` **moves** the event: the Illness must
   be on the same card (any other card, one the Member sees included, or an unknown Illness, is
-  `medical.not_found`); a move to a deleted one is `ignored`. **Visibility**: a Member's card is only that Member's: creating a row
+  `medical.not_found`); a move to a deleted one is `ignored`, and a dose's or TEMPERATURE's to a
+  Condition is `illness.condition_takes_notes_only`. **Visibility**: a Member's card is only that Member's: creating a row
   on another Member's card, or any operation on a row there, is `medical.not_found`
   (`params.illnessId` / `params.illnessEventId`), and the pull leaves those rows out of the other
   Member's changes entirely, not even as tombstones (like a Mute). A Child's card is every
@@ -452,7 +454,7 @@ auth.required` without one) tells open apps when to pull:
   `list.kind_immutable`, `list.wish_shared_only`, the four `list.child_*` codes,
   `list.hide_done_not_todo`,
   `child_field.value_type_immutable`, `sync.read_only`, `item.list_not_todo`,
-  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`, `mute.private_list`, `medical.not_found`, `medicine.duplicate`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping`,
+  `item.due_time_without_due_date`, `item.repeat_without_due_date`, `item.assignee_on_private_list`, `item.assignee_not_found`, `mute.private_list`, `medical.not_found`, `medicine.duplicate`, `illness.condition_takes_notes_only`; anything else plain, including `child.not_found`, `child_field.not_found`, `category.list_not_shopping`,
   `item.category_not_found` and `mute.not_found`, which the app never sends), until closed or the Member's next change; and the next
   pull is a full one (`since=0`, replacing every local row and re-applying the Outbox as above),
   which restores the server's copy even of a row the pull since N would not send again.
