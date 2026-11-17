@@ -25,7 +25,7 @@ import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
 
 // Documents on Illness events (spec #128, ticket #134): «Документ» in the dose, Temperature and
-// Note sheets, 📎 on an event's row, «Документы (n)» of an Illness, the Illness's name on the
+// Note sheets, a paperclip on an event's row, «Документы (n)» of an Illness, the Illness's name on the
 // card's Documents, and an event's Document going with it when it is deleted or moved.
 
 /** «Now» in these tests: Wednesday 2 December 2026, 22:00. */
@@ -238,7 +238,7 @@ function orviWithADocument() {
   return { cold, analysis };
 }
 
-describe('📎 on an event’s row', () => {
+describe('The paperclip on an event’s row', () => {
   it('marks the events carrying a Document, and opens the file', async () => {
     const { cold, analysis } = orviWithADocument();
     const documents = documentsServer();
@@ -247,7 +247,6 @@ describe('📎 on an event’s row', () => {
     const app = await openIllness(cold);
 
     const opener = await screen.findByRole('link', { name: 'Открыть «Анализ крови»' });
-    expect(opener).toHaveTextContent('📎');
     expect(screen.getAllByRole('link', { name: /^Открыть/ })).toHaveLength(1);
     expect(screen.getByRole('button', { name: /^20:00 · 38,5 °C/ })).not.toContainElement(opener);
     await user.click(opener);
@@ -266,9 +265,7 @@ describe('📎 on an event’s row', () => {
 
     await user.click(await screen.findByRole('link', { name: 'Открыть «Анализ крови»' }));
     await screen.findByRole('heading', { level: 1, name: 'Анализ крови' });
-    const back = within(screen.getByRole('banner')).getAllByRole('link')[0];
-    expect(back).toHaveAccessibleName('ОРВИ');
-    await user.click(back);
+    await user.click(within(screen.getByRole('banner')).getByRole('link', { name: 'ОРВИ' }));
 
     expect(await screen.findByRole('heading', { level: 1, name: 'ОРВИ' })).toBeInTheDocument();
     expect(app.location()).toBe(`/medical/illnesses/${cold.id}`);

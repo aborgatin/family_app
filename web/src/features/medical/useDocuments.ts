@@ -13,6 +13,11 @@ import { isOn, type MedicalDocument, type Person } from './medicalTypes';
 /** The largest file a Document may have: 20 MB (the server's limit, checked here first). */
 export const DOCUMENT_MAX_SIZE = 20 * 1024 * 1024;
 
+/** Why a chosen file can't be uploaded before trying (over 20 MB), else `undefined`. */
+export function documentFileError(file: File): 'errors.documentTooLarge' | undefined {
+  return file.size > DOCUMENT_MAX_SIZE ? 'errors.documentTooLarge' : undefined;
+}
+
 /** The files the picker offers: PDFs and photos (the server checks the content). */
 export const DOCUMENT_TYPES = 'application/pdf,image/*';
 

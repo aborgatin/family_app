@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router';
 import { ROW_FRAME } from './GroupedSection';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { Spinner } from './Spinner';
 
 type RowAction =
@@ -49,10 +49,10 @@ type ListRowProps = RowAction &
     disabled?: boolean;
     /**
      * With `onClick`: a link of its own at the right end of the row, outside the row's button
-     * (an Illness event's 📎, which opens its Document). `label` names it (already translated),
-     * `symbol` is what it shows, `state` goes into the history entry it opens.
+     * (an Illness event's paperclip, which opens its Document). `label` names it (already
+     * translated), `icon` is what it shows, `state` goes into the history entry it opens.
      */
-    accessory?: { to: string; label: string; symbol: ReactNode; state?: unknown };
+    accessory?: { to: string; label: string; icon: IconName; state?: unknown };
   };
 
 /**
@@ -119,7 +119,7 @@ export function ListRow({
           aria-label={accessory.label}
           className={`${TAPPABLE} -mr-4 flex min-w-11 shrink-0 items-center justify-center px-3 text-body no-underline pointer-fine:min-w-9`}
         >
-          <span aria-hidden="true">{accessory.symbol}</span>
+          <Icon name={accessory.icon} size={20} secondary />
         </RouterLink>
       </div>
     );

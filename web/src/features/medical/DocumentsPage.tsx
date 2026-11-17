@@ -2,11 +2,12 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { localDay, longDay } from '@/shared/dates';
-import { EmptyState, GroupedSection, ListRow, Page, Sections } from '@/shared/ui';
+import { GroupedSection, ListRow, Page, Sections } from '@/shared/ui';
 import { useCardRoute } from './cardRoute';
 import { DocumentSheet } from './DocumentSheet';
 import { CardMissing } from './MedicalCardPage';
-import { cardPath, documentPath, illnessPath } from './medicalPaths';
+import { IllnessMissing } from './IllnessPage';
+import { cardPath, documentPath, illnessBack } from './medicalPaths';
 import type { Illness, MedicalDocument, Person } from './medicalTypes';
 import { newDocumentId, useDocuments, useEventDocuments } from './useDocuments';
 import { useMedicalCard } from './useMedicalCard';
@@ -87,23 +88,15 @@ function IllnessDocuments({ person, illnessId }: { person: Person; illnessId: st
 
   if (illness === undefined) {
     return (
-      <Page
+      <IllnessMissing
         title={t('medical.documents')}
         back={{ to: cardPath(person), title: t('medical.title') }}
-      >
-        {all === undefined ? (
-          <EmptyState role="status">{t('common.loading')}</EmptyState>
-        ) : (
-          <EmptyState role="alert">{t('medical.illnessNotFound')}</EmptyState>
-        )}
-      </Page>
+        loading={all === undefined}
+      />
     );
   }
   return (
-    <Page
-      title={t('medical.documents')}
-      back={{ to: illnessPath(person, illness.id), title: illness.name }}
-    >
+    <Page title={t('medical.documents')} back={illnessBack(person, illness)}>
       <Sections>
         <DocumentRows
           person={person}

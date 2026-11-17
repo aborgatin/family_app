@@ -26,7 +26,7 @@ import {
   documentOpenedFrom,
   documentPath,
   documentsPath,
-  illnessPath,
+  illnessBack,
 } from './medicalPaths';
 import { LogSection } from './LogSection';
 import type { Illness, IllnessEvent, MedicalDocument, Person } from './medicalTypes';
@@ -43,7 +43,7 @@ interface IllnessPageProps {
  * An Illness or Condition screen (`…/medical/illnesses/:illnessId`), back to its card: titled with
  * its name, «с 2 декабря 2026» (an Illness only), «Документы (n)» (its events' Documents),
  * «Приём лекарства», «Температура» and «Заметка»
- * (their sheets, into this one), then its events, newest first, under a header per day (📎 opens
+ * (their sheets, into this one), then its events, newest first, under a header per day (a paperclip opens
  * the Document an event carries), and the
  * actions «Тип: Болезнь / Диагноз/наблюдение», «Завершить» or «Возобновить», and «Удалить». An Ended
  * one stays fully editable. One that is unknown, or is deleted while the screen is open, says so.
@@ -69,15 +69,7 @@ function IllnessScreen({ person }: { person: Person }) {
   const [openedId, setOpenedId] = useState<string>();
 
   if (illness === undefined) {
-    return (
-      <Page title={t('medical.illness')} back={back}>
-        {all === undefined ? (
-          <EmptyState role="status">{t('common.loading')}</EmptyState>
-        ) : (
-          <EmptyState role="alert">{t('medical.illnessNotFound')}</EmptyState>
-        )}
-      </Page>
-    );
+    return <IllnessMissing title={t('medical.illness')} back={back} loading={all === undefined} />;
   }
 
   const events = eventsInOrder(eventsOf(illness.id));
@@ -119,7 +111,7 @@ function IllnessScreen({ person }: { person: Person }) {
                   nameOfMedicine={nameOf}
                   document={eventDocuments.of(event.id)}
                   documentPath={(id) => documentPath(person, id, illness.id)}
-                  back={{ to: illnessPath(person, illness.id), title: illness.name }}
+                  back={illnessBack(person, illness)}
                   onOpen={() => {
                     setOpenedId(event.id);
                   }}
@@ -265,7 +257,7 @@ function EventRow({
 }: {
   event: IllnessEvent;
   nameOfMedicine: (medicineId: string) => string | undefined;
-  /** The Document the event carries: 📎 at the right opens its file. */
+  /** The Document the event carries: the paperclip at the right opens its file. */
   document: MedicalDocument | undefined;
   /** Where a Document opens. */
   documentPath: (documentId: string) => string;
@@ -295,10 +287,35 @@ function EventRow({
         accessory: {
           to: documentPath(document.id),
           label: t('medical.openDocument', { title: document.title }),
-          symbol: '📎',
+          icon: 'paperclip',
           state: documentOpenedFrom(back),
         },
       })}
     />
+  );
+}
+
+/**
+ * A screen of an Illness that isn't there: «Загрузка…» while the card loads, then «Такой болезни
+ * нет: возможно, её удалили.». Also its Documents screen's.
+ */
+export function IllnessMissing({
+  title,
+  back,
+  loading,
+}: {
+  title: string;
+  back: PageBack;
+  loading: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Page title={title} back={back}>
+      {loading ? (
+        <EmptyState role="status">{t('common.loading')}</EmptyState>
+      ) : (
+        <EmptyState role="alert">{t('medical.illnessNotFound')}</EmptyState>
+      )}
+    </Page>
   );
 }

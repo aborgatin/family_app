@@ -11,6 +11,7 @@ import {
   Lock,
   Menu,
   Minus,
+  Paperclip,
   Settings,
   TextAlignStart,
   // eslint-disable-next-line no-restricted-syntax -- lucide's own icon name
@@ -34,6 +35,7 @@ const ICONS = {
   minus: Minus,
   private: Lock,
   offline: GlobeOff,
+  paperclip: Paperclip,
   reorder: Menu,
   settings: Settings,
   shared: People,

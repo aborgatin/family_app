@@ -24,8 +24,8 @@ import {
 import { illnessToJoin } from './illnessRules';
 import type { Illness, IllnessEvent } from './medicalTypes';
 import {
-  DOCUMENT_MAX_SIZE,
   DOCUMENT_TYPES,
+  documentFileError,
   newDocumentId,
   type EventDocuments,
 } from './useDocuments';
@@ -163,9 +163,8 @@ export function EventSheet({
   async function done(moveTo?: () => IllnessChoice) {
     const errors: FieldMessages<string> = { ...check() };
     if (date === '') errors.date = fieldMessageKey('required');
-    if (file !== undefined && file.size > DOCUMENT_MAX_SIZE) {
-      errors.file = 'errors.documentTooLarge';
-    }
+    const fileError = file === undefined ? undefined : documentFileError(file);
+    if (fileError !== undefined) errors.file = fileError;
     setFieldErrors(errors);
     setFormError(undefined);
     if (Object.keys(errors).length > 0) return;

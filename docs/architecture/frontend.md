@@ -332,7 +332,8 @@ its List, a Child field value to its Child and to its Child field, a Mute to its
 
 `useMedicalCard(person)` and `useDocuments(person)` (`features/medical`) are described under [Medical cards](#medical-cards).
 
-Each synced data feature has one hook that is its only data access. Components never call `api`,
+Each synced data feature has one hook that is its only data access (Documents, read for
+several screens, split it by use: `useDocuments`, `useDocumentCount` and `useEventDocuments`). Components never call `api`,
 Dexie or `@/shared/sync`'s writers directly; ESLint enforces it (`data-access/components-use-hooks`
 in `web/eslint.config.js`: no sync writers, `@/shared/sync/*` internals or Dexie in a `.tsx`).
 Online-only screens (S4) call their feature's `*Api.ts` directly. The synced hooks:
@@ -1013,7 +1014,7 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   (or any failure) the event stays saved and the sheet stays open with «Нужен интернет, чтобы
   прикрепить файл» (or the error); «Готово» again changes the same event (its id is made once when
   the sheet opens, and it stays in the Illness it was saved into, a new one included) and retries
-  the upload with the same Document id. An event's row on the Illness screen shows 📎 at its right
+  the upload with the same Document id. An event's row on the Illness screen shows a paperclip (📎, `Icon` `paperclip`) at its right
   end when it carries a Document (`ListRow`'s `accessory`, a link of its own beside the row's
   button, named «Открыть «…»»), opening it at `…/illnesses/:illnessId/documents/:documentId`
   (`DocumentPage`) with the Illness screen in the history state (`documentOpenedFrom`), so back
@@ -1028,6 +1029,8 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   the server does the same in the same operation. «Перенести в…» needs nothing more: a Document
   names its event, which moves. `useEventDocuments(person)` → `{of(eventId), ofEvents(events)
   (newest first), attach(id, eventId, file, date), removeOfEvents(events)}` on `useRows('document')`.
+  `documentFileError(file)` is the check both sheets make before uploading (over 20 MB).
+  `IllnessMissing` is the unknown-Illness screen both the Illness screen and its Documents show.
 - Store: `illness` depends on `child` (`childId`), `illness_event` on `illness` (`illnessId`),
   `document` on `child` (`childId`) and on `illness_event` (`illnessEventId`, #134), in
   `DEPENDENT_TABLES` and in the fake sync server's `CASCADES`.

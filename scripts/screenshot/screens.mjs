@@ -1137,7 +1137,9 @@ export default {
       path: "/settings",
       fullPage: false,
       steps: [
-        { click: `${section("Лекарства")} >> role=button[name="Добавить лекарство"]` },
+        {
+          click: `${section("Лекарства")} >> role=button[name="Добавить лекарство"]`,
+        },
         { waitFor: 'role=dialog >> role=textbox[name="Название"]' },
         { wait: 400 },
       ],
@@ -1148,8 +1150,13 @@ export default {
       path: "/settings",
       fullPage: false,
       steps: [
-        { click: `${section("Лекарства")} >> role=button[name="Добавить лекарство"]` },
-        { fill: 'role=dialog >> role=textbox[name="Название"]', value: "ибупрофен 20 мг/мл" },
+        {
+          click: `${section("Лекарства")} >> role=button[name="Добавить лекарство"]`,
+        },
+        {
+          fill: 'role=dialog >> role=textbox[name="Название"]',
+          value: "ибупрофен 20 мг/мл",
+        },
         { click: 'role=dialog >> role=button[name="Готово"]' },
         { waitFor: "role=dialog >> text=Такое лекарство уже есть" },
         { wait: 400 },
@@ -1499,7 +1506,10 @@ export default {
       // Маша's Documents from «Документы (3)» on her card, newest first (ticket #133).
       name: "medical-documents",
       path: "/",
-      steps: [...mashasDocuments, { waitFor: 'role=link[name=/Выписка из поликлиники/]' }],
+      steps: [
+        ...mashasDocuments,
+        { waitFor: "role=link[name=/Выписка из поликлиники/]" },
+      ],
     },
     {
       // Анна's own card has no Documents: the empty state, «+ Документ» still there.
@@ -1547,11 +1557,13 @@ export default {
         ...mashasDocuments,
         { click: 'role=button[name="+ Документ"]' },
         async (page) => {
-          await page.locator('role=dialog >> input[type="file"]').setInputFiles({
-            name: "Анализ мочи.pdf",
-            mimeType: "application/pdf",
-            buffer: Buffer.from("%PDF-1.4\n%%EOF"),
-          });
+          await page
+            .locator('role=dialog >> input[type="file"]')
+            .setInputFiles({
+              name: "Анализ мочи.pdf",
+              mimeType: "application/pdf",
+              buffer: Buffer.from("%PDF-1.4\n%%EOF"),
+            });
         },
         { click: 'role=dialog >> role=button[name="Готово"]' },
         { waitFor: "text=Нужен интернет, чтобы прикрепить файл" },
@@ -1565,7 +1577,7 @@ export default {
       fullPage: false,
       steps: [
         ...mashasDocuments,
-        { click: 'role=link[name=/Заключение ЛОРа/]' },
+        { click: "role=link[name=/Заключение ЛОРа/]" },
         { waitFor: 'img[title="Заключение ЛОРа"]' },
         { wait: 400 },
       ],
@@ -1577,7 +1589,7 @@ export default {
       fullPage: false,
       steps: [
         ...mashasDocuments,
-        { click: 'role=link[name=/Общий анализ крови/]' },
+        { click: "role=link[name=/Общий анализ крови/]" },
         { waitFor: 'role=button[name="Открыть PDF"]' },
         { wait: 1000 },
       ],
@@ -1589,7 +1601,7 @@ export default {
       fullPage: false,
       steps: [
         ...mashasDocuments,
-        { click: 'role=link[name=/Выписка из поликлиники/]' },
+        { click: "role=link[name=/Выписка из поликлиники/]" },
         { waitFor: "role=alert" },
       ],
     },
@@ -1600,7 +1612,7 @@ export default {
       fullPage: false,
       steps: [
         ...mashasDocuments,
-        { click: 'role=link[name=/Заключение ЛОРа/]' },
+        { click: "role=link[name=/Заключение ЛОРа/]" },
         { click: 'role=button[name="Изменить"]' },
         { waitFor: 'role=dialog[name="Документ"] >> text=Удалить документ' },
         { wait: 400 },
@@ -1613,7 +1625,9 @@ export default {
       steps: [
         { click: childCard("Маша") },
         { click: 'role=link[name="Медкарта"]' },
-        { click: `${section("Диагнозы/наблюдения")} >> role=button[name="Изменить"]` },
+        {
+          click: `${section("Диагнозы/наблюдения")} >> role=button[name="Изменить"]`,
+        },
         { waitFor: 'role=button[name="Переместить «Зубы»"]' },
       ],
     },
@@ -1651,7 +1665,9 @@ export default {
       steps: [
         { click: childCard("Маша") },
         { click: 'role=link[name="Медкарта"]' },
-        { click: `${section("Диагнозы/наблюдения")} >> role=link[name=/Зрение/]` },
+        {
+          click: `${section("Диагнозы/наблюдения")} >> role=link[name=/Зрение/]`,
+        },
         { waitFor: 'role=button[name="Завершить"]' },
       ],
     },
@@ -1882,7 +1898,10 @@ export default {
         { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
         { click: 'role=button[name="Сходили к доктору"]' },
         { click: 'role=dialog >> role=button[name="Перенести в…"]' },
-        { waitFor: 'role=dialog[name="Перенести в…"] >> role=button[name="Новая болезнь"]' },
+        {
+          waitFor:
+            'role=dialog[name="Перенести в…"] >> role=button[name="Новая болезнь"]',
+        },
         { wait: 400 },
       ],
     },
@@ -1898,7 +1917,10 @@ export default {
         { click: `${section("Болезни")} >> role=link[name=/Болезнь/]` },
         { click: "role=button[name=/37,0 °C/]" },
         { click: 'role=dialog >> role=button[name="Удалить"]' },
-        { click: 'role=dialog[name="Удалить событие?"] >> role=button[name="Удалить"]' },
+        {
+          click:
+            'role=dialog[name="Удалить событие?"] >> role=button[name="Удалить"]',
+        },
         { waitFor: 'role=button[name="Заметка"]' },
         { wait: 400 },
       ],
@@ -1912,7 +1934,7 @@ export default {
         { click: 'role=link[name="Медкарта"]' },
         { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
         { click: 'role=link[name="Документы (1)"]' },
-        { waitFor: 'role=link[name=/Заключение ЛОРа/]' },
+        { waitFor: "role=link[name=/Заключение ЛОРа/]" },
       ],
     },
     {
@@ -1928,7 +1950,7 @@ export default {
       ],
     },
     {
-      // 📎 on «Сходили к доктору» opens its Document, back to «ОРВИ»'s Documents.
+      // The paperclip on «Сходили к доктору» opens its Document, back to «ОРВИ».
       name: "medical-illness-document",
       path: "/",
       fullPage: false,
@@ -1951,7 +1973,7 @@ export default {
         { click: 'role=link[name="Медкарта"]' },
         { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
         { click: 'role=button[name="Сходили к доктору"]' },
-        { waitFor: 'role=dialog >> text=Заключение ЛОРа' },
+        { waitFor: "role=dialog >> text=Заключение ЛОРа" },
         { wait: 400 },
       ],
     },
@@ -1969,11 +1991,13 @@ export default {
         { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
         { click: 'role=button[name="Температура"]' },
         async (page) => {
-          await page.locator('role=dialog >> input[type="file"]').setInputFiles({
-            name: "Анализ мочи.pdf",
-            mimeType: "application/pdf",
-            buffer: Buffer.from("%PDF-1.4\n%%EOF"),
-          });
+          await page
+            .locator('role=dialog >> input[type="file"]')
+            .setInputFiles({
+              name: "Анализ мочи.pdf",
+              mimeType: "application/pdf",
+              buffer: Buffer.from("%PDF-1.4\n%%EOF"),
+            });
         },
         { click: 'role=dialog >> role=button[name="Готово"]' },
         { waitFor: "text=Нужен интернет, чтобы прикрепить файл" },

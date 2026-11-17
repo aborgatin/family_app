@@ -208,7 +208,7 @@ navigating.
 
 `<Icon name="settings" />`. Wraps `lucide-react`; features never import lucide. Names: `back`,
 `check` (the chosen colour), `chevron`, `clear` (a circled ×), `description` (left-aligned lines, `AddRow`'s «Добавить описание»), `home`, `minus` (edit mode's ⊖),
-`expand` (a small ⌄ on a `MenuChip`), `file` (a page with lines: a PDF in `FileViewer`), `offline` (crossed globe), `private` (a lock: a Private List), `reorder` (≡, a drag handle), `settings`, `shared` (two people: a Shared List), `spinner`; a new icon is added to the
+`expand` (a small ⌄ on a `MenuChip`), `file` (a page with lines: a PDF in `FileViewer`), `offline` (crossed globe), `paperclip` (an Illness event's Document, 📎 in the spec), `private` (a lock: a Private List), `reorder` (≡, a drag handle), `settings`, `shared` (two people: a Shared List), `spinner`; a new icon is added to the
 map in `Icon.tsx`. Decorative (`aria-hidden`) unless given a `label`. Takes the current text
 colour, or `secondary-label` with `secondary`; default size 22px.
 
@@ -475,7 +475,8 @@ line, whose parts all count («22:00 · Ибупрофен 20 мг/мл — 5 м
 
 `accessory` (with `onClick`): a second control in the same cell, a link at the right end beside
 the row's button, with its own name and press tint, as wide as a touch target (44px; 36px with a
-fine pointer). An Illness event's 📎 («Открыть «Анализ крови»») opens its Document while a tap on
+fine pointer), showing an `Icon` (`icon`, in `secondary-label`); `state` goes into the history
+entry it opens. An Illness event's paperclip («Открыть «Анализ крови»») opens its Document while a tap on
 the rest of the row opens the event's sheet.
 
 ### LoadingRow

@@ -22,7 +22,7 @@ import {
   useFooterLines,
 } from '@/shared/ui';
 import { fileKind, type MedicalDocument } from './medicalTypes';
-import { DOCUMENT_MAX_SIZE, DOCUMENT_TYPES, titleOf, type DocumentDetails } from './useDocuments';
+import { DOCUMENT_TYPES, documentFileError, titleOf, type DocumentDetails } from './useDocuments';
 
 type Field = 'file' | 'title' | 'date';
 const FIELDS: readonly Field[] = ['file', 'title', 'date'];
@@ -88,8 +88,8 @@ export function DocumentSheet({ mode, onClose }: DocumentSheetProps) {
   function check(): FieldMessages<Field> {
     const errors: FieldMessages<Field> = {};
     if (mode.adding !== undefined) {
-      if (file === undefined) errors.file = 'medical.fileRequired';
-      else if (file.size > DOCUMENT_MAX_SIZE) errors.file = 'errors.documentTooLarge';
+      const fileError = file === undefined ? 'medical.fileRequired' : documentFileError(file);
+      if (fileError !== undefined) errors.file = fileError;
     }
     if (title.trim() === '') errors.title = fieldMessageKey('required');
     if (date === '') errors.date = fieldMessageKey('required');

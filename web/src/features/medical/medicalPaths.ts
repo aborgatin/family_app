@@ -1,5 +1,5 @@
 import type { PageBack } from '@/shared/ui';
-import type { Person } from './medicalTypes';
+import type { Illness, Person } from './medicalTypes';
 
 /** The Member's own Medical card, from the «Медкарта» row on Home. */
 export const MY_CARD_PATH = '/medical';
@@ -41,6 +41,11 @@ export function illnessPath(person: Person, illnessId: string): string {
   return `${cardPath(person)}/illnesses/${encodeURIComponent(illnessId)}`;
 }
 
+/** The Illness screen as a screen's way back: its path and name. */
+export function illnessBack(person: Person, illness: Pick<Illness, 'id' | 'name'>): PageBack {
+  return { to: illnessPath(person, illness.id), title: illness.name };
+}
+
 /**
  * Path of the Documents screen of the person's card, or with `illnessId` of that Illness's
  * events' Documents.
@@ -56,7 +61,7 @@ export function documentPath(person: Person, documentId: string, illnessId?: str
 
 /**
  * The history state of a Document opened from another screen than the Documents it is listed in
- * (an event's 📎 on the Illness screen): that screen, which it goes back to.
+ * (an event's paperclip on the Illness screen): that screen, which it goes back to.
  */
 export function documentOpenedFrom(back: PageBack): { documentBack: PageBack } {
   return { documentBack: back };
