@@ -141,12 +141,15 @@ set -a
 # shellcheck source=lib/dev-secrets.env
 source "$root/scripts/lib/dev-secrets.env"
 set +a
+# Cookies without Secure: over plain http (Safari, a phone on the network URL) a browser drops
+# Secure ones, and login fails with «Сессия устарела».
 # Document files go to a folder next to the dev database's backups, shared by every checkout as
 # the dev database is (production stores them in R2).
 documents="${XDG_CACHE_HOME:-$HOME/.cache}/family-app/dev-documents"
 (cd "$root/backend" &&
   DATASOURCE_URL="jdbc:postgresql://localhost:$db_port/family" \
     DATASOURCE_USERNAME=family DATASOURCE_PASSWORD=family DOCUMENTS_FOLDER="$documents" \
+    COOKIES_SECURE=false \
     exec ./gradlew bootRun --console=plain) >"$backend_log" 2>&1 &
 pids+=($!)
 backend_pid=$!

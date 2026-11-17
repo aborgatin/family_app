@@ -1,5 +1,6 @@
 package io.github.aborgatin.familyapp.family.auth;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,10 +29,15 @@ class SecurityConfig {
 
   @Bean
   SecurityFilterChain securityFilterChain(
-      HttpSecurity http, ApiErrorWriter errors, SecurityContextRepository securityContextRepository)
+      HttpSecurity http,
+      ApiErrorWriter errors,
+      SecurityContextRepository securityContextRepository,
+      // Both cookies are Secure, as the session cookie's setting says (false only for dev.sh).
+      @Value("${server.servlet.session.cookie.secure}") boolean secureCookies)
       throws Exception {
     CookieCsrfTokenRepository csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
-    csrfTokens.setCookieCustomizer(cookie -> cookie.path("/").secure(true).sameSite("Lax"));
+    csrfTokens.setCookieCustomizer(
+        cookie -> cookie.path("/").secure(secureCookies).sameSite("Lax"));
 
     http.authorizeHttpRequests(
             requests ->

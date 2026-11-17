@@ -853,14 +853,14 @@ A new code the user may see needs an entry in the web's `ERROR_KEYS` (see
   `401 auth.required`, never a redirect or HTML. Form login, HTTP Basic, Security's logout and the
   request cache are disabled.
 - **CSRF**: `CookieCsrfTokenRepository.withHttpOnlyFalse()` (cookie `XSRF-TOKEN`, path `/`,
-  `Secure`, `SameSite=Lax`) with a plain `CsrfTokenRequestAttributeHandler`, so the raw token comes
+  `Secure` unless `COOKIES_SECURE=false`, which only `scripts/dev.sh` sets, `SameSite=Lax`) with a plain `CsrfTokenRequestAttributeHandler`, so the raw token comes
   back in the `X-XSRF-TOKEN` header on every non-GET request, login and bootstrap included.
   `GET /api/auth/session` loads the deferred token, which writes the cookie.
 
 **Sessions** are server-side in PostgreSQL (Spring Session JDBC; tables `spring_session` and
 `spring_session_attributes` from `V1`, `initialize-schema: never`), so they survive redeploys.
 
-- Cookie `SESSION`: `HttpOnly`, `Secure`, `SameSite=Lax`, `Max-Age` = `SESSION_TIMEOUT`.
+- Cookie `SESSION`: `HttpOnly`, `Secure` (as the CSRF cookie), `SameSite=Lax`, `Max-Age` = `SESSION_TIMEOUT`.
 - Sliding expiry: Spring Session renews the session on each request but only writes the cookie when
   the id changes, so `SlidingSessionCookieFilter` (order `SessionRepositoryFilter.DEFAULT_ORDER + 1`)
   re-sends the cookie with a fresh `Max-Age` on every request with a valid session.

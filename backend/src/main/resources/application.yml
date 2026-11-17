@@ -60,7 +60,8 @@ server:
       timeout: ${SESSION_TIMEOUT:180d}
       cookie:
         http-only: true
-        secure: true
+        # false only for scripts/dev.sh, so a browser keeps the cookies on plain http.
+        secure: ${COOKIES_SECURE:true}
         same-site: lax
         max-age: ${SESSION_TIMEOUT:180d}
   # Behind Caddy: X-Forwarded-For/-Proto give the real client IP and scheme, but only on
