@@ -8,7 +8,8 @@ import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
 
 // Ended, and Diagnoses/observations (spec #128, ticket #132): «Завершить» and «Возобновить», the
-// collapsed «Завершённые», Conditions in «Диагнозы/наблюдения», and the kind switch.
+// collapsed «Завершённые», Conditions in «Диагнозы/наблюдения», and that the kind never changes
+// (review follow-up C1).
 
 /** «Now» in these tests: Wednesday 2 December 2026, 22:00. */
 const NOW = new Date('2026-12-02T22:00:00');
@@ -311,46 +312,21 @@ describe('Ending and resuming', () => {
   });
 });
 
-describe('The kind switch', () => {
-  it('turns an Illness into a Condition, last among them, and back', async () => {
-    const vision = conditionRow(me, 'Зрение', 4);
+describe('The kind', () => {
+  it('is fixed: neither an Illness nor a Condition has a «Тип» switch', async () => {
+    const vision = conditionRow(me, 'Зрение', 1);
     const otitis = illnessRow(me, 'Отит');
     syncServer.seed('illness', [vision, otitis]);
-    syncServer.seed('illness_event', [temperatureRow(otitis, '2026-11-20', '08:00', 38.0)]);
     const user = userEvent.setup();
     await openIllness(otitis);
-    expect(screen.getByText('с 20 ноября 2026')).toBeInTheDocument();
 
-    const kind = screen.getByRole('radiogroup', { name: 'Тип' });
-    expect(within(kind).getByRole('radio', { name: 'Болезнь' })).toBeChecked();
-    await user.click(within(kind).getByRole('radio', { name: 'Диагноз/наблюдение' }));
+    expect(screen.queryByRole('radiogroup', { name: 'Тип' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Тип' })).not.toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(syncServer.row('illness', otitis.id)).toMatchObject({
-        kind: 'CONDITION',
-        position: 5,
-      });
-    });
-    // A Condition shows no start date.
-    expect(screen.queryByText('с 20 ноября 2026')).not.toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Медкарта' }));
-    expect(await rowsOf('Диагнозы/наблюдения')).toEqual([
-      'ЗрениеНет событий',
-      'Отитпоследнее: 20 ноября',
-    ]);
-    expect(await rowsOf('Болезни')).toEqual([]);
-
-    await user.click(screen.getByRole('link', { name: /Отит/ }));
-    await user.click(
-      within(await screen.findByRole('radiogroup', { name: 'Тип' })).getByRole('radio', {
-        name: 'Болезнь',
-      }),
-    );
-    await waitFor(() => {
-      expect(syncServer.row('illness', otitis.id)).toMatchObject({ kind: 'ILLNESS' });
-    });
-    await user.click(screen.getByRole('link', { name: 'Медкарта' }));
-    expect(await rowsOf('Болезни')).toEqual(['Отитс 20 ноября · 1 событие']);
+    await user.click(await screen.findByRole('link', { name: /Зрение/ }));
+    await screen.findByRole('heading', { level: 1, name: 'Зрение' });
+    expect(screen.queryByRole('radiogroup', { name: 'Тип' })).not.toBeInTheDocument();
   });
 });
 

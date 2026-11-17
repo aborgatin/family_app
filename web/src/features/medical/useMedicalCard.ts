@@ -78,8 +78,7 @@ export function newConditionId(): string {
  *   is none): resolve with the value as saved; `removeIllness(illness)`: deletes it with its events;
  *   `removeEvent(event)`;
  * - `addCondition(id, name)`: a Condition (name trimmed), last; `moveCondition(condition, to)`: to index `to` of
- *   `conditions`, writing only its position; `changeKind(illness, kind)` (resolves with the kind): one
- *   turned into a Condition goes last; `end(illness)`: «Завершить»; `resume(illness)`: «Возобновить».
+ *   `conditions`, writing only its position; `end(illness)`: «Завершить»; `resume(illness)`: «Возобновить».
  *   None of them touches the events.
  */
 export function useMedicalCard(person: Person) {
@@ -254,18 +253,6 @@ export function useMedicalCard(person: Person) {
     [conditions],
   );
 
-  const changeKind = useCallback(
-    async (illness: Illness, kind: Illness['kind']) => {
-      await upsertRow(
-        'illness',
-        illness.id,
-        kind === 'CONDITION' ? { kind, position: nextPosition() } : { kind },
-      );
-      return kind;
-    },
-    [nextPosition],
-  );
-
   const end = useCallback(
     (illness: Illness) => upsertRow('illness', illness.id, { ended: true }),
     [],
@@ -283,7 +270,6 @@ export function useMedicalCard(person: Person) {
     ended: sections?.ended,
     addCondition,
     moveCondition,
-    changeKind,
     end,
     resume,
     eventsOf,

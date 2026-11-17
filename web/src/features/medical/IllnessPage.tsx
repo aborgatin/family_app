@@ -12,9 +12,7 @@ import {
   Page,
   type PageBack,
   Sections,
-  SegmentedControl,
   TextAreaRow,
-  useAutoSaveChoice,
   useAutoSaveText,
 } from '@/shared/ui';
 import { useCardRoute } from './cardRoute';
@@ -45,7 +43,7 @@ interface IllnessPageProps {
  * «Приём лекарства», «Температура» and «Заметка»
  * (their sheets, into this one), then its events, newest first, under a header per day (a paperclip opens
  * the Document an event carries), and the
- * actions «Тип: Болезнь / Диагноз/наблюдение», «Завершить» or «Возобновить», and «Удалить». An Ended
+ * actions «Завершить» or «Возобновить», and «Удалить». An Ended
  * one stays fully editable. One that is unknown, or is deleted while the screen is open, says so.
  * Data only through `useMedicalCard(person)` and `useEventDocuments(person)`.
  */
@@ -61,7 +59,7 @@ function IllnessScreen({ person }: { person: Person }) {
   const card = useMedicalCard(person);
   const eventDocuments = useEventDocuments(person);
   const navigate = useNavigate();
-  const { all, eventsOf, rename, describe, removeIllness, changeKind, end, resume } = card;
+  const { all, eventsOf, rename, describe, removeIllness, end, resume } = card;
   const { nameOf } = useMedicines();
   const illness = all?.find(({ id }) => id === illnessId);
   const back = { to: cardPath(person), title: t('medical.title') };
@@ -121,7 +119,6 @@ function IllnessScreen({ person }: { person: Person }) {
         ))}
         <IllnessActions
           illness={illness}
-          changeKind={changeKind}
           end={end}
           resume={resume}
           confirmDelete={{
@@ -160,58 +157,24 @@ function IllnessScreen({ person }: { person: Person }) {
   );
 }
 
-type IllnessActionsProps = Pick<
-  ReturnType<typeof useMedicalCard>,
-  'changeKind' | 'end' | 'resume'
-> & {
+type IllnessActionsProps = Pick<ReturnType<typeof useMedicalCard>, 'end' | 'resume'> & {
   illness: Illness;
   confirmDelete: { title: string; message?: string; action: string };
   onDelete: () => void;
 };
 
-/**
- * «Тип»: «Болезнь» / «Диагноз/наблюдение» (auto-saved on tap, the segments the whole row so the
- * long one fits a phone), then «Завершить» or «Возобновить», and «Удалить» (after asking).
- */
-function IllnessActions({
-  illness,
-  changeKind,
-  end,
-  resume,
-  confirmDelete,
-  onDelete,
-}: IllnessActionsProps) {
+/** «Завершить» or «Возобновить», and «Удалить» (after asking). Its kind never changes. */
+function IllnessActions({ illness, end, resume, confirmDelete, onDelete }: IllnessActionsProps) {
   const { t } = useTranslation();
-  const kind = useAutoSaveChoice({
-    name: 'kind',
-    saved: illness.kind,
-    save: useCallback(
-      (value: Illness['kind']) => changeKind(illness, value),
-      [illness, changeKind],
-    ),
-  });
   return (
-    <>
-      <GroupedSection header={t('medical.kind')} messages={autoSaveMessages([kind.failure])}>
-        <SegmentedControl
-          label={t('medical.kind')}
-          labelHidden
-          options={[
-            { value: 'ILLNESS', label: t('medical.illness') },
-            { value: 'CONDITION', label: t('medical.condition') },
-          ]}
-          {...kind.control}
-        />
-      </GroupedSection>
-      <GroupedSection>
-        <ListRow
-          title={illness.ended === true ? t('medical.resume') : t('medical.end')}
-          accent
-          onClick={() => void (illness.ended === true ? resume(illness) : end(illness))}
-        />
-        <ConfirmRow title={t('ui.delete')} confirm={confirmDelete} onConfirm={onDelete} />
-      </GroupedSection>
-    </>
+    <GroupedSection>
+      <ListRow
+        title={illness.ended === true ? t('medical.resume') : t('medical.end')}
+        accent
+        onClick={() => void (illness.ended === true ? resume(illness) : end(illness))}
+      />
+      <ConfirmRow title={t('ui.delete')} confirm={confirmDelete} onConfirm={onDelete} />
+    </GroupedSection>
   );
 }
 
