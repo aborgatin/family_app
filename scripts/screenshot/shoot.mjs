@@ -468,10 +468,17 @@ export const SEED = {
 /**
  * Documents on Маша's card (ticket #133), newest first: a photo of a doctor's report (drawn on a
  * canvas, a PNG), a PDF, and one whose file the store has lost (`lost`: its row only, put straight
- * in the database), which opens as «Файл недоступен».
+ * in the database), which opens as «Файл недоступен». `event`: the title of the Note on «ОРВИ» the
+ * Document belongs to (ticket #134).
  */
 SEED.documents = [
-  { title: 'Заключение ЛОРа', daysAgo: 1, kind: 'photo', description: 'Повторный приём через неделю' },
+  {
+    title: 'Заключение ЛОРа',
+    daysAgo: 1,
+    kind: 'photo',
+    description: 'Повторный приём через неделю',
+    event: 'Сходили к доктору',
+  },
   { title: 'Общий анализ крови', daysAgo: 12, kind: 'pdf' },
   { title: 'Выписка из поликлиники', daysAgo: 400, kind: 'pdf', lost: true },
 ];
@@ -602,6 +609,8 @@ async function pushChildFieldValues(page) {
  * with its Description and events (Temperatures, doses, Notes).
  */
 async function pushIllnesses(page, childIds) {
+  // The ids of the Notes, by title, for Documents that belong to one (`SEED.documents`' `event`).
+  const noteIds = {};
   const medicineIds = Object.fromEntries(SEED.medicines.map((name) => [name, crypto.randomUUID()]));
   const medicines = SEED.medicines.map((name) => ({
     table: 'medicine',
@@ -653,7 +662,7 @@ async function pushIllnesses(page, childIds) {
         })),
         ...noteEvents.map(([daysAgo, time, title]) => ({
           table: 'illness_event',
-          id: crypto.randomUUID(),
+          id: (noteIds[title] = crypto.randomUUID()),
           op: 'upsert',
           fields: { illnessId, kind: 'NOTE', date: dayFromToday(-daysAgo), time, title },
         })),
@@ -662,11 +671,13 @@ async function pushIllnesses(page, childIds) {
   ));
   const pushed = await api(page, 'POST', '/api/sync/push', { operations });
   if (pushed.results.some((r) => r.status !== 'applied')) throw new Error(`seed illnesses: ${JSON.stringify(pushed.results)}`);
+  return noteIds;
 }
 
 /** Uploads `SEED.documents` to Маша's card through `POST /api/documents`, as the app does. */
-async function uploadDocuments(page, pg, childIds) {
-  for (const { title, daysAgo, kind, description = '', lost = false } of SEED.documents) {
+async function uploadDocuments(page, pg, childIds, noteIds) {
+  for (const { title, daysAgo, kind, description = '', lost = false, event } of SEED.documents) {
+    const illnessEventId = event === undefined ? undefined : noteIds[event];
     const id = crypto.randomUUID();
     const date = dayFromToday(-daysAgo);
     if (lost) {
@@ -678,7 +689,7 @@ async function uploadDocuments(page, pg, childIds) {
       continue;
     }
     await page.evaluate(
-      async ({ id, childId, title, date, description, kind }) => {
+      async ({ id, childId, illnessEventId, title, date, description, kind }) => {
         let file;
         if (kind === 'photo') {
           // A photographed page: paper, a heading and lines of text.
@@ -711,6 +722,7 @@ async function uploadDocuments(page, pg, childIds) {
         const form = new FormData();
         form.append('id', id);
         form.append('childId', childId);
+        if (illnessEventId) form.append('illnessEventId', illnessEventId);
         form.append('title', title);
         form.append('date', date);
         if (description) form.append('description', description);
@@ -724,7 +736,7 @@ async function uploadDocuments(page, pg, childIds) {
         });
         if (!r.ok) throw new Error(`POST /api/documents -> ${r.status} ${await r.text()}`);
       },
-      { id, childId: childIds['Маша'], title, date, description, kind },
+      { id, childId: childIds['Маша'], illnessEventId, title, date, description, kind },
     );
   }
 }
@@ -763,8 +775,8 @@ async function seed(browser, baseUrl, pg) {
     SEED.lists.children.map(({ child, ...list }) => ({ ...list, childId: childIds[child] })),
   );
   await pushChildFieldValues(page);
-  await pushIllnesses(page, childIds);
-  await uploadDocuments(page, pg, childIds);
+  const noteIds = await pushIllnesses(page, childIds);
+  await uploadDocuments(page, pg, childIds, noteIds);
   const inv2 = await api(page, 'POST', '/api/invites'); // stays active: shows in Settings, used as {inviteToken}
   const storageState = await ctx.storageState();
   await ctx.close();

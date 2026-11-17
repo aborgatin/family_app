@@ -638,8 +638,11 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   answers that Document, stores nothing; a deleted one, or one on another Member's card, is
   `medical.not_found`), the card (`memberId` the uploader's own, `childId` a Child that is there,
   `illnessEventId` an event, not deleted, of an Illness on the same card that carries no Document
-  yet, else `document.event_has_document` 409, so the partial unique index is never what refuses
-  it; replacing one is #134's), the size (the multipart `max-file-size`, 20 MB, `document.too_large`
+  but the one `replaces` names (#134: that one is soft-deleted in the same transaction, its file
+  after the commit, so a sheet replaces an event's Document in one request), else
+  `document.event_has_document` 409 (one the uploader didn't know of, e.g. just added on another
+  device), so the partial unique index is never what refuses
+  it), the size (the multipart `max-file-size`, 20 MB, `document.too_large`
   413) and the type by content (the enum `DocumentType.of`: `%PDF-`, JPEG, PNG,
   an ISO base media `ftyp` box with a HEIC or HEIF brand; else `document.unsupported_type` 415).
   It then stores the file and inserts the row in a `TransactionTemplate` under the `FamilyLock`
@@ -649,7 +652,10 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   than showing it as a page of the site): a deleted or invisible Document is `medical.not_found`
   (`params.documentId`), a missing object `document.file_missing` (404). Through sync an upsert
   edits `title`, `date`, `description` (an unknown id is `medical.not_found`: only the upload
-  creates); a delete, and `onChildDeleted` (`DocumentRepository.markDeletedOfChild`), register a
+  creates); a delete, `deleteOfEvent` (called by `IllnessEventService` when it deletes an event,
+  #134), `deleteOfIllness` (by `IllnessService` when it deletes an Illness: its events' Documents,
+  `DocumentRepository.markDeletedOfIllness`) and `onChildDeleted`
+  (`DocumentRepository.markDeletedOfChild`) register a
   `TransactionSynchronization` that deletes the files after the commit, each only when its row is
   then deleted (a rejected operation's savepoint may have undone it).
 - **File store** (spec #128 "File store port", ADR-0010): `FileStore` is `put`, `get` (empty when
@@ -724,7 +730,7 @@ there):
 | `POST /api/members/me/password`                                | `204`; other sessions stay                                                         |
 | `POST /api/sync/push`                                          | `{operations}` → `{results, version}`; see [`sync.md`](sync.md)                    |
 | `GET /api/sync/pull?since=N`                                   | `{changes, version}`; see [`sync.md`](sync.md)                                     |
-| `POST /api/documents`                                          | multipart: `id`, `memberId` or `childId`, `illnessEventId`?, `title`, `date`, `description`?, `file` (≤ 20 MB; PDF, JPEG, PNG, HEIC/HEIF by content) → `201` the Document (its pulled fields and `version`), also for a retry of the same `id` |
+| `POST /api/documents`                                          | multipart: `id`, `memberId` or `childId`, `illnessEventId`?, `replaces`? (the id of the Document that event carries, which the new one replaces), `title`, `date`, `description`?, `file` (≤ 20 MB; PDF, JPEG, PNG, HEIC/HEIF by content) → `201` the Document (its pulled fields and `version`), also for a retry of the same `id` |
 | `GET /api/documents/{id}/file`                                 | the decrypted file with its stored `Content-Type`, `Content-Disposition: attachment` (the title and extension), `Cache-Control: no-store`, `X-Content-Type-Options: nosniff` |
 | `GET /api/sync/events`                                         | SSE: `changed` `{version}` on connect and after each syncable commit; heartbeats   |
 | `GET /api/password-resets/by-token/{token}` (public)           | `{expiresAt}` or the reset's state error                                           |
@@ -774,7 +780,7 @@ Every error body is `{"code": "<stable.code>", "params": {…}}`, never natural-
 | 404    | `document.file_missing`                           | `GET /api/documents/{id}/file`: the Document is there, its object is gone (`params.documentId`) |
 | 405    | `method.not_allowed`                              | added: wrong HTTP method                                                      |
 | 409    | `auth.bootstrap_closed`                           | bootstrap after the first Member exists                                       |
-| 409    | `document.event_has_document`                     | an upload to an Illness event that already carries a Document (`params.illnessEventId`) |
+| 409    | `document.event_has_document`                     | an upload to an Illness event that already carries a Document other than the one it `replaces` (`params.illnessEventId`) |
 | 413    | `document.too_large`                              | a Document's file over 20 MB                                                  |
 | 415    | `document.unsupported_type`                       | a Document's file that is not a PDF, JPEG, PNG or HEIC/HEIF by its content    |
 | 409    | `member.email_taken`                              | Invite acceptance with an email any Member row has (removed ones included)    |

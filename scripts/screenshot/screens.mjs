@@ -1815,7 +1815,7 @@ export default {
       ],
     },
     {
-      // «Удалить» on «ОРВИ» asks, with the number of its events.
+      // «Удалить» on «ОРВИ» asks, with the number of its events and Documents.
       name: "medical-illness-delete-confirm",
       path: "/",
       fullPage: false,
@@ -1900,6 +1900,83 @@ export default {
         { click: 'role=dialog >> role=button[name="Удалить"]' },
         { click: 'role=dialog[name="Удалить событие?"] >> role=button[name="Удалить"]' },
         { waitFor: 'role=button[name="Заметка"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // «Документы (1)» on «ОРВИ»: only its events' Documents, back to «ОРВИ» (ticket #134).
+      name: "medical-illness-documents",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=link[name="Документы (1)"]' },
+        { waitFor: 'role=link[name=/Заключение ЛОРа/]' },
+      ],
+    },
+    {
+      // «Документы (0)» on «Отит»: none, and no «+ Документ» (they come from the events).
+      name: "medical-illness-documents-empty",
+      path: "/",
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/Отит/]` },
+        { click: 'role=link[name="Документы (0)"]' },
+        { waitFor: "text=Документов пока нет" },
+      ],
+    },
+    {
+      // 📎 on «Сходили к доктору» opens its Document, back to «ОРВИ»'s Documents.
+      name: "medical-illness-document",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=link[name="Открыть «Заключение ЛОРа»"]' },
+        { waitFor: 'img[title="Заключение ЛОРа"]' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A Note that carries a Document: «Документ» shows its title; choosing a file replaces it.
+      name: "medical-event-sheet-document",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Сходили к доктору"]' },
+        { waitFor: 'role=dialog >> text=Заключение ЛОРа' },
+        { wait: 400 },
+      ],
+    },
+    {
+      // A Temperature with a file, «Готово» offline: the Temperature is saved, the sheet stays and
+      // says the file needs the internet.
+      name: "medical-temperature-sheet-offline-file",
+      path: "/",
+      offline: "afterLoad",
+      isolate: true,
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
+        { click: 'role=button[name="Температура"]' },
+        async (page) => {
+          await page.locator('role=dialog >> input[type="file"]').setInputFiles({
+            name: "Анализ мочи.pdf",
+            mimeType: "application/pdf",
+            buffer: Buffer.from("%PDF-1.4\n%%EOF"),
+          });
+        },
+        { click: 'role=dialog >> role=button[name="Готово"]' },
+        { waitFor: "text=Нужен интернет, чтобы прикрепить файл" },
         { wait: 400 },
       ],
     },

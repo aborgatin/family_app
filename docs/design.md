@@ -470,6 +470,11 @@ Enter / Space activate them.
 by hand). `wrapTitle` does the same for the title, wrapping between words: an Illness event's
 line, whose parts all count («22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» on a phone). A `Button` can go in `value` (the «Скопировать» of a link that wasn't copied).
 
+`accessory` (with `onClick`): a second control in the same cell, a link at the right end beside
+the row's button, with its own name and press tint, as wide as a touch target (44px; 36px with a
+fine pointer). An Illness event's 📎 («Открыть «Анализ крови»») opens its Document while a tap on
+the rest of the row opens the event's sheet.
+
 ### LoadingRow
 
 «Загрузка…» as a plain `ListRow` (announced, `role="status"`) where a `GroupedSection`'s rows

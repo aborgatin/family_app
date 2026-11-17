@@ -278,7 +278,8 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   on another Member's card, or any operation on a row there, is `medical.not_found`
   (`params.illnessId` / `params.illnessEventId`), and the pull leaves those rows out of the other
   Member's changes entirely, not even as tombstones (like a Mute). A Child's card is every
-  Member's. **Deleting an Illness** soft-deletes its events; **deleting a Child** soft-deletes their
+  Member's. **Deleting an Illness** soft-deletes its events and their Documents; **deleting an
+  event** soft-deletes its Document (files after the commit, #134); **deleting a Child** soft-deletes their
   Illnesses and those Illnesses' events, in the same operation. A dose's `medicineId` must name a
   Medicine that exists, a deleted one included; one that never existed is `medical.not_found`
   (`params.medicineId`).
@@ -299,7 +300,9 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   known one changes the `title` (trimmed, required), `date` (`YYYY-MM-DD`, required) and
   `description` it carries; the person, `illnessEventId`, `contentType` and `size` never change.
   A delete soft-deletes it, and **after the commit** the server deletes its file from the file
-  store (a failure is logged, never a rejection). Seen as the card is (`Person`): another
+  store (a failure is logged, never a rejection). A Document on an Illness event (`illnessEventId`,
+  one per event, #134) goes with the event, and moves with it (it names the event, not the
+  Illness); an upload that `replaces` the event's Document deletes that one. Seen as the card is (`Person`): another
   Member's Document is `medical.not_found` and left out of their pull. **Deleting a Child**
   soft-deletes their Documents in the same operation, and their files after the commit. The pull
   carries the fields only, never the file.
@@ -428,7 +431,8 @@ auth.required` without one) tells open apps when to pull:
   tombstone, or `ignored` below) takes the rows that belong to it, declared with the tables in
   `DEPENDENT_TABLES` (`localStore.ts`): a List's Items, Categories and Item history, a Child's
   Child lists (which take their Items in turn; #90), and the Child field values of a Child and of
-  a Child field (#91). So a tombstoned List
+  a Child field (#91), a Child's Illnesses and Documents, an Illness's events and an event's Document
+  (#129, #133, #134). So a tombstoned List
   (deleted, or made Private by its Owner) takes its local Items, Categories and Item history, and the engine
   names no table. A Category is not a parent: its tombstone leaves its Items, which then show in
   the Unnamed category.

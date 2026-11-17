@@ -260,7 +260,8 @@ code that touches IndexedDB or the sync API:
   version 6 indexes `list` by `childId`, for Child lists; `child_field_value`, indexed by
   `childId` and `childFieldId`, came with version 7; `mute`, indexed by `listId`, with version 8;
   `illness`, indexed by `childId`, and `illness_event`, indexed by `illnessId`, with version 9;
-  `medicine` with version 10; `document`, indexed by `childId`, with version 11). A row of `KEPT_WHEN_DELETED` (`medicine`) stays when deleted, here
+  `medicine` with version 10; `document`, indexed by `childId`, with version 11, and by
+  `illnessEventId` too with version 12). A row of `KEPT_WHEN_DELETED` (`medicine`) stays when deleted, here
   or on the server, marked `deleted: true` (sync.md, Client). A row holds the
   fields the pull sent and `version`, the Version it was pulled with (none on a row created here
   until the pull brings it back). Also there:
@@ -957,11 +958,11 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   `conditions`, `illnesses` and `ended` (the sections) are `undefined` until both are read. A
   Condition added or switched to goes one past the largest `position` of the card's Conditions
   (1 for the first); `moveCondition` writes only the `position` (`positionAfterMove` over `positionsOf`, where one without a `position` counts as one past
-  the one before it); `end` and `resume` write only `ended`; `lastAmountOf` looks at every event on the card (any Illness or Condition). The `save…`
+  the one before it); `end` and `resume` write only `ended`; `lastAmountOf` looks at every event on the card (any Illness or Condition); `illnessOfEvent(eventId)` is the Illness or Condition on the card an event is in. The `save…`
   add the event to `{illnessId}`, or, for `{newIllnessName}` (an `IllnessChoice`), create the Illness
   (`memberId` or `childId`, `kind`, `name`) and the event in one Outbox batch (`upsertRows`); a
   dose of `{newMedicineName}` (a `MedicineChoice`) puts the Medicine first in that batch. They
-  resolve at once, offline too. `useMedicines()` → `{load (not deleted, by name), all, nameOf(id),
+  resolve at once, offline too, with the id of the event's Illness (a new one's too). `useMedicines()` → `{load (not deleted, by name), all, nameOf(id),
   add, rename, remove}` on `useSyncedRows('medicine')`; `add` and `rename` reject with
   `ApiError` `medicine.duplicate` for a name the list has (ignoring case), writing nothing.
 - **Documents** (#133): the card's row «Документы (n)» (its own `GroupedSection`, after
@@ -976,7 +977,10 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   uploading), then uploads; offline it says «Нужен интернет, чтобы прикрепить файл» and keeps the
   sheet; the server's `document.too_large` and `document.unsupported_type` show as «Файл больше 20
   МБ» and «Можно прикрепить PDF или фото» (`ERROR_KEYS`); `document.event_has_document` (an
-  Illness event that already carries one, #134) as «К этой записи уже прикреплён документ».
+  Illness event that carries a Document this device didn't know of, e.g. one just attached on
+  another device) as «К этой записи уже прикреплён документ». Each row's date is followed by the
+  Illness or Condition the Document's event is in, when it is on one: «2 декабря · ОРВИ»
+  (`medical.documentOfIllness`, `useMedicalCard().illnessOfEvent`).
   `DocumentPage` (`…/documents/:documentId`) shows the file in a `FileViewer`: a photo fitted
   full screen; a PDF behind «Открыть PDF», which opens its object URL with `window.open(url,
   '_blank')` in a window of its own. Why not embedded: Safari on an iPhone (and a Home Screen app)
@@ -998,15 +1002,42 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   `'pdf'` or `'photo'`, for the viewer and the sheet's summary. `useDocumentFile(document)`
   opens the file: the copy in the `family-app-documents` cache (keyed by the file's URL,
   `/api/documents/<id>/file`), else `api.file` and `keepFile`, then an object URL (revoked on
-  unmount); `{status: 'loading' | 'ready' | 'failed'}`.
+  unmount); `{status: 'loading' | 'ready' | 'failed'}`. `titleOf(file)` is a file's name without
+  its extension, a new Document's default title.
+- **Documents on events** (#134): the dose, Temperature and Note sheets (`EventSheet`) end with
+  «Документ» (`FileRow`; the chosen file's name, else the title of the Document the event carries,
+  else «Выбрать»). «Готово» saves the event through the Outbox as before, then, with a file,
+  attaches it (`useEventDocuments(person).attach`): `flushOutbox()` first, so the event is on the
+  server, then the upload with `illnessEventId`, titled after the file and dated like the event, and
+  `replaces` the Document the event carried, which the server deletes in the same request. Offline
+  (or any failure) the event stays saved and the sheet stays open with «Нужен интернет, чтобы
+  прикрепить файл» (or the error); «Готово» again changes the same event (its id is made once when
+  the sheet opens, and it stays in the Illness it was saved into, a new one included) and retries
+  the upload with the same Document id. An event's row on the Illness screen shows 📎 at its right
+  end when it carries a Document (`ListRow`'s `accessory`, a link of its own beside the row's
+  button, named «Открыть «…»»), opening it at `…/illnesses/:illnessId/documents/:documentId`
+  (`DocumentPage`, back to the Illness's Documents). The Illness screen's «Документы (n)» (after
+  «с …») opens `DocumentsPage` under the Illness (`…/illnesses/:illnessId/documents`, back to the
+  Illness): only its events' Documents, with no «+ Документ» (they are added from the events). Its
+  delete confirmation adds the Documents: «Вместе с ней удалятся 6 событий и 2 документа.»
+  (`medical.deleteIllnessEventsAndDocuments` with `medical.documentCount`), the plain events line
+  when there are none. Deleting an event or an Illness also deletes their events' Documents here
+  at once (`removeOfEvents`, through the Outbox, files forgotten), so they are gone offline too;
+  the server does the same in the same operation. «Перенести в…» needs nothing more: a Document
+  names its event, which moves. `useEventDocuments(person)` → `{of(eventId), ofEvents(events)
+  (newest first), attach(id, eventId, file, date), removeOfEvents(events)}` on `useRows('document')`.
 - Store: `illness` depends on `child` (`childId`), `illness_event` on `illness` (`illnessId`),
-  `document` on `child` (`childId`), in `DEPENDENT_TABLES` and in the fake sync server's
-  `CASCADES`.
+  `document` on `child` (`childId`) and on `illness_event` (`illnessEventId`, #134), in
+  `DEPENDENT_TABLES` and in the fake sync server's `CASCADES`.
 - Tests: `features/medical/medicalCard.test.tsx`, `medicines.test.tsx` (Settings, the store
   upgrade to version 10), `medicineDoses.test.tsx`, `illnessEditing.test.tsx` (#131),
   `endedConditions.test.tsx` (#132), `documents.test.tsx` (#133: adding, listing, opening,
   reopening offline from the cache, logout clearing it, editing, deleting, the messages, the store
-  upgrade to version 11).
+  upgrade to version 11), `eventDocuments.test.tsx` (#134: attaching in each sheet, offline and
+  again online, replacing, 📎, an Illness's Documents, the card's labels, the confirmation,
+  deleting, moving, the store upgrade to version 12). `documentsServer()` (`@/test/medical`)
+  checks an event upload as the server does: the event must be on the fake sync server, and carry
+  no Document but the one it `replaces`, which it deletes.
 
 ## PWA
 
