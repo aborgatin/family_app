@@ -41,8 +41,8 @@ interface IllnessPageProps {
  * An Illness or Condition screen (`…/medical/illnesses/:illnessId`), back to its card: titled with
  * its name, «с 2 декабря 2026» (an Illness only), «Документы (n)» (its events' Documents),
  * «Приём лекарства», «Температура» and «Заметка» (a Condition: «Заметка» only)
- * (their sheets, into this one), then its events, newest first, under a header per day (a paperclip opens
- * the Document an event carries), and the
+ * (their sheets, into this one), then its events in one list, newest first, each with its
+ * date in the row (a paperclip opens the Document an event carries), or «Нет событий», and the
  * actions «Завершить» or «Возобновить», and «Удалить». An Ended
  * one stays fully editable. One that is unknown, or is deleted while the screen is open, says so.
  * Data only through `useMedicalCard(person)` and `useEventDocuments(person)`.
@@ -73,7 +73,6 @@ function IllnessScreen({ person }: { person: Person }) {
   const events = eventsInOrder(eventsOf(illness.id));
   const first = firstDay(events);
   const documents = eventDocuments.ofEvents(events);
-  const days = [...new Set(events.map(({ date }) => date))];
   const opened = events.find(({ id }) => id === openedId);
   return (
     <Page title={illness.name} back={back}>
@@ -102,25 +101,24 @@ function IllnessScreen({ person }: { person: Person }) {
                 }
           }
         />
-        {days.map((day) => (
-          <GroupedSection key={day} header={longDay(localDay(day), new Date())}>
-            {events
-              .filter(({ date }) => date === day)
-              .map((event) => (
-                <EventRow
-                  key={event.id}
-                  event={event}
-                  nameOfMedicine={nameOf}
-                  document={eventDocuments.of(event.id)}
-                  documentPath={(id) => documentPath(person, id, illness.id)}
-                  back={illnessBack(person, illness)}
-                  onOpen={() => {
-                    setOpenedId(event.id);
-                  }}
-                />
-              ))}
-          </GroupedSection>
-        ))}
+        <GroupedSection
+          label={t('medical.eventsLabel')}
+          messages={[events.length === 0 && { text: t('medical.noEvents') }]}
+        >
+          {events.map((event) => (
+            <EventRow
+              key={event.id}
+              event={event}
+              nameOfMedicine={nameOf}
+              document={eventDocuments.of(event.id)}
+              documentPath={(id) => documentPath(person, id, illness.id)}
+              back={illnessBack(person, illness)}
+              onOpen={() => {
+                setOpenedId(event.id);
+              }}
+            />
+          ))}
+        </GroupedSection>
         <IllnessActions
           illness={illness}
           end={end}
@@ -211,8 +209,10 @@ function IllnessFields({ illness, rename, describe }: IllnessFieldsProps) {
 }
 
 /**
- * «22:00 · 38,5 °C», a dose «22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» (a deleted Medicine's
- * name too); without a time or a temperature, without those parts.
+ * An event's row: «38,5 °C», a dose «Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» (a deleted Medicine's
+ * name too, without a temperature when none), a Note its title; under it «2 декабря, 22:00» (the
+ * year only when not this one, no time when untimed), then « · » and its Description, cut to one
+ * line.
  */
 function EventRow({
   event,
@@ -235,7 +235,6 @@ function EventRow({
 }) {
   const { t } = useTranslation();
   const parts = [
-    event.time,
     event.kind === 'MEDICINE_DOSE' &&
       t('medical.doseValue', {
         medicine: (event.medicineId == null ? undefined : nameOfMedicine(event.medicineId)) ?? '',
@@ -244,11 +243,13 @@ function EventRow({
     event.temperature != null && formatTemperature(t, event.temperature),
     event.kind === 'NOTE' && (event.title ?? ''),
   ].filter((part) => typeof part === 'string' && part !== '');
+  const day = longDay(localDay(event.date), new Date());
+  const when = event.time == null ? day : t('medical.eventWhen', { date: day, time: event.time });
   return (
     <ListRow
       title={parts.join(t('medical.eventSeparator'))}
       wrapTitle
-      subtitle={event.description ?? undefined}
+      subtitle={[when, event.description ?? ''].filter(Boolean).join(t('medical.eventSeparator'))}
       onClick={onOpen}
       {...(document !== undefined && {
         accessory: {

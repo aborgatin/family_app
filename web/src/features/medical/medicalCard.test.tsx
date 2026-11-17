@@ -403,7 +403,7 @@ describe('«Болезни» on the card', () => {
 });
 
 describe('The Illness screen', () => {
-  it('shows the name, the first day, «Температура» and the events by day, newest first', async () => {
+  it('shows the name, the first day, «Температура» and the events, newest first', async () => {
     const cold = {
       ...illnessRow({ memberId: anna.id }, 'ОРВИ'),
       memberId: null,
@@ -427,15 +427,16 @@ describe('The Illness screen', () => {
     expect(app.location()).toBe(`/children/${masha.id}/medical/illnesses/${cold.id}`);
     expect(screen.getByText('с 1 декабря 2026')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Температура' })).toBeInTheDocument();
-    const today = screen.getByRole('region', { name: '2 декабря' });
     expect(
-      within(today)
-        .getAllByText(/°C/)
+      within(screen.getByRole('region', { name: 'События' }))
+        .getAllByRole('button')
         .map((row) => row.textContent),
-    ).toEqual(['22:00 · 38,5\u00a0°C', '09:30 · 37,8\u00a0°C', '37,1\u00a0°C']);
-    expect(
-      within(screen.getByRole('region', { name: '1 декабря' })).getByText('08:00 · 38,0 °C'),
-    ).toBeInTheDocument();
+    ).toEqual([
+      '38,5\u00a0°C' + '2 декабря, 22:00',
+      '37,8\u00a0°C' + '2 декабря, 09:30',
+      '37,1\u00a0°C' + '2 декабря',
+      '38,0\u00a0°C' + '1 декабря, 08:00',
+    ]);
   });
 
   it('adds a Temperature to this Illness', async () => {
@@ -451,7 +452,7 @@ describe('The Illness screen', () => {
     expect(within(sheet).queryByRole('combobox', { name: 'Добавить к' })).not.toBeInTheDocument();
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
-    expect(await screen.findByText('22:00 · 37,0 °C')).toBeInTheDocument();
+    expect(await screen.findByText('37,0 °C')).toBeInTheDocument();
     await waitFor(() => {
       expect(syncServer.operations('illness_event')[0]?.fields).toMatchObject({
         illnessId: cold.id,

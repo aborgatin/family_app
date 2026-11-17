@@ -442,6 +442,8 @@
     "illnessNotFound": "Такой болезни нет: возможно, её удалили.",
     "illnessSummary": "{{since}} · {{events}}",
     "noEvents": "Нет событий",
+    "eventsLabel": "События",
+    "eventWhen": "{{date}}, {{time}}",
     "events_one": "{{count}} событие",
     "events_few": "{{count}} события",
     "events_many": "{{count}} событий",

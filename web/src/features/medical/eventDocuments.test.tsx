@@ -159,7 +159,7 @@ describe('«Документ» in the event sheets', () => {
     expect(documents.uploads).toHaveLength(0);
     // Behind the sheet: the Illness screen lists the saved Temperature.
     expect(
-      await screen.findByRole('button', { name: /^22:00 · 37,0\u00a0°C/, hidden: true }),
+      await screen.findByRole('button', { name: /^37,0\u00a0°C/, hidden: true }),
     ).toBeInTheDocument();
 
     network.goOnline();
@@ -205,7 +205,7 @@ describe('«Документ» in the event sheets', () => {
     const documents = documentsServer();
     const user = userEvent.setup();
     await openIllness(cold);
-    await user.click(screen.getByRole('button', { name: /^20:00 · 38,5\u00a0°C/ }));
+    await user.click(screen.getByRole('button', { name: /^38,5\u00a0°C/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Температура' });
     expect(within(sheet).getByLabelText('Документ').closest('label')).toHaveTextContent('Анализ');
 
@@ -248,7 +248,7 @@ describe('The paperclip on an event’s row', () => {
 
     const opener = await screen.findByRole('link', { name: 'Открыть «Анализ крови»' });
     expect(screen.getAllByRole('link', { name: /^Открыть/ })).toHaveLength(1);
-    expect(screen.getByRole('button', { name: /^20:00 · 38,5\u00a0°C/ })).not.toContainElement(
+    expect(screen.getByRole('button', { name: /^38,5\u00a0°C/ })).not.toContainElement(
       opener,
     );
     await user.click(opener);
@@ -347,7 +347,7 @@ describe('Deleting', () => {
     const user = userEvent.setup();
     await openIllness(cold);
 
-    await user.click(screen.getByRole('button', { name: /^20:00 · 38,5\u00a0°C/ }));
+    await user.click(screen.getByRole('button', { name: /^38,5\u00a0°C/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Температура' });
     await user.click(within(sheet).getByRole('button', { name: 'Удалить' }));
     await user.click(
@@ -424,7 +424,7 @@ describe('«Перенести в…»', () => {
     const user = userEvent.setup();
     await openIllness(cold);
 
-    await user.click(screen.getByRole('button', { name: /^20:00 · 38,5\u00a0°C/ }));
+    await user.click(screen.getByRole('button', { name: /^38,5\u00a0°C/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Температура' });
     await user.click(within(sheet).getByRole('button', { name: 'Перенести в…' }));
     await user.click(await screen.findByRole('button', { name: 'Грипп' }));

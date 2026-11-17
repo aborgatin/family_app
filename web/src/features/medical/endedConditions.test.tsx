@@ -298,7 +298,7 @@ describe('Ending and resuming', () => {
     await user.click(within(newEvent).getByRole('button', { name: 'Готово' }));
     expect(await screen.findByRole('button', { name: /Анализы готовы/ })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /08:00 · 38,5\u00a0°C/ }));
+    await user.click(screen.getByRole('button', { name: /^38,5\u00a0°C/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Температура' });
     await user.click(within(sheet).getByRole('button', { name: 'Перенести в…' }));
     const choices = screen.getByRole('dialog', { name: 'Перенести в…' });

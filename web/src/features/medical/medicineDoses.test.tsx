@@ -318,7 +318,7 @@ describe('The prefilled amount', () => {
 });
 
 describe('Dose rows on the Illness screen', () => {
-  it('read «22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C», a deleted Medicine’s name included', async () => {
+  it('read «Ибупрофен 20 мг/мл — 5 мл · 38,5 °C», a deleted Medicine’s name included', async () => {
     const ibuprofen = medicineRow('Ибупрофен 20 мг/мл');
     const nurofen = medicineRow('Нурофен', true);
     const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
@@ -331,10 +331,13 @@ describe('Dose rows on the Illness screen', () => {
 
     renderApp(`/medical/illnesses/${cold.id}`);
 
-    const day = await screen.findByRole('region', { name: '2 декабря' });
+    const events = await screen.findByRole('region', { name: 'События' });
     await waitFor(() => {
-      expect(day).toHaveTextContent(
-        '2 декабря' + '22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C' + 'Нурофен — 1 таблетка',
+      expect(events).toHaveTextContent(
+        'Ибупрофен 20 мг/мл — 5 мл · 38,5 °C' +
+          '2 декабря, 22:00' +
+          'Нурофен — 1 таблетка' +
+          '2 декабря',
         { normalizeWhitespace: false },
       );
     });
@@ -364,7 +367,7 @@ describe('Dose rows on the Illness screen', () => {
     settings.unmount();
 
     const illness = renderApp(`/medical/illnesses/${cold.id}`, { offline: true });
-    expect(await screen.findByText('20:00 · Ибупрофен — 5 мл')).toBeInTheDocument();
+    expect(await screen.findByText('Ибупрофен — 5 мл')).toBeInTheDocument();
     illness.unmount();
 
     // Synced: the server keeps it, deleted, with its name.
@@ -373,7 +376,7 @@ describe('Dose rows on the Illness screen', () => {
     await waitFor(() => {
       expect(syncServer.operations('medicine')).toHaveLength(1);
     });
-    expect(await screen.findByText('20:00 · Ибупрофен — 5 мл')).toBeInTheDocument();
+    expect(await screen.findByText('Ибупрофен — 5 мл')).toBeInTheDocument();
   });
 });
 
@@ -392,7 +395,7 @@ describe('Offline', () => {
     await done(user, sheet);
 
     await user.click(await screen.findByRole('link', { name: /Болезнь 2 декабря 2026/ }));
-    expect(await screen.findByText('22:00 · Ибупрофен — 5 мл')).toBeInTheDocument();
+    expect(await screen.findByText('Ибупрофен — 5 мл')).toBeInTheDocument();
     expect(syncServer.operations('medicine')).toHaveLength(0);
     syncServer.goOnline();
     window.dispatchEvent(new Event('online'));
@@ -432,6 +435,6 @@ describe('Offline', () => {
     expect(screen.queryByText(/Не удалось сохранить/)).not.toBeInTheDocument();
     await user.click(within(next).getByRole('button', { name: 'Отмена' }));
     await user.click(await screen.findByRole('link', { name: /Болезнь 2 декабря 2026/ }));
-    expect(await screen.findByText('22:00 · нурофен — 5 мл')).toBeInTheDocument();
+    expect(await screen.findByText('нурофен — 5 мл')).toBeInTheDocument();
   });
 });
