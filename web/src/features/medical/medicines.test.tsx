@@ -215,16 +215,15 @@ describe('Renaming and deleting a Medicine', () => {
 
 describe('The store upgrade that adds Medicines', () => {
   it('sends a change still waiting in the store of the app version before them', async () => {
-    // The store as the app before Medicines created it (schema version 9), with an Illness on
-    // Anna's card made offline and not sent yet.
+    // The store as the app before Medical cards created it (schema version 8), with an operation
+    // waiting in its Outbox.
     const cold = {
       id: fixtureId('3ed1ffff', 1),
       memberId: anna.id,
       kind: 'ILLNESS',
       name: 'ОРВИ',
     };
-    await upgradeStoreFrom(9, async (older) => {
-      await older.table('illness').put(cold);
+    await upgradeStoreFrom(8, async (older) => {
       await older.table('outbox').add({
         table: 'illness',
         id: cold.id,

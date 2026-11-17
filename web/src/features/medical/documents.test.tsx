@@ -402,9 +402,9 @@ describe('Editing and deleting a Document', () => {
 });
 
 describe('The local store', () => {
-  it('upgrades a version 10 store: its unsent change is still sent, and Documents arrive', async () => {
+  it('upgrades a version 8 store: its unsent change is still sent, and Documents arrive', async () => {
     const cold = illnessRow({ memberId: anna.id }, 'ОРВИ');
-    await upgradeStoreFrom(10, async (older) => {
+    await upgradeStoreFrom(8, async (older) => {
       await older.table('outbox').add({
         table: 'illness',
         id: cold.id,

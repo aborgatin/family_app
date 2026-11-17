@@ -112,15 +112,15 @@ export const STORE_SCHEMA: readonly Readonly<Record<string, string>>[] = [
   { child_field_value: 'id, childId, childFieldId' },
   // The Member's own Mutes (spec #104), dependent on their List.
   { mute: 'id, listId' },
-  // Medical cards (spec #128): Illnesses, dependent on their Child (none for a Member's card),
-  // and their Illness events, dependent on their Illness.
-  { illness: 'id, childId', illness_event: 'id, illnessId' },
-  // The Family's Medicines (ticket #130), which Medicine doses name.
-  { medicine: 'id' },
-  // Documents on Medical cards (ticket #133), dependent on their Child (none for a Member's card).
-  { document: 'id, childId' },
-  // Documents indexed by their Illness event too (ticket #134), a dependent table of it.
-  { document: 'id, childId, illnessEventId' },
+  // Medical cards (spec #128): Illnesses, dependent on their Child (none for a Member's card);
+  // their Illness events, dependent on their Illness; the Family's Medicines, which Medicine doses
+  // name; Documents, dependent on their Child and on their Illness event.
+  {
+    illness: 'id, childId',
+    illness_event: 'id, illnessId',
+    medicine: 'id',
+    document: 'id, childId, illnessEventId',
+  },
 ];
 
 interface Meta {

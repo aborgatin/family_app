@@ -381,10 +381,10 @@ describe('Deleting offline', () => {
 });
 
 describe('The local store', () => {
-  it('upgrades a version 11 store: its unsent change is still sent, and an Illness deleted on the server takes its events’ Documents', async () => {
+  it('upgrades a version 8 store: its unsent change is still sent, and an Illness deleted on the server takes its events’ Documents', async () => {
     const { cold } = orviWithADocument();
     const visit = noteEventRow(cold, '2026-12-02', null, 'Сходили к доктору');
-    await upgradeStoreFrom(11, async (older) => {
+    await upgradeStoreFrom(8, async (older) => {
       await older.table('outbox').add({
         table: 'illness_event',
         id: visit.id,

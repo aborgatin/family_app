@@ -254,14 +254,13 @@ code that touches IndexedDB or the sync API:
 
 - `localStore.ts`: the Dexie database `family-app`: a table per entry of `SYNCED_TABLES`
   (`member`, `child`, `child_field`, `child_field_value`, `list`, `item`, `category`, `item_history`, `mute`, `illness`,
-  `illness_event`, `medicine`; `child_field`
+  `illness_event`, `medicine`, `document`; `child_field`
   and `list` came with store version 2, `item`, indexed by `listId`, with version 3, `category`,
   indexed by `listId`, with version 4, `item_history`, indexed by `listId`, with version 5;
   version 6 indexes `list` by `childId`, for Child lists; `child_field_value`, indexed by
   `childId` and `childFieldId`, came with version 7; `mute`, indexed by `listId`, with version 8;
-  `illness`, indexed by `childId`, and `illness_event`, indexed by `illnessId`, with version 9;
-  `medicine` with version 10; `document`, indexed by `childId`, with version 11, and by
-  `illnessEventId` too with version 12). A row of `KEPT_WHEN_DELETED` (`medicine`) stays when deleted, here
+  the Medical card tables with version 9: `illness`, indexed by `childId`, `illness_event`,
+  indexed by `illnessId`, `medicine`, and `document`, indexed by `childId` and `illnessEventId`). A row of `KEPT_WHEN_DELETED` (`medicine`) stays when deleted, here
   or on the server, marked `deleted: true` (sync.md, Client). A row holds the
   fields the pull sent and `version`, the Version it was pulled with (none on a row created here
   until the pull brings it back). Also there:
@@ -1035,12 +1034,12 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   `document` on `child` (`childId`) and on `illness_event` (`illnessEventId`, #134), in
   `DEPENDENT_TABLES` and in the fake sync server's `CASCADES`.
 - Tests: `features/medical/medicalCard.test.tsx`, `medicines.test.tsx` (Settings, the store
-  upgrade to version 10), `medicineDoses.test.tsx`, `illnessEditing.test.tsx` (#131),
+  upgrade from version 8), `medicineDoses.test.tsx`, `illnessEditing.test.tsx` (#131),
   `endedConditions.test.tsx` (#132), `documents.test.tsx` (#133: adding, listing, opening,
   reopening offline from the cache, logout clearing it, editing, deleting, the messages, the store
-  upgrade to version 11), `eventDocuments.test.tsx` (#134: attaching in each sheet, offline and
+  upgrade from version 8), `eventDocuments.test.tsx` (#134: attaching in each sheet, offline and
   again online, replacing, 📎, an Illness's Documents, the card's labels, the confirmation,
-  deleting, moving, the store upgrade to version 12). `documentsServer()` (`@/test/medical`)
+  deleting, moving, the store upgrade from version 8). `documentsServer()` (`@/test/medical`)
   checks an event upload as the server does: the event must be on the fake sync server, and carry
   no Document but the one it `replaces`, which it deletes.
 
