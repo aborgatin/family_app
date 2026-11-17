@@ -5,6 +5,7 @@ import {
   localStore,
   removeLocally,
   storedVersion,
+  storedVersionCoversEveryTable,
   storeVersion,
   type Operation,
   wipeLocalStore,
@@ -233,12 +234,14 @@ async function pushOutbox(current: () => boolean) {
 /**
  * Pulls the changes since the stored Version and applies them: pulled rows replace local ones,
  * then the Outbox operations still pending for those ids are applied again on top, so a pull never
- * reverts an unsent local edit. A full pull (first sync, or after a rejection) replaces every row.
+ * reverts an unsent local edit. A full pull (first sync, after a rejection, or when an update
+ * added a table the stored Version doesn't cover) replaces every row.
  * A deleted row stays deleted: pending upserts for it are not applied again (delete wins), and a
  * deleted List's Items go with it.
  */
 async function pull(current: () => boolean) {
-  const full = fullPullNeeded || (await storedVersion()) === 0;
+  const full =
+    fullPullNeeded || (await storedVersion()) === 0 || !(await storedVersionCoversEveryTable());
   const since = full ? 0 : await storedVersion();
   const response = await api.get<PullResponse>(`/api/sync/pull?since=${String(since)}`);
   if (!current()) return;

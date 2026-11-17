@@ -9,6 +9,7 @@ import {
   membersHandler,
   sessionHandler,
 } from '@/test/fixtures';
+import { FakeEventSource } from '@/test/eventSource';
 import { illnessRow, selectedText, temperatureRow } from '@/test/medical';
 import { upgradeStoreFrom } from '@/test/olderStore';
 import { renderApp } from '@/test/renderApp';
@@ -559,5 +560,42 @@ describe('The store upgrade that adds Medical cards', () => {
       expect(syncServer.operations('illness_event')).toHaveLength(1);
     });
     expect(syncServer.operations('illness')[0]?.fields).toMatchObject({ childId: masha.id });
+  });
+
+  it('gets the rows an app version without Medical cards pulled and skipped', async () => {
+    // The app before Medical cards pulled «ОРВИ» but kept no table for it, and stored the Version
+    // past it: a pull since that Version would never send it again.
+    syncServer.seed('child', [masha]);
+    syncServer.seed('illness', [illnessRow({ childId: masha.id }, 'ОРВИ')]);
+    await upgradeStoreFrom(8, async (older) => {
+      await older.table('child').put({ ...masha, version: 1 });
+      await older.table('meta').put({ key: 'version', value: syncServer.latestVersion });
+    });
+
+    renderApp(`/children/${masha.id}/medical`);
+
+    expect(await screen.findByRole('link', { name: /ОРВИ/ })).toBeInTheDocument();
+    expect(syncServer.pulls[0]).toBe(0);
+  });
+
+  it('pulls only what is new once its store has had a full pull', async () => {
+    syncServer.seed('child', [masha]);
+    renderApp(`/children/${masha.id}/medical`);
+    await cardTitle();
+    await waitFor(() => {
+      expect(syncServer.pulls).toEqual([0]);
+    });
+    const known = syncServer.latestVersion;
+    await waitFor(() => {
+      expect(FakeEventSource.instances).not.toHaveLength(0);
+    });
+    const sse = FakeEventSource.latest();
+    sse.open();
+
+    syncServer.seed('illness', [illnessRow({ childId: masha.id }, 'ОРВИ')]);
+    sse.emit('changed', JSON.stringify({ version: syncServer.latestVersion }));
+
+    expect(await screen.findByRole('link', { name: /ОРВИ/ })).toBeInTheDocument();
+    expect(syncServer.pulls.at(-1)).toBe(known);
   });
 });
