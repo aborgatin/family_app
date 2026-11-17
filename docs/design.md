@@ -472,7 +472,7 @@ Enter / Space activate them.
 
 `wrapSubtitle` shows the whole subtitle, wrapped, instead of cutting it with «…» (a link to copy
 by hand). `wrapTitle` does the same for the title, wrapping between words: an Illness event's
-line, whose parts all count («22:00 · Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» on a phone). A `Button` can go in `value` (the «Скопировать» of a link that wasn't copied).
+title, whose parts all count («Ибупрофен 20 мг/мл — 5 мл · 38,5 °C» on a phone), its date and Description in the subtitle under it, cut with «…». A `Button` can go in `value` (the «Скопировать» of a link that wasn't copied).
 
 `accessory` (with `onClick`): a second control in the same cell, a link at the right end beside
 the row's button, with its own name and press tint, as wide as a touch target (44px; 36px with a

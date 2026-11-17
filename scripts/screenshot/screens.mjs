@@ -1659,7 +1659,8 @@ export default {
       ],
     },
     {
-      // A Condition's screen: no start date; «Тип» on «Диагноз/наблюдение», «Завершить».
+      // A Condition's screen: no start date, only «Заметка» to add, its Note in the list with its
+      // date, «Завершить»; no «Тип» (review follow-up C1, C2).
       name: "medical-condition",
       path: "/",
       steps: [
@@ -1669,6 +1670,20 @@ export default {
           click: `${section("Диагнозы/наблюдения")} >> role=link[name=/Зрение/]`,
         },
         { waitFor: 'role=button[name="Завершить"]' },
+      ],
+    },
+    {
+      // «+ Новая болезнь» at the end of «Болезни»: the new Illness's sheet, with its placeholder
+      // (review follow-up C4).
+      name: "medical-new-illness-sheet",
+      path: "/",
+      fullPage: false,
+      steps: [
+        { click: childCard("Маша") },
+        { click: 'role=link[name="Медкарта"]' },
+        { click: `${section("Болезни")} >> role=button[name="+ Новая болезнь"]` },
+        { waitFor: 'role=dialog[name="Новая болезнь"]' },
+        { wait: 400 },
       ],
     },
     {
@@ -1734,8 +1749,9 @@ export default {
       ],
     },
     {
-      // «ОРВИ»: its name and Description, its first day, «Температура», «Заметка», the events by
-      // day, newest first (the untimed ones last), and «Удалить».
+      // «ОРВИ»: its name and Description, its first day, «Приём лекарства», «Температура»,
+      // «Заметка», the events in one list, newest first (a day's untimed ones last), each with its
+      // date (and time) under what happened, and «Удалить» (review follow-up C5).
       name: "medical-illness",
       path: "/",
       steps: [
@@ -1888,7 +1904,8 @@ export default {
       ],
     },
     {
-      // «Перенести в…»: Маша's other Illnesses that aren't Ended, and «Новая болезнь».
+      // «Перенести в…» on a Note: Маша's other Illnesses and Conditions that aren't Ended, and
+      // «Новая болезнь» (a dose or Temperature is offered Illnesses only).
       name: "medical-event-move",
       path: "/",
       fullPage: false,
@@ -1896,7 +1913,7 @@ export default {
         { click: childCard("Маша") },
         { click: 'role=link[name="Медкарта"]' },
         { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
-        { click: 'role=button[name="Сходили к доктору"]' },
+        { click: "role=button[name=/^Сходили к доктору/]" },
         { click: 'role=dialog >> role=button[name="Перенести в…"]' },
         {
           waitFor:
@@ -1906,7 +1923,8 @@ export default {
       ],
     },
     {
-      // An Illness whose only event was deleted stays, empty, until it is deleted itself.
+      // An Illness whose only event was deleted stays, empty («Нет событий»), until it is deleted
+      // itself.
       name: "medical-illness-empty",
       path: "/",
       isolate: true,
@@ -1972,7 +1990,7 @@ export default {
         { click: childCard("Маша") },
         { click: 'role=link[name="Медкарта"]' },
         { click: `${section("Болезни")} >> role=link[name=/ОРВИ/]` },
-        { click: 'role=button[name="Сходили к доктору"]' },
+        { click: "role=button[name=/^Сходили к доктору/]" },
         { waitFor: "role=dialog >> text=Заключение ЛОРа" },
         { wait: 400 },
       ],
