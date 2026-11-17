@@ -111,9 +111,7 @@ export function useDocuments(person: Person) {
 
 /** A Document's file being opened: an object URL for the viewer once it is there. */
 export type DocumentFile =
-  | { status: 'loading' }
-  | { status: 'ready'; url: string }
-  | { status: 'failed'; error: ApiError };
+  { status: 'loading' } | { status: 'ready'; url: string } | { status: 'failed'; error: ApiError };
 
 /**
  * Opens a Document's file: the copy kept on this device, or else downloaded (online only) and
