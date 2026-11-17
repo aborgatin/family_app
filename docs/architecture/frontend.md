@@ -1012,7 +1012,10 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   its extension, a new Document's default title.
 - **Documents on events** (#134): the dose, Temperature and Note sheets (`EventSheet`) end with
   «Документ» (`FileRow`; the chosen file's name, else the title of the Document the event carries,
-  else «Выбрать»). «Готово» saves the event through the Outbox as before, then, with a file,
+  else «Выбрать»). Editing an event that carries a Document, while no new file is chosen, the row
+  opens it (`EventEditing.openDocument`: the Document's screen under the Illness, back to the
+  Illness, as its row's 📎 does; the sheet goes with the Illness screen), and its 📎, «Заменить
+  файл», picks a file to replace it. «Готово» saves the event through the Outbox as before, then, with a file,
   attaches it (`useEventDocuments(person).attach`): `flushOutbox()` first, so the event is on the
   server, then the upload with `illnessEventId`, taking the event's date and the file's name
   (`titleOf`) as its title, which the Documents screen edits later like any Document's, and

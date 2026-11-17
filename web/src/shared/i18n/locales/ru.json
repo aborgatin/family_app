@@ -483,6 +483,7 @@
     "documentCount_many": "{{count}} документов",
     "documentCount_other": "{{count}} документа",
     "openDocument": "Открыть «{{title}}»",
+    "replaceFile": "Заменить файл",
     "documentOfIllness": "{{date}} · {{illness}}",
     "noteEvent": "Заметка",
     "confirmDeleteEvent": "Удалить событие?",

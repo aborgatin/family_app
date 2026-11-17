@@ -346,7 +346,10 @@ turns red. Like a `ListRow` in height and hover. «Документ» at the end
 sheet (#134) is one too, showing the chosen file's name, else the title of the Document the event
 carries: there is no title or date to fill in, the upload takes the event's date and the file's
 name (without its extension) as its title; both are edited later on the Documents screen, like
-any Document's.
+any Document's. With `open` (a file the field already holds, e.g. the event's Document while no
+new file is chosen) the row is a link that opens that file, named «Открыть «…»», and a paperclip
+at its right end, named `replaceLabel` («Заменить файл»), is the picker, as `ListRow`'s
+accessory sits beside its button.
 
 ### FileViewer
 

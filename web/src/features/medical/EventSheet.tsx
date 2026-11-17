@@ -65,6 +65,8 @@ export interface EventEditing {
   illnesses: readonly Illness[];
   /** Deletes the event (after «Удалить» is confirmed). */
   remove: () => Promise<unknown>;
+  /** Where the Document the event carries opens, and the history state that brings back here. */
+  openDocument: (documentId: string) => { to: string; state: unknown };
 }
 
 interface EventSheetProps extends EventTarget {
@@ -249,6 +251,15 @@ export function EventSheet({
             name="file"
             accept={DOCUMENT_TYPES}
             value={file?.name ?? attached?.title ?? t('medical.chooseFile')}
+            {...(file === undefined &&
+              attached !== undefined &&
+              editing !== undefined && {
+                open: {
+                  ...editing.openDocument(attached.id),
+                  label: t('medical.openDocument', { title: attached.title }),
+                  replaceLabel: t('medical.replaceFile'),
+                },
+              })}
             onChange={(chosen) => {
               setFile(chosen);
               setFormError(undefined);
