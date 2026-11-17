@@ -7,7 +7,10 @@ CREATE TABLE medicine (
   name       TEXT NOT NULL,
   version    BIGINT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL,
-  deleted    BOOLEAN NOT NULL DEFAULT FALSE
+  deleted    BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Set on a new Medicine kept deleted because another one already had its name (both added
+  -- offline): the one that survived, which the doses naming this one name instead.
+  merged_into UUID REFERENCES medicine (id)
 );
 
 -- The name is unique ignoring case among Medicines that aren't deleted (medicine.duplicate).

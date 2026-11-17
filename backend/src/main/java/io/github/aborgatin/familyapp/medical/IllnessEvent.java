@@ -41,7 +41,13 @@ class IllnessEvent implements SyncedRecord {
       @Nullable String amount,
       @Nullable BigDecimal temperature,
       @Nullable String title,
-      @Nullable String description) {}
+      @Nullable String description) {
+
+    /** The same details naming another Medicine. */
+    Details naming(@Nullable UUID medicineId) {
+      return new Details(kind, date, time, medicineId, amount, temperature, title, description);
+    }
+  }
 
   @Id private UUID id;
 

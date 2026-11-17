@@ -282,15 +282,18 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   event** soft-deletes its Document (files after the commit, #134); **deleting a Child** soft-deletes their
   Illnesses and those Illnesses' events, in the same operation. A dose's `medicineId` must name a
   Medicine that exists, a deleted one included; one that never existed is `medical.not_found`
-  (`params.medicineId`).
+  (`params.medicineId`); one merged into another (below) is stored as that other one.
 - **Medicines** (`medicine`, ticket #130; owned by `medical`): the Family's list, seen by every
   Member. An upsert creates or renames: `name` (trimmed, required). A name is unique ignoring
   letter case among Medicines that aren't deleted; the app checks its own list first, so a clash
   comes only from the other Member's Medicine of the same name pushed first. A **rename** to a
   taken name is `medicine.duplicate` (409). A **create** with a taken name (both Members added it
   offline, maybe inline with a dose at night) is `ignored` and stored as a deleted Medicine with
-  its name, as an Illness for a deleted Child is: the doses pushed with it are applied and keep
-  showing its name, and the picker shows only the first one. A delete soft-deletes the Medicine and nothing else: doses keep
+  its name, **merged into** the first one (`merged_into`, server-only): a dose naming it, pushed
+  with it or later, a new one or an edit, is applied naming the first one instead, so the
+  device that sent it gets the dose back with the surviving `medicineId` on its next pull, and
+  the next dose's prefill, the dose's name and «Лекарства» all count it on the surviving Medicine.
+  The picker shows only the first one. A delete soft-deletes the Medicine and nothing else: doses keep
   naming it, and anything later on it is `ignored`. **The pull never tombstones a Medicine**: a
   deleted one comes as a row with its `name` and `deleted: true` (a live one with `deleted:
   false`), in a full pull too, so a past dose shows its name on every device, a new one included.

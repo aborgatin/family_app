@@ -101,7 +101,7 @@ class MedicineSyncTest {
   }
 
   @Test
-  void theSameNewNameAddedOfflineByBothMembersKeepsTheSecondOnesDose() throws Exception {
+  void theSameNewNameAddedOfflineByBothMembersPutsTheSecondOnesDoseOnTheFirst() throws Exception {
     UUID annas = UUID.randomUUID();
     UUID boriss = UUID.randomUUID();
     UUID dose = UUID.randomUUID();
@@ -111,15 +111,29 @@ class MedicineSyncTest {
     SyncRequests.push(boris, medicine(boriss, "нурофен"), dose(dose, cold, boriss, "5 мл", null))
         .andExpect(jsonPath("$.results[*].status", contains("ignored", "applied")));
 
-    // His Medicine is kept deleted, with its name, so the dose shows it and the picker doesn't.
+    // His Medicine is kept deleted, with its name, so the picker doesn't show it; the dose names
+    // Anna's, which survived, so prefill, the dose's name and «Лекарства» agree on every device.
     for (Browser member : new Browser[] {anna, boris}) {
       assertThat(SyncRequests.fields(member, MEDICINE, boriss))
           .containsEntry("name", "нурофен")
           .containsEntry("deleted", true);
       assertThat(SyncRequests.fields(member, MEDICINE, annas)).containsEntry("deleted", false);
       assertThat(SyncRequests.fields(member, EVENT, dose))
-          .containsEntry("medicineId", boriss.toString());
+          .containsEntry("medicineId", annas.toString());
     }
+
+    // A dose of his Medicine arriving later, and an edit naming it, name Anna's too.
+    UUID later = UUID.randomUUID();
+    UUID edited = UUID.randomUUID();
+    pushApplied(
+        boris,
+        dose(later, cold, boriss, "5 мл", null),
+        dose(edited, cold, annas, "5 мл", null),
+        SyncRequests.upsert(EVENT, edited, "{\"medicineId\":\"%s\"}".formatted(boriss)));
+    assertThat(SyncRequests.fields(anna, EVENT, later))
+        .containsEntry("medicineId", annas.toString());
+    assertThat(SyncRequests.fields(anna, EVENT, edited))
+        .containsEntry("medicineId", annas.toString());
   }
 
   @Test

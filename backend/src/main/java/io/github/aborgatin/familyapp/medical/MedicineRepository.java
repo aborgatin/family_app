@@ -21,9 +21,9 @@ interface MedicineRepository extends Repository<Medicine, UUID> {
   /** Every Medicine written after this Version, deleted ones included (for the pull). */
   List<Medicine> findByVersionGreaterThan(long version);
 
-  /** Whether a Medicine other than {@code id} that isn't deleted has this name, ignoring case. */
+  /** The Medicine other than {@code id} that isn't deleted and has this name, ignoring case. */
   @Query(
-      "SELECT COUNT(m) > 0 FROM Medicine m WHERE lower(m.name) = lower(:name) AND m.deleted ="
-          + " FALSE AND m.id <> :id")
-  boolean nameTaken(@Param("name") String name, @Param("id") UUID id);
+      "SELECT m FROM Medicine m WHERE lower(m.name) = lower(:name) AND m.deleted = FALSE"
+          + " AND m.id <> :id")
+  Optional<Medicine> findNamed(@Param("name") String name, @Param("id") UUID id);
 }

@@ -33,7 +33,8 @@ class MedicineService implements SyncableTable {
    * An upsert creates the Medicine or renames it ({@code name} required, trimmed); a delete
    * soft-deletes it, and doses keep naming it. Delete wins. A rename to a name that another
    * Medicine which isn't deleted has, ignoring case, is {@code medicine.duplicate}; a new one with
-   * such a name is ignored and kept deleted, so the doses logged with it are not lost.
+   * such a name is ignored, kept deleted and merged into that one: the doses logged with it are
+   * not lost, and name the surviving Medicine ({@link #forDose}).
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -51,17 +52,18 @@ class MedicineService implements SyncableTable {
       errors.add("name", FieldErrors.REQUIRED);
     }
     errors.throwIfAny();
-    boolean taken = medicines.nameTaken(name, operation.id());
-    if (taken && existing.isPresent()) {
+    Optional<Medicine> taken = medicines.findNamed(name, operation.id());
+    if (taken.isPresent() && existing.isPresent()) {
       throw new ApiException(HttpStatus.CONFLICT, "medicine.duplicate");
     }
     Medicine medicine = existing.orElseGet(() -> new Medicine(operation.id(), name));
     medicine.rename(name);
-    if (taken) {
+    if (taken.isPresent()) {
       // The other Member added the same name first, both offline. Kept as deleted, with its name,
-      // so the doses logged with it (the same push) are applied and still show it; the picker
-      // shows only the first one.
-      medicine.markDeleted();
+      // and merged into the first one: the doses logged with it (the same push, or later) are
+      // applied naming the first one, so prefill and «Лекарства» count them there. Being new, no
+      // dose names it yet.
+      medicine.mergeInto(taken.get().id());
       medicines.saveAndFlush(medicine);
       return Outcome.IGNORED;
     }
@@ -75,9 +77,12 @@ class MedicineService implements SyncableTable {
     return Outcome.APPLIED;
   }
 
-  /** Whether a dose may name this Medicine: one that exists, deleted or not. */
-  boolean exists(UUID id) {
-    return medicines.existsById(id);
+  /**
+   * The Medicine a dose naming {@code id} names: the one it was merged into, else itself (deleted
+   * or not). One that never existed is {@code medical.not_found}.
+   */
+  UUID forDose(UUID id) {
+    return medicines.findById(id).map(Medicine::forDose).orElseThrow(() -> Medicine.notFound(id));
   }
 
   /**

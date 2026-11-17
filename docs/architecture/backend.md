@@ -632,13 +632,14 @@ Family's Medicines (`medicine`) belong to no card: every Member sees them.
   Illness has the same `Person` (a move to a deleted one is `ignored`); only a new dose publishes
   `MedicineDoseLogged`; `changesSince` loads the changed events' Illnesses (`findByIdIn`, deleted
   ones included) and leaves out those the Member can't see. A dose's `medicineId` must name a
-  Medicine that exists, deleted or not (`MedicineService.exists`), else `medical.not_found`
-  (`params.medicineId`, `Medicine.notFound`).
+  Medicine that exists, deleted or not, else `medical.not_found` (`params.medicineId`,
+  `Medicine.notFound`); `MedicineService.forDose` swaps a merged Medicine for its survivor.
 - `MedicineService` (`medicine`, #130): an upsert creates or renames (`name` required, trimmed);
   a rename to a name another Medicine that isn't deleted has, ignoring case, is
-  `medicine.duplicate` (`MedicineRepository.nameTaken`; the partial unique index on `lower(name)`
-  backs it up), while a create with such a name is stored deleted and `ignored`, so the doses
-  pushed with it are applied ([sync.md](sync.md#push-the-only-write-path)). A
+  `medicine.duplicate` (`MedicineRepository.findNamed`; the partial unique index on `lower(name)`
+  backs it up), while a create with such a name is stored deleted, merged into that Medicine
+  (`Medicine.mergeInto`, column `merged_into`), and `ignored`: the doses naming it are applied
+  naming the survivor ([sync.md](sync.md#push-the-only-write-path)). A
   delete soft-deletes it only. `changesSince` sends every changed Medicine as a row with `name` and
   `deleted`, **never a tombstone**, so past doses keep its name on every device.
 - **Documents** (#133): `DocumentService` is the `document` `SyncableTable` and the upload and

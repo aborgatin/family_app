@@ -12,6 +12,7 @@ import java.util.UUID;
 import org.hibernate.annotations.Generated;
 import org.hibernate.generator.EventType;
 import org.springframework.http.HttpStatus;
+import org.springframework.lang.Nullable;
 
 /**
  * A Medicine (GLOSSARY): one line of the Family's list, its name with its strength. Syncable (S1):
@@ -38,6 +39,9 @@ class Medicine implements SyncedRecord {
   @Column(nullable = false)
   private boolean deleted;
 
+  /** The Medicine this one was merged into (see {@link #mergeInto}); {@code null} if none. */
+  @Nullable private UUID mergedInto;
+
   protected Medicine() {}
 
   Medicine(UUID id, String name) {
@@ -53,6 +57,20 @@ class Medicine implements SyncedRecord {
 
   void rename(String name) {
     this.name = name;
+  }
+
+  /**
+   * Kept deleted, with its name, because {@code survivor} already has it: the doses naming this
+   * Medicine name {@code survivor} instead.
+   */
+  void mergeInto(UUID survivor) {
+    this.mergedInto = survivor;
+    markDeleted();
+  }
+
+  /** The Medicine a dose naming this one names: the one it was merged into, else itself. */
+  UUID forDose() {
+    return mergedInto == null ? id : mergedInto;
   }
 
   /** Soft delete (S2): the row stays, with its name, and its Version advances. */

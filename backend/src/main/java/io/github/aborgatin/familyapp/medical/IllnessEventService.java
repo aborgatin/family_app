@@ -93,10 +93,7 @@ class IllnessEventService implements SyncableTable {
     if (illness.deleted()) {
       return Outcome.IGNORED;
     }
-    UUID medicineId = details.medicineId();
-    if (medicineId != null && !medicines.exists(medicineId)) {
-      throw Medicine.notFound(medicineId);
-    }
+    details = namingSurvivor(details);
     events.saveAndFlush(new IllnessEvent(operation.id(), illnessId, details));
     UUID childId = illness.person().childId();
     if (details.kind() == IllnessEvent.Kind.MEDICINE_DOSE && childId != null) {
@@ -129,15 +126,18 @@ class IllnessEventService implements SyncableTable {
         return Outcome.IGNORED;
       }
     }
-    UUID medicineId = details.medicineId();
-    if (medicineId != null
-        && !medicineId.equals(event.details().medicineId())
-        && !medicines.exists(medicineId)) {
-      throw Medicine.notFound(medicineId);
-    }
-    event.change(illnessId, details);
+    event.change(illnessId, namingSurvivor(details));
     events.saveAndFlush(event);
     return Outcome.APPLIED;
+  }
+
+  /**
+   * The details with the Medicine a dose names: a merged one's survivor ({@link
+   * MedicineService#forDose}); one that never existed is {@code medical.not_found}.
+   */
+  private IllnessEvent.Details namingSurvivor(IllnessEvent.Details details) {
+    UUID medicineId = details.medicineId();
+    return medicineId == null ? details : details.naming(medicines.forDose(medicineId));
   }
 
   /**
