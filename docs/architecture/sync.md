@@ -264,7 +264,8 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   `ignored` too). An `illness_event` upsert of an unknown id carries
   `illnessId`, `kind` (`MEDICINE_DOSE` | `TEMPERATURE` | `NOTE`) and `date` (`YYYY-MM-DD`), with
   `time` (`HH:MM`) optional; a TEMPERATURE needs `temperature`, a NOTE `title`, a dose
-  `medicineId`; `temperature` is 34.0–43.0 with at most one decimal (`value.invalid` otherwise);
+  `medicineId` and `amount` (trimmed, non-blank; a push missing it shows plain «Не удалось
+  сохранить», as any `validation.failed` does: the dose sheet requires it before saving); `temperature` is 34.0–43.0 with at most one decimal (`value.invalid` otherwise);
   an event for a deleted Illness is `ignored`. **Editing** (#131): an upsert of a known `illness`
   changes the `name` (trimmed, required) and `description` (blank is none) it carries; its person
   never changes. It also changes `kind` (`ILLNESS` ⇄ `CONDITION`; another value is

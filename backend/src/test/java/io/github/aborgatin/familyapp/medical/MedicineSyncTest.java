@@ -187,6 +187,23 @@ class MedicineSyncTest {
   }
 
   @Test
+  void aDoseNeedsAnAmount() throws Exception {
+    UUID ibuprofen = UUID.randomUUID();
+    UUID dose = UUID.randomUUID();
+    pushApplied(anna, medicine(ibuprofen, "Ибупрофен"), dose(dose, cold, ibuprofen, "5 мл", null));
+
+    SyncRequests.push(
+            anna,
+            dose(UUID.randomUUID(), cold, ibuprofen, "  ", null),
+            SyncRequests.upsert(EVENT, dose, "{\"amount\":null}"))
+        .andExpect(jsonPath("$.results[*].code", contains("validation.failed", "validation.failed")))
+        .andExpect(
+            jsonPath("$.results[0].params.errors[?(@.field=='amount')].code").value("required"))
+        .andExpect(
+            jsonPath("$.results[1].params.errors[?(@.field=='amount')].code").value("required"));
+  }
+
+  @Test
   void aDoseNeedsAMedicineThatExists() throws Exception {
     UUID unknown = UUID.randomUUID();
 

@@ -189,6 +189,9 @@ class IllnessEventService implements SyncableTable {
         && !errors.has("medicineId")) {
       errors.add("medicineId", FieldErrors.REQUIRED);
     }
+    if (kind == IllnessEvent.Kind.MEDICINE_DOSE && amount == null) {
+      errors.add("amount", FieldErrors.REQUIRED);
+    }
     return new IllnessEvent.Details(
         kind, date, time, medicineId, amount, temperature, title, description);
   }
