@@ -171,6 +171,96 @@ class DocumentsTest {
     assertThat(SyncRequests.fields(anna, DOCUMENT, second)).isNull();
   }
 
+  /** An Illness «ОРВИ» on Маша's card with a Temperature, {@code event}. */
+  void orviWithATemperature(UUID illness, UUID event) throws Exception {
+    pushApplied(
+        anna,
+        illnessOf("childId", masha, illness, "ОРВИ"),
+        temperature(event, illness, "2026-12-02", "22:00", 38.5));
+  }
+
+  /** The form of an upload of a Document to Маша's Illness event. */
+  Map<String, String> onEvent(UUID id, UUID event) {
+    Map<String, String> form = form(id, "childId", masha);
+    form.put("illnessEventId", event.toString());
+    return form;
+  }
+
+  @Test
+  void anUploadThatReplacesTheEventsDocumentDeletesTheOldOneAndItsFile() throws Exception {
+    UUID illness = UUID.randomUUID();
+    UUID event = UUID.randomUUID();
+    orviWithATemperature(illness, event);
+    UUID old = UUID.randomUUID();
+    upload(anna, onEvent(old, event), pdf()).andExpect(status().isCreated());
+    long before = SyncRequests.version(SyncRequests.pull(boris, 0));
+    UUID replacement = UUID.randomUUID();
+    Map<String, String> form = onEvent(replacement, event);
+    form.put("replaces", old.toString());
+
+    upload(anna, form, pdf()).andExpect(status().isCreated());
+
+    assertThat(SyncRequests.change(boris, before, DOCUMENT, old)).containsEntry("deleted", true);
+    assertThat(SyncRequests.fields(boris, DOCUMENT, replacement))
+        .containsEntry("illnessEventId", event.toString());
+    assertThat(files.keys()).containsExactly(Document.objectKey(replacement));
+    anna.get("/api/documents/" + old + "/file")
+        .andExpect(jsonPath("$.code").value("medical.not_found"));
+  }
+
+  @Test
+  void anUploadReplacingAnotherDocumentThanTheEventsIsRefused() throws Exception {
+    UUID illness = UUID.randomUUID();
+    UUID event = UUID.randomUUID();
+    orviWithATemperature(illness, event);
+    upload(anna, onEvent(UUID.randomUUID(), event), pdf()).andExpect(status().isCreated());
+    Map<String, String> form = onEvent(UUID.randomUUID(), event);
+    form.put("replaces", UUID.randomUUID().toString());
+
+    upload(boris, form, pdf())
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("document.event_has_document"));
+
+    assertThat(files.keys()).hasSize(1);
+  }
+
+  @Test
+  void deletingAnIllnessEventDeletesItsDocumentAndFile() throws Exception {
+    UUID illness = UUID.randomUUID();
+    UUID event = UUID.randomUUID();
+    UUID other = UUID.randomUUID();
+    orviWithATemperature(illness, event);
+    pushApplied(anna, temperature(other, illness, "2026-12-03", "08:00", 37.5));
+    UUID id = UUID.randomUUID();
+    UUID kept = UUID.randomUUID();
+    upload(anna, onEvent(id, event), pdf()).andExpect(status().isCreated());
+    upload(anna, onEvent(kept, other), pdf()).andExpect(status().isCreated());
+    long before = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    pushApplied(boris, SyncRequests.delete("illness_event", event));
+
+    assertThat(SyncRequests.change(anna, before, DOCUMENT, id)).containsEntry("deleted", true);
+    assertThat(files.keys()).containsExactly(Document.objectKey(kept));
+    anna.get("/api/documents/" + kept + "/file").andExpect(status().isOk());
+  }
+
+  @Test
+  void deletingAnIllnessDeletesItsEventsDocumentsAndFiles() throws Exception {
+    UUID illness = UUID.randomUUID();
+    UUID event = UUID.randomUUID();
+    UUID cardLevel = UUID.randomUUID();
+    orviWithATemperature(illness, event);
+    UUID id = UUID.randomUUID();
+    upload(anna, onEvent(id, event), pdf()).andExpect(status().isCreated());
+    upload(anna, form(cardLevel, "childId", masha), pdf()).andExpect(status().isCreated());
+    long before = SyncRequests.version(SyncRequests.pull(boris, 0));
+
+    pushApplied(boris, SyncRequests.delete("illness", illness));
+
+    assertThat(SyncRequests.change(anna, before, DOCUMENT, id)).containsEntry("deleted", true);
+    assertThat(files.keys()).containsExactly(Document.objectKey(cardLevel));
+  }
+
   @Test
   void theUploadAnswersWithTheDocument() throws Exception {
     UUID id = UUID.randomUUID();

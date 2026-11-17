@@ -73,6 +73,7 @@ class DocumentService implements SyncableTable {
       @Nullable String memberId,
       @Nullable String childId,
       @Nullable String illnessEventId,
+      @Nullable String replaces,
       @Nullable String title,
       @Nullable String date,
       @Nullable String description,
@@ -104,6 +105,7 @@ class DocumentService implements SyncableTable {
     UUID memberId = errors.uuid("memberId", upload.memberId());
     UUID childId = errors.uuid("childId", upload.childId());
     UUID illnessEventId = errors.uuid("illnessEventId", upload.illnessEventId());
+    UUID replaces = errors.uuid("replaces", upload.replaces());
     Document.Details details =
         details(
             errors,
@@ -125,7 +127,7 @@ class DocumentService implements SyncableTable {
     if (earlier.isPresent()) {
       return earlier.get();
     }
-    checkCanAdd(person, uploader, illnessEventId);
+    checkCanAdd(person, uploader, illnessEventId, replaces);
     if (file.size() > maxSize.toBytes()) {
       throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "document.too_large");
     }
@@ -144,7 +146,15 @@ class DocumentService implements SyncableTable {
           if (meanwhile.isPresent()) {
             return meanwhile.get();
           }
-          checkCanAdd(person, uploader, illnessEventId);
+          checkCanAdd(person, uploader, illnessEventId, replaces);
+          if (replaces != null && illnessEventId != null) {
+            documents
+                .findById(replaces)
+                .filter(
+                    replaced ->
+                        !replaced.deleted() && illnessEventId.equals(replaced.illnessEventId()))
+                .ifPresent(this::delete);
+          }
           return documents.saveAndFlush(
               new Document(id, person, illnessEventId, details, type.contentType(), bytes.length));
         });
@@ -166,9 +176,11 @@ class DocumentService implements SyncableTable {
   /**
    * Whether the uploader may add a Document to the person's card: their own, or a Child's that is
    * there; and the Illness event, when given, is one on that card that is there and carries no
-   * Document yet ({@code document.event_has_document}: replacing one is ticket #134's).
+   * Document but the one the upload {@code replaces} ({@code document.event_has_document} else: the
+   * uploader didn't know of it, e.g. one just added on another device).
    */
-  private void checkCanAdd(Person person, UUID uploader, @Nullable UUID illnessEventId) {
+  private void checkCanAdd(
+      Person person, UUID uploader, @Nullable UUID illnessEventId, @Nullable UUID replaces) {
     if (person.memberId() != null && !person.visibleTo(uploader)) {
       throw Person.notFound("memberId", person.memberId());
     }
@@ -184,7 +196,11 @@ class DocumentService implements SyncableTable {
             .isEmpty()) {
       throw Person.notFound("illnessEventId", illnessEventId);
     }
-    if (illnessEventId != null && documents.existsByIllnessEventIdAndDeletedFalse(illnessEventId)) {
+    if (illnessEventId != null
+        && documents
+            .findByIllnessEventIdAndDeletedFalse(illnessEventId)
+            .filter(carried -> !carried.id().equals(replaces))
+            .isPresent()) {
       throw new ApiException(
           HttpStatus.CONFLICT,
           "document.event_has_document",
@@ -283,6 +299,24 @@ class DocumentService implements SyncableTable {
     documents.saveAndFlush(document);
     deleteFilesAfterCommit(List.of(document.id()));
     return Outcome.APPLIED;
+  }
+
+  /**
+   * A deleted Illness event takes its Document, in the push operation that deletes the event; the
+   * file goes after the commit.
+   */
+  void deleteOfEvent(UUID illnessEventId) {
+    documents.findByIllnessEventIdAndDeletedFalse(illnessEventId).ifPresent(this::delete);
+  }
+
+  /**
+   * A deleted Illness takes its events' Documents, in the push operation that deletes it (call
+   * before its events are marked deleted, or after: the events are matched whatever their state).
+   */
+  void deleteOfIllness(UUID illnessId) {
+    List<UUID> ids = documents.idsOfIllness(illnessId);
+    documents.markDeletedOfIllness(illnessId);
+    deleteFilesAfterCommit(ids);
   }
 
   /**

@@ -27,16 +27,19 @@ class IllnessEventService implements SyncableTable {
   private final IllnessRepository illnesses;
   private final MedicineService medicines;
   private final ApplicationEventPublisher publisher;
+  private final DocumentService documents;
 
   IllnessEventService(
       IllnessEventRepository events,
       IllnessRepository illnesses,
       MedicineService medicines,
-      ApplicationEventPublisher publisher) {
+      ApplicationEventPublisher publisher,
+      DocumentService documents) {
     this.events = events;
     this.illnesses = illnesses;
     this.medicines = medicines;
     this.publisher = publisher;
+    this.documents = documents;
   }
 
   @Override
@@ -46,11 +49,12 @@ class IllnessEventService implements SyncableTable {
 
   /**
    * An upsert of an unknown id adds an event to the Illness it carries ({@code illnessId}, {@code
-   * kind} and {@code date} required). An upsert of a known one edits or moves it. A delete deletes
-   * it. Delete wins: an event for a deleted Illness is ignored. An Illness that never existed, or
-   * is on another Member's card, and an event on such a card, is {@code medical.not_found}; so is a
-   * dose of a Medicine that never existed (a deleted one is fine). A new dose on a Child's card
-   * publishes {@link MedicineDoseLogged}; an edit or a move publishes nothing.
+   * kind} and {@code date} required). An upsert of a known one edits or moves it (its Document goes
+   * with it). A delete deletes it with its Document. Delete wins: an event for a deleted Illness is
+   * ignored. An Illness that never existed, or is on another Member's card, and an event on such a
+   * card, is {@code medical.not_found}; so is a dose of a Medicine that never existed (a deleted
+   * one is fine). A new dose on a Child's card publishes {@link MedicineDoseLogged}; an edit or a
+   * move publishes nothing.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -206,6 +210,7 @@ class IllnessEventService implements SyncableTable {
   private Outcome delete(IllnessEvent event) {
     event.markDeleted();
     events.saveAndFlush(event);
+    documents.deleteOfEvent(event.id());
     return Outcome.APPLIED;
   }
 

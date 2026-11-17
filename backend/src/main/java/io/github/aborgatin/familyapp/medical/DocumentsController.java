@@ -45,7 +45,9 @@ class DocumentsController {
 
   /**
    * Adds a Document ({@code multipart/form-data}): {@code 201} with the Document (its id, the
-   * fields the pull sends and its Version), also when a retry finds it already added.
+   * fields the pull sends and its Version), also when a retry finds it already added. With {@code
+   * illnessEventId} and {@code replaces} (the id of the Document the event carries), it replaces
+   * that one.
    */
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   ResponseEntity<Map<String, Object>> upload(
@@ -53,6 +55,7 @@ class DocumentsController {
       @RequestParam(required = false) @Nullable String memberId,
       @RequestParam(required = false) @Nullable String childId,
       @RequestParam(required = false) @Nullable String illnessEventId,
+      @RequestParam(required = false) @Nullable String replaces,
       @RequestParam(required = false) @Nullable String title,
       @RequestParam(required = false) @Nullable String date,
       @RequestParam(required = false) @Nullable String description,
@@ -66,6 +69,7 @@ class DocumentsController {
                 memberId,
                 childId,
                 illnessEventId,
+                replaces,
                 title,
                 date,
                 description,

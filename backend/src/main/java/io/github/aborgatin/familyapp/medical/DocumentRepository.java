@@ -16,11 +16,24 @@ interface DocumentRepository extends Repository<Document, UUID> {
   /** Including soft-deleted ones, so an operation can tell "deleted" from "new". */
   Optional<Document> findById(UUID id);
 
-  /** Whether the Illness event already carries a Document (at most one, the unique index). */
-  boolean existsByIllnessEventIdAndDeletedFalse(UUID illnessEventId);
+  /** The Document the Illness event carries, if any (at most one, the unique index). */
+  Optional<Document> findByIllnessEventIdAndDeletedFalse(UUID illnessEventId);
 
   /** Every Document written after this Version, deleted ones included (for the pull). */
   List<Document> findByVersionGreaterThan(long version);
+
+  /** The ids of the Documents of the Illness's events that aren't deleted. */
+  @Query(
+      "SELECT d.id FROM Document d WHERE d.deleted = FALSE AND d.illnessEventId IN"
+          + " (SELECT e.id FROM IllnessEvent e WHERE e.illnessId = :illnessId)")
+  List<UUID> idsOfIllness(@Param("illnessId") UUID illnessId);
+
+  /** Soft-deletes the Documents of the Illness's events, as {@link #markDeletedOfChild}. */
+  @Modifying(flushAutomatically = true, clearAutomatically = true)
+  @Query(
+      "UPDATE Document d SET d.deleted = TRUE WHERE d.deleted = FALSE AND d.illnessEventId IN"
+          + " (SELECT e.id FROM IllnessEvent e WHERE e.illnessId = :illnessId)")
+  void markDeletedOfIllness(@Param("illnessId") UUID illnessId);
 
   /** The ids of the Child's Documents that aren't deleted (their Illness events' included). */
   @Query("SELECT d.id FROM Document d WHERE d.childId = :childId AND d.deleted = FALSE")

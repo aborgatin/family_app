@@ -21,13 +21,19 @@ class IllnessService implements SyncableTable {
   private final IllnessRepository illnesses;
   private final IllnessEventRepository events;
   private final Children children;
+  private final DocumentService documents;
   private final Clock clock;
 
   IllnessService(
-      IllnessRepository illnesses, IllnessEventRepository events, Children children, Clock clock) {
+      IllnessRepository illnesses,
+      IllnessEventRepository events,
+      Children children,
+      DocumentService documents,
+      Clock clock) {
     this.illnesses = illnesses;
     this.events = events;
     this.children = children;
+    this.documents = documents;
     this.clock = clock;
   }
 
@@ -41,8 +47,8 @@ class IllnessService implements SyncableTable {
    * (exactly one of {@code memberId} and {@code childId}), with {@code kind} and {@code name}
    * required, {@code position} optional. An upsert of a known one changes the {@code name}
    * (required), {@code description}, {@code kind}, {@code ended} and {@code position} it carries;
-   * its person never changes. A delete deletes it with its events. Delete wins. Another Member's
-   * card, and a row on it, is {@code medical.not_found}.
+   * its person never changes. A delete deletes it with its events and their Documents. Delete wins.
+   * Another Member's card, and a row on it, is {@code medical.not_found}.
    */
   @Override
   public Outcome apply(Operation operation) {
@@ -139,6 +145,7 @@ class IllnessService implements SyncableTable {
   private Outcome delete(Illness illness) {
     illness.markDeleted();
     illnesses.saveAndFlush(illness);
+    documents.deleteOfIllness(illness.id());
     events.markDeletedOfIllness(illness.id());
     return Outcome.APPLIED;
   }
