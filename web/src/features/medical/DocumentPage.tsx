@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { errorMessage } from '@/shared/api';
 import { Button, FileViewer, type PageBack } from '@/shared/ui';
 import { useCardRoute } from './cardRoute';
 import { DocumentSheet } from './DocumentSheet';
 import { CardMissing } from './MedicalCardPage';
-import { cardPath, documentsPath } from './medicalPaths';
+import { cardPath, documentBackOf, documentsPath } from './medicalPaths';
 import { fileKind, type MedicalDocument, type Person } from './medicalTypes';
 import { useDocumentFile, useDocuments, type DocumentDetails } from './useDocuments';
 
@@ -17,7 +17,8 @@ interface DocumentPageProps {
 
 /**
  * A Document open full screen (`…/medical/documents/:documentId`, back «Документы»; or
- * `…/illnesses/:illnessId/documents/:documentId`, back to that Illness's «Документы»): its file in
+ * `…/illnesses/:illnessId/documents/:documentId`, back to that Illness's «Документы», or to the
+ * Illness when opened from an event's 📎, `documentOpenedFrom`): its file in
  * the browser's own viewer, from this device once opened here, so it opens again offline.
  * «Изменить» opens the Document sheet (title, date, description; «Удалить документ»). A file that
  * is gone from the server shows «Файл недоступен».
@@ -43,14 +44,21 @@ function DocumentScreen({
 }: {
   person: Person;
   documentId: string;
-  /** Opened from this Illness's Documents (or its event's 📎), which it goes back to. */
+  /**
+   * Opened under this Illness: back to its Documents, or to the screen the history state names
+   * (the Illness, from an event's 📎).
+   */
   illnessId: string | undefined;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { state } = useLocation();
   const { documents, save, remove } = useDocuments(person);
   const [editing, setEditing] = useState(false);
-  const back = { to: documentsPath(person, illnessId), title: t('medical.documents') };
+  const back = documentBackOf(state) ?? {
+    to: documentsPath(person, illnessId),
+    title: t('medical.documents'),
+  };
   const document = documents?.find((found) => found.id === documentId);
 
   if (document === undefined) {

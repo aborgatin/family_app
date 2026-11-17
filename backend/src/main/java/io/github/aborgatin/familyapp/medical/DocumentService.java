@@ -148,6 +148,8 @@ class DocumentService implements SyncableTable {
           }
           checkCanAdd(person, uploader, illnessEventId, replaces);
           if (replaces != null && illnessEventId != null) {
+            // Only the Document this event carries: the event is on a card the uploader sees
+            // (checkCanAdd), so that Document is too; any other one is left alone.
             documents
                 .findById(replaces)
                 .filter(

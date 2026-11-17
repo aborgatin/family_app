@@ -342,7 +342,10 @@ right in the secondary colour (the chosen file's name, or «Выбрать»), t
 that opens the system's picker (`accept`: PDFs and photos, so the iPhone offers Files, Photos and
 the camera). The `<input type="file">` itself is visually hidden and named by `label`; keyboard
 focus on it outlines the row. Errors about it (`name`) show in the group footer, and the label
-turns red. Like a `ListRow` in height and hover.
+turns red. Like a `ListRow` in height and hover. «Документ» at the end of an Illness event's
+sheet (#134) is one too, showing the chosen file's name, else the title of the Document the event
+carries: there is no title or date to fill in, the upload is titled after the file and dated like
+the event.
 
 ### FileViewer
 

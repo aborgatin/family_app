@@ -50,9 +50,9 @@ type ListRowProps = RowAction &
     /**
      * With `onClick`: a link of its own at the right end of the row, outside the row's button
      * (an Illness event's 📎, which opens its Document). `label` names it (already translated),
-     * `symbol` is what it shows.
+     * `symbol` is what it shows, `state` goes into the history entry it opens.
      */
-    accessory?: { to: string; label: string; symbol: ReactNode };
+    accessory?: { to: string; label: string; symbol: ReactNode; state?: unknown };
   };
 
 /**
@@ -115,6 +115,7 @@ export function ListRow({
         </button>
         <RouterLink
           to={accessory.to}
+          state={accessory.state}
           aria-label={accessory.label}
           className={`${TAPPABLE} -mr-4 flex min-w-11 shrink-0 items-center justify-center px-3 text-body no-underline pointer-fine:min-w-9`}
         >

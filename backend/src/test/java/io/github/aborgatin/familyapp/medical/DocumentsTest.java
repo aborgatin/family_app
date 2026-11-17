@@ -225,6 +225,27 @@ class DocumentsTest {
   }
 
   @Test
+  void anUploadNamingAnotherEventsDocumentAsReplacedLeavesThatOneAlone() throws Exception {
+    UUID illness = UUID.randomUUID();
+    UUID event = UUID.randomUUID();
+    UUID other = UUID.randomUUID();
+    orviWithATemperature(illness, event);
+    pushApplied(anna, temperature(other, illness, "2026-12-03", "08:00", 37.5));
+    UUID kept = UUID.randomUUID();
+    upload(anna, onEvent(kept, other), pdf()).andExpect(status().isCreated());
+    UUID added = UUID.randomUUID();
+    Map<String, String> form = onEvent(added, event);
+    form.put("replaces", kept.toString());
+
+    upload(boris, form, pdf()).andExpect(status().isCreated());
+
+    assertThat(SyncRequests.fields(anna, DOCUMENT, kept))
+        .containsEntry("illnessEventId", other.toString());
+    assertThat(files.keys())
+        .containsExactlyInAnyOrder(Document.objectKey(kept), Document.objectKey(added));
+  }
+
+  @Test
   void deletingAnIllnessEventDeletesItsDocumentAndFile() throws Exception {
     UUID illness = UUID.randomUUID();
     UUID event = UUID.randomUUID();

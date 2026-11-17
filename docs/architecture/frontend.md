@@ -850,7 +850,7 @@ the delete warning, the store upgrade to version 6),
 
 ## Medical cards
 
-Spec #128, tickets #129, #130, #131, #132, #133. A Medical card is every Member's and every Child's; its rows name their
+Spec #128, tickets #129, #130, #131, #132, #133, #134. A Medical card is every Member's and every Child's; its rows name their
 person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards the Member may see
 (their own and the Children's); the client still filters by person (`isOn`).
 
@@ -1016,7 +1016,9 @@ person (`Person`: `{memberId}` or `{childId}`). The pull brings only the cards t
   the upload with the same Document id. An event's row on the Illness screen shows 📎 at its right
   end when it carries a Document (`ListRow`'s `accessory`, a link of its own beside the row's
   button, named «Открыть «…»»), opening it at `…/illnesses/:illnessId/documents/:documentId`
-  (`DocumentPage`, back to the Illness's Documents). The Illness screen's «Документы (n)» (after
+  (`DocumentPage`) with the Illness screen in the history state (`documentOpenedFrom`), so back
+  (and «Удалить документ») returns to the Illness; opened from the Illness's Documents (no state,
+  or a deep link) it goes back to them. The Illness screen's «Документы (n)» (after
   «с …») opens `DocumentsPage` under the Illness (`…/illnesses/:illnessId/documents`, back to the
   Illness): only its events' Documents, with no «+ Документ» (they are added from the events). Its
   delete confirmation adds the Documents: «Вместе с ней удалятся 6 событий и 2 документа.»

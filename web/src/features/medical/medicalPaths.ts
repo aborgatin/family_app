@@ -1,3 +1,4 @@
+import type { PageBack } from '@/shared/ui';
 import type { Person } from './medicalTypes';
 
 /** The Member's own Medical card, from the «Медкарта» row on Home. */
@@ -51,4 +52,26 @@ export function documentsPath(person: Person, illnessId?: string): string {
 /** Path of a Document open full screen, from the card's Documents or `illnessId`'s. */
 export function documentPath(person: Person, documentId: string, illnessId?: string): string {
   return `${documentsPath(person, illnessId)}/${encodeURIComponent(documentId)}`;
+}
+
+/**
+ * The history state of a Document opened from another screen than the Documents it is listed in
+ * (an event's 📎 on the Illness screen): that screen, which it goes back to.
+ */
+export function documentOpenedFrom(back: PageBack): { documentBack: PageBack } {
+  return { documentBack: back };
+}
+
+/** The screen a Document was opened from, if its history state names one (`documentOpenedFrom`). */
+export function documentBackOf(state: unknown): PageBack | undefined {
+  if (typeof state !== 'object' || state === null || !('documentBack' in state)) return undefined;
+  const back: unknown = state.documentBack;
+  return typeof back === 'object' &&
+    back !== null &&
+    'to' in back &&
+    typeof back.to === 'string' &&
+    'title' in back &&
+    typeof back.title === 'string'
+    ? { to: back.to, title: back.title }
+    : undefined;
 }

@@ -10,6 +10,7 @@ import {
   InputRow,
   ListRow,
   Page,
+  type PageBack,
   Sections,
   SegmentedControl,
   TextAreaRow,
@@ -20,7 +21,13 @@ import { useCardRoute } from './cardRoute';
 import { eventsInOrder, firstDay, formatTemperature } from './illnessRules';
 import { EditEventSheet } from './EditEventSheet';
 import { CardMissing } from './MedicalCardPage';
-import { cardPath, documentPath, documentsPath } from './medicalPaths';
+import {
+  cardPath,
+  documentOpenedFrom,
+  documentPath,
+  documentsPath,
+  illnessPath,
+} from './medicalPaths';
 import { LogSection } from './LogSection';
 import type { Illness, IllnessEvent, MedicalDocument, Person } from './medicalTypes';
 import { useEventDocuments } from './useDocuments';
@@ -112,6 +119,7 @@ function IllnessScreen({ person }: { person: Person }) {
                   nameOfMedicine={nameOf}
                   document={eventDocuments.of(event.id)}
                   documentPath={(id) => documentPath(person, id, illness.id)}
+                  back={{ to: illnessPath(person, illness.id), title: illness.name }}
                   onOpen={() => {
                     setOpenedId(event.id);
                   }}
@@ -252,6 +260,7 @@ function EventRow({
   nameOfMedicine,
   document,
   documentPath,
+  back,
   onOpen,
 }: {
   event: IllnessEvent;
@@ -260,6 +269,8 @@ function EventRow({
   document: MedicalDocument | undefined;
   /** Where a Document opens. */
   documentPath: (documentId: string) => string;
+  /** This screen, where the opened Document goes back to. */
+  back: PageBack;
   /** Opens the event's sheet. */
   onOpen: () => void;
 }) {
@@ -285,6 +296,7 @@ function EventRow({
           to: documentPath(document.id),
           label: t('medical.openDocument', { title: document.title }),
           symbol: '📎',
+          state: documentOpenedFrom(back),
         },
       })}
     />

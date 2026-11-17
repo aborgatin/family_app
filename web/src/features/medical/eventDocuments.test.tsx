@@ -257,6 +257,22 @@ describe('📎 on an event’s row', () => {
       expect(documents.fileRequests).toEqual([analysis.id]);
     });
   });
+
+  it('goes back to the Illness it was opened from', async () => {
+    const { cold, analysis } = orviWithADocument();
+    documentsServer().keep(analysis, PDF_BYTES);
+    const user = userEvent.setup();
+    const app = await openIllness(cold);
+
+    await user.click(await screen.findByRole('link', { name: 'Открыть «Анализ крови»' }));
+    await screen.findByRole('heading', { level: 1, name: 'Анализ крови' });
+    const back = within(screen.getByRole('banner')).getAllByRole('link')[0];
+    expect(back).toHaveAccessibleName('ОРВИ');
+    await user.click(back);
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'ОРВИ' })).toBeInTheDocument();
+    expect(app.location()).toBe(`/medical/illnesses/${cold.id}`);
+  });
 });
 
 describe('«Документы (n)» of an Illness', () => {
