@@ -302,7 +302,11 @@ Set up once, before the first deploy that needs it, in the Cloudflare dashboard:
    `DOCUMENTS_S3_SECRET_ACCESS_KEY`, and `DOCUMENTS_ENCRYPTION_KEY` from `openssl rand -base64 32`.
 
 The app does not start with one of them blank (the message names it), and Compose refuses an `.env`
-without them. The app reaches the bucket only when a file is uploaded, opened or deleted: a wrong
+without them. The app logs `Document files are stored in the bucket <name> at <endpoint>` at
+startup. `DOCUMENTS_FOLDER` is for local runs only: it would make the app keep the files in a folder
+inside the container, lost on the next deploy. The compose file never passes it to the app, so a
+`DOCUMENTS_FOLDER` line in `.env` has no effect; do not add it to the compose file
+(`scripts/deploy-stack-test.sh` checks the app logs the bucket). The app reaches the bucket only when a file is uploaded, opened or deleted: a wrong
 token or endpoint shows as a failed upload (`500`, the app's log has the S3 error), not at startup,
 so upload one file after setting it up.
 
@@ -344,7 +348,8 @@ Nightly run: a host cron entry at `BACKUP_TIME`. Cron uses the host's time zone,
 ```
 
 The entry appends output to `deploy/backup.log`. Only the database is backed up, not the Document
-files in their R2 bucket ([Document files](#document-files)): keep a copy of `.env` elsewhere. Caddy certificates are re-issued if lost.
+files in their R2 bucket ([Document files](#document-files)): keep a copy of `.env` elsewhere.
+Caddy certificates are re-issued if lost.
 
 ## Restore
 

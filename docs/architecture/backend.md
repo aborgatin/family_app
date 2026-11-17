@@ -1053,8 +1053,9 @@ Follow `child` (`V3__child.sql`, `family.child.ChildService`):
     `@Import(InMemoryFileStore.Config.class)` puts it in place of the configured store
     (`@Primary`); `keys()`, `object(key)`, `lose(key)`, `failDeletes()`, `reset()` (call it in
     `@BeforeEach`). See `medical.DocumentsTest`.
-  - `medical.Minio`: `container()` is a new MinIO Testcontainer (`pgsty/minio`, as the
-    `minio/minio` images are no longer published), `createBucket(container, name)` creates a
+  - `medical.Minio`: `container()` is a new MinIO Testcontainer (`pgsty/minio`, pinned by
+    release tag: neither `minio/minio` on Docker Hub nor `quay.io/minio/minio` can be pulled any
+    more, checked 2026-11-17), `createBucket(container, name)` creates a
     bucket with the image's `mc`. See `medical.S3FileStoreTest`.
   - `MedicalOperations`: the Medical card operations the `medical` tests and
     `notifications.DoseNotificationTest` push, statically imported: `illnessOf(personField,

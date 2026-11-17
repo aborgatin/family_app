@@ -194,6 +194,16 @@ check_password_reset_command() {
   echo "ok   reset-password command prints a working link and refuses unknown emails"
 }
 
+# Production keeps Document files in the bucket (ADR-0010), never in a folder inside the container,
+# which DOCUMENTS_FOLDER would select (deployment.md "Document files").
+check_documents_in_the_bucket() {
+  local logs
+  logs="$(compose logs --no-color app)"
+  grep -q 'Document files are stored in the bucket' <<<"$logs" ||
+    fail "the app does not store Document files in the bucket"
+  echo "ok   Document files go to the bucket"
+}
+
 echo "starting stack ($project, image tag $tag)"
 start_stack
 check_https_health
@@ -203,6 +213,7 @@ check_compression
 check_only_caddy_publishes_ports
 check_login_limits_see_the_client_ip
 check_password_reset_command
+check_documents_in_the_bucket
 
 psql_value "CREATE TABLE stack_test_marker (note text); INSERT INTO stack_test_marker VALUES ('kept');" >/dev/null ||
   fail "could not write a marker row"

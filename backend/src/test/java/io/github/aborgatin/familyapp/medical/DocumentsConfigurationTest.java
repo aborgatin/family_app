@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.aborgatin.familyapp.FamilyAppApplication;
 import io.github.aborgatin.familyapp.PostgresTestcontainer;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -92,12 +91,7 @@ class DocumentsConfigurationTest {
                   "--DOCUMENTS_S3_BUCKET=family-documents",
                   "--DOCUMENTS_S3_ACCESS_KEY_ID=" + minio.getUserName(),
                   "--DOCUMENTS_S3_SECRET_ACCESS_KEY=" + minio.getPassword());
-          S3FileStore bucket =
-              new S3FileStore(
-                  URI.create(minio.getS3URL()),
-                  "family-documents",
-                  minio.getUserName(),
-                  minio.getPassword())) {
+          S3FileStore bucket = Minio.store(minio, "family-documents")) {
         DocumentFiles files = app.getBean(DocumentFiles.class);
         files.put(id, file);
 

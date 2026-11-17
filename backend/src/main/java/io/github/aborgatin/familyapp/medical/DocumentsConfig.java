@@ -26,8 +26,8 @@ class DocumentsConfig {
       log.info("Document files are stored in the folder {}", folder.get());
       return new FolderFileStore(folder.get());
     }
-    S3FileStore bucket = properties.s3FileStore();
-    log.info("Document files are stored in the bucket {}", bucket);
-    return bucket;
+    S3FileStore store = new S3FileStore(properties.bucket());
+    log.info("Document files are stored in the bucket {}", store);
+    return store;
   }
 }

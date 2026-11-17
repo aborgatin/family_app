@@ -3,7 +3,6 @@ package io.github.aborgatin.familyapp.medical;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -15,9 +14,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * The production file store (ticket #135, ADR-0010) against a real S3-compatible server: MinIO in a
- * container, with path-style addressing and region {@code auto}, as for Cloudflare R2. The {@code
- * minio/minio} images are no longer published, so the test runs the MinIO server built by Pigsty
- * ({@code pgsty/minio}), the same server under another name.
+ * container ({@link Minio}), with path-style addressing and region {@code auto}, as for Cloudflare
+ * R2.
  */
 @Testcontainers
 class S3FileStoreTest {
@@ -80,7 +78,6 @@ class S3FileStoreTest {
   }
 
   private static S3FileStore storeOf(String bucket) {
-    return new S3FileStore(
-        URI.create(minio.getS3URL()), bucket, minio.getUserName(), minio.getPassword());
+    return Minio.store(minio, bucket);
   }
 }

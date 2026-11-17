@@ -22,6 +22,13 @@ final class Minio {
             .asCompatibleSubstituteFor("minio/minio"));
   }
 
+  /** A store in the bucket of the started container. */
+  static S3FileStore store(MinIOContainer minio, String bucket) {
+    return new S3FileStore(
+        new DocumentsProperties.Bucket(
+            minio.getS3URL(), bucket, minio.getUserName(), minio.getPassword()));
+  }
+
   /** Creates the bucket in the started container, as the operator creates it in R2. */
   static void createBucket(MinIOContainer minio, String bucket) throws Exception {
     mc(

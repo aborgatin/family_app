@@ -1,6 +1,8 @@
 package io.github.aborgatin.familyapp.medical;
 
+import io.github.aborgatin.familyapp.medical.DocumentsProperties.Bucket;
 import java.net.URI;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -19,20 +21,23 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 final class S3FileStore implements FileStore, AutoCloseable {
 
   private final S3Client s3;
-  private final URI endpoint;
+  private final String endpoint;
   private final String bucket;
 
-  S3FileStore(URI endpoint, String bucket, String accessKeyId, String secretAccessKey) {
-    this.endpoint = endpoint;
-    this.bucket = bucket;
+  /** A store in the bucket, whose every value is set ({@link DocumentsProperties#bucket()}). */
+  S3FileStore(Bucket bucket) {
+    this.endpoint = Objects.requireNonNull(bucket.endpoint());
+    this.bucket = Objects.requireNonNull(bucket.name());
     this.s3 =
         S3Client.builder()
-            .endpointOverride(endpoint)
+            .endpointOverride(URI.create(endpoint))
             .region(Region.of("auto"))
             .forcePathStyle(true)
             .credentialsProvider(
                 StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create(accessKeyId, secretAccessKey)))
+                    AwsBasicCredentials.create(
+                        Objects.requireNonNull(bucket.accessKeyId()),
+                        Objects.requireNonNull(bucket.secretAccessKey()))))
             .httpClientBuilder(UrlConnectionHttpClient.builder())
             .build();
   }
