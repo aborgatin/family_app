@@ -1,6 +1,6 @@
 package io.github.aborgatin.familyapp.lists.list;
 
-import io.github.aborgatin.familyapp.error.FieldErrors;
+import io.github.aborgatin.familyapp.sync.TimeOfDay;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import org.springframework.lang.Nullable;
@@ -23,6 +23,6 @@ record DueDate(@Nullable LocalDate day, @Nullable LocalTime time) {
   /** {@code dueTime} as the pull sends it: {@code HH:MM}, or {@code null}. */
   @Nullable
   String timeText() {
-    return time == null ? null : FieldErrors.TIME_OF_DAY.format(time);
+    return time == null ? null : TimeOfDay.format(time);
   }
 }

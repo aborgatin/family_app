@@ -1,10 +1,7 @@
 package io.github.aborgatin.familyapp.error;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -23,9 +20,9 @@ import org.springframework.lang.Nullable;
  *
  * <p>It also reads the values requests share, each the one way to read it: an enum by its exact
  * name ({@link #choice}, {@link #requiredChoice}), an id ({@link #uuid}, {@link #requiredUuid}), a
- * {@code YYYY-MM-DD} day ({@link #date}), an {@code HH:MM} time of day ({@link #time}), a JSON
- * boolean ({@link #requiredBoolean}), anything else with a parser ({@link #parsed}, {@link
- * #requiredParsed}). Each returns {@code null} for a missing value or a failure it added.
+ * {@code YYYY-MM-DD} day ({@link #date}), a JSON boolean ({@link #requiredBoolean}), anything else
+ * with a parser ({@link #parsed}, {@link #requiredParsed}). Each returns {@code null} for a missing
+ * value or a failure it added. Text is stored {@link #trimmed}.
  */
 public final class FieldErrors {
 
@@ -36,13 +33,6 @@ public final class FieldErrors {
   public static final String VALUE_INVALID = "value.invalid";
   public static final String COLOR_INVALID = "color.invalid";
   public static final String AVATAR_INVALID = "avatar.invalid";
-
-  /**
-   * A wall-clock time of day on the wire: {@code HH:MM}, 24 hours, no seconds. {@link #time} reads
-   * it; a pull writes it with this formatter.
-   */
-  public static final DateTimeFormatter TIME_OF_DAY =
-      DateTimeFormatter.ofPattern("HH:mm").withResolverStyle(ResolverStyle.STRICT);
 
   private final List<Map<String, Object>> errors = new ArrayList<>();
 
@@ -105,13 +95,10 @@ public final class FieldErrors {
     return parsed(field, value, LocalDate::parse);
   }
 
-  /**
-   * {@code value} as a time of day written {@code HH:MM} ({@link #TIME_OF_DAY}), {@code null} when
-   * {@code null}; anything else is {@code value.invalid}.
-   */
+  /** Text as stored: trimmed, and {@code null} when it is {@code null} or blank. */
   @Nullable
-  public LocalTime time(String field, @Nullable String value) {
-    return parsed(field, value, text -> LocalTime.parse(text, TIME_OF_DAY));
+  public static String trimmed(@Nullable String text) {
+    return text == null || text.isBlank() ? null : text.strip();
   }
 
   /**

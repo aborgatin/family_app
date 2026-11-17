@@ -256,7 +256,7 @@ tie it comes first). A new Category goes one past the largest of them (`useCateg
   out, not even as a tombstone.
 - **Medical cards** (`illness`, `illness_event`, ticket #129; owned by `medical`): a card's rows
   name their person, exactly one of `memberId` and `childId` (`medical.Person`, the one place of
-  the visibility rule). An `illness` upsert of an unknown id carries the person, `kind`
+  the visibility rule, and of that check: `Person.of`, for the sync rows and the upload alike). An `illness` upsert of an unknown id carries the person, `kind`
   (`ILLNESS` | `CONDITION`) and `name` (trimmed, required); `description` and `position` are
   optional, `ended` starts `false`, and `createdAt` is the server's clock. No person, or both, is
   `validation.failed` (`memberId` `required`, or `childId` `value.invalid`); an unknown Child is

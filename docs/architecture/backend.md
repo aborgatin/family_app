@@ -220,8 +220,9 @@ Shared patterns inside `family`:
   `ChildFieldRequest.validate()` and `ChildRequest.validate(palette)` (a bean the check needs is
   passed in) return the normalized values or throw. Services call it before taking `FamilyLock`.
   Shared values are read one way, by `FieldErrors` (see Errors): an enum, a UUID, a
-  `YYYY-MM-DD` day, an `HH:MM` time of day (`time`; pulls write it with `TIME_OF_DAY`); and a
-  push operation's optional text by `Operation.trimmedText` (trimmed, blank as `null`).
+  `YYYY-MM-DD` day; optional text by `FieldErrors.trimmed` (trimmed, blank as `null`; a push
+  operation's through `Operation.trimmedText`). An `HH:MM` time of day is `sync.TimeOfDay`
+  (`parse`, read through `FieldErrors.parsed`, and `format`, which pulls write it with).
 
 ### `sync`
 
@@ -388,7 +389,7 @@ Items are in the same package (an Item belongs to its List): `ItemEntity` (`list
   stored `DueDate`; a `dueDate` of `null` drops the stored time. Then, in this order:
   `item.list_not_todo` (`params.listId`) unless the List is `TODO`; `validation.failed` /
   `value.invalid` for a day that isn't ISO `YYYY-MM-DD` (`FieldErrors.date`) or a time that isn't
-  strict `HH:mm` (`DueDate.parseTime`; the one `HH:mm` format, which the pull writes too);
+  strict `HH:mm` (`sync.TimeOfDay`; the one `HH:mm` format, which the pull writes too);
   `item.due_time_without_due_date` when a time is left without a day. An upsert carrying neither
   field leaves the Due date alone on every kind of List.
 - Repeat (#86; `repeat`, when carried; `ItemService.repeat` → `ItemEntity.repeat`): column

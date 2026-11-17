@@ -196,7 +196,8 @@ class MedicineSyncTest {
             anna,
             dose(UUID.randomUUID(), cold, ibuprofen, "  ", null),
             SyncRequests.upsert(EVENT, dose, "{\"amount\":null}"))
-        .andExpect(jsonPath("$.results[*].code", contains("validation.failed", "validation.failed")))
+        .andExpect(
+            jsonPath("$.results[*].code", contains("validation.failed", "validation.failed")))
         .andExpect(
             jsonPath("$.results[0].params.errors[?(@.field=='amount')].code").value("required"))
         .andExpect(

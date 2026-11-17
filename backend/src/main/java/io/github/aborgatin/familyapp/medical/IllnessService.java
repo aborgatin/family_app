@@ -64,19 +64,15 @@ class IllnessService implements SyncableTable {
       return edit(operation, existing.get());
     }
     FieldErrors errors = new FieldErrors();
-    UUID memberId = errors.uuid("memberId", operation.text("memberId"));
-    UUID childId = errors.uuid("childId", operation.text("childId"));
+    Person person = Person.of(errors, operation.text("memberId"), operation.text("childId"));
     Illness.Kind kind = kindOf(operation, errors);
     String name = operation.trimmedText("name");
     if (name == null) {
       errors.add("name", FieldErrors.REQUIRED);
     }
-    if (memberId == null && childId == null && !errors.has("memberId") && !errors.has("childId")) {
-      errors.add("memberId", FieldErrors.REQUIRED);
-    } else if (memberId != null && childId != null) {
-      errors.add("childId", FieldErrors.VALUE_INVALID);
-    }
     errors.throwIfAny();
+    UUID memberId = person.memberId();
+    UUID childId = person.childId();
     if (memberId != null && !memberId.equals(operation.memberId())) {
       throw Person.notFound("illnessId", operation.id());
     }
@@ -86,7 +82,7 @@ class IllnessService implements SyncableTable {
     Illness illness =
         new Illness(
             operation.id(),
-            new Person(memberId, childId),
+            person,
             kind,
             name,
             operation.trimmedText("description"),
@@ -94,7 +90,8 @@ class IllnessService implements SyncableTable {
             clock.instant());
     if (childId != null && !children.present(childId)) {
       // The Child was deleted meanwhile: delete wins. Kept as deleted, so the events logged with
-      // it offline (the same push) are ignored too, not medical.not_found.
+      // it offline (the same push) are ignored too, not medical.not_found (an upload for a
+      // deleted Child is medical.not_found instead: see Person.of).
       illness.markDeleted();
       illnesses.saveAndFlush(illness);
       return Outcome.IGNORED;

@@ -43,8 +43,7 @@ public record Operation(UUID memberId, UUID id, Type type, Map<String, Object> f
   /** {@link #text}, trimmed: {@code null} also when it is blank. */
   @Nullable
   public String trimmedText(String field) {
-    String text = text(field);
-    return text == null || text.isBlank() ? null : text.trim();
+    return FieldErrors.trimmed(text(field));
   }
 
   /**

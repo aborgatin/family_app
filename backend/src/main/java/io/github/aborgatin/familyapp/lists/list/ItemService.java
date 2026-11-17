@@ -11,6 +11,7 @@ import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
 import io.github.aborgatin.familyapp.sync.SyncRow;
 import io.github.aborgatin.familyapp.sync.SyncableTable;
+import io.github.aborgatin.familyapp.sync.TimeOfDay;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -228,7 +229,7 @@ class ItemService implements SyncableTable {
         operation.has("dueDate") ? errors.date("dueDate", operation.text("dueDate")) : stored.day();
     LocalTime time = day == null ? null : stored.time();
     if (operation.has("dueTime")) {
-      time = errors.time("dueTime", operation.text("dueTime"));
+      time = errors.parsed("dueTime", operation.text("dueTime"), TimeOfDay::parse);
     }
     errors.throwIfAny();
     if (time != null && day == null) {

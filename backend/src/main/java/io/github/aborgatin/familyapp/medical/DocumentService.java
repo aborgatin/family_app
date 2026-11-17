@@ -97,33 +97,26 @@ class DocumentService implements SyncableTable {
    * Adds a Document to a card: checks the fields, that the uploader sees the card (and the Illness
    * event, when given, is on it), the size and the type by content; stores the encrypted file, then
    * inserts the row, which reaches devices through the pull (the file is deleted again when the
-   * insert is refused). A retry of an upload that already
-   * created the Document answers that Document again and stores nothing.
+   * insert is refused). A retry of an upload that already created the Document answers that
+   * Document again and stores nothing.
    */
   Document upload(UUID uploader, Upload upload) {
     FieldErrors errors = new FieldErrors();
     UUID id = errors.requiredUuid("id", upload.id());
-    UUID memberId = errors.uuid("memberId", upload.memberId());
-    UUID childId = errors.uuid("childId", upload.childId());
+    Person person = Person.of(errors, upload.memberId(), upload.childId());
     UUID illnessEventId = errors.uuid("illnessEventId", upload.illnessEventId());
     UUID replaces = errors.uuid("replaces", upload.replaces());
     Document.Details details =
         details(
             errors,
-            trimmed(upload.title()),
+            FieldErrors.trimmed(upload.title()),
             errors.requiredParsed("date", upload.date(), LocalDate::parse),
-            trimmed(upload.description()));
-    if (memberId == null && childId == null && !errors.has("memberId") && !errors.has("childId")) {
-      errors.add("memberId", FieldErrors.REQUIRED);
-    } else if (memberId != null && childId != null) {
-      errors.add("childId", FieldErrors.VALUE_INVALID);
-    }
+            FieldErrors.trimmed(upload.description()));
     UploadedFile file = upload.file();
     if (file == null) {
       errors.add("file", FieldErrors.REQUIRED);
     }
     errors.throwIfAny();
-    Person person = new Person(memberId, childId);
     Optional<Document> earlier = retried(id, uploader);
     if (earlier.isPresent()) {
       return earlier.get();
@@ -209,6 +202,7 @@ class DocumentService implements SyncableTable {
     if (person.memberId() != null && !person.visibleTo(uploader)) {
       throw Person.notFound("memberId", person.memberId());
     }
+    // A deleted Child is medical.not_found here, not ignored as a sync row is (Person.of).
     if (person.childId() != null && !children.present(person.childId())) {
       throw Person.notFound("childId", person.childId());
     }
@@ -312,11 +306,6 @@ class DocumentService implements SyncableTable {
       errors.add("title", FieldErrors.REQUIRED);
     }
     return new Document.Details(title, date, description);
-  }
-
-  @Nullable
-  private static String trimmed(@Nullable String text) {
-    return text == null || text.isBlank() ? null : text.strip();
   }
 
   private Outcome delete(Document document) {

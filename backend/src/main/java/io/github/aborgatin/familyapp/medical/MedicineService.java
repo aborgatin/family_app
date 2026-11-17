@@ -33,8 +33,8 @@ class MedicineService implements SyncableTable {
    * An upsert creates the Medicine or renames it ({@code name} required, trimmed); a delete
    * soft-deletes it, and doses keep naming it. Delete wins. A rename to a name that another
    * Medicine which isn't deleted has, ignoring case, is {@code medicine.duplicate}; a new one with
-   * such a name is ignored, kept deleted and merged into that one: the doses logged with it are
-   * not lost, and name the surviving Medicine ({@link #forDose}).
+   * such a name is ignored, kept deleted and merged into that one: the doses logged with it are not
+   * lost, and name the surviving Medicine ({@link #forDose}).
    */
   @Override
   public Outcome apply(Operation operation) {

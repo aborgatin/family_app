@@ -5,6 +5,7 @@ import io.github.aborgatin.familyapp.sync.Operation;
 import io.github.aborgatin.familyapp.sync.Outcome;
 import io.github.aborgatin.familyapp.sync.SyncRow;
 import io.github.aborgatin.familyapp.sync.SyncableTable;
+import io.github.aborgatin.familyapp.sync.TimeOfDay;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -59,22 +60,19 @@ class IllnessEventService implements SyncableTable {
   @Override
   public Outcome apply(Operation operation) {
     Optional<IllnessEvent> existing = events.findById(operation.id());
-    if (existing.isPresent() && !visible(existing.get().illnessId(), operation.memberId())) {
+    if (existing.isPresent()
+        && illnessOn(existing.get().illnessId(), operation.memberId()).isEmpty()) {
       throw Person.notFound("illnessEventId", operation.id());
     }
     return Outcome.deleteWins(operation, existing, this::upsert, this::delete);
   }
 
-  /** The person whose card holds the Illness, which exists. */
-  private Person personOf(UUID illnessId) {
-    return illnesses.findById(illnessId).orElseThrow().person();
-  }
-
-  private boolean visible(UUID illnessId, UUID memberId) {
-    return illnesses
-        .findById(illnessId)
-        .map(illness -> illness.person().visibleTo(memberId))
-        .orElse(false);
+  /**
+   * The Illness, deleted or not, when it exists and is on a card {@code viewer} sees: the one
+   * lookup of an Illness's visibility.
+   */
+  private Optional<Illness> illnessOn(UUID illnessId, UUID viewer) {
+    return illnesses.findById(illnessId).filter(found -> found.person().visibleTo(viewer));
   }
 
   private Outcome upsert(Operation operation, Optional<IllnessEvent> existing) {
@@ -86,9 +84,7 @@ class IllnessEventService implements SyncableTable {
     IllnessEvent.Details details = details(operation, null, errors);
     errors.throwIfAny();
     Illness illness =
-        illnesses
-            .findById(illnessId)
-            .filter(found -> found.person().visibleTo(operation.memberId()))
+        illnessOn(illnessId, operation.memberId())
             .orElseThrow(() -> Person.notFound("illnessId", illnessId));
     if (illness.deleted()) {
       return Outcome.IGNORED;
@@ -116,10 +112,9 @@ class IllnessEventService implements SyncableTable {
     IllnessEvent.Details details = details(operation, event.details(), errors);
     errors.throwIfAny();
     if (!illnessId.equals(event.illnessId())) {
-      Person person = personOf(event.illnessId());
+      Person person = illnessOn(event.illnessId(), operation.memberId()).orElseThrow().person();
       Illness target =
-          illnesses
-              .findById(illnessId)
+          illnessOn(illnessId, operation.memberId())
               .filter(found -> found.person().equals(person))
               .orElseThrow(() -> Person.notFound("illnessId", illnessId));
       if (target.deleted()) {
@@ -162,7 +157,9 @@ class IllnessEventService implements SyncableTable {
             IllnessEvent.Details::date);
     LocalTime time =
         carried.field(
-            "time", () -> errors.time("time", operation.text("time")), IllnessEvent.Details::time);
+            "time",
+            () -> errors.parsed("time", operation.text("time"), TimeOfDay::parse),
+            IllnessEvent.Details::time);
     BigDecimal temperature =
         carried.field(
             "temperature",
@@ -254,9 +251,7 @@ class IllnessEventService implements SyncableTable {
           fields.put("illnessId", event.illnessId());
           fields.put("kind", details.kind().name());
           fields.put("date", details.date().toString());
-          fields.put(
-              "time",
-              details.time() == null ? null : FieldErrors.TIME_OF_DAY.format(details.time()));
+          fields.put("time", details.time() == null ? null : TimeOfDay.format(details.time()));
           fields.put("medicineId", details.medicineId());
           fields.put("amount", details.amount());
           fields.put("temperature", details.temperature());
