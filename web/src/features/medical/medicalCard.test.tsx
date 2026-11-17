@@ -452,7 +452,8 @@ describe('The Illness screen', () => {
     expect(within(sheet).queryByRole('combobox', { name: 'Добавить к' })).not.toBeInTheDocument();
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
-    expect(await screen.findByText('37,0 °C')).toBeInTheDocument();
+    // The row (a button), not the wheel's «37,0 °C» option in the sheet, which may still be closing.
+    expect(await screen.findByRole('button', { name: /^37,0\s°C/ })).toBeInTheDocument();
     await waitFor(() => {
       expect(syncServer.operations('illness_event')[0]?.fields).toMatchObject({
         illnessId: cold.id,
