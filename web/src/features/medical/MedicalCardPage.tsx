@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import { localDay, longDay } from '@/shared/dates';
 import {
   EditableRow,
@@ -20,8 +21,9 @@ import { cardPath, documentsPath, illnessPath } from './medicalPaths';
 import type { Illness, IllnessEvent, Person } from './medicalTypes';
 import { AddEventSection } from './AddEventSection';
 import { NewConditionSheet } from './NewConditionSheet';
+import { NewIllnessSheet } from './NewIllnessSheet';
 import { useDocumentCount, useEventDocuments } from './useDocuments';
-import { newConditionId, useMedicalCard } from './useMedicalCard';
+import { newConditionId, newIllnessId, useMedicalCard } from './useMedicalCard';
 
 interface MedicalCardPageProps {
   /** Path of Home: the way back from the Member's own card. */
@@ -33,7 +35,8 @@ interface MedicalCardPageProps {
  * (`/children/:id/medical`, back to the Child page). «Добавить приём лекарства» opens the dose
  * sheet, «Записать температуру» the Temperature sheet. Then «Диагнозы/наблюдения» (the Conditions
  * that aren't Ended, by their place: «+ Добавить» adds one last, «Изменить» reorders them),
- * «Болезни» (the Illnesses that aren't Ended, newest first), «Документы (n)» (the Documents
+ * «Болезни» (the Illnesses that aren't Ended, newest first, then «+ Новая болезнь», which adds
+ * an empty one by hand and opens it), «Документы (n)» (the Documents
  * screen) and, while there are any, the collapsed «Завершённые» (both kinds, by latest event). Each
  * row opens its Illness or Condition screen. Data only through `useMedicalCard(person)`,
  * `useDocumentCount(person)` and `useEventDocuments(person)`.
@@ -64,10 +67,13 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
   const card = useMedicalCard(person);
   const documentCount = useDocumentCount(person);
   const eventDocuments = useEventDocuments(person);
-  const { illnesses, conditions, ended, eventsOf, addCondition, moveCondition } = card;
+  const { illnesses, conditions, ended, eventsOf, addIllness, addCondition, moveCondition } = card;
+  const navigate = useNavigate();
   const list = useEditableList();
   // The id of the Condition being added, made once when its sheet opens (S3).
   const [addingId, setAddingId] = useState<string>();
+  // The id of the Illness being added by hand, made once when its sheet opens (S3).
+  const [addingIllnessId, setAddingIllnessId] = useState<string>();
   const [showingEnded, setShowingEnded] = useState(false);
 
   return (
@@ -124,6 +130,13 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
               events={eventsOf(illness.id)}
             />
           ))}
+          <ListRow
+            accent
+            title={t('medical.addIllness')}
+            onClick={() => {
+              setAddingIllnessId(newIllnessId());
+            }}
+          />
         </GroupedSection>
         <GroupedSection>
           <ListRow
@@ -154,6 +167,19 @@ function Card({ person, back }: { person: Person; back: PageBack }) {
           </GroupedSection>
         )}
       </Sections>
+      {addingIllnessId !== undefined && (
+        <NewIllnessSheet
+          key={addingIllnessId}
+          id={addingIllnessId}
+          add={async (id, name) => {
+            await addIllness(id, name);
+            void navigate(illnessPath(person, id));
+          }}
+          onClose={() => {
+            setAddingIllnessId(undefined);
+          }}
+        />
+      )}
       {addingId !== undefined && (
         <NewConditionSheet
           key={addingId}

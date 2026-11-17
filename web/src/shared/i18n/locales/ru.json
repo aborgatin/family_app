@@ -454,6 +454,8 @@
     "description": "Описание",
     "addTo": "Добавить к",
     "newIllness": "Новая болезнь",
+    "addIllness": "+ Новая болезнь",
+    "illnessPlaceholder": "Например: ОРВИ, Отит",
     "otherIllness": "Другая…",
     "newIllnessName": "Болезнь {{date}}",
     "dose": "Приём лекарства",

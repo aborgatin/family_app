@@ -56,6 +56,11 @@ export function newConditionId(): string {
   return crypto.randomUUID();
 }
 
+/** A new Illness's id («+ Новая болезнь»), made on the device (S3) once when its sheet opens. */
+export function newIllnessId(): string {
+  return crypto.randomUUID();
+}
+
 /**
  * One person's Medical card on the local store: its Illnesses, Conditions and their events (the
  * Medicines are `useMedicines`', the Documents `useDocuments`' and `useEventDocuments`'). It reads
@@ -77,6 +82,7 @@ export function newConditionId(): string {
  * - `rename(illness, name)`, `describe(illness, description)` (both trimmed, a blank Description
  *   is none): resolve with the value as saved; `removeIllness(illness)`: deletes it with its events;
  *   `removeEvent(event)`;
+ * - `addIllness(id, name)`: an empty Illness (name trimmed), «+ Новая болезнь»;
  * - `addCondition(id, name)`: a Condition (name trimmed), last; `moveCondition(condition, to)`: to index `to` of
  *   `conditions`, writing only its position; `end(illness)`: «Завершить»; `resume(illness)`: «Возобновить».
  *   None of them touches the events.
@@ -232,6 +238,12 @@ export function useMedicalCard(person: Person) {
 
   const removeIllness = useCallback((illness: Illness) => deleteRow('illness', illness.id), []);
 
+  const addIllness = useCallback(
+    (id: string, name: string) =>
+      upsertRow('illness', id, { ...person, kind: 'ILLNESS', name: name.trim() }),
+    [person],
+  );
+
   const addCondition = useCallback(
     (id: string, name: string) =>
       upsertRow('illness', id, {
@@ -268,6 +280,7 @@ export function useMedicalCard(person: Person) {
     illnesses: sections?.illnesses,
     conditions,
     ended: sections?.ended,
+    addIllness,
     addCondition,
     moveCondition,
     end,

@@ -16,7 +16,8 @@ import { server } from '@/test/server';
 import { syncServer } from '@/test/syncServer';
 
 // Medical cards (spec #128, ticket #129): a Member's own card from Home, a Child's from the Child
-// page; «Записать температуру» files a Temperature into an Illness; «Болезни» lists them.
+// page; «Записать температуру» files a Temperature into an Illness; «Болезни» lists them, and
+// «+ Новая болезнь» adds one by hand (review follow-up C4).
 
 /** «Now» in these tests: Wednesday 2 December 2026, 22:00. */
 const NOW = new Date('2026-12-02T22:00:00');
@@ -274,6 +275,65 @@ describe('The Temperature sheet', () => {
       expect(syncServer.operations('illness_event')).toHaveLength(1);
     });
     expect(syncServer.operations('illness')).toHaveLength(1);
+  });
+});
+
+describe('«+ Новая болезнь»', () => {
+  it('adds an empty Illness by hand on a Child’s card and opens it', async () => {
+    syncServer.seed('child', [masha]);
+    const user = userEvent.setup();
+    const app = renderApp(`/children/${masha.id}/medical`);
+    await screen.findByText('Болезней пока нет');
+
+    const illnesses = screen.getByRole('region', { name: 'Болезни' });
+    await user.click(within(illnesses).getByRole('button', { name: '+ Новая болезнь' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Новая болезнь' });
+    const name = within(sheet).getByRole('textbox', { name: 'Название' });
+    expect(name).toHaveAttribute('placeholder', 'Например: ОРВИ, Отит');
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    expect(await within(sheet).findByText('Заполните это поле')).toBeInTheDocument();
+    expect(syncServer.operations('illness')).toEqual([]);
+
+    await user.type(name, '  Отит ');
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Отит' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(syncServer.operations('illness')).toHaveLength(1);
+    });
+    const [added] = syncServer.operations('illness');
+    expect(added?.fields).toEqual({ childId: masha.id, kind: 'ILLNESS', name: 'Отит' });
+    expect(app.location()).toBe(`/children/${masha.id}/medical/illnesses/${added?.id ?? ''}`);
+  });
+
+  it('is saved offline to the Outbox on the Member’s own card, and synced later', async () => {
+    syncServer.seed('illness', [illnessRow({ memberId: anna.id }, 'ОРВИ')]);
+    const user = userEvent.setup();
+    const first = await annasCard();
+    await screen.findByText('ОРВИ');
+    first.unmount();
+    renderApp('/medical', { offline: true });
+    await cardTitle();
+
+    await user.click(await screen.findByRole('button', { name: '+ Новая болезнь' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Новая болезнь' });
+    await user.type(within(sheet).getByRole('textbox', { name: 'Название' }), 'Грипп');
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Грипп' })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Медкарта' }));
+    expect(await illnessRows()).toEqual(['ГриппНет событий', 'ОРВИНет событий']);
+    expect(syncServer.operations('illness')).toHaveLength(0);
+    syncServer.goOnline();
+    window.dispatchEvent(new Event('online'));
+    await waitFor(() => {
+      expect(syncServer.operations('illness')).toHaveLength(1);
+    });
+    expect(syncServer.operations('illness')[0]?.fields).toEqual({
+      memberId: anna.id,
+      kind: 'ILLNESS',
+      name: 'Грипп',
+    });
   });
 });
 
