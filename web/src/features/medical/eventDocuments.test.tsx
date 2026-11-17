@@ -248,9 +248,7 @@ describe('The paperclip on an event’s row', () => {
 
     const opener = await screen.findByRole('link', { name: 'Открыть «Анализ крови»' });
     expect(screen.getAllByRole('link', { name: /^Открыть/ })).toHaveLength(1);
-    expect(screen.getByRole('button', { name: /^38,5\u00a0°C/ })).not.toContainElement(
-      opener,
-    );
+    expect(screen.getByRole('button', { name: /^38,5\u00a0°C/ })).not.toContainElement(opener);
     await user.click(opener);
 
     expect(app.location()).toBe(`/medical/illnesses/${cold.id}/documents/${analysis.id}`);

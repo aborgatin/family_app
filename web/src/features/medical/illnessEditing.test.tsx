@@ -283,9 +283,7 @@ describe('Editing an event', () => {
     const user = userEvent.setup();
     await openIllness(cold);
 
-    await user.click(
-      await screen.findByRole('button', { name: /^Ибупрофен 20 мг\/мл — 5 мл/ }),
-    );
+    await user.click(await screen.findByRole('button', { name: /^Ибупрофен 20 мг\/мл — 5 мл/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Приём лекарства' });
     expect(within(sheet).getByRole('textbox', { name: 'Лекарство' })).toHaveValue(
       'Ибупрофен 20 мг/мл',
@@ -298,9 +296,7 @@ describe('Editing an event', () => {
     await user.type(within(sheet).getByRole('textbox', { name: 'Количество' }), '10 мл');
     await done(user, sheet);
 
-    expect(
-      await screen.findByRole('button', { name: /^Парацетамол — 10 мл/ }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Парацетамол — 10 мл/ })).toBeInTheDocument();
     await waitFor(() => {
       expect(syncServer.operations('illness_event')[0]?.fields).toEqual({
         medicineId: paracetamol.id,
